@@ -226,8 +226,8 @@ enum SyncDataApplier {
                 end: intValue(rawLine["end"], fallback: -1),
                 chars: readDoubleArray(rawLine["chars"]),
                 speaker: stringValue(rawLine["speaker"]),
-                speakerColor: stringValue(rawLine["speakerColor"]),
-                speakerFallback: stringValue(rawLine["speakerFallback"]),
+                speakerColor: speakerMetadataValue(rawLine, wireKey: "speaker-color", legacyKey: "speakerColor"),
+                speakerFallback: speakerMetadataValue(rawLine, wireKey: "speaker-fallback", legacyKey: "speakerFallback"),
                 kind: IvLyricsUtilities.firstNonEmpty(stringValue(rawLine["kind"]), "vocal"),
                 parts: parallel.parts,
                 hiddenRanges: parallel.hiddenRanges
@@ -252,8 +252,8 @@ enum SyncDataApplier {
                 id: stringValue(rawPart["id"]),
                 role: stringValue(rawPart["role"]),
                 speaker: stringValue(rawPart["speaker"]),
-                speakerColor: stringValue(rawPart["speakerColor"]),
-                speakerFallback: stringValue(rawPart["speakerFallback"]),
+                speakerColor: speakerMetadataValue(rawPart, wireKey: "speaker-color", legacyKey: "speakerColor"),
+                speakerFallback: speakerMetadataValue(rawPart, wireKey: "speaker-fallback", legacyKey: "speakerFallback"),
                 kind: IvLyricsUtilities.firstNonEmpty(stringValue(rawPart["kind"]), "vocal"),
                 ranges: ranges,
                 join: readIntArray(rawPart["join"]),
@@ -527,6 +527,17 @@ enum SyncDataApplier {
         if let value = value as? Bool { return value ? "true" : "false" }
         if let value = value as? NSNumber { return value.stringValue }
         return String(describing: value)
+    }
+
+    private static func speakerMetadataValue(
+        _ object: [String: Any],
+        wireKey: String,
+        legacyKey: String
+    ) -> String {
+        IvLyricsUtilities.firstNonEmpty(
+            stringValue(object[wireKey]),
+            stringValue(object[legacyKey])
+        )
     }
 
     private static func doubleValue(_ value: Any?) -> Double? {

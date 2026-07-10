@@ -30,7 +30,7 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
                 let data = try Data(contentsOf: file)
                 let envelope = try JSONDecoder().decode(Envelope.self, from: data)
                 guard envelope.version == 1 else { return nil }
-                if baseLyricsCache, (envelope.contributorSchemaVersion ?? 0) < 8 {
+                if baseLyricsCache, (envelope.contributorSchemaVersion ?? 0) < 9 {
                     return nil
                 }
                 guard !envelope.result.lines.isEmpty else { return nil }
@@ -50,7 +50,7 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 let envelope = Envelope(
                     version: 1,
-                    contributorSchemaVersion: baseLyricsCache ? 8 : nil,
+                    contributorSchemaVersion: baseLyricsCache ? 9 : nil,
                     cacheKey: key,
                     savedAtMs: Int64(Date().timeIntervalSince1970 * 1000),
                     result: result

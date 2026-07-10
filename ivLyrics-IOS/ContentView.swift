@@ -5166,6 +5166,52 @@ private struct KaraokeDebugPreview: View {
     }
 
     private var multiVocalLine: LyricsLine {
+        let baseLine = LyricsLine(
+            startTimeMs: 0,
+            endTimeMs: 3_600,
+            text: "LEADDUET"
+        )
+        let syncBody: [String: Any] = [
+            "version": 2,
+            "lines": [[
+                "start": 0,
+                "end": 7,
+                "chars": [0.0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8],
+                "speaker": "MALE 1",
+                "kind": "vocal",
+                "parallel": [
+                    "parts": [
+                        [
+                            "id": "lead",
+                            "role": "lead",
+                            "speaker": "MALE 1",
+                            "kind": "vocal",
+                            "ranges": [["start": 0, "end": 3]],
+                            "chars": [0.0, 0.4, 0.8, 1.2]
+                        ],
+                        [
+                            "id": "background",
+                            "role": "background",
+                            "speaker": "FEMALE CUSTOM",
+                            "speaker-color": "#ff4fa3",
+                            "speaker-fallback": "female-1",
+                            "kind": "vocal",
+                            "ranges": [["start": 4, "end": 7]],
+                            "chars": [1.2, 1.8, 2.4, 3.0]
+                        ]
+                    ]
+                ]
+            ]]
+        ]
+        if let parsed = SyncDataApplier.applyWithDiagnostics(
+            baseLyrics: [baseLine],
+            syncBody: syncBody,
+            track: nil
+        ).lines.first,
+           parsed.vocalParts.count == 2 {
+            return parsed
+        }
+
         let lead = LyricsLine.VocalPart(
             id: "lead",
             role: "lead",
