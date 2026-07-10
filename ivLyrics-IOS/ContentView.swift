@@ -145,6 +145,10 @@ struct ContentView: View {
                 KaraokeDebugPreview()
                     .zIndex(100)
             }
+            if ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_MOTION_PREVIEW"] == "1" {
+                LyricsMotionDebugPreview()
+                    .zIndex(100)
+            }
 #endif
         }
     }
@@ -1145,7 +1149,7 @@ private struct LyricsPageOverlay: View {
     }
 
     private var dismissDragGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
+        DragGesture(minimumDistance: 12, coordinateSpace: .global)
             .onChanged { value in
                 dragOffset = min(screenHeight, max(0, value.translation.height))
             }
@@ -3161,7 +3165,7 @@ private struct LyricsTimelineScrollView: View {
                     VStack(spacing: 0) {
                         if hasScrollableLyrics {
                             Color.clear
-                                .frame(height: edgeInset(for: geometry.size.height))
+                                .frame(height: topEdgeInset(for: geometry.size.height))
                         }
                         LyricsTimelineView()
                             .padding(.top, topPadding)
@@ -3170,7 +3174,7 @@ private struct LyricsTimelineScrollView: View {
                             .padding(.trailing, max(horizontalPadding, trailingPadding))
                         if hasScrollableLyrics {
                             Color.clear
-                            .frame(height: edgeInset(for: geometry.size.height))
+                                .frame(height: bottomEdgeInset(for: geometry.size.height))
                         }
                     }
                 }
@@ -3223,8 +3227,12 @@ private struct LyricsTimelineScrollView: View {
         )
     }
 
-    private func edgeInset(for height: CGFloat) -> CGFloat {
-        max(24, height * 0.38)
+    private func topEdgeInset(for height: CGFloat) -> CGFloat {
+        max(24, height * min(1, max(0, centerAnchorY)))
+    }
+
+    private func bottomEdgeInset(for height: CGFloat) -> CGFloat {
+        max(24, height * (1 - min(1, max(0, centerAnchorY))))
     }
 
     private func pauseAutoScroll() {
@@ -3251,7 +3259,8 @@ private struct LyricsTimelineScrollView: View {
 }
 
 private enum LyricsMotion {
-    static let centering = Animation.timingCurve(0.16, 0.82, 0.20, 1, duration: 0.68)
+    // Android approaches the target with a 230 ms exponential time constant.
+    static let centering = Animation.timingCurve(0.20, 0.70, 0.42, 0.96, duration: 0.82)
 }
 
 private struct LyricsTimelineEdgeFadeMask: View {
@@ -4482,6 +4491,39 @@ private struct KaraokeSegmentLayoutRow {
 }
 
 #if DEBUG
+private struct LyricsMotionDebugPreview: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 38) {
+            Text("Interlude motion")
+                .font(.pretendard(15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.62))
+            LyricsInterludeView(
+                info: InterludeInfo(startTimeMs: 0, endTimeMs: 12_000, kind: "break", automatic: true),
+                active: true,
+                displayDistance: 0,
+                showLabel: true,
+                alignment: "left"
+            )
+
+            Text("Main preview loading")
+                .font(.pretendard(15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.62))
+            MainLyricPreviewLoadingSkeleton()
+                .frame(maxWidth: .infinity)
+
+            Text("Full lyrics loading")
+                .font(.pretendard(15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.62))
+            LyricsLoadingSkeleton()
+                .frame(maxWidth: .infinity)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .background(Color(red: 0.04, green: 0.045, blue: 0.065))
+        .ignoresSafeArea()
+    }
+}
+
 private struct KaraokeDebugPreview: View {
     @EnvironmentObject private var settings: AppSettings
     private let longText = "Someone to die for you and more"
