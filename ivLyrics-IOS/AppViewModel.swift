@@ -303,6 +303,16 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+#if DEBUG
+    func applyDebugLyricsLoadingState() {
+        cancelLyricsLoadTask()
+        status = .loading
+        let loadingResult = LyricsResult.empty(settings.t("status.lyrics_loading"))
+        baseLyricsResult = loadingResult
+        lyricsResult = loadingResult
+    }
+#endif
+
     func setSelectedRuleSourceLang(_ sourceLang: String) {
         let normalized = sourceLang.caseInsensitiveCompare("auto") == .orderedSame
             ? "auto"

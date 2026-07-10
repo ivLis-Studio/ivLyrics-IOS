@@ -426,6 +426,9 @@ struct ContentView: View {
     private func applyDebugPresentationOverrides() {
 #if DEBUG
         let environment = ProcessInfo.processInfo.environment
+        if environment["IVLYRICS_DEBUG_LYRICS_LOADING"] == "1" {
+            model.applyDebugLyricsLoadingState()
+        }
         if let rawDragOffset = environment["IVLYRICS_DEBUG_LYRICS_DRAG_OFFSET"],
            let debugDragOffset = Double(rawDragOffset) {
             DispatchQueue.main.async {
@@ -3589,17 +3592,17 @@ private struct LyricsTimelineScrollView: View {
     var body: some View {
         let targetID = activeTargetID
         GeometryReader { geometry in
-            if centerEmptyContent && !hasScrollableLyrics {
+            if shouldCenterEmptyContent {
                 LyricsTimelineView()
                     .padding(.top, topPadding)
                     .padding(.bottom, bottomPadding)
                     .padding(.leading, horizontalPadding)
                     .padding(.trailing, max(horizontalPadding, trailingPadding))
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(
-                        width: geometry.size.width,
-                        height: geometry.size.height,
-                        alignment: .center
+                    .frame(width: geometry.size.width)
+                    .position(
+                        x: geometry.size.width * 0.5,
+                        y: geometry.size.height * min(1, max(0, centerAnchorY))
                     )
             } else {
                 ScrollViewReader { proxy in
@@ -3667,6 +3670,10 @@ private struct LyricsTimelineScrollView: View {
 
     private var hasScrollableLyrics: Bool {
         !model.lyricsResult.lines.isEmpty
+    }
+
+    private var shouldCenterEmptyContent: Bool {
+        !hasScrollableLyrics && (centerEmptyContent || model.status == .loading)
     }
 
     private var activeTargetID: String? {
