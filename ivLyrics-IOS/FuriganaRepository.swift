@@ -378,9 +378,72 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
             .replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
     }
 
-    static func rubyDisplayText(_ value: String) -> String {
-        value.replacingOccurrences(of: #"<ruby>([^<>]+)<rt>([^<>]*)</rt></ruby>"#, with: "$1($2)", options: [.regularExpression, .caseInsensitive])
-            .replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
+    static func rubyAnnotations(text: String, markup: String) -> [RubyAnnotation] {
+        let cleaned = markup.trimmed
+        let plain = stripRubyMarkup(cleaned)
+        let leadingOffset: Int
+        if plain == text {
+            leadingOffset = 0
+        } else if plain == text.trimmed {
+            leadingOffset = text.prefix { $0.isWhitespace }.count
+        } else {
+            return []
+        }
+
+        let pattern = #"<ruby>([^<>]+)<rt>([^<>]*)</rt></ruby>"#
+        guard cleaned.contains("<ruby>"),
+              let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return []
+        }
+
+        var annotations: [RubyAnnotation] = []
+        var cursor = cleaned.startIndex
+        var sourceOffset = leadingOffset
+        for match in regex.matches(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)) {
+            guard let range = Range(match.range, in: cleaned),
+                  let baseRange = Range(match.range(at: 1), in: cleaned),
+                  let readingRange = Range(match.range(at: 2), in: cleaned) else {
+                return []
+            }
+            sourceOffset += cleaned[cursor..<range.lowerBound].count
+            let base = String(cleaned[baseRange])
+            let reading = String(cleaned[readingRange]).trimmed
+            guard !base.isEmpty, !reading.isEmpty else { return [] }
+            annotations.append(RubyAnnotation(start: sourceOffset, length: base.count, reading: reading))
+            sourceOffset += base.count
+            cursor = range.upperBound
+        }
+        return annotations
+    }
+
+    struct RubyAnnotation: Equatable {
+        var start: Int
+        var length: Int
+        var reading: String
+
+        var end: Int { start + length }
+
+        func reading(overlapStart: Int, overlapEnd: Int) -> String {
+            let safeStart = max(start, overlapStart)
+            let safeEnd = min(end, overlapEnd)
+            guard safeStart < safeEnd, !reading.isEmpty else { return "" }
+            guard safeStart != start || safeEnd != end else { return reading }
+
+            let readingCharacters = reading.map(String.init)
+            guard length > 1, !readingCharacters.isEmpty else { return reading }
+            let charactersPerBase = max(1, readingCharacters.count / length)
+            var result = ""
+            for sourceIndex in safeStart..<safeEnd {
+                let relativeIndex = sourceIndex - start
+                let readStart = min(readingCharacters.count, relativeIndex * charactersPerBase)
+                let readEnd = relativeIndex == length - 1
+                    ? readingCharacters.count
+                    : min(readingCharacters.count, (relativeIndex + 1) * charactersPerBase)
+                guard readStart < readEnd else { continue }
+                result += readingCharacters[readStart..<readEnd].joined()
+            }
+            return result
+        }
     }
 
     private static func containsKanji(_ text: String) -> Bool {

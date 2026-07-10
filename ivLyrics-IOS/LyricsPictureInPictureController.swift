@@ -759,6 +759,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                 String(karaokeBounceEffectEnabled),
                 String(karaokeDataAsLineSynced),
                 String(useSyncCreatorSpeakerColors),
+                line?.line.furiganaText ?? "",
+                line?.line.pronunciationText ?? "",
+                line?.line.translationText ?? "",
+                line?.line.vocalParts.map { [$0.furiganaText, $0.pronunciationText, $0.translationText].joined(separator: "\u{1f}") }.joined(separator: "\u{1e}") ?? "",
                 String(typography.hashValue),
                 String(speakerColors.hashValue)
             ].joined(separator: "|")
@@ -771,7 +775,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var progress: CGFloat
 
         var supplementLines: [String] {
-            [line.furiganaText, line.pronunciationText, line.translationText]
+            [line.pronunciationText, line.translationText]
                 .map(\.trimmed)
                 .filter { !$0.isEmpty }
         }
@@ -806,6 +810,7 @@ struct PictureInPictureKaraokeContent: View {
             if displayParts.isEmpty {
                 karaokeText(
                     text: line.text.trimmed.isEmpty ? " " : line.text,
+                    rubyText: line.furiganaText,
                     syllables: line.syllables,
                     startTimeMs: line.startTimeMs,
                     endTimeMs: line.endTimeMs,
@@ -822,6 +827,7 @@ struct PictureInPictureKaraokeContent: View {
                         let partActive = positionMs >= part.startTimeMs
                         karaokeText(
                             text: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part),
+                            rubyText: part.furiganaText,
                             syllables: part.syllables,
                             startTimeMs: part.startTimeMs,
                             endTimeMs: part.endTimeMs,
@@ -856,6 +862,7 @@ struct PictureInPictureKaraokeContent: View {
 
     private func karaokeText(
         text: String,
+        rubyText: String,
         syllables: [LyricsLine.Syllable],
         startTimeMs: Int64,
         endTimeMs: Int64,
@@ -886,6 +893,7 @@ struct PictureInPictureKaraokeContent: View {
         )
         return SyllableKaraokeText(
             text: text,
+            rubyText: rubyText,
             syllables: hasTimedSyllables ? timedSyllables : [],
             startTimeMs: startTimeMs,
             endTimeMs: endTimeMs,

@@ -3014,19 +3014,10 @@ private struct MainLyricPreviewRowView: View {
             MainLyricPreviewLoadingSkeleton()
             .frame(maxWidth: .infinity, alignment: .center)
         case .text:
-            VStack(spacing: 1) {
-                if settings.japaneseFuriganaEnabled, row.rubyText.contains("<ruby>") {
-                    Text(FuriganaRepository.rubyDisplayText(row.rubyText))
-                        .font(typography.font(slotId: row.slotId, baseSize: row.primary ? 9 : 8))
-                        .foregroundStyle(.white.opacity(row.primary ? 0.64 : 0.48))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                previewTextView
-                    .font(typography.font(slotId: row.slotId, baseSize: row.primary ? 17 : 14.5))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.82)
-            }
+            previewTextView
+                .font(typography.font(slotId: row.slotId, baseSize: row.primary ? 17 : 14.5))
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
             .frame(maxWidth: .infinity, alignment: .center)
         }
     }
@@ -3038,10 +3029,11 @@ private struct MainLyricPreviewRowView: View {
 
     @ViewBuilder
     private var previewTextView: some View {
-        if shouldRenderTimedKaraoke {
+        if shouldRenderTimedKaraoke || shouldRenderRuby {
             SyllableKaraokeText(
                 text: row.text,
-                syllables: row.syllables,
+                rubyText: settings.japaneseFuriganaEnabled ? row.rubyText : "",
+                syllables: shouldRenderTimedKaraoke ? row.syllables : [],
                 startTimeMs: row.syllables.first?.startTimeMs ?? 0,
                 endTimeMs: row.syllables.last?.endTimeMs ?? 0,
                 positionMs: positionMs,
@@ -3062,6 +3054,10 @@ private struct MainLyricPreviewRowView: View {
 
     private var shouldRenderTimedKaraoke: Bool {
         !settings.karaokeDataAsLineSynced && row.syllables.contains { $0.endTimeMs > $0.startTimeMs }
+    }
+
+    private var shouldRenderRuby: Bool {
+        settings.japaneseFuriganaEnabled && row.rubyText.contains("<ruby>")
     }
 
     private var speakerColors: AppSettings.SpeakerColorSettings {
@@ -4017,12 +4013,6 @@ struct LyricsLineView: View {
         VStack(alignment: stackAlignment, spacing: 4) {
             originalLyricsView
                 .font(typography.font(slotId: AppSettings.typoLyricsOriginal, baseSize: 25))
-            if !useVocalPartSupplements, settings.japaneseFuriganaEnabled, !line.furiganaText.trimmed.isEmpty {
-                Text(FuriganaRepository.rubyDisplayText(line.furiganaText))
-                    .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: 12))
-                    .foregroundStyle(active ? lineActiveColor.opacity(0.70) : lineSupplementInactiveColor)
-                    .multilineTextAlignment(textAlignment)
-            }
             if !useVocalPartSupplements, !line.pronunciationText.trimmed.isEmpty {
                 Text(line.pronunciationText)
                     .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: 14))
@@ -4085,6 +4075,7 @@ struct LyricsLineView: View {
                     VStack(alignment: stackAlignment, spacing: 2) {
                         SyllableKaraokeText(
                             text: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part),
+                            rubyText: settings.japaneseFuriganaEnabled ? part.furiganaText : "",
                             syllables: shouldRenderTimedKaraoke ? part.syllables : [],
                             startTimeMs: part.startTimeMs,
                             endTimeMs: part.endTimeMs,
@@ -4108,6 +4099,7 @@ struct LyricsLineView: View {
         } else if shouldRenderTimedKaraoke {
             SyllableKaraokeText(
                 text: originalText.isEmpty ? " " : originalText,
+                rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: line.syllables,
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
@@ -4123,6 +4115,7 @@ struct LyricsLineView: View {
         } else if settings.syncedLyricsKaraokeAnimationEnabled {
             SyllableKaraokeText(
                 text: originalText.isEmpty ? " " : originalText,
+                rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: [],
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
@@ -4139,6 +4132,7 @@ struct LyricsLineView: View {
         } else {
             SyllableKaraokeText(
                 text: originalText.isEmpty ? " " : originalText,
+                rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: [],
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
@@ -4156,12 +4150,6 @@ struct LyricsLineView: View {
     private func vocalPartSupplements(_ part: LyricsLine.VocalPart, active: Bool) -> some View {
         let speakerColor = vocalPartActiveColor(part)
         let inactiveColor = vocalPartSupplementInactiveColor(part, active: active)
-        if settings.japaneseFuriganaEnabled, !part.furiganaText.trimmed.isEmpty {
-            Text(FuriganaRepository.rubyDisplayText(part.furiganaText))
-                .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: active ? 12 : 10.5))
-                .foregroundStyle(active ? speakerColor.opacity(0.70) : inactiveColor)
-                .multilineTextAlignment(textAlignment)
-        }
         if !part.pronunciationText.trimmed.isEmpty {
             Text(part.pronunciationText)
                 .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: active ? 14 : 12.5))
@@ -4264,6 +4252,7 @@ struct LyricsLineView: View {
 
 struct SyllableKaraokeText: View {
     var text: String
+    var rubyText: String = ""
     var syllables: [LyricsLine.Syllable]
     var startTimeMs: Int64
     var endTimeMs: Int64
@@ -4314,20 +4303,95 @@ struct SyllableKaraokeText: View {
     }
 
     private var karaokeSegments: [KaraokeSyllableSegment] {
-        effectiveSyllables.enumerated().compactMap { index, syllable in
-            guard !syllable.text.isEmpty else { return nil }
+        let annotations = rubyAnnotations
+        let displaySyllables = effectiveSyllables
+        var timedSegments: [KaraokeSyllableSegment] = []
+        var sourceOffset = 0
+        for (index, syllable) in displaySyllables.enumerated() {
+            let sourceLength = syllable.text.count
+            defer { sourceOffset += sourceLength }
+            guard !syllable.text.isEmpty else { continue }
             let bounce = karaokeBounce(for: syllable, index: index)
-            return KaraokeSyllableSegment(
+            timedSegments.append(KaraokeSyllableSegment(
                 id: index,
                 text: syllable.text,
+                rubyText: rubyReading(start: sourceOffset, length: sourceLength, annotations: annotations),
                 fill: fillFraction(for: syllable),
                 baseColor: baseColor,
                 activeColor: activeColor,
                 bounceOffsetY: bounce.offsetY,
                 bounceScale: bounce.scale,
                 isWhitespace: syllable.text.unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
-            )
+            ))
         }
+        if !timedSegments.isEmpty {
+            return timedSegments
+        }
+        return untimedRubySegments(annotations: annotations)
+    }
+
+    private func untimedRubySegments(annotations: [FuriganaRepository.RubyAnnotation]) -> [KaraokeSyllableSegment] {
+        guard !annotations.isEmpty else { return [] }
+        let characters = text.map(String.init)
+        guard !characters.isEmpty else { return [] }
+        let color = active ? activeColor : baseColor
+        var result: [KaraokeSyllableSegment] = []
+        var cursor = 0
+        var nextID = 0
+
+        func append(_ value: String, ruby: String = "") {
+            guard !value.isEmpty else { return }
+            result.append(KaraokeSyllableSegment(
+                id: nextID,
+                text: value,
+                rubyText: ruby,
+                fill: 0,
+                baseColor: color,
+                activeColor: activeColor,
+                bounceOffsetY: 0,
+                bounceScale: 1,
+                isWhitespace: value.unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
+            ))
+            nextID += 1
+        }
+
+        for annotation in annotations.sorted(by: { $0.start < $1.start }) {
+            let start = max(cursor, min(characters.count, annotation.start))
+            let end = max(start, min(characters.count, annotation.end))
+            if cursor < start {
+                for character in characters[cursor..<start] {
+                    append(character)
+                }
+            }
+            if start < end {
+                append(characters[start..<end].joined(), ruby: annotation.reading)
+                cursor = end
+            }
+        }
+        if cursor < characters.count {
+            for character in characters[cursor...] {
+                append(character)
+            }
+        }
+        return result
+    }
+
+    private var rubyAnnotations: [FuriganaRepository.RubyAnnotation] {
+        FuriganaRepository.rubyAnnotations(text: text, markup: rubyText)
+    }
+
+    private func rubyReading(
+        start: Int,
+        length: Int,
+        annotations: [FuriganaRepository.RubyAnnotation]
+    ) -> String {
+        guard length > 0 else { return "" }
+        let end = start + length
+        return annotations.compactMap { annotation in
+            guard annotation.start < end, annotation.end > start else { return nil }
+            let value = annotation.reading(overlapStart: start, overlapEnd: end)
+            return value.isEmpty ? nil : value
+        }.joined(separator: " ")
     }
 
     private var effectiveSyllables: [LyricsLine.Syllable] {
@@ -4460,6 +4524,7 @@ private struct KaraokeBounceMetrics {
 private struct KaraokeSyllableSegment: Identifiable {
     var id: Int
     var text: String
+    var rubyText: String = ""
     var fill: CGFloat
     var baseColor: Color
     var activeColor: Color
@@ -4481,17 +4546,27 @@ private struct KaraokeSyllableSegmentView: View {
     var rowSeed: Int
 
     var body: some View {
-        Text(segment.text)
-            .foregroundStyle(segment.baseColor)
-            .overlay(alignment: .leading) {
-                if segment.fill > 0 {
-                    Text(segment.text)
-                        .foregroundStyle(segment.activeColor)
-                        .mask(KaraokeFillMask(fill: segment.fill))
-                        .allowsHitTesting(false)
-                }
+        VStack(spacing: 0) {
+            if !segment.rubyText.isEmpty {
+                Text(segment.rubyText)
+                    .font(.system(size: max(9, textSize * 0.42), weight: .semibold))
+                    .foregroundStyle((segment.fill > 0 ? segment.activeColor : segment.baseColor).opacity(0.84))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
-            .fixedSize(horizontal: true, vertical: false)
+            Text(segment.text)
+                .foregroundStyle(segment.baseColor)
+                .overlay(alignment: .leading) {
+                    if segment.fill > 0 {
+                        Text(segment.text)
+                            .foregroundStyle(segment.activeColor)
+                            .mask(KaraokeFillMask(fill: segment.fill))
+                            .allowsHitTesting(false)
+                    }
+                }
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .fixedSize(horizontal: true, vertical: false)
             .scaleEffect(segment.bounceScale, anchor: .center)
             .offset(y: segment.bounceOffsetY)
             .modifier(LyricGlyphEffectModifier(kind: kind, active: active, nowMs: nowMs, textSize: textSize, segmentIndex: segment.id, rowSeed: rowSeed, color: segment.activeColor))
@@ -4674,7 +4749,7 @@ private struct KaraokeSegmentFlowLayout: Layout {
             for index in row.indices {
                 let size = subviews[index].sizeThatFits(.unspecified)
                 subviews[index].place(
-                    at: CGPoint(x: x, y: bounds.minY + row.y + max(0, row.height - size.height) * 0.5),
+                    at: CGPoint(x: x, y: bounds.minY + row.y + max(0, row.height - size.height)),
                     anchor: .topLeading,
                     proposal: ProposedViewSize(size)
                 )
