@@ -462,7 +462,7 @@ struct ContentView: View {
             if !centerPlayer {
                 LandscapeLyricsPane()
                     .frame(width: max(280, lyricsWidth), height: max(1, size.height - 32))
-                    .transition(.opacity)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.18)))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -479,7 +479,6 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: controlsShown ? 0.18 : 0.26), value: controlsShown)
-        .animation(.easeInOut(duration: 0.18), value: centerPlayer)
     }
 
     private var shouldShowLandscapeControls: Bool {
