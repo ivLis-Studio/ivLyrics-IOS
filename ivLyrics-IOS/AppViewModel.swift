@@ -57,6 +57,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var lyricsSupplementPronunciationLoading = false
     @Published private(set) var lyricsSupplementTranslationLoading = false
     @Published private(set) var lyricsSupplementFuriganaLoading = false
+    @Published private(set) var lyricsFocusRequestRevision = 0
     @Published var selectedRuleSourceLang = "auto"
     @Published private(set) var pendingUpdateInfo: AppUpdateInfo?
     @Published var updateDialogPresented = false
@@ -772,6 +773,7 @@ final class AppViewModel: ObservableObject {
         let target = lyricsTimeMs - Int64(trackOffsetMs + bluetoothOffsetMs)
         let position = duration > 0 ? max(0, min(duration, target)) : max(0, target)
         seekPlayer(to: position, track: &track)
+        lyricsFocusRequestRevision &+= 1
     }
 
     private func seekPlayer(to position: Int64, track: inout TrackSnapshot) {

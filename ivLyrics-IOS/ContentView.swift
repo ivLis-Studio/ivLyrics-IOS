@@ -3383,8 +3383,8 @@ private struct LyricsTimelineScrollView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @State private var autoScrollPaused = false
-    @State private var autoScrollPauseUntil = Date.distantPast
     @State private var lastScrolledTargetID: String?
+    @State private var autoScrollResumeTask: Task<Void, Never>?
 
     var topPadding: CGFloat = 0
     var bottomPadding: CGFloat = 0
@@ -3392,7 +3392,6 @@ private struct LyricsTimelineScrollView: View {
     var trailingPadding: CGFloat = 0
     var centerAnchorY: CGFloat = 0.5
 
-    private let resumeTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
     private static let manualScrollHoldSeconds: TimeInterval = 4.0
 
     var body: some View {
@@ -3442,10 +3441,19 @@ private struct LyricsTimelineScrollView: View {
                     guard !autoScrollPaused else { return }
                     scrollToTarget(nextID, proxy: proxy, animated: true)
                 }
-                .onReceive(resumeTimer) { _ in
-                    guard autoScrollPaused, Date() >= autoScrollPauseUntil else { return }
+                .onChange(of: autoScrollPaused) { _, paused in
+                    guard !paused else { return }
+                    scrollToTarget(activeTargetID, proxy: proxy, animated: true, force: true)
+                }
+                .onChange(of: model.lyricsFocusRequestRevision) { _, _ in
+                    autoScrollResumeTask?.cancel()
+                    autoScrollResumeTask = nil
                     autoScrollPaused = false
                     scrollToTarget(activeTargetID, proxy: proxy, animated: true, force: true)
+                }
+                .onDisappear {
+                    autoScrollResumeTask?.cancel()
+                    autoScrollResumeTask = nil
                 }
             }
         }
@@ -3475,7 +3483,15 @@ private struct LyricsTimelineScrollView: View {
 
     private func pauseAutoScroll() {
         autoScrollPaused = true
-        autoScrollPauseUntil = Date().addingTimeInterval(Self.manualScrollHoldSeconds)
+        autoScrollResumeTask?.cancel()
+        autoScrollResumeTask = Task { @MainActor in
+            try? await Task.sleep(
+                nanoseconds: UInt64(Self.manualScrollHoldSeconds * 1_000_000_000)
+            )
+            guard !Task.isCancelled else { return }
+            autoScrollResumeTask = nil
+            autoScrollPaused = false
+        }
     }
 
     private func scrollToTarget(_ targetID: String?, proxy: ScrollViewProxy, animated: Bool, force: Bool = false) {
