@@ -183,14 +183,22 @@ struct ContentView: View {
         }
         .mask(alignment: .top) {
             Rectangle()
-                .frame(height: mainPageRevealHeight(isLandscape: isLandscape, screenHeight: size.height))
+                .frame(height: mainPageRevealHeight(
+                    isLandscape: isLandscape,
+                    screenHeight: size.height,
+                    safeAreaTop: safeAreaInsets.top
+                ))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
-    private func mainPageRevealHeight(isLandscape: Bool, screenHeight: CGFloat) -> CGFloat {
+    private func mainPageRevealHeight(
+        isLandscape: Bool,
+        screenHeight: CGFloat,
+        safeAreaTop: CGFloat
+    ) -> CGFloat {
         guard !isLandscape, lyricsPageVisible else { return screenHeight }
-        return min(screenHeight, max(0, lyricsPageDragOffset))
+        return min(screenHeight, max(0, lyricsPageDragOffset - safeAreaTop))
     }
 
     @ViewBuilder
