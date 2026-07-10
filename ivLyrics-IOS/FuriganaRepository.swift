@@ -3,7 +3,7 @@ import WebKit
 
 @MainActor
 final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
-    private let cacheVersion = "furigana-js-kuromoji-v1"
+    private let cacheVersion = "furigana-js-kuromoji-v2"
     private let requestTimeoutNs: UInt64 = 45_000_000_000
     private let diskCache = LyricsDiskCache(namespace: "furigana_lyrics", maxEntries: 500)
     private var memoryCache: [String: LyricsResult] = [:]
@@ -105,7 +105,10 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
         view.isHidden = true
         webView = view
         pageLoaded = false
-        view.loadHTMLString(Self.bridgeHTML, baseURL: URL(string: "https://xpui.app.spotify.com/"))
+        view.loadHTMLString(
+            Self.bridgeHTML,
+            baseURL: URL(string: "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/")
+        )
     }
 
     private func evaluateWhenReady(_ script: String) {
@@ -455,7 +458,7 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
     <html>
     <head>
       <meta charset="utf-8">
-      <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
+      <script src="build/kuromoji.js"></script>
       <script>
         (function () {
           var tokenizer = null;
@@ -463,7 +466,7 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
           var conversionCache = new Map();
           var maxCacheSize = 1000;
           var dictPaths = [
-            "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict",
+            "dict",
             "https://unpkg.com/kuromoji@0.1.2/dict"
           ];
 
@@ -516,6 +519,7 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
                   return tokenizer;
                 } catch (error) {
                   lastError = error;
+                  log("furigana js: dict failed / dict=" + dictPaths[i] + " / error=" + String(error && error.message ? error.message : error));
                 }
               }
               throw lastError || new Error("Kuromoji dictionary load failed");

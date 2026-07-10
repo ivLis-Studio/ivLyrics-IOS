@@ -5808,7 +5808,7 @@ struct SettingsView: View {
                 }
 
                 settingsCard(settings.t("setting.pronunciation_language"), description: settings.t("setting.pronunciation_language_desc")) {
-                    Picker("", selection: $settings.outputLang) {
+                    Picker("", selection: outputLanguageBinding) {
                         Text(settings.t("language.same_as_ui")).tag(AppSettings.outputLangSameUI)
                         ForEach(AppSettings.languages) { language in
                             Text("\(language.nativeName) · \(language.name)").tag(language.code)
@@ -6326,8 +6326,19 @@ struct SettingsView: View {
             get: { settings.uiLang },
             set: { value in
                 settings.uiLang = value
-                model.refreshLocalizedStatusStrings()
-                model.showSavedToast(settings.t("toast.ui_language_saved"))
+                model.uiLanguageChanged()
+            }
+        )
+    }
+
+    private var outputLanguageBinding: Binding<String> {
+        Binding(
+            get: { settings.outputLang },
+            set: { value in
+                let normalized = AppSettings.normalizeOutputLanguage(value)
+                guard settings.outputLang != normalized else { return }
+                settings.outputLang = normalized
+                model.outputLanguageChanged()
             }
         )
     }
@@ -6343,18 +6354,24 @@ struct SettingsView: View {
     }
 
     private var metadataTranslationBinding: Binding<Bool> {
-        boolSettingBinding(
-            \.metadataTranslationEnabled,
-            onToastKey: "toast.metadata_translation_on",
-            offToastKey: "toast.metadata_translation_off"
+        Binding(
+            get: { settings.metadataTranslationEnabled },
+            set: { enabled in
+                settings.metadataTranslationEnabled = enabled
+                model.metadataTranslationSettingChanged(enabled: enabled)
+                model.showSavedToast(settings.t(enabled ? "toast.metadata_translation_on" : "toast.metadata_translation_off"))
+            }
         )
     }
 
     private var japaneseFuriganaBinding: Binding<Bool> {
-        boolSettingBinding(
-            \.japaneseFuriganaEnabled,
-            onToastKey: "toast.furigana_on",
-            offToastKey: "toast.furigana_off"
+        Binding(
+            get: { settings.japaneseFuriganaEnabled },
+            set: { enabled in
+                settings.japaneseFuriganaEnabled = enabled
+                model.japaneseFuriganaSettingChanged(enabled: enabled)
+                model.showSavedToast(settings.t(enabled ? "toast.furigana_on" : "toast.furigana_off"))
+            }
         )
     }
 

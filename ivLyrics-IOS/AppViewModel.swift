@@ -112,6 +112,7 @@ final class AppViewModel: ObservableObject {
     private let syncDataSpotifyReferer = "https://xpui.app.spotify.com/"
     private var loadTask: Task<Void, Never>?
     private var metadataTranslationTask: Task<Void, Never>?
+    private var furiganaRefreshTask: Task<Void, Never>?
     private var manualTask: Task<Void, Never>?
     private var tmiTask: Task<Void, Never>?
     private var toastTask: Task<Void, Never>?
@@ -190,6 +191,7 @@ final class AppViewModel: ObservableObject {
         timer?.invalidate()
         loadTask?.cancel()
         metadataTranslationTask?.cancel()
+        furiganaRefreshTask?.cancel()
         manualTask?.cancel()
         tmiTask?.cancel()
         toastTask?.cancel()
@@ -1029,6 +1031,62 @@ final class AppViewModel: ObservableObject {
         regenerateCurrentAiSupplements(statusKey: "toast.language_rule_saved")
     }
 
+    func outputLanguageChanged() {
+        showSavedToast(settings.t("toast.pronunciation_language_saved"))
+        regenerateCurrentAiSupplements(statusKey: "toast.pronunciation_language_saved")
+    }
+
+    func uiLanguageChanged() {
+        refreshLocalizedStatusStrings()
+        showSavedToast(settings.t("toast.ui_language_saved"))
+        guard settings.outputLang.caseInsensitiveCompare(AppSettings.outputLangSameUI) == .orderedSame else {
+            return
+        }
+        regenerateCurrentAiSupplements(statusKey: "toast.ui_language_saved")
+    }
+
+    func metadataTranslationSettingChanged(enabled: Bool) {
+        metadataTranslationTask?.cancel()
+        metadataTranslationTask = nil
+        metadataTranslation = nil
+        guard enabled,
+              let track = currentTrack,
+              !baseLyricsResult.lines.isEmpty else {
+            return
+        }
+        requestMetadataTranslation(track: track, base: baseLyricsResult, bypassCache: true)
+    }
+
+    func japaneseFuriganaSettingChanged(enabled: Bool) {
+        furiganaRefreshTask?.cancel()
+        furiganaRefreshTask = nil
+        guard enabled else {
+            setLyricsSupplementLoading(
+                pronunciation: lyricsSupplementPronunciationLoading,
+                translation: lyricsSupplementTranslationLoading,
+                furigana: false
+            )
+            return
+        }
+        guard let track = currentTrack,
+              !baseLyricsResult.lines.isEmpty else {
+            appendLog(settings.t("status.no_lyrics_to_apply"))
+            return
+        }
+        let trackKey = track.stableKey
+        let base = baseLyricsResult
+        furiganaRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            _ = await self.loadFuriganaIfNeeded(track: track, base: base, bypassCache: false)
+            guard !Task.isCancelled,
+                  self.settings.japaneseFuriganaEnabled,
+                  self.currentTrack?.stableKey == trackKey else {
+                return
+            }
+            self.appendLog("furigana setting applied to current track")
+        }
+    }
+
     func maybeShowInitialSetup() {
         guard !initialSetupComplete, !defaults.bool(forKey: keyInitialSetupDismissed) else { return }
         showInitialSetup()
@@ -1866,6 +1924,8 @@ final class AppViewModel: ObservableObject {
         loadTask = nil
         metadataTranslationTask?.cancel()
         metadataTranslationTask = nil
+        furiganaRefreshTask?.cancel()
+        furiganaRefreshTask = nil
         resetCurrentFurigana()
         resetLyricsSupplementLoading()
     }
