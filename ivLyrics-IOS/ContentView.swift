@@ -2106,7 +2106,8 @@ private struct LandscapeLyricsPane: View {
         LyricsTimelineScrollView(
             topPadding: 6,
             bottomPadding: 6,
-            trailingPadding: 8
+            trailingPadding: 8,
+            centerEmptyContent: true
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -3397,69 +3398,84 @@ private struct LyricsTimelineScrollView: View {
     var horizontalPadding: CGFloat = 0
     var trailingPadding: CGFloat = 0
     var centerAnchorY: CGFloat = 0.5
+    var centerEmptyContent = false
 
     private static let manualScrollHoldSeconds: TimeInterval = 4.0
 
     var body: some View {
         let targetID = activeTargetID
         GeometryReader { geometry in
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(spacing: 0) {
+            if centerEmptyContent && !hasScrollableLyrics {
+                LyricsTimelineView()
+                    .padding(.top, topPadding)
+                    .padding(.bottom, bottomPadding)
+                    .padding(.leading, horizontalPadding)
+                    .padding(.trailing, max(horizontalPadding, trailingPadding))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height,
+                        alignment: .center
+                    )
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            if hasScrollableLyrics {
+                                Color.clear
+                                    .frame(height: topEdgeInset(for: geometry.size.height))
+                            }
+                            LyricsTimelineView()
+                                .padding(.top, topPadding)
+                                .padding(.bottom, bottomPadding)
+                                .padding(.leading, horizontalPadding)
+                                .padding(.trailing, max(horizontalPadding, trailingPadding))
+                            if hasScrollableLyrics {
+                                Color.clear
+                                    .frame(height: bottomEdgeInset(for: geometry.size.height))
+                            }
+                        }
+                    }
+                    .mask {
                         if hasScrollableLyrics {
-                            Color.clear
-                                .frame(height: topEdgeInset(for: geometry.size.height))
-                        }
-                        LyricsTimelineView()
-                            .padding(.top, topPadding)
-                            .padding(.bottom, bottomPadding)
-                            .padding(.leading, horizontalPadding)
-                            .padding(.trailing, max(horizontalPadding, trailingPadding))
-                        if hasScrollableLyrics {
-                            Color.clear
-                                .frame(height: bottomEdgeInset(for: geometry.size.height))
+                            LyricsTimelineEdgeFadeMask(height: geometry.size.height)
+                        } else {
+                            Rectangle().fill(.white)
                         }
                     }
-                }
-                .mask {
-                    if hasScrollableLyrics {
-                        LyricsTimelineEdgeFadeMask(height: geometry.size.height)
-                    } else {
-                        Rectangle().fill(.white)
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 8)
+                            .onChanged { _ in
+                                pauseAutoScroll()
+                            }
+                            .onEnded { _ in
+                                pauseAutoScroll()
+                            }
+                    )
+                    .onAppear {
+                        scrollToTarget(targetID, proxy: proxy, animated: false, force: true)
                     }
-                }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 8)
-                        .onChanged { _ in
-                            pauseAutoScroll()
+                    .onChange(of: targetID) { _, nextID in
+                        if nextID == nil {
+                            lastScrolledTargetID = nil
                         }
-                        .onEnded { _ in
-                            pauseAutoScroll()
-                        }
-                )
-                .onAppear {
-                    scrollToTarget(targetID, proxy: proxy, animated: false, force: true)
-                }
-                .onChange(of: targetID) { _, nextID in
-                    if nextID == nil {
-                        lastScrolledTargetID = nil
+                        guard !autoScrollPaused else { return }
+                        scrollToTarget(nextID, proxy: proxy, animated: true)
                     }
-                    guard !autoScrollPaused else { return }
-                    scrollToTarget(nextID, proxy: proxy, animated: true)
-                }
-                .onChange(of: autoScrollPaused) { _, paused in
-                    guard !paused else { return }
-                    scrollToTarget(activeTargetID, proxy: proxy, animated: true, force: true)
-                }
-                .onChange(of: model.lyricsFocusRequestRevision) { _, _ in
-                    autoScrollResumeTask?.cancel()
-                    autoScrollResumeTask = nil
-                    autoScrollPaused = false
-                    scrollToTarget(activeTargetID, proxy: proxy, animated: true, force: true)
-                }
-                .onDisappear {
-                    autoScrollResumeTask?.cancel()
-                    autoScrollResumeTask = nil
+                    .onChange(of: autoScrollPaused) { _, paused in
+                        guard !paused else { return }
+                        scrollToTarget(activeTargetID, proxy: proxy, animated: true, force: true)
+                    }
+                    .onChange(of: model.lyricsFocusRequestRevision) { _, _ in
+                        autoScrollResumeTask?.cancel()
+                        autoScrollResumeTask = nil
+                        autoScrollPaused = false
+                        scrollToTarget(activeTargetID, proxy: proxy, animated: true, force: true)
+                    }
+                    .onDisappear {
+                        autoScrollResumeTask?.cancel()
+                        autoScrollResumeTask = nil
+                    }
                 }
             }
         }
