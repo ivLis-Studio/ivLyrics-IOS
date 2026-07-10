@@ -232,7 +232,7 @@ final class AppViewModel: ObservableObject {
     }
 
     var initialSetupComplete: Bool {
-        settings.snapshot.hasSpotifyCredentials
+        settings.snapshot.hasSpotifyClientId
     }
 
     var titleText: String {
@@ -1060,9 +1060,18 @@ final class AppViewModel: ObservableObject {
     }
 
     func finishInitialSetup() {
-        guard settings.snapshot.hasSpotifyCredentials else {
+        guard settings.snapshot.hasSpotifyClientId else {
             status = .setupRequired
-            appendLog("initial setup: Spotify API client id/secret is required")
+            appendLog("initial setup: Spotify Client ID is required")
+            return
+        }
+        if settings.spotifyClientSecret.trimmed.isEmpty {
+            spotifyValidationStatus = settings.t("spotify.status_app_remote_ready")
+            defaults.set(true, forKey: keyInitialSetupDismissed)
+            initialSetupPresented = false
+            showSavedToast(settings.t("toast.spotify_saved"))
+            appendLog("initial setup: App Remote configured with Client ID; API metadata enrichment disabled")
+            connectSpotifyUserAndStartPolling()
             return
         }
         validateSpotifyApiCredentials(reloadOnChange: true, startLiveAfterSuccess: true)
@@ -1075,11 +1084,22 @@ final class AppViewModel: ObservableObject {
         }
         let clientId = settings.spotifyClientId.trimmed
         let clientSecret = settings.spotifyClientSecret.trimmed
-        guard !clientId.isEmpty, !clientSecret.isEmpty else {
-            spotifyValidationStatus = settings.t("toast.spotify_missing")
+        guard !clientId.isEmpty else {
+            spotifyValidationStatus = settings.t("toast.spotify_client_id_missing")
             status = .setupRequired
-            showSavedToast(settings.t("toast.spotify_missing"))
-            appendLog("spotify api validation: missing client id/secret")
+            showSavedToast(spotifyValidationStatus)
+            appendLog("spotify api validation: missing client id")
+            return
+        }
+        guard !clientSecret.isEmpty else {
+            spotifyValidationStatus = settings.t("spotify.status_app_remote_ready")
+            showSavedToast(settings.t("toast.spotify_saved"))
+            appendLog("spotify api validation: Client ID saved for App Remote; Client Secret not configured")
+            if startLiveAfterSuccess {
+                defaults.set(true, forKey: keyInitialSetupDismissed)
+                initialSetupPresented = false
+                connectSpotifyUserAndStartPolling()
+            }
             return
         }
         spotifyCredentialsValidationInFlight = true
