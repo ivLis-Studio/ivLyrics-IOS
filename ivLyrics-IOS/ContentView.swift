@@ -414,7 +414,20 @@ struct ContentView: View {
     private func applyDebugPresentationOverrides() {
 #if DEBUG
         let environment = ProcessInfo.processInfo.environment
-        if environment["IVLYRICS_DEBUG_SHOW_LYRICS"] == "1" {
+        if let rawDragOffset = environment["IVLYRICS_DEBUG_LYRICS_DRAG_OFFSET"],
+           let debugDragOffset = Double(rawDragOffset) {
+            DispatchQueue.main.async {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    lyricsPageVisible = true
+                    lyricsPageDragOffset = min(
+                        lyricsPageAnimationHeight,
+                        max(0, CGFloat(debugDragOffset))
+                    )
+                }
+            }
+        } else if environment["IVLYRICS_DEBUG_SHOW_LYRICS"] == "1" {
             DispatchQueue.main.async {
                 showLyricsPage(true)
             }
@@ -1272,6 +1285,9 @@ private struct LyricsPageOverlay: View {
 
     var body: some View {
         ZStack {
+            Color.black
+                .opacity(0.10)
+                .ignoresSafeArea()
             Color(red: 6.0 / 255.0, green: 7.0 / 255.0, blue: 12.0 / 255.0)
                 .opacity(54.0 / 255.0)
                 .ignoresSafeArea()
@@ -1290,7 +1306,6 @@ private struct LyricsPageOverlay: View {
                 )
             }
         }
-        .background(.black.opacity(0.10))
         .clipShape(RoundedRectangle(cornerRadius: dragOffset > 1 ? 28 : 0, style: .continuous))
         .offset(y: dragOffset)
         .ignoresSafeArea()
@@ -1304,50 +1319,58 @@ private struct LyricsPageOverlay: View {
     private var header: some View {
         let _ = settings.typographyRevision
         let typography = settings.typographySettings()
-        return VStack(spacing: 12) {
-            Button {
-                dismiss()
-            } label: {
-                Capsule()
-                    .fill(.white.opacity(0.32))
-                    .frame(width: 42, height: 3)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
+        return VStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                Button {
+                    dismiss()
+                } label: {
+                    Capsule()
+                        .fill(.white.opacity(0.32))
+                        .frame(width: 42, height: 3)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 24, alignment: .top)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(maxHeight: .infinity, alignment: .top)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(model.titleText.trimmed.isEmpty ? "ivLyrics" : model.titleText)
-                    .font(typography.font(slotId: AppSettings.typoLyricsHeaderTitle, baseSize: 19))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(model.artistText.trimmed.isEmpty ? " " : model.artistText)
-                        .font(typography.font(slotId: AppSettings.typoLyricsHeaderArtist, baseSize: 14))
-                        .foregroundStyle(.white.opacity(0.74))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(model.titleText.trimmed.isEmpty ? "ivLyrics" : model.titleText)
+                        .font(typography.font(slotId: AppSettings.typoLyricsHeaderTitle, baseSize: 19))
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
-                        .layoutPriority(1)
-                    Spacer(minLength: 8)
-                    if model.status == .loading {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.white)
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(model.artistText.trimmed.isEmpty ? " " : model.artistText)
+                            .font(typography.font(slotId: AppSettings.typoLyricsHeaderArtist, baseSize: 14))
+                            .foregroundStyle(.white.opacity(0.74))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                            .layoutPriority(1)
+                        Spacer(minLength: 8)
+                        if model.status == .loading {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                        }
+                        LyricsMetaStrip(inline: true) {
+                            openMetaMenu(.language)
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(2)
                     }
-                    LyricsMetaStrip(inline: true) {
-                        openMetaMenu(.language)
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(2)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    model.openSpotifyForCurrentTrack()
+                }
+                .onLongPressGesture {
+                    openMetaMenu(.language)
+                }
+                .frame(height: 54)
+                .frame(maxHeight: .infinity, alignment: .bottom)
             }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                model.openSpotifyForCurrentTrack()
-            }
-            .onLongPressGesture {
-                openMetaMenu(.language)
-            }
+            .frame(height: 66)
 
             if metaTipVisible && !showingMetaMenu {
                 Button {
@@ -1367,6 +1390,7 @@ private struct LyricsPageOverlay: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.08)))
                 }
                 .buttonStyle(.plain)
+                .padding(.top, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
