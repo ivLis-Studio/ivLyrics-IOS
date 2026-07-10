@@ -153,6 +153,10 @@ struct ContentView: View {
                 KaraokeEffectsDebugPreview()
                     .zIndex(100)
             }
+            if ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_PIP_LAYOUT"] == "1" {
+                PictureInPictureLayoutDebugPreview(controller: model.pictureInPictureController)
+                    .zIndex(100)
+            }
 #endif
         }
     }
@@ -4528,6 +4532,26 @@ private struct KaraokeSegmentLayoutRow {
 }
 
 #if DEBUG
+private struct PictureInPictureLayoutDebugPreview: View {
+    let controller: LyricsPictureInPictureController
+
+    var body: some View {
+        let environment = ProcessInfo.processInfo.environment
+        let orientation = AppSettings.normalizePipOrientation(
+            environment["IVLYRICS_DEBUG_PIP_ORIENTATION"] ?? AppSettings.pipOrientationLandscape
+        )
+        let showArtwork = environment["IVLYRICS_DEBUG_PIP_ARTWORK"] != "0"
+        let image = controller.debugFrameImage(orientation: orientation, showArtwork: showArtwork)
+        Image(uiImage: image)
+            .resizable()
+            .interpolation(.none)
+            .aspectRatio(contentMode: .fit)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.black)
+            .ignoresSafeArea()
+    }
+}
+
 private struct KaraokeEffectsDebugPreview: View {
     private let kinds = [
         "effect", "adlib", "pulse",
