@@ -291,7 +291,11 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         let primarySize = max(15, min(34, lyricRect.width * 0.061 * scale))
         let supplementSize = max(10, primarySize * 0.48)
         let nextSize = max(11, primarySize * 0.56)
-        let primaryHeight = min(lyricRect.height * 0.68, primarySize * 2.45)
+        let visiblePartCount = active.line.vocalParts.reduce(0) { count, part in
+            LyricsTimelineDisplayBuilder.vocalPartDisplayText(part).trimmed.isEmpty ? count : count + 1
+        }
+        let stackMultiplier = 2.45 + CGFloat(max(0, min(3, visiblePartCount - 1))) * 1.35
+        let primaryHeight = min(lyricRect.height * 0.74, primarySize * stackMultiplier)
         let centeredPrimaryY = rect.midY - primaryHeight / 2
         let primaryY = min(
             max(lyricRect.minY, centeredPrimaryY),
@@ -328,43 +332,19 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     }
 
     private func drawKaraokeText(_ active: ActiveLine, in rect: CGRect, fontSize: CGFloat) {
-        let text = active.line.text.trimmed.isEmpty
-            ? active.line.vocalParts.map { $0.text.trimmed }.filter { !$0.isEmpty }.joined(separator: " / ")
-            : active.line.text
-        guard !text.isEmpty, rect.width > 0, rect.height > 0 else { return }
-        let timedSyllables = state.karaokeDataAsLineSynced ? [] : active.line.syllables
-        let hasTimedSyllables = timedSyllables.contains { $0.endTimeMs > $0.startTimeMs }
-        let activeColor = LyricSpeakerPalette.activeColor(
-            speaker: active.line.speaker,
-            speakerColor: active.line.speakerColor,
-            speakerFallback: active.line.speakerFallback,
-            settings: state.speakerColors,
-            useCreatorColors: state.useSyncCreatorSpeakerColors
-        )
-        let inactiveColor = LyricSpeakerPalette.inactiveColor(
-            speaker: active.line.speaker,
-            speakerColor: active.line.speakerColor,
-            speakerFallback: active.line.speakerFallback,
-            settings: state.speakerColors,
-            useCreatorColors: state.useSyncCreatorSpeakerColors,
-            distance: 0
-        )
-        let content = SyllableKaraokeText(
-            text: text,
-            syllables: hasTimedSyllables ? timedSyllables : [],
-            startTimeMs: active.line.startTimeMs,
-            endTimeMs: active.line.endTimeMs,
+        guard rect.width > 0, rect.height > 0 else { return }
+        let content = PictureInPictureKaraokeContent(
+            line: active.line,
             positionMs: state.positionMs,
-            active: true,
-            activeColor: activeColor,
             alignment: state.swiftUITextAlignment,
-            kind: active.line.kind,
-            inactiveColor: inactiveColor,
+            frameAlignment: state.swiftUIFrameAlignment,
+            fontSize: fontSize,
+            speakerColors: state.speakerColors,
+            useCreatorSpeakerColors: state.useSyncCreatorSpeakerColors,
+            karaokeDataAsLineSynced: state.karaokeDataAsLineSynced,
+            syncedLyricsKaraokeAnimationEnabled: state.syncedLyricsKaraokeAnimationEnabled,
             bounceEnabled: state.karaokeBounceEffectEnabled,
-            bounceTextSize: fontSize,
-            syntheticTimingEnabled: !hasTimedSyllables && state.syncedLyricsKaraokeAnimationEnabled
         )
-        .font(.system(size: fontSize, weight: .bold))
         .frame(width: rect.width, height: rect.height, alignment: state.swiftUIFrameAlignment)
 
         let renderer = ImageRenderer(content: content)
@@ -650,6 +630,118 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                 .map(\.trimmed)
                 .filter { !$0.isEmpty }
         }
+    }
+}
+
+struct PictureInPictureKaraokeContent: View {
+    var line: LyricsLine
+    var positionMs: Int64
+    var alignment: TextAlignment
+    var frameAlignment: Alignment
+    var fontSize: CGFloat
+    var speakerColors: AppSettings.SpeakerColorSettings
+    var useCreatorSpeakerColors: Bool
+    var karaokeDataAsLineSynced: Bool
+    var syncedLyricsKaraokeAnimationEnabled: Bool
+    var bounceEnabled: Bool
+
+    var body: some View {
+        Group {
+            if displayParts.isEmpty {
+                karaokeText(
+                    text: line.text.trimmed.isEmpty ? " " : line.text,
+                    syllables: line.syllables,
+                    startTimeMs: line.startTimeMs,
+                    endTimeMs: line.endTimeMs,
+                    speaker: line.speaker,
+                    speakerColor: line.speakerColor,
+                    speakerFallback: line.speakerFallback,
+                    kind: line.kind,
+                    active: true,
+                    inactiveDistance: 0
+                )
+            } else {
+                VStack(alignment: horizontalAlignment, spacing: 3) {
+                    ForEach(Array(displayParts.enumerated()), id: \.offset) { _, part in
+                        let partActive = positionMs >= part.startTimeMs
+                        karaokeText(
+                            text: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part),
+                            syllables: part.syllables,
+                            startTimeMs: part.startTimeMs,
+                            endTimeMs: part.endTimeMs,
+                            speaker: part.speaker,
+                            speakerColor: part.speakerColor,
+                            speakerFallback: part.speakerFallback,
+                            kind: part.kind,
+                            active: partActive,
+                            inactiveDistance: partActive ? 0 : 0.45
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: frameAlignment)
+            }
+        }
+        .font(.system(size: fontSize, weight: .bold))
+    }
+
+    private var displayParts: [LyricsLine.VocalPart] {
+        LyricsTimelineDisplayBuilder.orderedVocalParts(line.vocalParts)
+            .filter { !LyricsTimelineDisplayBuilder.vocalPartDisplayText($0).trimmed.isEmpty }
+    }
+
+    private var horizontalAlignment: HorizontalAlignment {
+        switch alignment {
+        case .center: return .center
+        case .trailing: return .trailing
+        default: return .leading
+        }
+    }
+
+    private func karaokeText(
+        text: String,
+        syllables: [LyricsLine.Syllable],
+        startTimeMs: Int64,
+        endTimeMs: Int64,
+        speaker: String,
+        speakerColor: String,
+        speakerFallback: String,
+        kind: String,
+        active: Bool,
+        inactiveDistance: Double
+    ) -> some View {
+        let timedSyllables = karaokeDataAsLineSynced ? [] : syllables
+        let hasTimedSyllables = timedSyllables.contains { $0.endTimeMs > $0.startTimeMs }
+        let activeColor = LyricSpeakerPalette.activeColor(
+            speaker: speaker,
+            speakerColor: speakerColor,
+            speakerFallback: speakerFallback,
+            settings: speakerColors,
+            useCreatorColors: useCreatorSpeakerColors
+        )
+        let inactiveColor = LyricSpeakerPalette.inactiveColor(
+            speaker: speaker,
+            speakerColor: speakerColor,
+            speakerFallback: speakerFallback,
+            settings: speakerColors,
+            useCreatorColors: useCreatorSpeakerColors,
+            distance: inactiveDistance
+        )
+        return SyllableKaraokeText(
+            text: text,
+            syllables: hasTimedSyllables ? timedSyllables : [],
+            startTimeMs: startTimeMs,
+            endTimeMs: endTimeMs,
+            positionMs: positionMs,
+            active: active,
+            activeColor: activeColor,
+            alignment: alignment,
+            kind: kind,
+            inactiveColor: inactiveColor,
+            bounceEnabled: bounceEnabled,
+            bounceTextSize: fontSize,
+            syntheticTimingEnabled: !hasTimedSyllables && syncedLyricsKaraokeAnimationEnabled
+        )
+        .frame(maxWidth: .infinity, alignment: frameAlignment)
     }
 }
 

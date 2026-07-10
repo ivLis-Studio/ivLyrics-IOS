@@ -4464,6 +4464,7 @@ private struct KaraokeSegmentLayoutRow {
 
 #if DEBUG
 private struct KaraokeDebugPreview: View {
+    @EnvironmentObject private var settings: AppSettings
     private let longText = "Someone to die for you and more"
     private let bounceSyllables = Array("ABCDEF").enumerated().map { index, character in
         LyricsLine.Syllable(
@@ -4525,6 +4526,23 @@ private struct KaraokeDebugPreview: View {
                 alignment: "left"
             )
             .frame(width: 330)
+
+            Text("System PiP keeps the same vocal stack")
+                .font(.pretendard(15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.62))
+            PictureInPictureKaraokeContent(
+                line: multiVocalLine,
+                positionMs: 2_100,
+                alignment: .leading,
+                frameAlignment: .leading,
+                fontSize: 32,
+                speakerColors: settings.speakerColorSettings(),
+                useCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
+                karaokeDataAsLineSynced: false,
+                syncedLyricsKaraokeAnimationEnabled: true,
+                bounceEnabled: true
+            )
+            .frame(width: 330, height: 100, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .padding(36)
