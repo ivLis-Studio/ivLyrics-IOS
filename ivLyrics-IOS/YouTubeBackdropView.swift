@@ -90,6 +90,7 @@ struct YouTubeBackdropView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
+        coordinator.cancelScheduledPause()
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "ivLyricsYouTube")
         uiView.navigationDelegate = nil
         uiView.loadHTMLString("", baseURL: nil)
@@ -108,12 +109,18 @@ struct YouTubeBackdropView: UIViewRepresentable {
         var playerReady = false
         var visibleState = false
         var lastEffectivePlaying = false
+        private var pauseWorkItem: DispatchWorkItem?
 
         func setPlaybackState(playing nextPlaying: Bool, now: TimeInterval) {
+            if nextPlaying != playing {
+                lastSyncAt = 0
+            }
             if nextPlaying {
+                cancelScheduledPause()
                 pausedSince = nil
             } else if playing || pausedSince == nil {
                 pausedSince = now
+                schedulePauseAfterDebounce()
             }
             playing = nextPlaying
         }
@@ -122,6 +129,30 @@ struct YouTubeBackdropView: UIViewRepresentable {
             if playing { return true }
             guard let pausedSince else { return false }
             return now - pausedSince < YouTubeBackdropView.pauseDebounceSeconds
+        }
+
+        func cancelScheduledPause() {
+            pauseWorkItem?.cancel()
+            pauseWorkItem = nil
+        }
+
+        private func schedulePauseAfterDebounce() {
+            cancelScheduledPause()
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self, !self.playing else { return }
+                self.lastEffectivePlaying = false
+                self.updateVisibility(for: self.webView, visible: false)
+                self.pausePlayer()
+            }
+            pauseWorkItem = workItem
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + YouTubeBackdropView.pauseDebounceSeconds,
+                execute: workItem
+            )
+        }
+
+        private func pausePlayer() {
+            webView?.evaluateJavaScript("try{if(player&&player.pauseVideo){player.pauseVideo();}}catch(e){}")
         }
 
         func updateVisibility(for webView: WKWebView?, visible: Bool) {
@@ -137,7 +168,12 @@ struct YouTubeBackdropView: UIViewRepresentable {
             guard message.name == "ivLyricsYouTube" else { return }
             if (message.body as? String) == "ready" {
                 playerReady = true
-                updateVisibility(for: webView, visible: lastEffectivePlaying)
+                let effectivePlaying = effectivePlaying(now: Date().timeIntervalSince1970)
+                lastEffectivePlaying = effectivePlaying
+                updateVisibility(for: webView, visible: effectivePlaying)
+                if !effectivePlaying {
+                    pausePlayer()
+                }
             }
         }
 
