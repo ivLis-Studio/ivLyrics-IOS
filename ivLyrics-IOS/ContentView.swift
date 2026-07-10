@@ -1321,7 +1321,9 @@ private struct LyricsPageOverlay: View {
 
     private var headerTopPadding: CGFloat {
         let collapse = min(1, max(0, dragOffset) / 120)
-        return 10 + safeAreaTop * (1 - collapse)
+        let expanded = safeAreaTop + 10
+        let compact: CGFloat = 22
+        return expanded + (compact - expanded) * collapse
     }
 
     private var header: some View {
