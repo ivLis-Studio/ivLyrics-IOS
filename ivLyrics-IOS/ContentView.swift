@@ -1589,6 +1589,47 @@ private struct InAppBrowserWebView: View {
 }
 #endif
 
+private struct AndroidLandscapePlayerLayout: Layout {
+    var tablet: Bool
+    var contentSpacing: CGFloat = 10
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard subviews.count >= 2 else { return }
+        let childProposal = ProposedViewSize(width: bounds.width, height: nil)
+        let heroSize = subviews[0].sizeThatFits(childProposal)
+        let controlsSize = subviews[1].sizeThatFits(childProposal)
+        let remaining = max(0, bounds.height - heroSize.height - controlsSize.height - contentSpacing)
+        let topWeight: CGFloat = tablet ? 0.42 : 0.38
+        let bottomWeight: CGFloat = tablet ? 0.26 : 0.24
+        let topSpace = remaining * topWeight / max(0.01, topWeight + bottomWeight)
+        let centerX = bounds.midX
+
+        subviews[0].place(
+            at: CGPoint(x: centerX, y: bounds.minY + topSpace),
+            anchor: .top,
+            proposal: ProposedViewSize(width: bounds.width, height: heroSize.height)
+        )
+        subviews[1].place(
+            at: CGPoint(x: centerX, y: bounds.minY + topSpace + heroSize.height + contentSpacing),
+            anchor: .top,
+            proposal: ProposedViewSize(width: bounds.width, height: controlsSize.height)
+        )
+    }
+}
+
 private struct LandscapePlayerPane: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
@@ -1599,8 +1640,7 @@ private struct LandscapePlayerPane: View {
     var body: some View {
         let _ = settings.typographyRevision
         let typography = settings.typographySettings()
-        VStack(spacing: 10) {
-            Spacer(minLength: 4)
+        AndroidLandscapePlayerLayout(tablet: containerSize.width > 900) {
             VStack(spacing: metadataSpacing) {
                 LandscapeArtworkView(size: artworkSize)
                     .scaleEffect(controlsVisible ? 1 : 1.08)
@@ -1623,8 +1663,6 @@ private struct LandscapePlayerPane: View {
                 .opacity(controlsVisible ? 1 : 0)
                 .allowsHitTesting(controlsVisible)
                 .accessibilityHidden(!controlsVisible)
-
-            Spacer(minLength: 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .foregroundStyle(.white)
