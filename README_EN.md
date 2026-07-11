@@ -1,5 +1,5 @@
 > [!IMPORTANT]
-> ivLyrics iOS is currently under development and has not been released yet.
+> IPA files on GitHub Releases are unsigned. They must be signed with your Apple ID through AltStore or another signing tool before installation.
 
 <img width="1122" height="1402" alt="image" src="https://github.com/user-attachments/assets/4e0850bf-092f-45d3-8645-4ed9f1b4dfba" />
 
@@ -42,14 +42,32 @@ ivLyrics iOS detects the song currently playing in Spotify and displays karaoke-
 
 ## Installation
 
-ivLyrics iOS is not publicly distributed yet. Only development builds are currently supported.
+ivLyrics iOS supports iOS 17 or later. The Spotify app and Spotify API configuration are required after installation.
+
+### Install with AltStore
+
+AltStore source URL:
+
+```text
+https://raw.githubusercontent.com/ivLis-Studio/ivLyrics-IOS/main/altstore-source.json
+```
+
+1. Install [AltServer](https://altstore.io/) on a computer, then follow the [macOS guide](https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos) or [Windows guide](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) to install AltStore Classic on your iPhone.
+2. Keep the iPhone and the computer running AltServer on the same Wi-Fi network, or connect them by USB.
+3. Open the `Sources` tab in AltStore, tap `+`, and add the source URL above.
+4. Select ivLyrics from the source and install it.
+5. Apps signed with a free Apple ID must be refreshed through AltServer every seven days.
+
+AltStore setup can vary by operating system, Apple ID, Developer Mode, and network configuration. Check the [official AltStore troubleshooting guide](https://faq.altstore.io/altstore-classic/troubleshooting-guide) first. If the issue remains, search the exact error message on the internet.
+
+The latest unsigned IPA can also be downloaded directly from [GitHub Releases](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/latest).
+
+### Run with Xcode
 
 1. Clone this repository.
 2. Open `ivLyrics-IOS.xcodeproj` in Xcode.
 3. Configure your developer account, bundle ID, and Spotify API settings for your local environment.
 4. Run the app on a simulator or iOS device.
-
-iOS builds are not available on GitHub Releases yet.
 
 ## Lyrics Page Tips
 
