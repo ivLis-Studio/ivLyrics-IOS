@@ -148,6 +148,8 @@ final class AppSettings: ObservableObject {
     private let defaults: UserDefaults
     private var isBootstrapping = true
     private var isApplyingRuleState = false
+    private var cachedSnapshot: Snapshot?
+    private var snapshotInvalidationCancellable: AnyCancellable?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -195,6 +197,9 @@ final class AppSettings: ObservableObject {
         spotifyClientId = defaults.string(forKey: "spotify_client_id") ?? ""
         spotifyClientSecret = defaults.string(forKey: "spotify_client_secret") ?? ""
         isBootstrapping = false
+        snapshotInvalidationCancellable = objectWillChange.sink { [weak self] _ in
+            self?.cachedSnapshot = nil
+        }
     }
 
     func t(_ key: String) -> String {
@@ -206,8 +211,11 @@ final class AppSettings: ObservableObject {
     }
 
     var snapshot: Snapshot {
+        if let cachedSnapshot {
+            return cachedSnapshot
+        }
         let ruleConfig = Self.loadRuleConfig(defaults: defaults).withTarget(outputLang)
-        return Snapshot(
+        let snapshot = Snapshot(
             uiLang: uiLang,
             outputLang: outputLang,
             provider: Self.providerById(providerId),
@@ -251,6 +259,8 @@ final class AppSettings: ObservableObject {
             spotifyClientId: spotifyClientId,
             spotifyClientSecret: spotifyClientSecret
         )
+        cachedSnapshot = snapshot
+        return snapshot
     }
 
     func setProvider(_ id: String) {
@@ -359,6 +369,7 @@ final class AppSettings: ObservableObject {
 
     func resetSpeakerColors() {
         defaults.removeObject(forKey: "speaker_color_settings_v1")
+        cachedSnapshot = nil
         speakerColorRevision += 1
     }
 
@@ -523,6 +534,7 @@ final class AppSettings: ObservableObject {
             return
         }
         defaults.set(raw, forKey: "language_rules_v2")
+        cachedSnapshot = nil
     }
 
     private func saveTypographySettings(_ typography: TypographySettings) {
@@ -540,6 +552,7 @@ final class AppSettings: ObservableObject {
             return
         }
         defaults.set(raw, forKey: "typography_settings_v1")
+        cachedSnapshot = nil
     }
 
     private func saveSpeakerColorSettings(_ settings: SpeakerColorSettings) {
@@ -553,6 +566,7 @@ final class AppSettings: ObservableObject {
             return
         }
         defaults.set(raw, forKey: "speaker_color_settings_v1")
+        cachedSnapshot = nil
     }
 
     private func bumpBackgroundRevisionIfNeeded() {
