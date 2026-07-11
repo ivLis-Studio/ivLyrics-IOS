@@ -7,6 +7,11 @@ import UIKit
 #endif
 
 @MainActor
+final class PlaybackClock: ObservableObject {
+    @Published fileprivate(set) var nowPositionMs: Int64 = 0
+}
+
+@MainActor
 final class AppViewModel: ObservableObject {
     private static let spotifyPlaybackRefreshBurstDelays: [UInt64] = [
         0,
@@ -14,8 +19,8 @@ final class AppViewModel: ObservableObject {
         420_000_000,
         1_100_000_000
     ]
-    private static let playbackClockInterval: TimeInterval = 1.0 / 60.0
-    private static let playbackClockTolerance: TimeInterval = 0.003
+    private static let playbackClockInterval: TimeInterval = 1.0 / 30.0
+    private static let playbackClockTolerance: TimeInterval = 0.005
 
     @Published var inputTitle: String
     @Published var inputArtist: String
@@ -24,7 +29,11 @@ final class AppViewModel: ObservableObject {
     @Published var inputSpotifyId: String
     @Published var inputIsrc: String
     @Published private(set) var currentTrack: TrackSnapshot?
-    @Published private(set) var lyricsResult = LyricsResult.empty("")
+    @Published private(set) var lyricsResult = LyricsResult.empty("") {
+        didSet {
+            cachedTimelineContext = nil
+        }
+    }
     @Published private(set) var baseLyricsResult = LyricsResult.empty("")
     @Published private(set) var status: AppStatus = .idle
     @Published private(set) var logs: [String] = []
@@ -65,7 +74,15 @@ final class AppViewModel: ObservableObject {
     @Published var updateDialogPresented = false
     @Published var initialSetupPresented = false
     @Published var onboardingStep = 0
-    @Published private(set) var nowPositionMs: Int64 = 0
+    let playbackClock = PlaybackClock()
+    private(set) var nowPositionMs: Int64 {
+        get { playbackClock.nowPositionMs }
+        set {
+            if playbackClock.nowPositionMs != newValue {
+                playbackClock.nowPositionMs = newValue
+            }
+        }
+    }
     @Published var trackOffsetMs: Int = 0 {
         didSet {
             let clamped = Self.clampSyncOffset(trackOffsetMs)
@@ -126,6 +143,7 @@ final class AppViewModel: ObservableObject {
     private var youtubeBackgroundLoadTask: Task<Void, Never>?
     private var updateTask: Task<Void, Never>?
     private var timer: Timer?
+    private var cachedTimelineContext: LyricsTimelineContext?
     private var audioRouteObserver: NSObjectProtocol?
     private var creatorProfileUrlCache: [String: URL] = [:]
     private var spotifyMetadataHydrationTrackId = ""
@@ -145,6 +163,15 @@ final class AppViewModel: ObservableObject {
     private let keySpotifyValidatedSourceKey = "spotify_validated_source_key"
     private let autoUpdateCheckIntervalMs: Int64 = 24 * 60 * 60 * 1000
     private var lyricsLoadRequestID = UUID()
+
+    var timelineContext: LyricsTimelineContext {
+        if let cachedTimelineContext {
+            return cachedTimelineContext
+        }
+        let context = LyricsTimelineContext(lines: lyricsResult.lines)
+        cachedTimelineContext = context
+        return context
+    }
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -2237,9 +2264,13 @@ final class AppViewModel: ObservableObject {
     private func startClock() {
         timer?.invalidate()
         let playbackTimer = Timer(timeInterval: Self.playbackClockInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 guard let self else { return }
-                self.nowPositionMs = self.currentTrack?.positionNow() ?? 0
+                let position = self.currentTrack?.positionNow() ?? 0
+                let positionChanged = position != self.nowPositionMs
+                if positionChanged {
+                    self.nowPositionMs = position
+                }
                 self.updatePictureInPictureState()
             }
         }
