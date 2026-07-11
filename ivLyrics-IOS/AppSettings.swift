@@ -35,6 +35,10 @@ final class AppSettings: ObservableObject {
     static let pipOrientationLandscape = "landscape"
     static let pipOrientationPortrait = "portrait"
     static let pipOrientationSquare = "square"
+    static let pipBackgroundCover = "cover"
+    static let pipBackgroundBlur = "blur"
+    static let pipBackgroundGradient = "gradient"
+    static let pipBackgroundSolid = "solid"
 
     static let providers: [Provider] = [
         Provider(id: "gemini", label: "Google Gemini", description: "Google AI Studio API 사용", defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta", defaultModel: "gemini-2.5-flash", apiKeyURL: "https://aistudio.google.com/apikey"),
@@ -129,8 +133,10 @@ final class AppSettings: ObservableObject {
     @Published var landscapeCenterNoLyrics: Bool { didSet { set("landscape_center_no_lyrics", landscapeCenterNoLyrics) } }
     @Published var pipShowArtwork: Bool { didSet { set("pip_show_artwork", pipShowArtwork) } }
     @Published var pipOrientation: String { didSet { set("pip_orientation", Self.normalizePipOrientation(pipOrientation)) } }
+    @Published var pipBackgroundMode: String { didSet { set("pip_background_mode", Self.normalizePipBackgroundMode(pipBackgroundMode)) } }
     @Published var pipLyricsTextAlignment: String { didSet { set("pip_lyrics_text_alignment", Self.normalizeLyricsAlignment(pipLyricsTextAlignment)) } }
     @Published var pipLyricsSizePercent: Int { didSet { set("pip_lyrics_size_percent", Self.clampPipLyricsSizePercent(pipLyricsSizePercent)) } }
+    @Published var pipTranslationSizePercent: Int { didSet { set("pip_translation_size_percent", Self.clampPipTranslationSizePercent(pipTranslationSizePercent)) } }
     @Published var backgroundMode: String { didSet { set("background_mode", backgroundMode); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundBrightness: Int { didSet { set("background_brightness", backgroundBrightness); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundBlur: Int { didSet { set("background_blur", backgroundBlur); bumpBackgroundRevisionIfNeeded() } }
@@ -183,8 +189,10 @@ final class AppSettings: ObservableObject {
         landscapeCenterNoLyrics = defaults.object(forKey: "landscape_center_no_lyrics") as? Bool ?? true
         pipShowArtwork = defaults.object(forKey: "pip_show_artwork") as? Bool ?? true
         pipOrientation = Self.normalizePipOrientation(defaults.string(forKey: "pip_orientation") ?? Self.pipOrientationSquare)
+        pipBackgroundMode = Self.normalizePipBackgroundMode(defaults.string(forKey: "pip_background_mode") ?? Self.pipBackgroundCover)
         pipLyricsTextAlignment = Self.normalizeLyricsAlignment(defaults.string(forKey: "pip_lyrics_text_alignment") ?? "center")
         pipLyricsSizePercent = Self.clampPipLyricsSizePercent(defaults.object(forKey: "pip_lyrics_size_percent") as? Int ?? 150)
+        pipTranslationSizePercent = Self.clampPipTranslationSizePercent(defaults.object(forKey: "pip_translation_size_percent") as? Int ?? 100)
         backgroundMode = Self.normalizeBackgroundMode(defaults.string(forKey: "background_mode") ?? Self.backgroundGradient)
         backgroundBrightness = min(100, max(0, defaults.object(forKey: "background_brightness") as? Int ?? 30))
         backgroundBlur = min(100, max(0, defaults.object(forKey: "background_blur") as? Int ?? 20))
@@ -237,8 +245,10 @@ final class AppSettings: ObservableObject {
             landscapeCenterNoLyrics: landscapeCenterNoLyrics,
             pipShowArtwork: pipShowArtwork,
             pipOrientation: Self.normalizePipOrientation(pipOrientation),
+            pipBackgroundMode: Self.normalizePipBackgroundMode(pipBackgroundMode),
             pipLyricsTextAlignment: Self.normalizeLyricsAlignment(pipLyricsTextAlignment),
             pipLyricsSizePercent: Self.clampPipLyricsSizePercent(pipLyricsSizePercent),
+            pipTranslationSizePercent: Self.clampPipTranslationSizePercent(pipTranslationSizePercent),
             backgroundMode: backgroundMode,
             backgroundBrightness: backgroundBrightness,
             backgroundBlur: backgroundBlur,
@@ -730,6 +740,18 @@ final class AppSettings: ObservableObject {
         return pipOrientationLandscape
     }
 
+    static func normalizePipBackgroundMode(_ mode: String?) -> String {
+        let value = (mode ?? "").trimmed.lowercased()
+        if [pipBackgroundCover, pipBackgroundBlur, pipBackgroundGradient, pipBackgroundSolid].contains(value) {
+            return value
+        }
+        switch value {
+        case "artwork": return pipBackgroundCover
+        case "blur-gradient": return pipBackgroundGradient
+        default: return pipBackgroundCover
+        }
+    }
+
     static func normalizeHexColor(_ color: String, fallback: String) -> String {
         let value = color.trimmed
         guard value.range(of: #"^#?[0-9a-fA-F]{6}$"#, options: .regularExpression) != nil else {
@@ -748,6 +770,10 @@ final class AppSettings: ObservableObject {
 
     static func clampPipLyricsSizePercent(_ value: Int) -> Int {
         min(180, max(50, value))
+    }
+
+    static func clampPipTranslationSizePercent(_ value: Int) -> Int {
+        min(250, max(50, value))
     }
 
     static func autoTargetLanguage() -> String {
@@ -968,8 +994,10 @@ final class AppSettings: ObservableObject {
         var landscapeCenterNoLyrics: Bool
         var pipShowArtwork: Bool
         var pipOrientation: String
+        var pipBackgroundMode: String
         var pipLyricsTextAlignment: String
         var pipLyricsSizePercent: Int
+        var pipTranslationSizePercent: Int
         var backgroundMode: String
         var backgroundBrightness: Int
         var backgroundBlur: Int

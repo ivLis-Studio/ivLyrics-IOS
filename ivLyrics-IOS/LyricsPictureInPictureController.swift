@@ -1,21 +1,53 @@
 import AVFoundation
 import AVKit
 import Combine
+import CoreImage
 import CoreMedia
 import CoreVideo
 import SwiftUI
 import UIKit
 
+private final class PictureInPicturePlaybackInfo: @unchecked Sendable {
+    private let lock = NSLock()
+    private var durationMs: Int64 = 1
+    private var isPaused = true
+
+    func update(durationMs: Int64, isPaused: Bool) {
+        lock.lock()
+        self.durationMs = durationMs
+        self.isPaused = isPaused
+        lock.unlock()
+    }
+
+    func read() -> (durationMs: Int64, isPaused: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (durationMs, isPaused)
+    }
+}
+
 @MainActor
 final class LyricsPictureInPictureController: NSObject, ObservableObject {
+    private struct PlaybackState: Equatable {
+        let durationMs: Int64
+        let isPaused: Bool
+    }
+
+    private enum StartReason: Equatable {
+        case explicit
+        case automaticTransition
+    }
+
     @Published private(set) var active = false
 
-    var needsStateUpdates: Bool { active || startRequested }
+    var isEngaged: Bool { active || startReason != nil }
+    var needsStateUpdates: Bool { active || startReason != nil || automaticPreparationEnabled }
 
     var onSetPlaying: ((Bool) -> Void)?
     var onSkip: ((Int64) -> Void)?
     var onLog: ((String) -> Void)?
     var onStartFailure: (() -> Void)?
+    var onEngagementEnded: (() -> Void)?
 
     private let displayLayer = AVSampleBufferDisplayLayer()
     private var pictureInPictureController: AVPictureInPictureController?
@@ -23,29 +55,50 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private weak var hostView: UIView?
     private var state = RenderState.empty
     private var artwork: UIImage?
+    private var blurredArtwork: UIImage?
     private var artworkURL: URL?
     private var artworkTask: Task<Void, Never>?
+    private var blurredArtworkTask: Task<Void, Never>?
     private var startRetryTask: Task<Void, Never>?
-    private var startRequested = false
+    private var startReason: StartReason?
+    private var hasPreparedTrack = false
+    private var automaticPreparationEnabled = false
+    private var hasPrimedFrame = false
     private var lastRenderUptime: TimeInterval = 0
+    private var lastRenderedPositionMs: Int64?
+    private var lastRenderIdentityValue: String?
     private var audioSessionActive = false
+    private nonisolated let playbackInfo = PictureInPicturePlaybackInfo()
+    private var lastPublishedPlaybackState: PlaybackState?
+    private var pixelBufferPool: CVPixelBufferPool?
+    private var pixelBufferPoolSize = CGSize.zero
+    private var videoFormatDescription: CMVideoFormatDescription?
 
     override init() {
         super.init()
         displayLayer.videoGravity = .resizeAspect
         displayLayer.backgroundColor = UIColor.black.cgColor
         guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(
+                .playback,
+                mode: .moviePlayback,
+                options: [.mixWithOthers]
+            )
+        } catch {
+            onLog?("lyrics pip audio session category failed: \(error.localizedDescription)")
+        }
         let source = AVPictureInPictureController.ContentSource(
             sampleBufferDisplayLayer: displayLayer,
             playbackDelegate: self
         )
         let controller = AVPictureInPictureController(contentSource: source)
         controller.delegate = self
-        controller.canStartPictureInPictureAutomaticallyFromInline = false
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
         controller.requiresLinearPlayback = false
         possibleObservation = controller.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] controller, _ in
             Task { @MainActor [weak self] in
-                guard let self, self.startRequested, controller.isPictureInPicturePossible else { return }
+                guard let self, self.startReason != nil, controller.isPictureInPicturePossible else { return }
                 self.startIfPossible()
             }
         }
@@ -54,6 +107,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
 
     deinit {
         artworkTask?.cancel()
+        blurredArtworkTask?.cancel()
         startRetryTask?.cancel()
         possibleObservation?.invalidate()
     }
@@ -78,6 +132,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         positionMs: Int64,
         title: String,
         artist: String,
+        statusText: String,
         settings: AppSettings.Snapshot
     ) {
         let nextState = RenderState(
@@ -86,10 +141,13 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             positionMs: positionMs,
             title: title,
             artist: artist,
+            statusText: statusText,
             showArtwork: settings.pipShowArtwork,
             orientation: settings.pipOrientation,
+            backgroundMode: settings.pipBackgroundMode,
             alignment: settings.pipLyricsTextAlignment,
             lyricsSizePercent: settings.pipLyricsSizePercent,
+            translationSizePercent: settings.pipTranslationSizePercent,
             solidColor: settings.backgroundSolidColor,
             syncedLyricsKaraokeAnimationEnabled: settings.syncedLyricsKaraokeAnimationEnabled,
             karaokeBounceEffectEnabled: settings.karaokeBounceEffectEnabled,
@@ -98,46 +156,174 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             typography: settings.typography,
             speakerColors: settings.speakerColors
         )
-        let forceRender = nextState.renderIdentity != state.renderIdentity
+        let nextRenderIdentity = nextState.renderIdentity
+        let forceRender = nextRenderIdentity != lastRenderIdentityValue
         state = nextState
+        lastRenderIdentityValue = nextRenderIdentity
+        publishPlaybackState(
+            durationMs: max(1, track?.durationMs ?? 0),
+            isPaused: !(track?.playing ?? false)
+        )
         loadArtworkIfNeeded(track?.artworkURL)
-        guard active || startRequested else { return }
+        updateBlurredArtworkIfNeeded()
+        hasPreparedTrack = track != nil
+        let shouldPrepareAutomatically = hasPreparedTrack && pictureInPictureController != nil
+        automaticPreparationEnabled = shouldPrepareAutomatically
+        if shouldPrepareAutomatically {
+            _ = activateAudioSession()
+        } else if !active && startReason == nil {
+            deactivateAudioSession()
+        }
+        guard active || startReason != nil || automaticPreparationEnabled else {
+            if !hasPrimedFrame {
+                renderFrame()
+                hasPrimedFrame = lastRenderUptime > 0
+            }
+            return
+        }
         let uptime = ProcessInfo.processInfo.systemUptime
-        if forceRender || uptime - lastRenderUptime >= (1.0 / 30.0) {
+        if active || startReason != nil {
+            if forceRender || state.positionMs != lastRenderedPositionMs || uptime - lastRenderUptime >= 1.0 {
+                renderFrame()
+            }
+        } else if forceRender || !hasPrimedFrame || uptime - lastRenderUptime >= 1.0 {
             renderFrame()
+            hasPrimedFrame = lastRenderUptime > 0
+        }
+    }
+
+    func prepareForAutomaticTransition() {
+        guard hasPreparedTrack else {
+            onLog?("lyrics pip: automatic transition skipped (no prepared track)")
+            return
+        }
+        guard let controller = pictureInPictureController else {
+            onLog?("lyrics pip: automatic transition skipped (controller unavailable)")
+            return
+        }
+        guard !active, !controller.isPictureInPictureActive else {
+            onLog?("lyrics pip: automatic transition skipped (already active)")
+            return
+        }
+        guard startReason == nil else {
+            onLog?("lyrics pip: automatic transition skipped (start in flight)")
+            return
+        }
+        _ = activateAudioSession()
+        renderFrame()
+        publishPlaybackState(
+            durationMs: max(1, state.track?.durationMs ?? 0),
+            isPaused: !(state.track?.playing ?? false),
+            force: true
+        )
+        let playbackState = playbackInfo.read()
+        onLog?(
+            "lyrics pip: lifecycle transition possible=\(controller.isPictureInPicturePossible) " +
+            "paused=\(playbackState.isPaused) durationMs=\(playbackState.durationMs)"
+        )
+
+        // Give AVKit's automatic inline-to-PiP transition the first opportunity.
+        // A single short fallback preserves the previous lifecycle request without
+        // depending on retries after the process has already been suspended.
+        startRetryTask?.cancel()
+        startRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard let self,
+                  !Task.isCancelled,
+                  !self.active,
+                  controller.isPictureInPictureActive == false,
+                  UIApplication.shared.applicationState != .active else { return }
+            _ = self.requestStart(reason: .automaticTransition, schedulesRetries: false)
         }
     }
 
     @discardableResult
     func start() -> Bool {
+        requestStart(reason: .explicit)
+    }
+
+    @discardableResult
+    private func requestStart(reason: StartReason, schedulesRetries: Bool = true) -> Bool {
         guard AVPictureInPictureController.isPictureInPictureSupported(), pictureInPictureController != nil else {
             onLog?("lyrics pip: system Picture in Picture is not supported")
             return false
         }
-        guard activateAudioSession() else { return false }
-        startRequested = true
+        guard !active, pictureInPictureController?.isPictureInPictureActive != true else { return true }
+        if startReason != nil {
+            // A foreground button press upgrades an in-flight lifecycle request so
+            // its eventual failure keeps the existing user-facing error behavior.
+            if reason == .explicit {
+                startReason = .explicit
+            }
+            return true
+        }
+        guard activateAudioSession() else {
+            if reason == .automaticTransition {
+                onLog?("lyrics pip: automatic transition failed (audio session unavailable)")
+            }
+            return false
+        }
+        startReason = reason
         renderFrame()
+        publishPlaybackState(
+            durationMs: max(1, state.track?.durationMs ?? 0),
+            isPaused: !(state.track?.playing ?? false),
+            force: true
+        )
+        if reason == .automaticTransition {
+            let playbackState = playbackInfo.read()
+            onLog?(
+                "lyrics pip: automatic fallback requested possible=\(pictureInPictureController?.isPictureInPicturePossible == true) " +
+                "paused=\(playbackState.isPaused) durationMs=\(playbackState.durationMs)"
+            )
+        }
         startIfPossible()
         guard !active else { return true }
-        startRetryTask?.cancel()
-        startRetryTask = Task { @MainActor [weak self] in
-            for delay in [100_000_000, 300_000_000, 700_000_000] as [UInt64] {
-                try? await Task.sleep(nanoseconds: delay)
-                guard let self, !Task.isCancelled, self.startRequested, !self.active else { return }
-                self.renderFrame()
-                self.startIfPossible()
-            }
-            guard let self, self.startRequested, !self.active else { return }
-            self.startRequested = false
-            self.deactivateAudioSession()
-            self.onLog?("lyrics pip: Picture in Picture is not currently available")
-            self.onStartFailure?()
+        if schedulesRetries {
+            scheduleStartRetries()
+        } else if pictureInPictureController?.isPictureInPicturePossible != true {
+            startReason = nil
+            onEngagementEnded?()
+            onLog?("lyrics pip: automatic fallback unavailable")
         }
         return true
     }
 
+    private func publishPlaybackState(durationMs: Int64, isPaused: Bool, force: Bool = false) {
+        let playbackState = PlaybackState(durationMs: max(1, durationMs), isPaused: isPaused)
+        playbackInfo.update(durationMs: playbackState.durationMs, isPaused: playbackState.isPaused)
+        guard force || playbackState != lastPublishedPlaybackState else { return }
+        lastPublishedPlaybackState = playbackState
+        pictureInPictureController?.invalidatePlaybackState()
+    }
+
+    private func scheduleStartRetries() {
+        startRetryTask?.cancel()
+        startRetryTask = Task { @MainActor [weak self] in
+            for delay in [100_000_000, 300_000_000, 700_000_000, 1_500_000_000, 2_500_000_000] as [UInt64] {
+                try? await Task.sleep(nanoseconds: delay)
+                guard let self, !Task.isCancelled, self.startReason != nil, !self.active else { return }
+                self.renderFrame()
+                self.startIfPossible()
+            }
+            guard let self, let reason = self.startReason, !self.active else { return }
+            self.startReason = nil
+            self.onEngagementEnded?()
+            if !self.automaticPreparationEnabled {
+                self.deactivateAudioSession()
+            }
+            switch reason {
+            case .automaticTransition:
+                self.onLog?("lyrics pip: automatic transition failed because Picture in Picture is not currently available")
+            case .explicit:
+                self.onLog?("lyrics pip: Picture in Picture is not currently available")
+                self.onStartFailure?()
+            }
+        }
+    }
+
     func stop() {
-        startRequested = false
+        startReason = nil
         startRetryTask?.cancel()
         if pictureInPictureController?.isPictureInPictureActive == true {
             pictureInPictureController?.stopPictureInPicture()
@@ -147,7 +333,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     }
 
     private func startIfPossible() {
-        guard startRequested,
+        guard startReason != nil,
               let controller = pictureInPictureController,
               controller.isPictureInPicturePossible,
               !controller.isPictureInPictureActive else { return }
@@ -182,7 +368,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         guard artworkURL != url else { return }
         artworkURL = url
         artwork = nil
+        blurredArtwork = nil
         artworkTask?.cancel()
+        blurredArtworkTask?.cancel()
+        blurredArtworkTask = nil
         guard let url else { return }
         artworkTask = Task { @MainActor [weak self] in
             do {
@@ -191,15 +380,59 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                       let http = response as? HTTPURLResponse,
                       (200..<300).contains(http.statusCode),
                       let image = UIImage(data: data) else { return }
-                self?.artwork = image
-                if self?.active == true || self?.startRequested == true {
-                    self?.renderFrame()
+                guard let self, self.artworkURL == url else { return }
+                self.artwork = image
+                self.updateBlurredArtworkIfNeeded()
+                if self.active || self.startReason != nil {
+                    self.renderFrame()
                 }
             } catch {
                 guard !Task.isCancelled else { return }
                 self?.onLog?("lyrics pip artwork failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    private func updateBlurredArtworkIfNeeded() {
+        guard AppSettings.normalizePipBackgroundMode(state.backgroundMode) == AppSettings.pipBackgroundBlur else {
+            blurredArtworkTask?.cancel()
+            blurredArtworkTask = nil
+            return
+        }
+        guard blurredArtwork == nil,
+              blurredArtworkTask == nil,
+              let artwork,
+              let artworkURL else { return }
+        blurredArtworkTask = Task { @MainActor [weak self] in
+            let blurred = await Task.detached(priority: .utility) {
+                Self.makeBlurredArtwork(from: artwork)
+            }.value
+            guard !Task.isCancelled,
+                  let self,
+                  self.artworkURL == artworkURL,
+                  AppSettings.normalizePipBackgroundMode(self.state.backgroundMode) == AppSettings.pipBackgroundBlur else { return }
+            self.blurredArtworkTask = nil
+            self.blurredArtwork = blurred
+            if self.active || self.startReason != nil {
+                self.renderFrame()
+            }
+        }
+    }
+
+    nonisolated private static func makeBlurredArtwork(from artwork: UIImage) -> UIImage? {
+        guard var input = CIImage(image: artwork) else { return nil }
+        let maxDimension = max(input.extent.width, input.extent.height)
+        guard maxDimension > 0 else { return nil }
+        let scale = min(1, 240 / maxDimension)
+        input = input.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let extent = input.extent
+        let blurred = input
+            .clampedToExtent()
+            .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 28])
+            .cropped(to: extent)
+        let context = CIContext(options: [.cacheIntermediates: false])
+        guard let cgImage = context.createCGImage(blurred, from: extent) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 
     private func renderFrame() {
@@ -218,15 +451,22 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         }
         displayLayer.enqueue(sampleBuffer)
         lastRenderUptime = ProcessInfo.processInfo.systemUptime
+        lastRenderedPositionMs = state.positionMs
     }
 
 #if DEBUG
-    func debugFrameImage(orientation: String, showArtwork: Bool) -> UIImage {
+    func debugFrameImage(orientation: String, showArtwork: Bool, backgroundMode: String = AppSettings.pipBackgroundCover) -> UIImage {
         let previousState = state
         let previousArtwork = artwork
+        let previousBlurredArtwork = blurredArtwork
+        let previousRenderedPositionMs = lastRenderedPositionMs
+        let previousRenderIdentityValue = lastRenderIdentityValue
         defer {
             state = previousState
             artwork = previousArtwork
+            blurredArtwork = previousBlurredArtwork
+            lastRenderedPositionMs = previousRenderedPositionMs
+            lastRenderIdentityValue = previousRenderIdentityValue
         }
 
         let firstPart = LyricsLine.VocalPart(
@@ -263,15 +503,38 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         state.positionMs = 4_800
         state.title = "Midnight Signal"
         state.artist = "ivLyrics"
+        state.statusText = ""
         state.showArtwork = showArtwork
         state.orientation = orientation
+        state.backgroundMode = AppSettings.normalizePipBackgroundMode(backgroundMode)
         state.alignment = "center"
         state.lyricsSizePercent = 150
-        artwork = nil
+        state.translationSizePercent = 100
+        lastRenderedPositionMs = nil
+        lastRenderIdentityValue = nil
+        artwork = Self.debugSampleArtwork()
+        blurredArtwork = artwork.flatMap { Self.makeBlurredArtwork(from: $0) }
 
         let size = state.renderSize
         return UIGraphicsImageRenderer(size: size).image { context in
             drawFrame(in: CGRect(origin: .zero, size: size), context: context.cgContext)
+        }
+    }
+
+    nonisolated private static func debugSampleArtwork() -> UIImage? {
+        let size = CGSize(width: 320, height: 320)
+        return UIGraphicsImageRenderer(size: size).image { context in
+            let colors = [
+                UIColor(red: 0.92, green: 0.45, blue: 0.28, alpha: 1).cgColor,
+                UIColor(red: 0.32, green: 0.18, blue: 0.52, alpha: 1).cgColor
+            ] as CFArray
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
+                context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
+            }
+            UIColor.white.withAlphaComponent(0.85).setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: 90, y: 90, width: 140, height: 140))
+            UIColor(red: 0.15, green: 0.65, blue: 0.9, alpha: 1).setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: 130, y: 130, width: 60, height: 60))
         }
     }
 #endif
@@ -291,21 +554,83 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     }
 
     private func drawBackground(in rect: CGRect, context: CGContext) {
-        if let artwork {
-            drawAspectFill(artwork, in: rect, context: context)
-            UIColor.black.withAlphaComponent(0.72).setFill()
-            UIRectFill(rect)
-        } else {
-            let base = UIColor(hexString: state.solidColor) ?? UIColor(red: 0.06, green: 0.08, blue: 0.12, alpha: 1)
-            let colors = [
-                base.withAlphaComponent(1).cgColor,
-                UIColor(red: 0.08, green: 0.09, blue: 0.14, alpha: 1).cgColor,
-                UIColor.black.cgColor
-            ] as CFArray
-            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.58, 1]) {
-                context.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: rect.maxX, y: rect.maxY), options: [])
+        switch AppSettings.normalizePipBackgroundMode(state.backgroundMode) {
+        case AppSettings.pipBackgroundCover:
+            guard let artwork else {
+                drawBlurGradientBackground(in: rect, context: context)
+                return
             }
+            drawAspectFill(artwork, in: rect, context: context)
+            UIColor.black.withAlphaComponent(0.45).setFill()
+            UIRectFillUsingBlendMode(rect, .normal)
+        case AppSettings.pipBackgroundBlur:
+            guard let backgroundArtwork = blurredArtwork ?? artwork else {
+                drawBlurGradientBackground(in: rect, context: context)
+                return
+            }
+            drawAspectFill(backgroundArtwork, in: rect, context: context)
+            UIColor.black.withAlphaComponent(0.72).setFill()
+            UIRectFillUsingBlendMode(rect, .normal)
+        case AppSettings.pipBackgroundGradient:
+            drawBlurGradientBackground(in: rect, context: context)
+        case AppSettings.pipBackgroundSolid:
+            (UIColor(hexString: state.solidColor) ?? UIColor(red: 0.06, green: 0.08, blue: 0.12, alpha: 1)).setFill()
+            UIRectFill(rect)
+        default:
+            drawBlurGradientBackground(in: rect, context: context)
         }
+    }
+
+    private func drawBlurGradientBackground(in rect: CGRect, context: CGContext) {
+        let blobColors = [
+            UIColor(red: 0.28, green: 0.25, blue: 0.49, alpha: 1),
+            UIColor(red: 0.57, green: 0.33, blue: 0.51, alpha: 1),
+            UIColor(red: 0.24, green: 0.37, blue: 0.51, alpha: 1),
+            UIColor(red: 0.25, green: 0.45, blue: 0.40, alpha: 1),
+            UIColor(red: 0.50, green: 0.23, blue: 0.33, alpha: 1),
+            UIColor(red: 0.18, green: 0.30, blue: 0.48, alpha: 1)
+        ]
+        let radii: [CGFloat] = [0.80, 0.70, 0.55, 0.75, 0.50, 0.90]
+        let centers = [
+            CGPoint(x: 0.08, y: 0.18), CGPoint(x: 0.78, y: 0.12),
+            CGPoint(x: 0.38, y: 0.42), CGPoint(x: 0.88, y: 0.58),
+            CGPoint(x: 0.18, y: 0.82), CGPoint(x: 0.62, y: 0.92)
+        ]
+
+        UIColor(red: 0.08, green: 0.10, blue: 0.14, alpha: 1).setFill()
+        UIRectFill(rect)
+        context.saveGState()
+        context.clip(to: rect)
+        let maxDimension = max(rect.width, rect.height)
+        for index in blobColors.indices {
+            let alpha = max(0.16, 0.35 - CGFloat(index) * 0.025)
+            let color = blobColors[index]
+            let colors = [
+                color.withAlphaComponent(alpha).cgColor,
+                color.withAlphaComponent(alpha * 0.45).cgColor,
+                color.withAlphaComponent(0).cgColor
+            ] as CFArray
+            guard let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: colors,
+                locations: [0, 0.52, 1]
+            ) else { continue }
+            let center = CGPoint(
+                x: rect.minX + rect.width * centers[index].x,
+                y: rect.minY + rect.height * centers[index].y
+            )
+            context.drawRadialGradient(
+                gradient,
+                startCenter: center,
+                startRadius: 0,
+                endCenter: center,
+                endRadius: maxDimension * radii[index],
+                options: []
+            )
+        }
+        context.restoreGState()
+        UIColor.black.withAlphaComponent(0.40).setFill()
+        UIRectFillUsingBlendMode(rect, .normal)
     }
 
     private func drawMetadata(layout: PictureInPictureFrameLayout) {
@@ -331,7 +656,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
 
     private func drawLyrics(in lyricRect: CGRect) {
         guard let active = state.activeLine else {
-            let fontSize = max(18, lyricRect.width * 0.055)
+            let hasStatusText = state.lines.isEmpty && !state.statusText.isEmpty
+            let fontSize = max(18, lyricRect.width * 0.055 * (hasStatusText ? 0.85 : 1))
             let labelRect = CGRect(
                 x: lyricRect.minX,
                 y: lyricRect.midY - fontSize * 0.8,
@@ -339,7 +665,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                 height: fontSize * 1.6
             )
             drawText(
-                "ivLyrics",
+                hasStatusText ? "ivLyrics : \(state.statusText)" : "ivLyrics",
                 in: labelRect,
                 font: pretendardFont(size: fontSize, weight: .semibold),
                 color: UIColor.white.withAlphaComponent(0.76),
@@ -351,7 +677,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
 
         let scale = Double(max(70, min(280, state.lyricsSizePercent))) / 100
         let primarySize = max(15, min(34, lyricRect.width * 0.061 * scale))
-        let supplementSize = max(10, primarySize * 0.48)
+        let supplementSize = max(10, primarySize * 0.48 * CGFloat(AppSettings.clampPipTranslationSizePercent(state.translationSizePercent)) / 100)
         let nextSize = max(11, primarySize * 0.56)
         let renderedPrimarySize = state.typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: primarySize)
         let visiblePartCount = active.line.vocalParts.reduce(0) { count, part in
@@ -580,21 +906,49 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     }
 
     private func makePixelBuffer(width: Int, height: Int) -> CVPixelBuffer? {
-        let attributes: [CFString: Any] = [
-            kCVPixelBufferCGImageCompatibilityKey: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey: true,
-            kCVPixelBufferIOSurfacePropertiesKey: [:]
-        ]
+        let size = CGSize(width: CGFloat(width), height: CGFloat(height))
+        if pixelBufferPool == nil || pixelBufferPoolSize != size {
+            let poolAttributes: [CFString: Any] = [
+                kCVPixelBufferPoolMinimumBufferCountKey: 3
+            ]
+            let pixelBufferAttributes: [CFString: Any] = [
+                kCVPixelBufferWidthKey: width,
+                kCVPixelBufferHeightKey: height,
+                kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferCGImageCompatibilityKey: true,
+                kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+                kCVPixelBufferIOSurfacePropertiesKey: [:]
+            ]
+            var pool: CVPixelBufferPool?
+            guard CVPixelBufferPoolCreate(
+                kCFAllocatorDefault,
+                poolAttributes as CFDictionary,
+                pixelBufferAttributes as CFDictionary,
+                &pool
+            ) == kCVReturnSuccess, let pool else { return nil }
+            pixelBufferPool = pool
+            pixelBufferPoolSize = size
+            videoFormatDescription = nil
+        }
+
+        guard let pixelBufferPool else { return nil }
         var pixelBuffer: CVPixelBuffer?
-        let status = CVPixelBufferCreate(
+        guard CVPixelBufferPoolCreatePixelBuffer(
             kCFAllocatorDefault,
-            width,
-            height,
-            kCVPixelFormatType_32BGRA,
-            attributes as CFDictionary,
+            pixelBufferPool,
             &pixelBuffer
-        )
-        return status == kCVReturnSuccess ? pixelBuffer : nil
+        ) == kCVReturnSuccess, let pixelBuffer else { return nil }
+
+        if videoFormatDescription == nil {
+            var formatDescription: CMVideoFormatDescription?
+            guard CMVideoFormatDescriptionCreateForImageBuffer(
+                allocator: kCFAllocatorDefault,
+                imageBuffer: pixelBuffer,
+                formatDescriptionOut: &formatDescription
+            ) == noErr, let formatDescription else { return nil }
+            videoFormatDescription = formatDescription
+        }
+        return pixelBuffer
     }
 
     private func draw(_ image: CGImage, into pixelBuffer: CVPixelBuffer) {
@@ -610,20 +964,17 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                 space: CGColorSpaceCreateDeviceRGB(),
                 bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
               ) else { return }
-        context.translateBy(x: 0, y: CGFloat(CVPixelBufferGetHeight(pixelBuffer)))
-        context.scaleBy(x: 1, y: -1)
+        // `image` is already a rasterized CGImage. Drawing it into the BGRA bitmap
+        // context writes its rows in the order consumed by CVPixelBuffer. Applying
+        // UIKit's flipped drawing transform here reverses those rows a second time
+        // and makes the sample-buffer video appear upside-down on device.
         context.draw(image, in: CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(pixelBuffer), height: CVPixelBufferGetHeight(pixelBuffer)))
     }
 
     private func makeSampleBuffer(pixelBuffer: CVPixelBuffer) -> CMSampleBuffer? {
-        var formatDescription: CMVideoFormatDescription?
-        guard CMVideoFormatDescriptionCreateForImageBuffer(
-            allocator: kCFAllocatorDefault,
-            imageBuffer: pixelBuffer,
-            formatDescriptionOut: &formatDescription
-        ) == noErr, let formatDescription else { return nil }
+        guard let videoFormatDescription else { return nil }
         var timing = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: 30),
+            duration: CMTime(value: 1, timescale: 15),
             presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
             decodeTimeStamp: .invalid
         )
@@ -631,7 +982,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         guard CMSampleBufferCreateReadyWithImageBuffer(
             allocator: kCFAllocatorDefault,
             imageBuffer: pixelBuffer,
-            formatDescription: formatDescription,
+            formatDescription: videoFormatDescription,
             sampleTiming: &timing,
             sampleBufferOut: &sampleBuffer
         ) == noErr, let sampleBuffer else { return nil }
@@ -650,10 +1001,13 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var positionMs: Int64
         var title: String
         var artist: String
+        var statusText: String
         var showArtwork: Bool
         var orientation: String
+        var backgroundMode: String
         var alignment: String
         var lyricsSizePercent: Int
+        var translationSizePercent: Int
         var solidColor: String
         var syncedLyricsKaraokeAnimationEnabled: Bool
         var karaokeBounceEffectEnabled: Bool
@@ -668,10 +1022,13 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             positionMs: 0,
             title: "ivLyrics",
             artist: "",
+            statusText: "",
             showArtwork: true,
             orientation: AppSettings.pipOrientationSquare,
+            backgroundMode: AppSettings.pipBackgroundCover,
             alignment: "center",
             lyricsSizePercent: 150,
+            translationSizePercent: 100,
             solidColor: "#1e3a8a",
             syncedLyricsKaraokeAnimationEnabled: true,
             karaokeBounceEffectEnabled: true,
@@ -750,10 +1107,13 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                 String(line?.index ?? -1),
                 title,
                 artist,
+                statusText,
                 String(showArtwork),
                 orientation,
+                backgroundMode,
                 alignment,
                 String(lyricsSizePercent),
+                String(translationSizePercent),
                 solidColor,
                 String(syncedLyricsKaraokeAnimationEnabled),
                 String(karaokeBounceEffectEnabled),
@@ -924,14 +1284,12 @@ extension LyricsPictureInPictureController: AVPictureInPictureSampleBufferPlayba
     }
 
     nonisolated func pictureInPictureControllerTimeRangeForPlayback(_ pictureInPictureController: AVPictureInPictureController) -> CMTimeRange {
-        MainActor.assumeIsolated {
-            let durationMs = max(1, state.track?.durationMs ?? 0)
-            return CMTimeRange(start: .zero, duration: CMTime(value: durationMs, timescale: 1000))
-        }
+        let info = playbackInfo.read()
+        return CMTimeRange(start: .zero, duration: CMTime(value: info.durationMs, timescale: 1000))
     }
 
     nonisolated func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
-        MainActor.assumeIsolated { !(state.track?.playing ?? false) }
+        playbackInfo.read().isPaused
     }
 
     nonisolated func pictureInPictureController(
@@ -957,18 +1315,26 @@ extension LyricsPictureInPictureController: AVPictureInPictureSampleBufferPlayba
 extension LyricsPictureInPictureController: AVPictureInPictureControllerDelegate {
     nonisolated func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         Task { @MainActor [weak self] in
-            self?.active = true
-            self?.startRequested = false
-            self?.startRetryTask?.cancel()
-            self?.onLog?("lyrics pip: started")
+            guard let self else { return }
+            let reason = self.startReason
+            self.active = true
+            self.startReason = nil
+            self.startRetryTask?.cancel()
+            if reason == .automaticTransition {
+                self.onLog?("lyrics pip: automatic transition started")
+            } else {
+                self.onLog?("lyrics pip: started")
+            }
         }
     }
 
     nonisolated func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         Task { @MainActor [weak self] in
             self?.active = false
-            self?.startRequested = false
-            self?.deactivateAudioSession()
+            self?.startReason = nil
+            if self?.automaticPreparationEnabled != true {
+                self?.deactivateAudioSession()
+            }
             self?.onLog?("lyrics pip: stopped")
         }
     }
@@ -978,11 +1344,23 @@ extension LyricsPictureInPictureController: AVPictureInPictureControllerDelegate
         failedToStartPictureInPictureWithError error: Error
     ) {
         Task { @MainActor [weak self] in
-            self?.active = false
-            self?.startRequested = false
-            self?.deactivateAudioSession()
-            self?.onLog?("lyrics pip failed: \(error.localizedDescription)")
-            self?.onStartFailure?()
+            guard let self else { return }
+            let reason = self.startReason
+            self.active = false
+            self.startReason = nil
+            self.onEngagementEnded?()
+            self.startRetryTask?.cancel()
+            if !self.automaticPreparationEnabled {
+                self.deactivateAudioSession()
+            }
+            if reason == .automaticTransition {
+                self.onLog?("lyrics pip: automatic transition failed: \(error.localizedDescription)")
+            } else {
+                self.onLog?("lyrics pip failed: \(error.localizedDescription)")
+            }
+            if reason == .explicit {
+                self.onStartFailure?()
+            }
         }
     }
 
@@ -999,19 +1377,24 @@ struct LyricsPictureInPictureHostView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> HostView {
         let view = HostView()
+        view.onLayout = { controller.layoutHost() }
         controller.attach(to: view)
         return view
     }
 
     func updateUIView(_ uiView: HostView, context: Context) {
+        uiView.onLayout = { controller.layoutHost() }
         controller.attach(to: uiView)
         controller.layoutHost()
     }
 
     final class HostView: UIView {
+        var onLayout: (@MainActor () -> Void)?
+
         override func layoutSubviews() {
             super.layoutSubviews()
             backgroundColor = .black
+            onLayout?()
         }
     }
 }

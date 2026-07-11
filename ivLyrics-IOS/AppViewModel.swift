@@ -121,6 +121,7 @@ final class AppViewModel: ObservableObject {
     private var toastTask: Task<Void, Never>?
     private var pollinationsAuthTask: Task<Void, Never>?
     private var spotifyPollTask: Task<Void, Never>?
+    private var pipActiveCancellable: AnyCancellable?
     private var spotifyMetadataHydrationTask: Task<Void, Never>?
     private var spotifyPlaybackRefreshBurstTask: Task<Void, Never>?
     private var youtubeBackgroundLoadTask: Task<Void, Never>?
@@ -171,7 +172,21 @@ final class AppViewModel: ObservableObject {
             self?.appendLog(message)
         }
         spotifyAppRemotePlaybackService.onConnectionChanged = { [weak self] connected in
-            self?.spotifyAppRemoteConnected = connected
+            guard let self else { return }
+            spotifyAppRemoteConnected = connected
+            guard !connected,
+                  UIApplication.shared.applicationState != .active,
+                  pictureInPictureController.isEngaged,
+                  spotifyLivePolling else { return }
+            guard spotifyUserPlaybackService.connected else {
+                spotifyPollTask?.cancel()
+                spotifyPollTask = nil
+                appendLog("spotify live: PIP active but Web API not connected; track updates paused")
+                return
+            }
+            guard spotifyPollTask == nil else { return }
+            startSpotifyPollingTask()
+            appendLog("spotify live: App Remote dropped in background; web polling takes over")
         }
         pictureInPictureController.onSetPlaying = { [weak self] playing in
             self?.setPlayback(playing: playing)
@@ -186,6 +201,21 @@ final class AppViewModel: ObservableObject {
             guard let self else { return }
             self.showSavedToast(self.settings.t("pip.enter_failed"))
         }
+        pictureInPictureController.onEngagementEnded = { [weak self] in
+            guard let self,
+                  UIApplication.shared.applicationState != .active,
+                  self.spotifyLivePolling,
+                  !self.pictureInPictureController.active else { return }
+            self.suspendSpotifyLiveInBackground()
+        }
+        pipActiveCancellable = pictureInPictureController.$active
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] active in
+                Task { @MainActor [weak self] in
+                    self?.handlePictureInPictureActiveChange(active)
+                }
+            }
         startBluetoothRouteMonitoring()
         startClock()
     }
@@ -467,6 +497,10 @@ final class AppViewModel: ObservableObject {
         spotifyPollTask?.cancel()
         spotifyLivePolling = true
         appendLog("spotify live: polling started")
+        startSpotifyPollingTask()
+    }
+
+    private func startSpotifyPollingTask() {
         spotifyPollTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
@@ -491,6 +525,12 @@ final class AppViewModel: ObservableObject {
     }
 
     func appDidBecomeActive() {
+        if spotifyLivePolling,
+           spotifyPollTask != nil,
+           !spotifyAppRemotePlaybackService.connected {
+            spotifyPollTask?.cancel()
+            spotifyPollTask = nil
+        }
         guard spotifyLivePolling,
               !spotifyAppRemotePlaybackService.connected,
               !spotifyAppRemotePlaybackService.connecting,
@@ -511,14 +551,61 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func appWillResignActive() {
+        updatePictureInPictureState(force: true)
+        pictureInPictureController.prepareForAutomaticTransition()
+    }
+
     func appDidEnterBackground() {
         guard spotifyLivePolling else { return }
+        if pictureInPictureController.isEngaged {
+            spotifyPlaybackRefreshBurstTask?.cancel()
+            spotifyPlaybackRefreshBurstTask = nil
+            if spotifyAppRemotePlaybackService.connected {
+                appendLog("spotify live: keeping App Remote connection for PIP")
+            } else {
+                suspendSpotifyAppRemoteInBackground()
+            }
+            guard spotifyAppRemotePlaybackService.connected || spotifyUserPlaybackService.connected else {
+                appendLog("spotify live: PIP active but Web API not connected; track updates paused")
+                return
+            }
+            if spotifyPollTask == nil {
+                startSpotifyPollingTask()
+            }
+            appendLog("spotify live: background polling continues for PIP")
+            return
+        }
+        suspendSpotifyLiveInBackground()
+    }
+
+    private func handlePictureInPictureActiveChange(_ active: Bool) {
+        guard UIApplication.shared.applicationState != .active,
+              spotifyLivePolling else { return }
+        if active {
+            guard spotifyPollTask == nil else { return }
+            guard spotifyAppRemotePlaybackService.connected || spotifyUserPlaybackService.connected else {
+                appendLog("spotify live: PIP active but Web API not connected; track updates paused")
+                return
+            }
+            startSpotifyPollingTask()
+            appendLog("spotify live: background polling continues for PIP")
+        } else {
+            suspendSpotifyLiveInBackground()
+        }
+    }
+
+    private func suspendSpotifyLiveInBackground() {
         spotifyPollTask?.cancel()
         spotifyPollTask = nil
+        suspendSpotifyAppRemoteInBackground()
+        appendLog("spotify live: background connection suspended")
+    }
+
+    private func suspendSpotifyAppRemoteInBackground() {
         spotifyPlaybackRefreshBurstTask?.cancel()
         spotifyPlaybackRefreshBurstTask = nil
         spotifyAppRemotePlaybackService.suspend()
-        appendLog("spotify live: background connection suspended")
     }
 
     func stopSpotifyLivePolling() {
@@ -573,7 +660,14 @@ final class AppViewModel: ObservableObject {
             spotifyUserConnected = spotifyUserPlaybackService.connected
             appendLog("spotify live refresh failed: \(error.localizedDescription)")
             if !spotifyUserPlaybackService.connected {
-                spotifyLivePolling = false
+                if pictureInPictureController.isEngaged,
+                   UIApplication.shared.applicationState != .active {
+                    spotifyPollTask?.cancel()
+                    spotifyPollTask = nil
+                    appendLog("spotify live: background refresh unavailable; polling paused until foreground")
+                } else {
+                    spotifyLivePolling = false
+                }
             }
         }
     }
@@ -2249,15 +2343,22 @@ final class AppViewModel: ObservableObject {
     }
 
     private func updatePictureInPictureState(force: Bool = false) {
-        guard force || pictureInPictureController.needsStateUpdates else { return }
+        guard force || currentTrack != nil || pictureInPictureController.needsStateUpdates else { return }
         pictureInPictureController.update(
             track: currentTrack,
             lyrics: lyricsResult,
             positionMs: adjustedPositionMs,
             title: titleText,
             artist: artistText,
+            statusText: pipLyricsStatusText,
             settings: settings.snapshot
         )
+    }
+
+    private var pipLyricsStatusText: String {
+        guard lyricsResult.lines.isEmpty else { return "" }
+        if status == .loading { return settings.t("pip.status_searching") }
+        return lyricsResult.detail.trimmed
     }
 
     private func startBluetoothRouteMonitoring() {

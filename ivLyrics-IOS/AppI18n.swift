@@ -252,6 +252,7 @@ enum AppI18n {
             "label.spotify": "Spotify",
             "label.regenerate": "다시 생성",
             "label.close_pip": "PiP 닫기",
+            "pip.simulator_unavailable": "시뮬레이터에서는 시스템 PiP를 사용할 수 없습니다. 실기기에서 확인해 주세요.",
             "label.lyrics_settings": "가사 설정",
             "label.open_lrclib_list": "LRCLIB 목록 열기",
             "label.sync_by": "sync by"
@@ -475,6 +476,7 @@ enum AppI18n {
             "label.spotify": "Spotify",
             "label.regenerate": "Regenerate",
             "label.close_pip": "Close PiP",
+            "pip.simulator_unavailable": "System PiP is unavailable in the Simulator. Please check it on a physical device.",
             "label.lyrics_settings": "Lyrics settings",
             "label.open_lrclib_list": "Open LRCLIB list",
             "label.sync_by": "sync by"

@@ -86,7 +86,7 @@ struct ContentView: View {
                 case .background:
                     model.appDidEnterBackground()
                 case .inactive:
-                    break
+                    model.appWillResignActive()
                 @unknown default:
                     break
                 }
@@ -136,6 +136,9 @@ struct ContentView: View {
 
     private func rootContent(isLandscape: Bool, size: CGSize, safeAreaInsets: EdgeInsets) -> some View {
         ZStack {
+            LyricsPictureInPictureHostView(controller: model.pictureInPictureController)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(false)
             PlayerBackgroundView()
             primaryContent(
                 isLandscape: isLandscape,
@@ -147,10 +150,6 @@ struct ContentView: View {
                 size: size,
                 safeAreaInsets: safeAreaInsets
             )
-            LyricsPictureInPictureHostView(controller: model.pictureInPictureController)
-                .frame(width: 2, height: 2)
-                .opacity(0.01)
-                .allowsHitTesting(false)
 #if DEBUG
             if ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_KARAOKE_PREVIEW"] == "1" {
                 KaraokeDebugPreview()
@@ -660,9 +659,13 @@ struct ContentView: View {
 
     private func openSystemLyricsPictureInPicture() {
         showingLyricsMetaMenu = false
+        #if targetEnvironment(simulator)
+        model.showSavedToast(settings.t("pip.simulator_unavailable"))
+        #else
         if !model.startLyricsPictureInPicture() {
             model.showSavedToast(settings.t("pip.unavailable"))
         }
+        #endif
     }
 
     private func applyKeepScreenOn(_ enabled: Bool) {
@@ -5150,7 +5153,10 @@ private struct PictureInPictureLayoutDebugPreview: View {
             environment["IVLYRICS_DEBUG_PIP_ORIENTATION"] ?? AppSettings.pipOrientationLandscape
         )
         let showArtwork = environment["IVLYRICS_DEBUG_PIP_ARTWORK"] != "0"
-        let image = controller.debugFrameImage(orientation: orientation, showArtwork: showArtwork)
+        let backgroundMode = AppSettings.normalizePipBackgroundMode(
+            environment["IVLYRICS_DEBUG_PIP_BACKGROUND"] ?? AppSettings.pipBackgroundCover
+        )
+        let image = controller.debugFrameImage(orientation: orientation, showArtwork: showArtwork, backgroundMode: backgroundMode)
         Image(uiImage: image)
             .resizable()
             .interpolation(.none)
@@ -6308,6 +6314,21 @@ struct SettingsView: View {
 
             settingsSection(settings.t("section.pip"), description: settings.t("section.pip_desc")) {
                 settingsToggleCard(settings.t("setting.pip_show_artwork"), description: settings.t("setting.pip_show_artwork_desc"), binding: pipShowArtworkBinding)
+                settingsCard(settings.t("setting.pip_background"), description: settings.t("setting.pip_background_desc")) {
+                    Picker("", selection: Binding(get: {
+                        AppSettings.normalizePipBackgroundMode(settings.pipBackgroundMode)
+                    }, set: { value in
+                        settings.pipBackgroundMode = value
+                        model.showSavedToast(settings.t("toast.pip_settings_saved"))
+                    })) {
+                        Text(settings.t("pip.background.cover")).tag(AppSettings.pipBackgroundCover)
+                        Text(settings.t("pip.background.blur")).tag(AppSettings.pipBackgroundBlur)
+                        Text(settings.t("pip.background.gradient")).tag(AppSettings.pipBackgroundGradient)
+                        Text(settings.t("background.mode.solid")).tag(AppSettings.pipBackgroundSolid)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
                 settingsCard(settings.t("setting.pip_orientation"), description: settings.t("setting.pip_orientation_desc")) {
                     Picker("", selection: Binding(get: {
                         AppSettings.normalizePipOrientation(settings.pipOrientation)
@@ -6346,6 +6367,20 @@ struct SettingsView: View {
                             if !editing { model.showSavedToast(settings.t("toast.pip_settings_saved")) }
                         })
                         Text("\(AppSettings.clampPipLyricsSizePercent(settings.pipLyricsSizePercent))%")
+                            .font(.pretendard(13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.68))
+                    }
+                }
+                settingsCard(settings.t("setting.pip_translation_size"), description: settings.t("setting.pip_translation_size_desc")) {
+                    HStack {
+                        Slider(value: Binding(get: {
+                            Double(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent))
+                        }, set: { value in
+                            settings.pipTranslationSizePercent = AppSettings.clampPipTranslationSizePercent(Int(value.rounded()))
+                        }), in: 50...250, step: 1, onEditingChanged: { editing in
+                            if !editing { model.showSavedToast(settings.t("toast.pip_settings_saved")) }
+                        })
+                        Text("\(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent))%")
                             .font(.pretendard(13, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.68))
                     }
