@@ -375,8 +375,7 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
     private static func sanitizeRubyText(_ value: String, original: String) -> String {
         let cleaned = value.trimmed
         guard !cleaned.isEmpty, cleaned.contains("<ruby>"), stripRubyMarkup(cleaned) == original.trimmed else { return "" }
-        let pattern = #"<ruby>([^<>]+)<rt>([^<>]*)</rt></ruby>"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return "" }
+        guard let regex = rubyAnnotationRegex else { return "" }
         var cursor = cleaned.startIndex
         var output = ""
         let matches = regex.matches(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned))
