@@ -85,21 +85,21 @@ final class AppSettings: ObservableObject {
 
     static let speakerColorSlots: [SpeakerColorSlot] = [
         SpeakerColorSlot(id: speakerColorNormal, label: "Normal", defaultColor: "#ffffff"),
-        SpeakerColorSlot(id: "duet1", label: "Duet 1", defaultColor: "#eadfff"),
-        SpeakerColorSlot(id: "duet2", label: "Duet 2", defaultColor: "#e2d2ff"),
-        SpeakerColorSlot(id: "duet3", label: "Duet 3", defaultColor: "#f0e8ff"),
-        SpeakerColorSlot(id: "duet4", label: "Duet 4", defaultColor: "#dec9ff"),
-        SpeakerColorSlot(id: "duet5", label: "Duet 5", defaultColor: "#e9dcff"),
-        SpeakerColorSlot(id: "male1", label: "Male 1", defaultColor: "#e6f2ff"),
-        SpeakerColorSlot(id: "male2", label: "Male 2", defaultColor: "#d7ecff"),
-        SpeakerColorSlot(id: "male3", label: "Male 3", defaultColor: "#edf7ff"),
-        SpeakerColorSlot(id: "male4", label: "Male 4", defaultColor: "#dbe7ff"),
-        SpeakerColorSlot(id: "male5", label: "Male 5", defaultColor: "#e2f8ff"),
-        SpeakerColorSlot(id: "female1", label: "Female 1", defaultColor: "#ffe7ef"),
-        SpeakerColorSlot(id: "female2", label: "Female 2", defaultColor: "#ffe0e8"),
-        SpeakerColorSlot(id: "female3", label: "Female 3", defaultColor: "#fff0f5"),
-        SpeakerColorSlot(id: "female4", label: "Female 4", defaultColor: "#ffdfe0"),
-        SpeakerColorSlot(id: "female5", label: "Female 5", defaultColor: "#fbe5ff")
+        SpeakerColorSlot(id: "duet1", label: "Duet 1", defaultColor: "#e4d8ff"),
+        SpeakerColorSlot(id: "duet2", label: "Duet 2", defaultColor: "#d6e4ff"),
+        SpeakerColorSlot(id: "duet3", label: "Duet 3", defaultColor: "#ffddf2"),
+        SpeakerColorSlot(id: "duet4", label: "Duet 4", defaultColor: "#bfaeff"),
+        SpeakerColorSlot(id: "duet5", label: "Duet 5", defaultColor: "#9d8cf2"),
+        SpeakerColorSlot(id: "male1", label: "Male 1", defaultColor: "#a8ccff"),
+        SpeakerColorSlot(id: "male2", label: "Male 2", defaultColor: "#9ae8d4"),
+        SpeakerColorSlot(id: "male3", label: "Male 3", defaultColor: "#bfe8ff"),
+        SpeakerColorSlot(id: "male4", label: "Male 4", defaultColor: "#7fb5e6"),
+        SpeakerColorSlot(id: "male5", label: "Male 5", defaultColor: "#6cb8b8"),
+        SpeakerColorSlot(id: "female1", label: "Female 1", defaultColor: "#ffb8c7"),
+        SpeakerColorSlot(id: "female2", label: "Female 2", defaultColor: "#ffd6b3"),
+        SpeakerColorSlot(id: "female3", label: "Female 3", defaultColor: "#f6c8ff"),
+        SpeakerColorSlot(id: "female4", label: "Female 4", defaultColor: "#e6b4d4"),
+        SpeakerColorSlot(id: "female5", label: "Female 5", defaultColor: "#f6e5a5")
     ]
 
     @Published var providerId: String { didSet { saveProviderIfNeeded() } }
