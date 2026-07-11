@@ -3,9 +3,20 @@ import WebKit
 
 @MainActor
 final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    private static let rubyAnnotationRegex = try? NSRegularExpression(
+        pattern: #"<ruby>([^<>]+)<rt>([^<>]*)</rt></ruby>"#,
+        options: [.caseInsensitive]
+    )
+    private static let rubyAnnotationCache: NSCache<NSString, RubyAnnotationCacheEntry> = {
+        let cache = NSCache<NSString, RubyAnnotationCacheEntry>()
+        cache.countLimit = 512
+        return cache
+    }()
+
     private let cacheVersion = "furigana-js-kuromoji-v2"
     private let requestTimeoutNs: UInt64 = 45_000_000_000
     private let diskCache = LyricsDiskCache(namespace: "furigana_lyrics", maxEntries: 500)
+    private var cacheGeneration = 0
     private var memoryCache: [String: LyricsResult] = [:]
     private var pendingRequests: [String: PendingRequest] = [:]
     private var queuedScripts: [String] = []
@@ -38,7 +49,8 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
             if let cached = memoryCache[cacheKey] {
                 return Response(result: Self.mergeFurigana(baseResult: baseResult, furiganaResult: cached), logs: ["furigana js cache hit"], hadError: false)
             }
-            if let cached = diskCache.get(cacheKey) {
+            let diskCached = await cachedResultFromDisk(for: cacheKey)
+            if let cached = diskCached {
                 memoryCache[cacheKey] = cached
                 return Response(result: Self.mergeFurigana(baseResult: baseResult, furiganaResult: cached), logs: ["furigana js disk cache hit"], hadError: false)
             }
@@ -73,13 +85,24 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
     func clearTrackCache(_ trackKey: String) {
         let prefix = trackKey.trimmed + "|"
         guard !prefix.isEmpty else { return }
+        cacheGeneration += 1
         memoryCache = memoryCache.filter { !$0.key.hasPrefix(prefix) }
         diskCache.removeByKeyPrefix(prefix)
     }
 
     func clearCache() {
+        cacheGeneration += 1
         memoryCache.removeAll()
         diskCache.clear()
+    }
+
+    private func cachedResultFromDisk(for cacheKey: String) async -> LyricsResult? {
+        let generation = cacheGeneration
+        let cached = await Task.detached { [diskCache, cacheKey] in
+            diskCache.get(cacheKey)
+        }.value
+        guard generation == cacheGeneration else { return nil }
+        return cached
     }
 
     private func cancelPending(for trackKey: String) {
@@ -165,7 +188,10 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
         let lines = payload["lines"] as? [String] ?? []
         let annotated = Self.buildAnnotatedResult(baseResult: pending.baseResult, requests: pending.requests, annotations: lines)
         memoryCache[pending.cacheKey] = annotated
-        diskCache.put(pending.cacheKey, result: annotated)
+        let cacheKey = pending.cacheKey
+        Task.detached { [diskCache, cacheKey, annotated] in
+            diskCache.put(cacheKey, result: annotated)
+        }
         pending.resume(result: .init(result: annotated, logs: ["furigana js response: lines=\(lines.count)"], hadError: false))
     }
 
@@ -379,41 +405,54 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
     }
 
     static func rubyAnnotations(text: String, markup: String) -> [RubyAnnotation] {
+        guard !markup.isEmpty, markup.contains("<ruby>") else { return [] }
+        let cacheKey = markup + "\u{1f}" + text
+        if let cached = rubyAnnotationCache.object(forKey: cacheKey as NSString) {
+            return cached.annotations
+        }
+
         let cleaned = markup.trimmed
-        let plain = stripRubyMarkup(cleaned)
-        let leadingOffset: Int
-        if plain == text {
-            leadingOffset = 0
-        } else if plain == text.trimmed {
-            leadingOffset = text.prefix { $0.isWhitespace }.count
-        } else {
-            return []
-        }
-
-        let pattern = #"<ruby>([^<>]+)<rt>([^<>]*)</rt></ruby>"#
-        guard cleaned.contains("<ruby>"),
-              let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return []
-        }
-
-        var annotations: [RubyAnnotation] = []
-        var cursor = cleaned.startIndex
-        var sourceOffset = leadingOffset
-        for match in regex.matches(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)) {
-            guard let range = Range(match.range, in: cleaned),
-                  let baseRange = Range(match.range(at: 1), in: cleaned),
-                  let readingRange = Range(match.range(at: 2), in: cleaned) else {
+        let annotations: [RubyAnnotation] = {
+            let plain = stripRubyMarkup(cleaned)
+            let leadingOffset: Int
+            if plain == text {
+                leadingOffset = 0
+            } else if plain == text.trimmed {
+                leadingOffset = text.prefix { $0.isWhitespace }.count
+            } else {
                 return []
             }
-            sourceOffset += cleaned[cursor..<range.lowerBound].count
-            let base = String(cleaned[baseRange])
-            let reading = String(cleaned[readingRange]).trimmed
-            guard !base.isEmpty, !reading.isEmpty else { return [] }
-            annotations.append(RubyAnnotation(start: sourceOffset, length: base.count, reading: reading))
-            sourceOffset += base.count
-            cursor = range.upperBound
-        }
+
+            guard let regex = rubyAnnotationRegex else { return [] }
+            var annotations: [RubyAnnotation] = []
+            var cursor = cleaned.startIndex
+            var sourceOffset = leadingOffset
+            for match in regex.matches(in: cleaned, range: NSRange(cleaned.startIndex..., in: cleaned)) {
+                guard let range = Range(match.range, in: cleaned),
+                      let baseRange = Range(match.range(at: 1), in: cleaned),
+                      let readingRange = Range(match.range(at: 2), in: cleaned) else {
+                    return []
+                }
+                sourceOffset += cleaned[cursor..<range.lowerBound].count
+                let base = String(cleaned[baseRange])
+                let reading = String(cleaned[readingRange]).trimmed
+                guard !base.isEmpty, !reading.isEmpty else { return [] }
+                annotations.append(RubyAnnotation(start: sourceOffset, length: base.count, reading: reading))
+                sourceOffset += base.count
+                cursor = range.upperBound
+            }
+            return annotations
+        }()
+        rubyAnnotationCache.setObject(RubyAnnotationCacheEntry(annotations), forKey: cacheKey as NSString)
         return annotations
+    }
+
+    private final class RubyAnnotationCacheEntry: NSObject {
+        let annotations: [RubyAnnotation]
+
+        init(_ annotations: [RubyAnnotation]) {
+            self.annotations = annotations
+        }
     }
 
     struct RubyAnnotation: Equatable {

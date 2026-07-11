@@ -11,6 +11,8 @@ actor AiLyricsRepository {
     private var memoryCache: [String: LyricsResult] = [:]
     private var metadataMemoryCache: [String: MetadataTranslation] = [:]
     private var tmiMemoryCache: [String: TmiInfo] = [:]
+    private var lastPartialEmitUptime: TimeInterval = 0
+    private let partialEmitMinInterval: TimeInterval = 0.6
 
     struct SupplementResponse: Sendable {
         var result: LyricsResult
@@ -137,6 +139,7 @@ actor AiLyricsRepository {
         bypassCache: Bool = false,
         partialUpdate: ((SupplementResponse) async -> Void)? = nil
     ) async -> SupplementResponse {
+        lastPartialEmitUptime = 0
         var logs: [String] = []
         func log(_ message: String) { logs.append(message) }
 
@@ -222,7 +225,8 @@ actor AiLyricsRepository {
                 rule: rule,
                 translationSkipped: translationSkipped,
                 liveState: liveState,
-                partialUpdate: partialUpdate
+                partialUpdate: partialUpdate,
+                force: true
             )
         }
 
@@ -406,7 +410,8 @@ actor AiLyricsRepository {
                 rule: rule,
                 translationSkipped: translationSkipped,
                 liveState: liveState,
-                partialUpdate: partialUpdate
+                partialUpdate: partialUpdate,
+                force: true
             )
             return SupplementTaskOutcome(logs: logs)
         } catch {
@@ -422,7 +427,8 @@ actor AiLyricsRepository {
                 rule: rule,
                 translationSkipped: translationSkipped,
                 liveState: liveState,
-                partialUpdate: partialUpdate
+                partialUpdate: partialUpdate,
+                force: true
             )
             return SupplementTaskOutcome(logs: logs)
         }
@@ -438,9 +444,13 @@ actor AiLyricsRepository {
         rule: AppSettings.LanguageRule,
         translationSkipped: Bool,
         liveState: SupplementLiveState,
-        partialUpdate: ((SupplementResponse) async -> Void)?
+        partialUpdate: ((SupplementResponse) async -> Void)?,
+        force: Bool = false
     ) async {
         guard let partialUpdate else { return }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        guard force || uptime - lastPartialEmitUptime >= partialEmitMinInterval else { return }
+        lastPartialEmitUptime = uptime
         let snapshot = await liveState.snapshot()
         let result = buildMergedSupplementResult(
             baseResult: baseResult,
@@ -1809,36 +1819,44 @@ actor AiLyricsRepository {
 
     private static func detectLatinLanguage(_ text: String) -> String {
         let lower = text.lowercased()
-        if lower.range(of: #"[ăâđêôơưạảấầẩẫậắằẳẵặếềểễệịỉọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]"#, options: .regularExpression) != nil { return "vi" }
+        if lower.unicodeScalars.contains(where: vietnameseHints.contains) { return "vi" }
         if lower.contains("å") { return "sv" }
-        if lower.range(of: #"[ßü]"#, options: .regularExpression) != nil { return "de" }
-        if lower.range(of: #"[ñ¿¡]"#, options: .regularExpression) != nil { return "es" }
-        if lower.range(of: #"[ãõ]"#, options: .regularExpression) != nil { return "pt" }
-        if lower.range(of: #"[æœçëïÿ]"#, options: .regularExpression) != nil { return "fr" }
-        let samples: [String: [String]] = [
-            "en": ["the", "and", "you", "that", "with", "love", "your", "for", "not", "we", "are"],
-            "es": ["que", "de", "el", "la", "y", "en", "un", "una", "mi", "tu", "no", "por"],
-            "fr": ["que", "de", "le", "la", "les", "et", "je", "tu", "pas", "mon", "pour", "dans"],
-            "pt": ["que", "de", "o", "a", "e", "eu", "voce", "você", "não", "por", "meu", "pra"],
-            "it": ["che", "di", "il", "la", "e", "io", "tu", "non", "per", "mio", "nel", "sono"],
-            "de": ["ich", "du", "und", "der", "die", "das", "nicht", "mein", "mit", "ein", "ist"],
-            "sv": ["och", "det", "jag", "du", "inte", "att", "min", "med", "en", "är", "för"],
-            "id": ["aku", "kamu", "yang", "dan", "di", "ke", "tak", "tidak", "cinta", "ini", "itu"],
-            "ms": ["aku", "kamu", "yang", "dan", "di", "ke", "tak", "tidak", "cinta", "ini", "itu", "kau"]
-        ]
+        if lower.unicodeScalars.contains(where: germanHints.contains) { return "de" }
+        if lower.unicodeScalars.contains(where: spanishHints.contains) { return "es" }
+        if lower.unicodeScalars.contains(where: portugueseHints.contains) { return "pt" }
+        if lower.unicodeScalars.contains(where: frenchHints.contains) { return "fr" }
+
+        let words = Set(lower.split(whereSeparator: {
+            !$0.isLetter && !$0.isNumber && $0 != "_"
+        }).map(String.init))
         var best = "en"
         var bestScore = 0
-        for (lang, words) in samples {
-            let score = words.reduce(0) { partial, word in
-                lower.range(of: #"(?s).*\b\#(NSRegularExpression.escapedPattern(for: word))\b.*"#, options: .regularExpression) == nil ? partial : partial + 1
-            }
+        for (language, samples) in latinLanguageSamples {
+            let score = samples.reduce(0) { $0 + (words.contains($1) ? 1 : 0) }
             if score > bestScore {
-                best = lang
+                best = language
                 bestScore = score
             }
         }
         return bestScore >= 2 ? best : "en"
     }
+
+    private static let vietnameseHints = Set("ăâđêôơưạảấầẩẫậắằẳẵặếềểễệịỉọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ".unicodeScalars)
+    private static let germanHints = Set("ßü".unicodeScalars)
+    private static let spanishHints = Set("ñ¿¡".unicodeScalars)
+    private static let portugueseHints = Set("ãõ".unicodeScalars)
+    private static let frenchHints = Set("æœçëïÿ".unicodeScalars)
+    private static let latinLanguageSamples: [(language: String, words: Set<String>)] = [
+        ("en", ["the", "and", "you", "that", "with", "love", "your", "for", "not", "we", "are"]),
+        ("es", ["que", "de", "el", "la", "y", "en", "un", "una", "mi", "tu", "no", "por"]),
+        ("fr", ["que", "de", "le", "la", "les", "et", "je", "tu", "pas", "mon", "pour", "dans"]),
+        ("pt", ["que", "de", "o", "a", "e", "eu", "voce", "você", "não", "por", "meu", "pra"]),
+        ("it", ["che", "di", "il", "la", "e", "io", "tu", "non", "per", "mio", "nel", "sono"]),
+        ("de", ["ich", "du", "und", "der", "die", "das", "nicht", "mein", "mit", "ein", "ist"]),
+        ("sv", ["och", "det", "jag", "du", "inte", "att", "min", "med", "en", "är", "för"]),
+        ("id", ["aku", "kamu", "yang", "dan", "di", "ke", "tak", "tidak", "cinta", "ini", "itu"]),
+        ("ms", ["aku", "kamu", "yang", "dan", "di", "ke", "tak", "tidak", "cinta", "ini", "itu", "kau"])
+    ]
 
     private static let simplifiedHints = Set("这为国们会来时说对过还后个无爱声体见长门马鸟鱼龙云".unicodeScalars)
     private static let traditionalHints = Set("這為國們會來時說對過還後個無愛聲體見長門馬鳥魚龍雲".unicodeScalars)
