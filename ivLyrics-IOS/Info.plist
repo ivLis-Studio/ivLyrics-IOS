@@ -24,10 +24,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>kr.ivlis.ivlyrics.spotify</string>
+			<string>musicplayer-auth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>ivlyrics-ios</string>
+				<string>musicplayer-auth</string>
 			</array>
 		</dict>
 	</array>

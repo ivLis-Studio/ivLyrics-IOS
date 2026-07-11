@@ -7,9 +7,10 @@ import UIKit
 
 @MainActor
 final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate {
-    private let redirectURL = URL(string: "ivlyrics-ios://spotify-callback/")!
+    private let redirectURL = SpotifyRedirectConfiguration.url
     private let accessTokenKey = "spotify_app_remote_access_token"
     private let clientIdKey = "spotify_app_remote_client_id"
+    private let redirectURIKey = "spotify_app_remote_redirect_uri"
     private var appRemote: SPTAppRemote?
     private var configuredClientId = ""
     private var pendingFallback: (() -> Void)?
@@ -208,10 +209,13 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
         }
         let defaults = UserDefaults.standard
         let storedClientId = defaults.string(forKey: clientIdKey)?.trimmed ?? ""
-        if !storedClientId.isEmpty, storedClientId != clientId {
+        let storedRedirectURI = defaults.string(forKey: redirectURIKey) ?? ""
+        if (!storedClientId.isEmpty && storedClientId != clientId)
+            || storedRedirectURI != SpotifyRedirectConfiguration.uri {
             defaults.removeObject(forKey: accessTokenKey)
         }
         defaults.set(clientId, forKey: clientIdKey)
+        defaults.set(SpotifyRedirectConfiguration.uri, forKey: redirectURIKey)
         configuredClientId = clientId
         let configuration = SPTConfiguration(clientID: clientId, redirectURL: redirectURL)
         configuration.playURI = ""

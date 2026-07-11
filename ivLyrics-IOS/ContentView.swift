@@ -5976,7 +5976,7 @@ struct InitialSetupView: View {
                 .autocorrectionDisabled()
                 .textFieldStyle(PlayerTextFieldStyle())
             LabeledContent(settings.t("field.redirect_uri")) {
-                Text("ivlyrics-ios://spotify-callback/")
+                Text(SpotifyRedirectConfiguration.uri)
                     .font(.caption.monospaced())
                     .textSelection(.enabled)
             }
@@ -6085,7 +6085,7 @@ private struct SpotifySetupInstructionsPanel: View {
         case 2:
             return (settings.t("spotify.copy.app_description"), "trackinfo")
         case 3:
-            return (settings.t("spotify.copy.redirect_uri"), "ivlyrics-ios://spotify-callback/")
+            return (settings.t("spotify.copy.redirect_uri"), SpotifyRedirectConfiguration.uri)
         default:
             return nil
         }
@@ -6508,7 +6508,7 @@ struct SettingsView: View {
                         .textFieldStyle(PlayerTextFieldStyle())
                 }
                 settingsCard(settings.t("field.redirect_uri")) {
-                    Text("ivlyrics-ios://spotify-callback/")
+                    Text(SpotifyRedirectConfiguration.uri)
                         .font(.caption.monospaced())
                         .textSelection(.enabled)
                         .foregroundStyle(.white.opacity(0.72))

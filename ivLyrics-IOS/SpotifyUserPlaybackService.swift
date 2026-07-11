@@ -14,8 +14,8 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     private let tokenEndpoint = "https://accounts.spotify.com/api/token"
     private let playbackStateEndpoint = "https://api.spotify.com/v1/me/player"
     private let currentlyPlayingEndpoint = "https://api.spotify.com/v1/me/player/currently-playing"
-    private let redirectURI = "ivlyrics-ios://spotify-callback/"
-    private let callbackScheme = "ivlyrics-ios"
+    private let redirectURI = SpotifyRedirectConfiguration.uri
+    private let callbackScheme = SpotifyRedirectConfiguration.scheme
     private let scopes = [
         "user-read-currently-playing",
         "user-read-playback-state",
@@ -23,6 +23,7 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     ]
     private let defaults = UserDefaults.standard
     private let clientIdKey = "spotify_user_client_id"
+    private let redirectURIKey = "spotify_user_redirect_uri"
 
     @Published private(set) var connected = false
     @Published private(set) var authorizing = false
@@ -34,6 +35,10 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
 
     override init() {
         super.init()
+        if defaults.string(forKey: redirectURIKey) != redirectURI {
+            clearTokens()
+            defaults.set(redirectURI, forKey: redirectURIKey)
+        }
         connected = !refreshToken.isEmpty || validAccessToken() != nil
     }
 
