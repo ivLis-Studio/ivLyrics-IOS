@@ -39,9 +39,10 @@ enum SyncDataApplier {
             return .empty("no valid sync lines parsed from JSON")
         }
 
-        let sourcePrefix = resolveSourcePrefix(source: source, baseLines: baseLines)
+        let sourceResolution = resolveSourcePrefix(source: source, normalizedBaseLines: baseLines)
+        let sourcePrefix = sourceResolution.prefix
         if sourcePrefix < 0 {
-            return .empty("source line shape mismatch: expected=\(previewIntegers(readIntArray(source?["lineCharCounts"]))) actual=\(previewIntegers(baseLines.map { IvLyricsUtilities.splitChars($0).count }))")
+            return .empty("source line shape mismatch: expected=\(previewIntegers(readIntArray(source?["lineCharCounts"]))) actual=\(previewIntegers(sourceResolution.actualCounts))")
         }
         if sourcePrefix > 0 {
             let charOffset = leadingCharOffset(readIntArray(source?["lineCharCounts"]), prefixLength: sourcePrefix)
@@ -350,20 +351,23 @@ enum SyncDataApplier {
         return nil
     }
 
-    private static func resolveSourcePrefix(source: [String: Any]?, baseLines: [String]) -> Int {
-        guard let source else { return 0 }
+    private static func resolveSourcePrefix(
+        source: [String: Any]?,
+        normalizedBaseLines: [String]
+    ) -> (prefix: Int, actualCounts: [Int]) {
+        guard let source else { return (0, []) }
         let expectedCounts = readIntArray(source["lineCharCounts"])
-        guard !expectedCounts.isEmpty else { return 0 }
-        let actualCounts = baseLines.map { IvLyricsUtilities.splitChars($0).count }
+        guard !expectedCounts.isEmpty else { return (0, []) }
+        let actualCounts = normalizedBaseLines.map { $0.unicodeScalars.count }
         if sameShape(expectedCounts, actualCounts, expectedOffset: 0) {
-            return 0
+            return (0, actualCounts)
         }
-        guard expectedCounts.count > actualCounts.count else { return -1 }
+        guard expectedCounts.count > actualCounts.count else { return (-1, actualCounts) }
         let maxPrefix = expectedCounts.count - actualCounts.count
         for prefix in 1...maxPrefix where sameShape(expectedCounts, actualCounts, expectedOffset: prefix) {
-            return prefix
+            return (prefix, actualCounts)
         }
-        return -1
+        return (-1, actualCounts)
     }
 
     private static func sameShape(_ expected: [Int], _ actual: [Int], expectedOffset: Int) -> Bool {
