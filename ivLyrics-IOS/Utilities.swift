@@ -31,6 +31,10 @@ extension Array where Element == String {
 
 enum IvLyricsUtilities {
     private static let lowercaseHexDigits = Array("0123456789abcdef".utf8)
+    private static let leadingLrcTimestampPattern = #"^\[\d+:\d+(?:[.,]\d+)?\]\s*"#
+    private static let leadingLrcTimestampRegex = try? NSRegularExpression(
+        pattern: leadingLrcTimestampPattern
+    )
 
     static func sha256(_ value: String) -> String {
         let digest = SHA256.hash(data: Data(value.utf8))
@@ -170,7 +174,18 @@ enum IvLyricsUtilities {
     }
 
     static func stripLeadingLrcTimestamp(_ text: String) -> String {
-        text.replacingOccurrences(of: #"^\[\d+:\d+(?:[.,]\d+)?\]\s*"#, with: "", options: .regularExpression)
+        guard let regex = leadingLrcTimestampRegex else {
+            return text.replacingOccurrences(
+                of: leadingLrcTimestampPattern,
+                with: "",
+                options: .regularExpression
+            )
+        }
+        return regex.stringByReplacingMatches(
+            in: text,
+            range: NSRange(text.startIndex..<text.endIndex, in: text),
+            withTemplate: ""
+        )
     }
 
     static func stripLrcTimestamps(_ text: String?) -> String {
