@@ -1392,8 +1392,18 @@ actor LyricsRepository {
 
         let syncLineCounts = syncData.lineCharCounts
         let normalizeParentheticalLines = syncData.shouldNormalizeParentheticalLines
-        candidate.exactSyncedLineMatch = hasExactLineShape(syncLineCounts, candidateLineCharCounts(candidate.syncedLyrics, stripTimestamps: true, normalizeParentheticalLines: normalizeParentheticalLines))
-        candidate.exactPlainLineMatch = hasExactLineShape(syncLineCounts, candidateLineCharCounts(candidate.plainLyrics, stripTimestamps: false, normalizeParentheticalLines: normalizeParentheticalLines))
+        let syncedLineCharCounts = candidateLineCharCounts(
+            candidate.syncedLyrics,
+            stripTimestamps: true,
+            normalizeParentheticalLines: normalizeParentheticalLines
+        )
+        let plainLineCharCounts = candidateLineCharCounts(
+            candidate.plainLyrics,
+            stripTimestamps: false,
+            normalizeParentheticalLines: normalizeParentheticalLines
+        )
+        candidate.exactSyncedLineMatch = hasExactLineShape(syncLineCounts, syncedLineCharCounts)
+        candidate.exactPlainLineMatch = hasExactLineShape(syncLineCounts, plainLineCharCounts)
         candidate.syncLineExactMatch = candidate.exactSyncedLineMatch || candidate.exactPlainLineMatch
         candidate.preferredLyricsSource = candidate.exactSyncedLineMatch ? "synced" : (candidate.exactPlainLineMatch ? "plain" : syncData.preferredLyricsSource)
         candidate.hasOriginalLyricsScript = IvLyricsUtilities.hasOriginalLyricsScript(candidateComparableText(candidate, preferredSource: candidate.preferredLyricsSource, normalizeParentheticalLines: normalizeParentheticalLines))
@@ -1402,8 +1412,8 @@ actor LyricsRepository {
         let sourceId = syncData.lrclibId
         candidate.syncSourceIdMatch = sourceId > 0 && candidate.id == sourceId
         let sourceLineCounts = syncData.sourceLineCharCounts
-        let sourceSyncedLineMatch = hasExactLineShape(sourceLineCounts, candidateLineCharCounts(candidate.syncedLyrics, stripTimestamps: true, normalizeParentheticalLines: normalizeParentheticalLines))
-        let sourcePlainLineMatch = hasExactLineShape(sourceLineCounts, candidateLineCharCounts(candidate.plainLyrics, stripTimestamps: false, normalizeParentheticalLines: normalizeParentheticalLines))
+        let sourceSyncedLineMatch = hasExactLineShape(sourceLineCounts, syncedLineCharCounts)
+        let sourcePlainLineMatch = hasExactLineShape(sourceLineCounts, plainLineCharCounts)
         if candidate.preferredLyricsSource.isEmpty {
             candidate.preferredLyricsSource = sourceSyncedLineMatch ? "synced" : (sourcePlainLineMatch ? "plain" : syncData.preferredLyricsSource)
         }
