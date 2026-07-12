@@ -1166,8 +1166,9 @@ struct PictureInPictureKaraokeContent: View {
     var typography: AppSettings.TypographySettings = .defaults
 
     var body: some View {
+        let visibleParts = displayParts
         Group {
-            if displayParts.isEmpty {
+            if visibleParts.isEmpty {
                 karaokeText(
                     text: line.text.trimmed.isEmpty ? " " : line.text,
                     rubyText: line.furiganaText,
@@ -1183,7 +1184,7 @@ struct PictureInPictureKaraokeContent: View {
                 )
             } else {
                 VStack(alignment: horizontalAlignment, spacing: 0) {
-                    ForEach(Array(displayParts.enumerated()), id: \.offset) { index, part in
+                    ForEach(Array(visibleParts.enumerated()), id: \.offset) { index, part in
                         let partActive = positionMs >= part.startTimeMs
                         karaokeText(
                             text: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part),
@@ -1199,7 +1200,7 @@ struct PictureInPictureKaraokeContent: View {
                             inactiveDistance: partActive ? 0 : 0.45,
                             effectRowSeed: index
                         )
-                        .padding(.top, vocalPartTopSpacing(index: index))
+                        .padding(.top, vocalPartTopSpacing(index: index, parts: visibleParts))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: frameAlignment)
@@ -1221,9 +1222,9 @@ struct PictureInPictureKaraokeContent: View {
         }
     }
 
-    private func vocalPartTopSpacing(index: Int) -> CGFloat {
-        guard index > 0, displayParts.indices.contains(index) else { return 0 }
-        return displayParts[index].furiganaText.contains("<ruby>") ? 8 : 4
+    private func vocalPartTopSpacing(index: Int, parts: [LyricsLine.VocalPart]) -> CGFloat {
+        guard index > 0, parts.indices.contains(index) else { return 0 }
+        return parts[index].furiganaText.contains("<ruby>") ? 8 : 4
     }
 
     private func karaokeText(
