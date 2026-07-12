@@ -35,6 +35,10 @@ enum IvLyricsUtilities {
     private static let leadingLrcTimestampRegex = try? NSRegularExpression(
         pattern: leadingLrcTimestampPattern
     )
+    private static let lrcMetadataLinePattern = #"^\s*\[(?:ar|al|ti|au|length|by|offset|re|ve):[^\]]*\]\s*$"#
+    private static let lrcMetadataLineRegex = try? NSRegularExpression(
+        pattern: lrcMetadataLinePattern
+    )
 
     static func sha256(_ value: String) -> String {
         let digest = SHA256.hash(data: Data(value.utf8))
@@ -162,7 +166,7 @@ enum IvLyricsUtilities {
         for rawLine in text.components(separatedBy: .newlines) {
             var line = stripTimestamps ? stripLeadingLrcTimestamp(rawLine) : rawLine.trimmed
             line = line.nfc().trimmed
-            if line.isEmpty || line.range(of: #"^\s*\[(?:ar|al|ti|au|length|by|offset|re|ve):[^\]]*\]\s*$"#, options: .regularExpression) != nil {
+            if line.isEmpty || isLrcMetadataLine(line) {
                 continue
             }
             lines.append(line)
@@ -171,6 +175,16 @@ enum IvLyricsUtilities {
             return normalizeStandaloneParentheticalBlocks(lines).map { $0.nfc().trimmed }.filter { !$0.isEmpty }
         }
         return lines
+    }
+
+    private static func isLrcMetadataLine(_ line: String) -> Bool {
+        guard let regex = lrcMetadataLineRegex else {
+            return line.range(of: lrcMetadataLinePattern, options: .regularExpression) != nil
+        }
+        return regex.firstMatch(
+            in: line,
+            range: NSRange(line.startIndex..<line.endIndex, in: line)
+        ) != nil
     }
 
     static func stripLeadingLrcTimestamp(_ text: String) -> String {
