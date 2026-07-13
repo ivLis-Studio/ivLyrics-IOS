@@ -5067,15 +5067,18 @@ struct SyllableKaraokeText: View {
     var singleLine: Bool = false
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !requiresContinuousEffect)) { timeline in
-            karaokeBody(nowMs: timeline.date.timeIntervalSinceReferenceDate * 1_000)
+        let displayKind = normalizedKind
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !requiresContinuousEffect(displayKind))) { timeline in
+            karaokeBody(
+                nowMs: timeline.date.timeIntervalSinceReferenceDate * 1_000,
+                displayKind: displayKind
+            )
         }
     }
 
     @ViewBuilder
-    private func karaokeBody(nowMs: Double) -> some View {
+    private func karaokeBody(nowMs: Double, displayKind: String) -> some View {
         let segments = karaokeSegments
-        let displayKind = normalizedKind
         Group {
             if segments.isEmpty {
                 Text(text.isEmpty ? " " : text)
@@ -5232,11 +5235,11 @@ struct SyllableKaraokeText: View {
         return value.isEmpty ? "vocal" : value
     }
 
-    private var requiresContinuousEffect: Bool {
+    private func requiresContinuousEffect(_ displayKind: String) -> Bool {
         active && [
             "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
             "wave", "sparkle", "echo", "whisper", "glow", "blur", "flicker"
-        ].contains(normalizedKind)
+        ].contains(displayKind)
     }
 
     private func fillFraction(for syllable: LyricsLine.Syllable) -> CGFloat {
