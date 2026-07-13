@@ -3540,6 +3540,44 @@ private struct LyricsMetaStrip: View {
     }
 }
 
+private struct EnumeratedRandomAccessCollection<Base: RandomAccessCollection>: RandomAccessCollection {
+    typealias Index = Base.Index
+    typealias Element = (offset: Int, element: Base.Element)
+
+    private let base: Base
+
+    init(_ base: Base) {
+        self.base = base
+    }
+
+    var startIndex: Index { base.startIndex }
+    var endIndex: Index { base.endIndex }
+    var count: Int { base.count }
+
+    subscript(position: Index) -> Element {
+        (
+            offset: base.distance(from: base.startIndex, to: position),
+            element: base[position]
+        )
+    }
+
+    func index(after index: Index) -> Index {
+        base.index(after: index)
+    }
+
+    func index(before index: Index) -> Index {
+        base.index(before: index)
+    }
+
+    func index(_ index: Index, offsetBy distance: Int) -> Index {
+        base.index(index, offsetBy: distance)
+    }
+
+    func distance(from start: Index, to end: Index) -> Int {
+        base.distance(from: start, to: end)
+    }
+}
+
 struct LyricsTimelineView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
@@ -3589,7 +3627,7 @@ struct LyricsTimelineView: View {
                 let _ = settings.speakerColorRevision
                 let typography = settings.typographySettings()
                 let speakerColors = settings.speakerColorSettings()
-                ForEach(items.enumerated(), id: \.element.id) { displayIndex, item in
+                ForEach(EnumeratedRandomAccessCollection(items), id: \.element.id) { displayIndex, item in
                     let itemActive = item.id == activeItemID
                     let displayDistance = abs(Double(displayIndex) - visualCenterIndex)
                     Group {
