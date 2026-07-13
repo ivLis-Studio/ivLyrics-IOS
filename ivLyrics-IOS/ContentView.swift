@@ -5199,7 +5199,12 @@ struct SyllableKaraokeText: View {
     }
 
     private var effectiveSyllables: [LyricsLine.Syllable] {
-        let timed = syllables.filter { !$0.text.isEmpty }
+        let timed: [LyricsLine.Syllable]
+        if syllables.contains(where: { $0.text.isEmpty }) {
+            timed = syllables.filter { !$0.text.isEmpty }
+        } else {
+            timed = syllables
+        }
         if !timed.isEmpty {
             return KaraokeSyllableTimingNormalizer.expandTimedChunks(timed)
         }
