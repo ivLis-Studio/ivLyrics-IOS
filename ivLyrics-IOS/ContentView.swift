@@ -2228,7 +2228,7 @@ private struct LandscapeLyricsPane: View {
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .bottom) {
-            LyricsProviderAttribution()
+            LyricsProviderAttribution(includesSyncContributors: true)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
         }
@@ -3438,8 +3438,8 @@ private struct LyricsMetaStrip: View {
     @ViewBuilder
     var body: some View {
         if inline {
-            if !visibleContributors.isEmpty {
-                contributorRow
+            if hasContributors {
+                LyricsContributorCredit(contributors: model.lyricsResult.contributors)
                     .contentShape(Rectangle())
                     .onLongPressGesture {
                         onOpenMenu()
@@ -3453,8 +3453,8 @@ private struct LyricsMetaStrip: View {
                         .foregroundStyle(.white.opacity(0.64))
                         .lineLimit(2)
                 }
-                if !visibleContributors.isEmpty {
-                    contributorRow
+                if hasContributors {
+                    LyricsContributorCredit(contributors: model.lyricsResult.contributors)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -3470,7 +3470,7 @@ private struct LyricsMetaStrip: View {
     }
 
     private var hasContent: Bool {
-        !sourceStatusText.isEmpty || !visibleContributors.isEmpty
+        !sourceStatusText.isEmpty || hasContributors
     }
 
     private var sourceStatusText: String {
@@ -3482,35 +3482,59 @@ private struct LyricsMetaStrip: View {
         return detail.isEmpty ? provider : "\(provider) / \(detail)"
     }
 
-    private var visibleContributors: [LyricsResult.SyncContributor] {
-        Array(model.lyricsResult.contributors.prefix(3))
+    private var hasContributors: Bool {
+        !model.lyricsResult.contributors.isEmpty
     }
+}
 
-    private var remainingContributorCount: Int {
-        max(0, model.lyricsResult.contributors.count - visibleContributors.count)
-    }
+private struct LyricsContributorCredit: View {
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var model: AppViewModel
+    var contributors: [LyricsResult.SyncContributor]
+    var subdued = false
+    var interactive = true
 
-    private var contributorRow: some View {
+    var body: some View {
         let parts = syncCreditFormatParts
-        return HStack(spacing: 0) {
+        HStack(spacing: 0) {
             Text(parts.prefix)
-                .foregroundStyle(.white.opacity(0.45))
+                .foregroundStyle(.white.opacity(labelOpacity))
             ForEach(Array(visibleContributors.enumerated()), id: \.offset) { index, contributor in
                 if index > 0 {
                     Text(", ")
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(.white.opacity(labelOpacity))
                 }
                 contributorNameView(contributor)
             }
             if remainingContributorCount > 0 {
                 Text(" +\(remainingContributorCount)")
-                    .foregroundStyle(.white.opacity(0.56))
+                    .foregroundStyle(.white.opacity(nameOpacity))
             }
             Text(parts.suffix)
-                .foregroundStyle(.white.opacity(0.45))
+                .foregroundStyle(.white.opacity(labelOpacity))
         }
         .font(.caption2)
         .lineLimit(1)
+    }
+
+    private var visibleContributors: [LyricsResult.SyncContributor] {
+        Array(contributors.prefix(3))
+    }
+
+    private var remainingContributorCount: Int {
+        max(0, contributors.count - visibleContributors.count)
+    }
+
+    private var labelOpacity: Double {
+        subdued ? 0.12 : 0.45
+    }
+
+    private var nameOpacity: Double {
+        subdued ? 0.20 : 0.56
+    }
+
+    private var linkedNameOpacity: Double {
+        subdued ? 0.20 : 0.76
     }
 
     private var syncCreditFormatParts: (prefix: String, suffix: String) {
@@ -3523,19 +3547,19 @@ private struct LyricsMetaStrip: View {
 
     @ViewBuilder
     private func contributorNameView(_ contributor: LyricsResult.SyncContributor) -> some View {
-        if contributor.profileAvailable, !contributor.userHash.trimmed.isEmpty {
+        if interactive, contributor.profileAvailable, !contributor.userHash.trimmed.isEmpty {
             Button {
                 Task {
                     await model.openSyncContributorProfile(contributor)
                 }
             } label: {
                 Text(contributor.name)
-                    .foregroundStyle(.white.opacity(0.76))
+                    .foregroundStyle(.white.opacity(linkedNameOpacity))
             }
             .buttonStyle(.plain)
         } else {
             Text(contributor.name)
-                .foregroundStyle(.white.opacity(0.56))
+                .foregroundStyle(.white.opacity(nameOpacity))
         }
     }
 }
@@ -3683,6 +3707,7 @@ struct LyricsTimelineView: View {
 private struct LyricsProviderAttribution: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
+    var includesSyncContributors = false
 
     private static let visibleProviderIds: Set<String> = ["lrclib", "lyricsplus", "unison"]
 
@@ -3700,6 +3725,16 @@ private struct LyricsProviderAttribution: View {
                     .foregroundStyle(.white.opacity(0.20))
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
+                if includesSyncContributors, !model.baseLyricsResult.contributors.isEmpty {
+                    Text("•")
+                        .font(.pretendard(9, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.12))
+                    LyricsContributorCredit(
+                        contributors: model.baseLyricsResult.contributors,
+                        subdued: true,
+                        interactive: false
+                    )
+                }
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, 26)
