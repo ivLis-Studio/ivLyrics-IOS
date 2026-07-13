@@ -31,6 +31,8 @@ struct YouTubeBackdropView: UIViewRepresentable {
         "youtubei/v1/log_event",
         "youtube.com/yva_"
     ]
+    private static let dynamicAdURLPattern = #"(?:gvt\d+\.com/ads|yt\d?\.ggpht\.com/ad|ytimg\.com/.*ad|yt3\.ggpht\.com/ytc/.*ad)"#
+    private static let dynamicAdURLRegex = try? NSRegularExpression(pattern: dynamicAdURLPattern)
 
     var info: YouTubeVideoInfo
     var playerSeconds: Double
@@ -249,13 +251,23 @@ struct YouTubeBackdropView: UIViewRepresentable {
             || normalized.contains("youtube.com/api/stats/playback")
             || normalized.contains("youtubei/v1/player") && normalized.contains("adformat")
             || normalized.contains("youtube.com/get_video_info") && normalized.contains("adformat")
-            || normalized.range(of: #"gvt\d+\.com/ads"#, options: .regularExpression) != nil
-            || normalized.range(of: #"yt\d?\.ggpht\.com/ad"#, options: .regularExpression) != nil
-            || normalized.range(of: #"ytimg\.com/.*ad"#, options: .regularExpression) != nil
-            || normalized.range(of: #"yt3\.ggpht\.com/ytc/.*ad"#, options: .regularExpression) != nil {
+            || matchesDynamicAdURL(normalized) {
             return true
         }
         return adURLPatterns.contains { normalized.contains($0) }
+    }
+
+    private static func matchesDynamicAdURL(_ value: String) -> Bool {
+        if let dynamicAdURLRegex {
+            return dynamicAdURLRegex.firstMatch(
+                in: value,
+                range: NSRange(value.startIndex..<value.endIndex, in: value)
+            ) != nil
+        }
+        return value.range(of: #"gvt\d+\.com/ads"#, options: .regularExpression) != nil
+            || value.range(of: #"yt\d?\.ggpht\.com/ad"#, options: .regularExpression) != nil
+            || value.range(of: #"ytimg\.com/.*ad"#, options: .regularExpression) != nil
+            || value.range(of: #"yt3\.ggpht\.com/ytc/.*ad"#, options: .regularExpression) != nil
     }
 }
 #else
