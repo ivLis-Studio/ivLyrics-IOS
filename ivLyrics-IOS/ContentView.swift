@@ -4203,10 +4203,14 @@ enum LyricsTimelineDisplayBuilder {
     static func supplementPlaceholderText(_ line: LyricsLine) -> String {
         let text = line.text.trimmed
         if !text.isEmpty { return text }
-        let parts = orderedVocalParts(line.vocalParts)
-            .map(supplementPlaceholderText)
-            .map(\.trimmed)
-            .filter { !$0.isEmpty }
+        let orderedParts = orderedVocalParts(line.vocalParts)
+        if orderedParts.isEmpty { return " " }
+        var parts: [String] = []
+        parts.reserveCapacity(orderedParts.count)
+        for part in orderedParts {
+            let value = supplementPlaceholderText(part).trimmed
+            if !value.isEmpty { parts.append(value) }
+        }
         return parts.isEmpty ? " " : parts.joined(separator: " ")
     }
 
