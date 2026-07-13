@@ -6014,6 +6014,52 @@ private struct KaraokeDebugPreview: View {
 #endif
 
 enum LyricSpeakerPalette {
+    private struct ResolutionCacheKey: Hashable {
+        var speaker: String
+        var speakerColor: String
+        var speakerFallback: String
+        var settings: AppSettings.SpeakerColorSettings
+        var useCreatorColors: Bool
+    }
+
+    private struct SpeakerResolution {
+        var resolvedColor: Color?
+        var activeColor: Color
+        var inactiveAlpha: Double
+    }
+
+    private final class ResolutionCache: @unchecked Sendable {
+        private static let limit = 128
+        private let lock = NSLock()
+        private var values: [ResolutionCacheKey: SpeakerResolution] = [:]
+
+        func value(
+            for key: ResolutionCacheKey,
+            create: () -> SpeakerResolution
+        ) -> SpeakerResolution {
+            lock.lock()
+            if let value = values[key] {
+                lock.unlock()
+                return value
+            }
+            lock.unlock()
+
+            let value = create()
+            lock.lock()
+            defer { lock.unlock() }
+            if let existing = values[key] {
+                return existing
+            }
+            if values.count >= Self.limit {
+                values.removeAll(keepingCapacity: true)
+            }
+            values[key] = value
+            return value
+        }
+    }
+
+    private static let resolutionCache = ResolutionCache()
+
     static func activeColor(speaker: String, settings: AppSettings.SpeakerColorSettings) -> Color {
         activeColor(
             speaker: speaker,
@@ -6031,13 +6077,13 @@ enum LyricSpeakerPalette {
         settings: AppSettings.SpeakerColorSettings,
         useCreatorColors: Bool
     ) -> Color {
-        resolvedSpeakerColor(
-            key: normalizeSpeakerKey(speaker),
+        speakerResolution(
+            speaker: speaker,
             speakerColor: speakerColor,
             speakerFallback: speakerFallback,
             settings: settings,
             useCreatorColors: useCreatorColors
-        ) ?? Color(hex: settings.hex(AppSettings.speakerColorNormal))
+        ).activeColor
     }
 
     static func inactiveColor(
@@ -6048,20 +6094,19 @@ enum LyricSpeakerPalette {
         useCreatorColors: Bool,
         distance: Double
     ) -> Color {
-        let rawKey = normalizeSpeakerKey(speaker)
-        let fallbackKey = fallbackCustomSpeakerKey(rawKey, speakerFallback: speakerFallback)
-        let baseAlpha = max(54.0, min(190.0, 185.0 - min(2.6, max(0, distance)) * 46.0))
-        guard let color = resolvedSpeakerColor(
-            key: rawKey,
+        let resolution = speakerResolution(
+            speaker: speaker,
             speakerColor: speakerColor,
             speakerFallback: speakerFallback,
             settings: settings,
             useCreatorColors: useCreatorColors
-        ) else {
+        )
+        let baseAlpha = max(54.0, min(190.0, 185.0 - min(2.6, max(0, distance)) * 46.0))
+        guard let color = resolution.resolvedColor else {
             return Color(red: 174 / 255, green: 181 / 255, blue: 195 / 255).opacity(baseAlpha / 255.0)
         }
         let distanceFactor = baseAlpha / 185.0
-        let alpha = max(40.0, min(150.0, (255.0 * speakerInactiveAlpha(fallbackKey) * distanceFactor).rounded()))
+        let alpha = max(40.0, min(150.0, (255.0 * resolution.inactiveAlpha * distanceFactor).rounded()))
         return color.opacity(alpha / 255.0)
     }
 
@@ -6074,32 +6119,47 @@ enum LyricSpeakerPalette {
         distance: Double
     ) -> Color {
         let alpha = max(34.0, (105.0 - min(2.8, max(0, distance)) * 24.0).rounded()) / 255.0
-        guard let color = resolvedSpeakerColor(
-            key: normalizeSpeakerKey(speaker),
+        guard let color = speakerResolution(
+            speaker: speaker,
             speakerColor: speakerColor,
             speakerFallback: speakerFallback,
             settings: settings,
             useCreatorColors: useCreatorColors
-        ) else {
+        ).resolvedColor else {
             return Color(red: 210 / 255, green: 216 / 255, blue: 226 / 255).opacity(alpha)
         }
         return color.opacity(alpha)
     }
 
-    private static func resolvedSpeakerColor(
-        key: String,
+    private static func speakerResolution(
+        speaker: String,
         speakerColor: String,
         speakerFallback: String,
         settings: AppSettings.SpeakerColorSettings,
         useCreatorColors: Bool
-    ) -> Color? {
-        if isCustomSpeakerKey(key), useCreatorColors, AppSettings.isHexColor(speakerColor) {
-            return Color(hex: AppSettings.normalizeHexColor(speakerColor, fallback: "#ffffff"))
-        }
-        return speakerActiveColor(
-            key: fallbackCustomSpeakerKey(key, speakerFallback: speakerFallback),
-            settings: settings
+    ) -> SpeakerResolution {
+        let cacheKey = ResolutionCacheKey(
+            speaker: speaker,
+            speakerColor: speakerColor,
+            speakerFallback: speakerFallback,
+            settings: settings,
+            useCreatorColors: useCreatorColors
         )
+        return resolutionCache.value(for: cacheKey) {
+            let key = normalizeSpeakerKey(speaker)
+            let fallbackKey = fallbackCustomSpeakerKey(key, speakerFallback: speakerFallback)
+            let resolvedColor: Color?
+            if isCustomSpeakerKey(key), useCreatorColors, AppSettings.isHexColor(speakerColor) {
+                resolvedColor = Color(hex: AppSettings.normalizeHexColor(speakerColor, fallback: "#ffffff"))
+            } else {
+                resolvedColor = speakerActiveColor(key: fallbackKey, settings: settings)
+            }
+            return SpeakerResolution(
+                resolvedColor: resolvedColor,
+                activeColor: resolvedColor ?? Color(hex: settings.hex(AppSettings.speakerColorNormal)),
+                inactiveAlpha: speakerInactiveAlpha(fallbackKey)
+            )
+        }
     }
 
     private static func speakerActiveColor(key: String, settings: AppSettings.SpeakerColorSettings) -> Color? {
