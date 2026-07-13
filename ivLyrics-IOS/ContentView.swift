@@ -3581,7 +3581,7 @@ struct LyricsTimelineView: View {
                 let _ = settings.speakerColorRevision
                 let typography = settings.typographySettings()
                 let speakerColors = settings.speakerColorSettings()
-                ForEach(Array(items.enumerated()), id: \.element.id) { displayIndex, item in
+                ForEach(items.enumerated(), id: \.element.id) { displayIndex, item in
                     let itemActive = item.id == activeItemID
                     let displayDistance = abs(Double(displayIndex) - visualCenterIndex)
                     Group {
