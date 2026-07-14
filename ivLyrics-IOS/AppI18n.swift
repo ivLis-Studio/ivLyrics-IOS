@@ -117,6 +117,11 @@ enum AppI18n {
             "setting.reduce_motion": "움직임 줄이기",
             "field.api_key": "API 키",
             "field.model": "모델",
+            "field.model_id": "모델 ID 직접 입력",
+            "field.model_required": "사용할 모델을 선택하거나 모델 ID를 입력하세요.",
+            "status.models_loading": "모델 목록을 불러오는 중…",
+            "status.models_unavailable": "모델 목록을 불러오지 못했습니다. 모델 ID를 직접 입력할 수 있습니다.",
+            "button.refresh_models": "모델 새로고침",
             "field.base_url": "기본 URL",
             "field.max_tokens": "최대 토큰",
             "field.temperature": "창의성",
@@ -278,7 +283,7 @@ enum AppI18n {
             "lyrics.provider.type_karaoke_sync_data": "노래방 가사 (ivLyrics Sync 데이터)",
             "lyrics.provider.type_synced": "싱크 가사",
             "lyrics.provider.type_plain": "일반 가사",
-            "lyrics.provider.open_project": "LyricsPlus 프로젝트 열기"
+            "lyrics.provider.open_project": "제공자 페이지 열기"
         ],
         "en": [
             "button.close": "Close",
@@ -355,6 +360,11 @@ enum AppI18n {
             "setting.reduce_motion": "Reduce motion",
             "field.api_key": "API Key",
             "field.model": "Model",
+            "field.model_id": "Enter model ID",
+            "field.model_required": "Select a model or enter its model ID.",
+            "status.models_loading": "Loading model list…",
+            "status.models_unavailable": "Could not load the model list. You can enter a model ID directly.",
+            "button.refresh_models": "Refresh models",
             "field.base_url": "Base URL",
             "field.max_tokens": "Max tokens",
             "field.temperature": "Creativity",
@@ -516,7 +526,7 @@ enum AppI18n {
             "lyrics.provider.type_karaoke_sync_data": "Karaoke Lyrics (ivLyrics Sync data)",
             "lyrics.provider.type_synced": "Synced Lyrics",
             "lyrics.provider.type_plain": "Plain Lyrics",
-            "lyrics.provider.open_project": "Open LyricsPlus project"
+            "lyrics.provider.open_project": "Open provider page"
         ]
     ]
 

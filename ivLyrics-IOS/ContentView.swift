@@ -3844,7 +3844,7 @@ private struct LyricsProviderAttribution: View {
     @EnvironmentObject private var model: AppViewModel
     var includesSyncContributors = false
 
-    private static let visibleProviderIds: Set<String> = ["lrclib", "lyricsplus", "unison"]
+    private static let visibleProviderIds: Set<String> = ["lrclib", "paxsenix", "lyricsplus", "unison"]
 
     @ViewBuilder
     var body: some View {
@@ -6786,6 +6786,9 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppViewModel
     @State private var settingsLogsPresented = false
     @State private var selectedTab: SettingsTab = .lyrics
+    @State private var paxsenixModels: [PaxsenixAIProvider.Model] = []
+    @State private var paxsenixModelsLoading = false
+    @State private var paxsenixModelsError = ""
 
     var body: some View {
         ZStack {
@@ -6821,6 +6824,13 @@ struct SettingsView: View {
                 selectedTab = tab
             }
 #endif
+            if settings.providerId == "paxsenix" {
+                Task { await refreshPaxsenixModels() }
+            }
+        }
+        .onChange(of: settings.providerId) { _, providerId in
+            guard providerId == "paxsenix" else { return }
+            Task { await refreshPaxsenixModels() }
         }
         .fullScreenCover(isPresented: $settingsLogsPresented) {
             LogsView(visible: $settingsLogsPresented)
@@ -7032,7 +7042,8 @@ struct SettingsView: View {
                 }
                 .font(.pretendard(14))
 
-                if provider.id == "lyricsplus", let url = URL(string: LyricsPlusProvider.projectURL) {
+                if let projectURL = provider.projectURL,
+                   let url = URL(string: projectURL) {
                     Link(destination: url) {
                         Label(settings.t("lyrics.provider.open_project"), systemImage: "arrow.up.right.square")
                             .font(.pretendard(13, weight: .semibold))
@@ -7202,8 +7213,53 @@ struct SettingsView: View {
                 settingsCard(settings.t("field.base_url")) {
                     settingsTextField(settings.t("field.base_url"), text: $settings.baseUrl)
                 }
-                settingsCard(settings.t("field.model")) {
-                    settingsTextField(settings.t("field.model"), text: $settings.model)
+                settingsCard(
+                    settings.t("field.model"),
+                    description: settings.providerId == "paxsenix" && settings.model.trimmed.isEmpty
+                        ? settings.t("field.model_required")
+                        : ""
+                ) {
+                    if settings.providerId == "paxsenix" {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 10) {
+                                Picker("", selection: $settings.model) {
+                                    Text(settings.t("field.model_required")).tag("")
+                                    if !settings.model.trimmed.isEmpty,
+                                       !paxsenixModels.contains(where: { $0.id == settings.model }) {
+                                        Text(settings.model).tag(settings.model)
+                                    }
+                                    ForEach(paxsenixModels) { model in
+                                        Text(model.displayName).tag(model.id)
+                                    }
+                                }
+                                .labelsHidden()
+                                .settingsMenuSurface()
+                                .disabled(paxsenixModelsLoading || paxsenixModels.isEmpty)
+
+                                Button {
+                                    Task { await refreshPaxsenixModels() }
+                                } label: {
+                                    Image(systemName: "arrow.clockwise")
+                                        .frame(width: 34, height: 34)
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(paxsenixModelsLoading)
+                                .accessibilityLabel(settings.t("button.refresh_models"))
+                            }
+                            if paxsenixModelsLoading {
+                                Text(settings.t("status.models_loading"))
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.62))
+                            } else if !paxsenixModelsError.isEmpty {
+                                Text(settings.t("status.models_unavailable"))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.orange.opacity(0.88))
+                            }
+                            settingsTextField(settings.t("field.model_id"), text: $settings.model)
+                        }
+                    } else {
+                        settingsTextField(settings.t("field.model"), text: $settings.model)
+                    }
                 }
                 settingsCard(settings.t("field.max_tokens")) {
                     Stepper(value: maxTokensBinding, in: 256...65_536, step: 256) {
@@ -7542,6 +7598,24 @@ struct SettingsView: View {
 
     private var selectedProvider: AppSettings.Provider {
         AppSettings.providerById(settings.providerId)
+    }
+
+    @MainActor
+    private func refreshPaxsenixModels() async {
+        guard settings.providerId == "paxsenix", !paxsenixModelsLoading else { return }
+        paxsenixModelsLoading = true
+        paxsenixModelsError = ""
+        defer { paxsenixModelsLoading = false }
+        do {
+            paxsenixModels = try await PaxsenixAIProvider.fetchModels(apiKeys: settings.apiKeys)
+            if paxsenixModels.isEmpty {
+                paxsenixModelsError = "empty"
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            paxsenixModelsError = error.localizedDescription
+        }
     }
 
     private var uiLanguageBinding: Binding<String> {

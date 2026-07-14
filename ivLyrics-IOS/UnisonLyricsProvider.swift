@@ -45,6 +45,34 @@ enum UnisonLyricsProvider {
         var logs: [String]
     }
 
+    struct ExternalParsedLyrics: Sendable {
+        var lines: [LyricsLine]
+        var karaoke: Bool
+        var synced: Bool
+    }
+
+    static func parseExternalLyrics(
+        _ lyrics: String,
+        format: String,
+        durationMs: Int64
+    ) throws -> ExternalParsedLyrics {
+        let parsed: ParsedLyrics
+        switch format.trimmed.lowercased() {
+        case "ttml":
+            parsed = try parseTtmlLyrics(lyrics, durationMs: durationMs)
+        case "lrc":
+            parsed = parseLrcLyrics(lyrics, durationMs: durationMs)
+        case "plain":
+            parsed = parsePlainLyrics(lyrics)
+        default:
+            throw HTTPStatusError(
+                statusCode: 0,
+                message: "Unsupported external lyrics format: \(format.trimmed.isEmpty ? "unknown" : format)"
+            )
+        }
+        return ExternalParsedLyrics(lines: parsed.lines, karaoke: parsed.karaoke, synced: parsed.synced)
+    }
+
     static func fetch(
         track: TrackSnapshot,
         isrc: String,

@@ -447,7 +447,7 @@
     "lyrics.provider.type_karaoke_sync_data": "노래방 가사 (Karaoke) (ivLyrics Sync)",
     "lyrics.provider.type_synced": "싱크 가사 (Synced)",
     "lyrics.provider.type_plain": "일반 가사 (Unsynced)",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "제공자 페이지 열기"
   },
   "en": {
     "button.close": "Close",
@@ -897,7 +897,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Karaoke Lyrics (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Synced Lyrics",
     "lyrics.provider.type_plain": "Plain Text Lyrics",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Open provider page"
   },
   "zh-CN": {
     "button.close": "关闭",
@@ -1347,7 +1347,7 @@
     "lyrics.provider.type_karaoke_sync_data": "卡拉OK歌词 (ivLyrics Sync)",
     "lyrics.provider.type_synced": "同步歌词",
     "lyrics.provider.type_plain": "普通文本歌词",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "打开提供方页面"
   },
   "zh-TW": {
     "button.close": "關閉",
@@ -1797,7 +1797,7 @@
     "lyrics.provider.type_karaoke_sync_data": "卡拉OK歌詞 (ivLyrics Sync)",
     "lyrics.provider.type_synced": "同步歌詞",
     "lyrics.provider.type_plain": "普通文本歌詞",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "開啟提供者頁面"
   },
   "ja": {
     "button.close": "閉じる",
@@ -2247,7 +2247,7 @@
     "lyrics.provider.type_karaoke_sync_data": "カラオケ歌詞 (ivLyrics Sync)",
     "lyrics.provider.type_synced": "同期歌詞",
     "lyrics.provider.type_plain": "非同期歌詞",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "プロバイダーページを開く"
   },
   "hi": {
     "button.close": "बंद करें",
@@ -2697,7 +2697,7 @@
     "lyrics.provider.type_karaoke_sync_data": "कराओके गीत (ivLyrics Sync)",
     "lyrics.provider.type_synced": "सिंक किए गए गीत",
     "lyrics.provider.type_plain": "सिंक नहीं किए गए गीत",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "प्रदाता पेज खोलें"
   },
   "es": {
     "button.close": "Cerrar",
@@ -3147,7 +3147,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Letras de Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Letras sincronizadas",
     "lyrics.provider.type_plain": "Letras no sincronizadas",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Abrir página del proveedor"
   },
   "fr": {
     "button.close": "Fermer",
@@ -3597,7 +3597,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Paroles karaoké (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Paroles synchronisées",
     "lyrics.provider.type_plain": "Paroles non synchronisées",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Ouvrir la page du fournisseur"
   },
   "ar": {
     "button.close": "أغلق",
@@ -4047,7 +4047,7 @@
     "lyrics.provider.type_karaoke_sync_data": "كلمات كاريوكي (ivLyrics Sync)",
     "lyrics.provider.type_synced": "كلمات متزامنة",
     "lyrics.provider.type_plain": "كلمات غير متزامنة",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "فتح صفحة المزوّد"
   },
   "fa": {
     "button.close": "بستن",
@@ -4497,7 +4497,7 @@
     "lyrics.provider.type_karaoke_sync_data": "متن کارائوکه (ivLyrics Sync)",
     "lyrics.provider.type_synced": "متن هماهنگ شده",
     "lyrics.provider.type_plain": "متن ناهماهنگ",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "باز کردن صفحه ارائه‌دهنده"
   },
   "de": {
     "button.close": "Schließen",
@@ -4947,7 +4947,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Karaoke-Songtexte (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Synchronisierte Songtexte",
     "lyrics.provider.type_plain": "Nicht-synchronisierte Songtexte",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Anbieterseite öffnen"
   },
   "ru": {
     "button.close": "Закрыть",
@@ -5397,7 +5397,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Караоке (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Синхронизированный",
     "lyrics.provider.type_plain": "Обычный текст",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Открыть страницу провайдера"
   },
   "sv": {
     "button.close": "Nära",
@@ -5847,7 +5847,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Karaoke texter (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Synkroniserad text",
     "lyrics.provider.type_plain": "Vanlig text sångtexter",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Öppna leverantörssidan"
   },
   "pt": {
     "button.close": "Fechar",
@@ -6297,7 +6297,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Letras de karaokê (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Letras sincronizadas",
     "lyrics.provider.type_plain": "Letras não sincronizadas",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Abrir página do provedor"
   },
   "bn": {
     "button.close": "বন্ধ",
@@ -6747,7 +6747,7 @@
     "lyrics.provider.type_karaoke_sync_data": "কারাওকে লিরিক্স (ivLyrics Sync)",
     "lyrics.provider.type_synced": "সিঙ্ক করা লিরিক্স",
     "lyrics.provider.type_plain": "আনসিঙ্ক করা লিরিক্স",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "প্রদানকারীর পৃষ্ঠা খুলুন"
   },
   "cs": {
     "button.close": "Zavřít",
@@ -7197,7 +7197,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Texty karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Synchronizované texty",
     "lyrics.provider.type_plain": "Texty prostého textu",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Otevřít stránku poskytovatele"
   },
   "it": {
     "button.close": "Chiudi",
@@ -7647,7 +7647,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Testi Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Testi sincronizzati",
     "lyrics.provider.type_plain": "Testi non sincronizzati",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Apri la pagina del provider"
   },
   "th": {
     "button.close": "ปิด",
@@ -8097,7 +8097,7 @@
     "lyrics.provider.type_karaoke_sync_data": "เนื้อเพลงคาราโอเกะ (ivLyrics Sync)",
     "lyrics.provider.type_synced": "เนื้อเพลงซิงค์",
     "lyrics.provider.type_plain": "เนื้อเพลงไม่ซิงค์",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "เปิดหน้าผู้ให้บริการ"
   },
   "vi": {
     "button.close": "Đóng",
@@ -8547,7 +8547,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Lời Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Lời đồng bộ",
     "lyrics.provider.type_plain": "Lời chưa đồng bộ",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Mở trang nhà cung cấp"
   },
   "id": {
     "button.close": "Tutup",
@@ -8997,7 +8997,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Lirik Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Lirik Sinkron",
     "lyrics.provider.type_plain": "Lirik Tidak Sinkron",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Buka halaman penyedia"
   },
   "ms": {
     "button.close": "tutup",
@@ -9447,7 +9447,7 @@
     "lyrics.provider.type_karaoke_sync_data": "Lirik Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Lirik Senada (Synced)",
     "lyrics.provider.type_plain": "Lirik Biasa (Unsynced)",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Buka halaman penyedia"
   },
   "tr": {
     "button.close": "Kapat",
@@ -9897,6 +9897,6 @@
     "lyrics.provider.type_karaoke_sync_data": "Karaoke Sözleri (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Senkronize Sözler",
     "lyrics.provider.type_plain": "Düz Metin Sözleri",
-    "lyrics.provider.open_project": "LyricsPlus · GitHub"
+    "lyrics.provider.open_project": "Sağlayıcı sayfasını aç"
   }
 }

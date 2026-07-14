@@ -507,6 +507,26 @@ actor LyricsRepository {
     ) async throws -> ProviderVariants? {
         log("provider attempt: \(providerId)")
         switch providerId {
+        case "paxsenix":
+            guard let outcome = try await PaxsenixLyricsProvider.fetch(track: track) else {
+                log("paxsenix: no lyrics found")
+                return nil
+            }
+            outcome.logs.forEach(log)
+            let detail = "Lyrics via Lyrically API (\(PaxsenixLyricsProvider.projectURL))."
+            return ProviderVariants(
+                providerId: providerId,
+                karaoke: outcome.karaoke.map {
+                    lyricsResult(lines: $0, providerName: "Lyrically (Paxsenix)", type: AppSettings.lyricsTypeKaraoke, detail: detail, karaoke: true, isrc: isrc, spotifyTrackId: spotifyTrackId)
+                },
+                synced: outcome.synced.map {
+                    lyricsResult(lines: $0, providerName: "Lyrically (Paxsenix)", type: AppSettings.lyricsTypeSynced, detail: detail, karaoke: false, isrc: isrc, spotifyTrackId: spotifyTrackId)
+                },
+                plain: outcome.plain.map {
+                    lyricsResult(lines: $0, providerName: "Lyrically (Paxsenix)", type: AppSettings.lyricsTypePlain, detail: detail, karaoke: false, isrc: isrc, spotifyTrackId: spotifyTrackId)
+                }
+            )
+
         case "lyricsplus":
             guard let outcome = try await LyricsPlusProvider.fetch(track: track, isrc: isrc) else {
                 log("lyricsplus: no lyrics found")

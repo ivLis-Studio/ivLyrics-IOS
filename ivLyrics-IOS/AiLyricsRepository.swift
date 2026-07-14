@@ -636,6 +636,13 @@ actor AiLyricsRepository {
     private func callProviderRaw(prompt: String, settings: AppSettings.Snapshot) async throws -> String {
         let keys = providerApiKeys(settings)
         guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: "API 키가 필요합니다"]) }
+        guard !settings.model.trimmed.isEmpty else {
+            throw NSError(
+                domain: "ivLyrics.AI",
+                code: -6,
+                userInfo: [NSLocalizedDescriptionKey: "AI 모델을 선택하거나 모델 ID를 입력해야 합니다"]
+            )
+        }
         var lastError: Error?
         for apiKey in keys {
             for attempt in 0..<2 {
@@ -711,6 +718,13 @@ actor AiLyricsRepository {
     ) async throws -> String {
         let keys = providerApiKeys(settings)
         guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: "API 키가 필요합니다"]) }
+        guard !settings.model.trimmed.isEmpty else {
+            throw NSError(
+                domain: "ivLyrics.AI",
+                code: -6,
+                userInfo: [NSLocalizedDescriptionKey: "AI 모델을 선택하거나 모델 ID를 입력해야 합니다"]
+            )
+        }
         var lastError: Error?
         for apiKey in keys {
             for attempt in 0..<2 {
