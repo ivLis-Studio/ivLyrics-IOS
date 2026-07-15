@@ -113,12 +113,17 @@ actor LyricsRepository {
     private func putMemoryCachedLyrics(_ key: String, result: LyricsResult) {
         guard !key.trimmed.isEmpty, !result.lines.isEmpty else { return }
         cache[key] = MemoryLyricsCacheEntry(
-            result: redactedContributorIdentitiesForCache(result),
+            // The live response has already had creator privacy applied by the
+            // API. Keep that response intact for this process so a public
+            // creator does not immediately turn into "Anonymous" on the next
+            // in-memory cache hit. Persistent caches remain redacted below and
+            // are rehydrated from the network before their identity is trusted.
+            result: result,
             savedAtMs: nowMs()
         )
     }
 
-    private func redactedContributorIdentitiesForCache(_ result: LyricsResult) -> LyricsResult {
+    private func privacySafeContributorFallback(_ result: LyricsResult) -> LyricsResult {
         guard !result.contributors.isEmpty else { return result }
         var redacted = result
         redacted.contributors = result.contributors.map { contributor in
@@ -133,10 +138,15 @@ actor LyricsRepository {
         return redacted
     }
 
-    private func hasRedactedContributorSlots(_ result: LyricsResult) -> Bool {
-        result.contributors.contains { contributor in
-            contributor.anonymous && contributor.userHash.isEmpty
-        }
+    private func lyricsForImmediateCachedPresentation(_ result: LyricsResult) -> LyricsResult {
+        guard !result.contributors.isEmpty else { return result }
+        var presentation = result
+        // Timing can be displayed immediately, but cached identity must not be
+        // shown until the no-store metadata refresh has confirmed its current
+        // privacy state. An empty credit is less misleading than a public user
+        // flashing as Anonymous (or a newly-private user flashing as public).
+        presentation.contributors = []
+        return presentation
     }
 
     private func canApplyIvLyricsSyncToCachedResult(
@@ -161,11 +171,14 @@ actor LyricsRepository {
         settings: AppSettings.Snapshot,
         resolvedIsrc: String
     ) -> Bool {
-        guard !result.lines.isEmpty, result.selectionPolicyKey != "manual" else { return false }
-        if hasRedactedContributorSlots(result),
-           !TrackSnapshot.normalizeIsrc(resolvedIsrc).isEmpty {
+        guard !result.lines.isEmpty else { return false }
+        if !result.contributors.isEmpty {
+            // Creator visibility can change independently of lyric timing.
+            // Revalidate contributor metadata even for a live memory-cache hit
+            // so a later privacy change cannot leak through a stale identity.
             return true
         }
+        guard result.selectionPolicyKey != "manual" else { return false }
         if canApplyIvLyricsSyncToCachedResult(result, settings: settings) { return true }
         guard settings.preferSyncDataProvider,
               !TrackSnapshot.normalizeIsrc(resolvedIsrc).isEmpty else {
@@ -240,7 +253,7 @@ actor LyricsRepository {
                 await onCachedLyricsLoaded(
                     LoadedLyrics(
                         trackKey: key,
-                        result: cached,
+                        result: lyricsForImmediateCachedPresentation(cached),
                         artworkURL: nil,
                         logs: logs,
                         resolvedIsrc: cached.isrc,
@@ -263,7 +276,7 @@ actor LyricsRepository {
                 await onCachedLyricsLoaded(
                     LoadedLyrics(
                         trackKey: key,
-                        result: diskCached,
+                        result: lyricsForImmediateCachedPresentation(diskCached),
                         artworkURL: nil,
                         logs: logs,
                         resolvedIsrc: diskCached.isrc,
@@ -302,6 +315,33 @@ actor LyricsRepository {
         log(isrc.isEmpty ? "isrc: unavailable after Spotify lookup" : "isrc: \(isrc) (\(isrcSource))")
         if !isrc.isEmpty {
             await publishResolvedMetadata(isrc: isrc, spotifyTrackId: spotifyTrackId, artworkURL: spotifyMatch?.artworkURL)
+        }
+
+        if let cached = cachedBase, !cached.contributors.isEmpty {
+            let supportsContributorRefresh = !isrc.isEmpty
+                && AppSettings.lyricsProviderById(cached.providerId)?.supportsIvLyricsSync == true
+            if supportsContributorRefresh,
+               let currentSyncData = await fetchSyncData(
+                    isrc: isrc,
+                    providerId: cached.providerId,
+                    track: track,
+                    spotifyMatch: spotifyMatch,
+                    log: log,
+                    forceContributorRefresh: true
+                ) {
+                var hydrated = cached
+                hydrated.contributors = currentSyncData.contributors
+                cachedBase = hydrated
+                putMemoryCachedLyrics(cacheKey, result: hydrated)
+                diskCache.put(cacheKey, result: hydrated)
+                log("sync-data contributors refreshed for cached lyrics: count=\(currentSyncData.contributors.count)")
+            } else {
+                let privacySafe = privacySafeContributorFallback(cached)
+                cachedBase = privacySafe
+                putMemoryCachedLyrics(cacheKey, result: privacySafe)
+                diskCache.put(cacheKey, result: privacySafe)
+                log("sync-data contributor refresh failed; privacy-safe anonymous fallback used")
+            }
         }
 
         let syncDataProviders = isrc.isEmpty
@@ -373,26 +413,6 @@ actor LyricsRepository {
                     return LoadedLyrics(trackKey: key, result: selected, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
                 }
                 log("cached provider sync-data unavailable; cached lyrics kept")
-                return LoadedLyrics(trackKey: key, result: cachedBase, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
-            } else if cachedBase.karaoke,
-                      hasRedactedContributorSlots(cachedBase),
-                      syncDataProviders.contains(cachedBase.providerId),
-                      !isrc.isEmpty {
-                if let currentSyncData = await fetchSyncData(
-                    isrc: isrc,
-                    providerId: cachedBase.providerId,
-                    track: track,
-                    spotifyMatch: spotifyMatch,
-                    log: log
-                ) {
-                    var hydrated = cachedBase
-                    hydrated.contributors = currentSyncData.contributors
-                    putMemoryCachedLyrics(cacheKey, result: hydrated)
-                    diskCache.put(cacheKey, result: hydrated)
-                    log("sync-data contributors refreshed for cached lyrics: count=\(currentSyncData.contributors.count)")
-                    return LoadedLyrics(trackKey: key, result: hydrated, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
-                }
-                log("sync-data contributor refresh failed; anonymous cache slots kept")
                 return LoadedLyrics(trackKey: key, result: cachedBase, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
             } else {
                 log("OpenDB sync-data priority unchanged; cached provider kept: \(cachedBase.providerId.isEmpty ? "unknown" : cachedBase.providerId)")
@@ -1203,7 +1223,14 @@ actor LyricsRepository {
         }
     }
 
-    private func fetchSyncData(isrc: String, providerId: String, track: TrackSnapshot, spotifyMatch: SpotifyTrackMatch?, log: (String) -> Void) async -> SyncDataResult? {
+    private func fetchSyncData(
+        isrc: String,
+        providerId: String,
+        track: TrackSnapshot,
+        spotifyMatch: SpotifyTrackMatch?,
+        log: (String) -> Void,
+        forceContributorRefresh: Bool = false
+    ) async -> SyncDataResult? {
         do {
             let normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc)
             let normalizedProvider = providerId.trimmed.lowercased()
@@ -1211,7 +1238,7 @@ actor LyricsRepository {
             let cacheKey = syncDataCacheKey(isrc, providerId: normalizedProvider)
             let cachedResponse = syncDataResponseCache.get(cacheKey)
             let cachedIdentityRedacted = cachedResponse.contains("\"identityRedacted\":true")
-            if !cachedResponse.isEmpty, !cachedIdentityRedacted {
+            if !forceContributorRefresh, !cachedResponse.isEmpty, !cachedIdentityRedacted {
                 log("sync-data cache hit: isrc=\(normalizedIsrc)")
                 return try parseSyncDataResponse(
                     cachedResponse,
@@ -1220,12 +1247,12 @@ actor LyricsRepository {
                     fromCache: true
                 )
             }
-            if cachedIdentityRedacted {
+            if forceContributorRefresh || cachedIdentityRedacted {
                 log("sync-data timing cache hit; refreshing contributor privacy metadata")
             }
 
             let bypassServerCache = shouldBypassSyncDataServerCache(normalizedIsrc)
-            if !cachedIdentityRedacted {
+            if !forceContributorRefresh, !cachedIdentityRedacted {
                 if bypassServerCache {
                     if await isOpenDbUnavailable(log: log) {
                         log("sync-data opendb: unavailable after cache clear, skip direct sync-data request")
@@ -2040,7 +2067,9 @@ actor LyricsRepository {
         [
             "Origin": syncDataSpotifyOrigin,
             "Referer": syncDataSpotifyReferer,
-            "X-ivLyrics-Client": "ios"
+            "X-ivLyrics-Client": "ios",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache"
         ]
     }
 
@@ -2048,6 +2077,9 @@ actor LyricsRepository {
         guard let parsed = URL(string: url) else { throw URLError(.badURL) }
         var request = URLRequest(url: parsed, timeoutInterval: timeoutInterval ?? networkRequestTimeout)
         request.httpMethod = "GET"
+        if headers["Cache-Control"]?.contains("no-cache") == true {
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("ivLyrics-iOS/0.1", forHTTPHeaderField: "User-Agent")
         for (key, value) in headers {
