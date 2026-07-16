@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.0.17",
+          "buildVersion": "22",
+          "date": "2026-07-16",
+          "localizedDescription": "v1.0.16 대비 Paxsenix 가사 텍스트의 특수 문자 표시를 개선했습니다.\n\nCompared with v1.0.16, this release improves special-character display in Paxsenix lyrics.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.0.17/ivLyrics-IOS-v1.0.17-unsigned.ipa",
+          "size": 6595794,
+          "sha256": "429c1429396cf98662ffbe3c47224c81fdf4cd26a94a4ae93e1bb0ebc70f81aa",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.16",
           "buildVersion": "21",
           "date": "2026-07-16",
