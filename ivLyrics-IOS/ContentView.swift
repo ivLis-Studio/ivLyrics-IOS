@@ -167,6 +167,7 @@ struct ContentView: View {
     @State private var lyricsMetaTipVisible = false
     @State private var lyricsMetaTipToken = UUID()
     @State private var inAppBrowserDragOffset: CGFloat = 0
+    @State private var vinylModeVisible = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -243,6 +244,13 @@ struct ContentView: View {
                 inAppBrowserDragOffset = 0
                 updateLandscapeAutoHide(isLandscape: isLandscape)
             }
+            .onChange(of: model.currentTrack?.hasUsableMetadata == true) { _, available in
+                if !available && vinylModeVisible {
+                    withAnimation(.easeOut(duration: 0.26)) {
+                        vinylModeVisible = false
+                    }
+                }
+            }
             .fullScreenCover(isPresented: $showingSettings) {
                 SettingsView()
                     .environmentObject(settings)
@@ -268,6 +276,16 @@ struct ContentView: View {
                 size: size,
                 safeAreaInsets: safeAreaInsets
             )
+            .opacity(vinylModeVisible ? 0 : 1)
+            .scaleEffect(vinylModeVisible ? 0.985 : 1)
+            .allowsHitTesting(!vinylModeVisible)
+            .accessibilityHidden(vinylModeVisible)
+            .animation(.timingCurve(0.22, 0.74, 0.28, 1, duration: 0.36), value: vinylModeVisible)
+            if vinylModeVisible {
+                VinylPlayerModeView(isPresented: $vinylModeVisible)
+                    .transition(.opacity.combined(with: .scale(scale: 0.975)))
+                    .zIndex(4)
+            }
             overlayContent(
                 isLandscape: isLandscape,
                 size: size,
@@ -428,7 +446,7 @@ struct ContentView: View {
                 Spacer(minLength: 0)
                     .frame(maxHeight: 20)
 
-                ArtworkView(size: artworkSize, cornerRadius: 24)
+                ArtworkView(size: artworkSize, cornerRadius: 24, onTap: presentVinylMode)
                     .padding(.bottom, 8)
 
                 Color.clear
@@ -614,7 +632,8 @@ struct ContentView: View {
             LandscapePlayerPane(
                 controlsVisible: controlsShown,
                 centered: centerPlayer,
-                containerSize: size
+                containerSize: size,
+                onOpenVinyl: presentVinylMode
             )
             .frame(width: playerWidth, height: max(1, size.height - 32))
 
@@ -662,6 +681,19 @@ struct ContentView: View {
             landscapeControlsVisible = true
         }
         scheduleLandscapeControlsAutoHide(isLandscape: isLandscape)
+    }
+
+    private func presentVinylMode() {
+        guard model.currentTrack?.hasUsableMetadata == true else {
+            model.showSavedToast(settings.t("status.waiting_current_track"))
+            return
+        }
+        showLyricsPage(false)
+        showingLyricsMetaMenu = false
+        dismissLyricsMetaTip()
+        withAnimation(.timingCurve(0.18, 0.80, 0.22, 1, duration: 0.42)) {
+            vinylModeVisible = true
+        }
     }
 
     private func updateLandscapeAutoHide(isLandscape: Bool) {
@@ -2094,13 +2126,14 @@ private struct LandscapePlayerPane: View {
     var controlsVisible: Bool
     var centered: Bool
     var containerSize: CGSize
+    var onOpenVinyl: () -> Void
 
     var body: some View {
         let _ = settings.typographyRevision
         let typography = settings.typographySettings()
         AndroidLandscapePlayerLayout(tablet: containerSize.width > 900) {
             VStack(spacing: metadataSpacing) {
-                LandscapeArtworkView(size: artworkSize)
+                LandscapeArtworkView(size: artworkSize, onTap: onOpenVinyl)
                     .scaleEffect(controlsVisible ? 1 : 1.08)
                 VStack(spacing: 4) {
                     Text(model.titleText.trimmed.isEmpty ? settings.t("label.no_current_track") : model.titleText)
@@ -2152,6 +2185,7 @@ private struct LandscapePlayerPane: View {
 private struct LandscapeArtworkView: View {
     @EnvironmentObject private var model: AppViewModel
     var size: CGFloat
+    var onTap: () -> Void
 
     var body: some View {
         ZStack {
@@ -2168,7 +2202,7 @@ private struct LandscapeArtworkView: View {
         }
         .frame(width: size, height: size)
         .clipped()
-        .artworkSwipeActions(size: size)
+        .artworkSwipeActions(size: size, onTap: onTap)
     }
 }
 
@@ -2406,6 +2440,7 @@ struct ArtworkView: View {
     @EnvironmentObject private var model: AppViewModel
     var size: CGFloat = 88
     var cornerRadius: CGFloat = 8
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
         ZStack {
@@ -2422,16 +2457,19 @@ struct ArtworkView: View {
         }
         .frame(width: size, height: size)
         .clipped()
-        .artworkSwipeActions(size: size)
+        .artworkSwipeActions(size: size, onTap: onTap)
     }
 }
 
 private struct ArtworkSwipeActionsModifier: ViewModifier {
+    @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @State private var swipeOffset: CGFloat = 0
     @State private var isDragging = false
+    @State private var suppressTapUntil = Date.distantPast
 
     var size: CGFloat
+    var onTap: (() -> Void)?
 
     func body(content: Content) -> some View {
         let maxOffset = max(26, size * 0.12)
@@ -2440,8 +2478,13 @@ private struct ArtworkSwipeActionsModifier: ViewModifier {
             .rotationEffect(.degrees(Double(swipeOffset / max(maxOffset, 1)) * 1.6))
             .animation(.easeOut(duration: 0.15), value: swipeOffset)
             .onLongPressGesture {
+                suppressTapUntil = Date().addingTimeInterval(0.45)
                 performLongPressHaptic()
                 model.showTmiForCurrentTrack(bypassCache: false)
+            }
+            .onTapGesture {
+                guard Date() >= suppressTapUntil else { return }
+                onTap?()
             }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 16)
@@ -2469,6 +2512,9 @@ private struct ArtworkSwipeActionsModifier: ViewModifier {
                         }
                     }
             )
+            .accessibilityHint(onTap == nil
+                ? settings.t("vinyl.tmi_hint")
+                : settings.t("vinyl.open_hint") + ". " + settings.t("vinyl.tmi_hint"))
     }
 
     private func settle() {
@@ -2484,8 +2530,8 @@ private struct ArtworkSwipeActionsModifier: ViewModifier {
 }
 
 private extension View {
-    func artworkSwipeActions(size: CGFloat) -> some View {
-        modifier(ArtworkSwipeActionsModifier(size: size))
+    func artworkSwipeActions(size: CGFloat, onTap: (() -> Void)? = nil) -> some View {
+        modifier(ArtworkSwipeActionsModifier(size: size, onTap: onTap))
     }
 }
 
@@ -2506,6 +2552,12 @@ private struct TmiSheetView: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     header
+
+                    Text(settings.t("tmi.disclaimer"))
+                        .font(.pretendard(11.5))
+                        .foregroundStyle(.white.opacity(0.60))
+                        .lineSpacing(2)
+                        .padding(.top, 10)
 
                     ScrollView {
                         content

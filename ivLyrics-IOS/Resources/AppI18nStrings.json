@@ -469,7 +469,14 @@
     "lyrics.provider.type_karaoke_sync_data": "노래방 가사 (Karaoke) (ivLyrics Sync)",
     "lyrics.provider.type_synced": "싱크 가사 (Synced)",
     "lyrics.provider.type_plain": "일반 가사 (Unsynced)",
-    "lyrics.provider.open_project": "제공자 페이지 열기"
+    "lyrics.provider.open_project": "제공자 페이지 열기",
+    "vinyl.mode": "LP 모드",
+    "vinyl.open_hint": "탭하여 LP 모드 열기",
+    "vinyl.close_hint": "앨범을 탭하여 돌아가기",
+    "vinyl.record_hint": "LP를 탭하여 재생 또는 일시정지",
+    "vinyl.tonearm_hint": "톤암을 드래그하여 재생 위치 이동",
+    "vinyl.tmi_hint": "앨범을 길게 눌러 TMI 열기",
+    "tmi.disclaimer": "AI로 생성된 TMI는 정확하지 않을 수 있습니다."
   },
   "en": {
     "button.close": "Close",
@@ -941,7 +948,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Karaoke Lyrics (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Synced Lyrics",
     "lyrics.provider.type_plain": "Plain Text Lyrics",
-    "lyrics.provider.open_project": "Open provider page"
+    "lyrics.provider.open_project": "Open provider page",
+    "vinyl.mode": "Vinyl mode",
+    "vinyl.open_hint": "Tap to open vinyl mode",
+    "vinyl.close_hint": "Tap the cover to return",
+    "vinyl.record_hint": "Tap the record to play or pause",
+    "vinyl.tonearm_hint": "Drag the tonearm to seek",
+    "vinyl.tmi_hint": "Hold the cover to open TMI",
+    "tmi.disclaimer": "AI-generated TMI may not always be accurate."
   },
   "zh-CN": {
     "button.close": "关闭",
@@ -1413,7 +1427,14 @@
     "lyrics.provider.type_karaoke_sync_data": "卡拉OK歌词 (ivLyrics Sync)",
     "lyrics.provider.type_synced": "同步歌词",
     "lyrics.provider.type_plain": "普通文本歌词",
-    "lyrics.provider.open_project": "打开提供方页面"
+    "lyrics.provider.open_project": "打开提供方页面",
+    "vinyl.mode": "黑胶模式",
+    "vinyl.open_hint": "轻点打开黑胶模式",
+    "vinyl.close_hint": "轻点封面返回",
+    "vinyl.record_hint": "轻点唱片播放或暂停",
+    "vinyl.tonearm_hint": "拖动唱臂调整播放位置",
+    "vinyl.tmi_hint": "长按封面打开 TMI",
+    "tmi.disclaimer": "AI 生成的 TMI 可能不完全准确。"
   },
   "zh-TW": {
     "button.close": "關閉",
@@ -1885,7 +1906,14 @@
     "lyrics.provider.type_karaoke_sync_data": "卡拉OK歌詞 (ivLyrics Sync)",
     "lyrics.provider.type_synced": "同步歌詞",
     "lyrics.provider.type_plain": "普通文本歌詞",
-    "lyrics.provider.open_project": "開啟提供者頁面"
+    "lyrics.provider.open_project": "開啟提供者頁面",
+    "vinyl.mode": "黑膠模式",
+    "vinyl.open_hint": "點一下開啟黑膠模式",
+    "vinyl.close_hint": "點一下封面返回",
+    "vinyl.record_hint": "點一下唱片播放或暫停",
+    "vinyl.tonearm_hint": "拖曳唱臂調整播放位置",
+    "vinyl.tmi_hint": "長按封面開啟 TMI",
+    "tmi.disclaimer": "AI 產生的 TMI 可能不完全準確。"
   },
   "ja": {
     "button.close": "閉じる",
@@ -2357,7 +2385,14 @@
     "lyrics.provider.type_karaoke_sync_data": "カラオケ歌詞 (ivLyrics Sync)",
     "lyrics.provider.type_synced": "同期歌詞",
     "lyrics.provider.type_plain": "非同期歌詞",
-    "lyrics.provider.open_project": "プロバイダーページを開く"
+    "lyrics.provider.open_project": "プロバイダーページを開く",
+    "vinyl.mode": "LP モード",
+    "vinyl.open_hint": "タップして LP モードを開く",
+    "vinyl.close_hint": "ジャケットをタップして戻る",
+    "vinyl.record_hint": "レコードをタップして再生または一時停止",
+    "vinyl.tonearm_hint": "トーンアームをドラッグして再生位置を変更",
+    "vinyl.tmi_hint": "ジャケットを長押しして TMI を開く",
+    "tmi.disclaimer": "AI が生成した TMI は正確でない場合があります。"
   },
   "hi": {
     "button.close": "बंद करें",
@@ -2829,7 +2864,14 @@
     "lyrics.provider.type_karaoke_sync_data": "कराओके गीत (ivLyrics Sync)",
     "lyrics.provider.type_synced": "सिंक किए गए गीत",
     "lyrics.provider.type_plain": "सिंक नहीं किए गए गीत",
-    "lyrics.provider.open_project": "प्रदाता पेज खोलें"
+    "lyrics.provider.open_project": "प्रदाता पेज खोलें",
+    "vinyl.mode": "विनाइल मोड",
+    "vinyl.open_hint": "विनाइल मोड खोलने के लिए टैप करें",
+    "vinyl.close_hint": "वापस जाने के लिए एल्बम कवर पर टैप करें",
+    "vinyl.record_hint": "चलाने या रोकने के लिए रिकॉर्ड पर टैप करें",
+    "vinyl.tonearm_hint": "प्लेबैक की स्थिति बदलने के लिए टोनआर्म खींचें",
+    "vinyl.tmi_hint": "TMI खोलने के लिए एल्बम कवर को देर तक दबाएँ",
+    "tmi.disclaimer": "AI से बनाया गया TMI हमेशा सटीक नहीं हो सकता।"
   },
   "es": {
     "button.close": "Cerrar",
@@ -3301,7 +3343,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Letras de Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Letras sincronizadas",
     "lyrics.provider.type_plain": "Letras no sincronizadas",
-    "lyrics.provider.open_project": "Abrir página del proveedor"
+    "lyrics.provider.open_project": "Abrir página del proveedor",
+    "vinyl.mode": "Modo vinilo",
+    "vinyl.open_hint": "Toca para abrir el modo vinilo",
+    "vinyl.close_hint": "Toca la portada para volver",
+    "vinyl.record_hint": "Toca el disco para reproducir o pausar",
+    "vinyl.tonearm_hint": "Arrastra el brazo para cambiar la posición de reproducción",
+    "vinyl.tmi_hint": "Mantén pulsada la portada para abrir TMI",
+    "tmi.disclaimer": "El TMI generado por IA puede no ser siempre preciso."
   },
   "fr": {
     "button.close": "Fermer",
@@ -3773,7 +3822,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Paroles karaoké (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Paroles synchronisées",
     "lyrics.provider.type_plain": "Paroles non synchronisées",
-    "lyrics.provider.open_project": "Ouvrir la page du fournisseur"
+    "lyrics.provider.open_project": "Ouvrir la page du fournisseur",
+    "vinyl.mode": "Mode vinyle",
+    "vinyl.open_hint": "Touchez pour ouvrir le mode vinyle",
+    "vinyl.close_hint": "Touchez la pochette pour revenir",
+    "vinyl.record_hint": "Touchez le disque pour lire ou mettre en pause",
+    "vinyl.tonearm_hint": "Faites glisser le bras de lecture pour changer de position",
+    "vinyl.tmi_hint": "Appuyez longuement sur la pochette pour ouvrir TMI",
+    "tmi.disclaimer": "Le TMI généré par l’IA peut ne pas toujours être exact."
   },
   "ar": {
     "button.close": "أغلق",
@@ -4245,7 +4301,14 @@
     "lyrics.provider.type_karaoke_sync_data": "كلمات كاريوكي (ivLyrics Sync)",
     "lyrics.provider.type_synced": "كلمات متزامنة",
     "lyrics.provider.type_plain": "كلمات غير متزامنة",
-    "lyrics.provider.open_project": "فتح صفحة المزوّد"
+    "lyrics.provider.open_project": "فتح صفحة المزوّد",
+    "vinyl.mode": "وضع الأسطوانة",
+    "vinyl.open_hint": "اضغط لفتح وضع الأسطوانة",
+    "vinyl.close_hint": "اضغط على الغلاف للعودة",
+    "vinyl.record_hint": "اضغط على الأسطوانة للتشغيل أو الإيقاف المؤقت",
+    "vinyl.tonearm_hint": "اسحب ذراع التشغيل لتغيير موضع التشغيل",
+    "vinyl.tmi_hint": "اضغط مطولًا على الغلاف لفتح TMI",
+    "tmi.disclaimer": "قد لا تكون معلومات TMI التي أنشأها الذكاء الاصطناعي دقيقة دائمًا."
   },
   "fa": {
     "button.close": "بستن",
@@ -4717,7 +4780,14 @@
     "lyrics.provider.type_karaoke_sync_data": "متن کارائوکه (ivLyrics Sync)",
     "lyrics.provider.type_synced": "متن هماهنگ شده",
     "lyrics.provider.type_plain": "متن ناهماهنگ",
-    "lyrics.provider.open_project": "باز کردن صفحه ارائه‌دهنده"
+    "lyrics.provider.open_project": "باز کردن صفحه ارائه‌دهنده",
+    "vinyl.mode": "حالت وینیل",
+    "vinyl.open_hint": "برای باز کردن حالت وینیل ضربه بزنید",
+    "vinyl.close_hint": "برای بازگشت روی جلد آلبوم ضربه بزنید",
+    "vinyl.record_hint": "برای پخش یا مکث روی صفحه بزنید",
+    "vinyl.tonearm_hint": "برای جابه‌جایی زمان پخش، بازوی گرامافون را بکشید",
+    "vinyl.tmi_hint": "برای باز کردن TMI، جلد آلبوم را نگه دارید",
+    "tmi.disclaimer": "TMI تولیدشده با هوش مصنوعی ممکن است همیشه دقیق نباشد."
   },
   "de": {
     "button.close": "Schließen",
@@ -5189,7 +5259,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Karaoke-Songtexte (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Synchronisierte Songtexte",
     "lyrics.provider.type_plain": "Nicht-synchronisierte Songtexte",
-    "lyrics.provider.open_project": "Anbieterseite öffnen"
+    "lyrics.provider.open_project": "Anbieterseite öffnen",
+    "vinyl.mode": "Vinylmodus",
+    "vinyl.open_hint": "Tippen, um den Vinylmodus zu öffnen",
+    "vinyl.close_hint": "Auf das Cover tippen, um zurückzukehren",
+    "vinyl.record_hint": "Auf die Platte tippen, um die Wiedergabe zu starten oder zu pausieren",
+    "vinyl.tonearm_hint": "Tonarm ziehen, um die Wiedergabeposition zu ändern",
+    "vinyl.tmi_hint": "Cover gedrückt halten, um TMI zu öffnen",
+    "tmi.disclaimer": "KI-generierte TMI-Informationen sind möglicherweise nicht immer korrekt."
   },
   "ru": {
     "button.close": "Закрыть",
@@ -5661,7 +5738,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Караоке (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Синхронизированный",
     "lyrics.provider.type_plain": "Обычный текст",
-    "lyrics.provider.open_project": "Открыть страницу провайдера"
+    "lyrics.provider.open_project": "Открыть страницу провайдера",
+    "vinyl.mode": "Режим винила",
+    "vinyl.open_hint": "Коснитесь, чтобы открыть режим винила",
+    "vinyl.close_hint": "Коснитесь обложки, чтобы вернуться",
+    "vinyl.record_hint": "Коснитесь пластинки, чтобы включить или приостановить воспроизведение",
+    "vinyl.tonearm_hint": "Перетащите тонарм, чтобы изменить позицию воспроизведения",
+    "vinyl.tmi_hint": "Удерживайте обложку, чтобы открыть TMI",
+    "tmi.disclaimer": "Информация TMI, созданная ИИ, может быть не всегда точной."
   },
   "sv": {
     "button.close": "Nära",
@@ -6133,7 +6217,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Karaoke texter (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Synkroniserad text",
     "lyrics.provider.type_plain": "Vanlig text sångtexter",
-    "lyrics.provider.open_project": "Öppna leverantörssidan"
+    "lyrics.provider.open_project": "Öppna leverantörssidan",
+    "vinyl.mode": "Vinylläge",
+    "vinyl.open_hint": "Tryck för att öppna vinylläget",
+    "vinyl.close_hint": "Tryck på omslaget för att gå tillbaka",
+    "vinyl.record_hint": "Tryck på skivan för att spela upp eller pausa",
+    "vinyl.tonearm_hint": "Dra tonarmen för att ändra uppspelningsposition",
+    "vinyl.tmi_hint": "Håll ned omslaget för att öppna TMI",
+    "tmi.disclaimer": "AI-genererad TMI-information är kanske inte alltid korrekt."
   },
   "pt": {
     "button.close": "Fechar",
@@ -6605,7 +6696,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Letras de karaokê (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Letras sincronizadas",
     "lyrics.provider.type_plain": "Letras não sincronizadas",
-    "lyrics.provider.open_project": "Abrir página do provedor"
+    "lyrics.provider.open_project": "Abrir página do provedor",
+    "vinyl.mode": "Modo vinil",
+    "vinyl.open_hint": "Toque para abrir o modo vinil",
+    "vinyl.close_hint": "Toque na capa para voltar",
+    "vinyl.record_hint": "Toque no disco para reproduzir ou pausar",
+    "vinyl.tonearm_hint": "Arraste o braço para alterar a posição da reprodução",
+    "vinyl.tmi_hint": "Mantenha a capa pressionada para abrir o TMI",
+    "tmi.disclaimer": "As informações TMI geradas por IA podem nem sempre ser precisas."
   },
   "bn": {
     "button.close": "বন্ধ",
@@ -7077,7 +7175,14 @@
     "lyrics.provider.type_karaoke_sync_data": "কারাওকে লিরিক্স (ivLyrics Sync)",
     "lyrics.provider.type_synced": "সিঙ্ক করা লিরিক্স",
     "lyrics.provider.type_plain": "আনসিঙ্ক করা লিরিক্স",
-    "lyrics.provider.open_project": "প্রদানকারীর পৃষ্ঠা খুলুন"
+    "lyrics.provider.open_project": "প্রদানকারীর পৃষ্ঠা খুলুন",
+    "vinyl.mode": "ভিনাইল মোড",
+    "vinyl.open_hint": "ভিনাইল মোড খুলতে ট্যাপ করুন",
+    "vinyl.close_hint": "ফিরে যেতে অ্যালবাম কভারে ট্যাপ করুন",
+    "vinyl.record_hint": "প্লে বা বিরতি দিতে রেকর্ডে ট্যাপ করুন",
+    "vinyl.tonearm_hint": "প্লেব্যাকের অবস্থান বদলাতে টোনআর্ম টেনে নিন",
+    "vinyl.tmi_hint": "TMI খুলতে অ্যালবাম কভার চেপে ধরে রাখুন",
+    "tmi.disclaimer": "AI-তৈরি TMI সব সময় সঠিক নাও হতে পারে।"
   },
   "cs": {
     "button.close": "Zavřít",
@@ -7549,7 +7654,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Texty karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Synchronizované texty",
     "lyrics.provider.type_plain": "Texty prostého textu",
-    "lyrics.provider.open_project": "Otevřít stránku poskytovatele"
+    "lyrics.provider.open_project": "Otevřít stránku poskytovatele",
+    "vinyl.mode": "Vinylový režim",
+    "vinyl.open_hint": "Klepnutím otevřete vinylový režim",
+    "vinyl.close_hint": "Klepnutím na obal se vrátíte",
+    "vinyl.record_hint": "Klepnutím na desku spustíte nebo pozastavíte přehrávání",
+    "vinyl.tonearm_hint": "Přetažením raménka změníte pozici přehrávání",
+    "vinyl.tmi_hint": "Podržením obalu otevřete TMI",
+    "tmi.disclaimer": "TMI vytvořené umělou inteligencí nemusí být vždy přesné."
   },
   "it": {
     "button.close": "Chiudi",
@@ -8021,7 +8133,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Testi Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Testi sincronizzati",
     "lyrics.provider.type_plain": "Testi non sincronizzati",
-    "lyrics.provider.open_project": "Apri la pagina del provider"
+    "lyrics.provider.open_project": "Apri la pagina del provider",
+    "vinyl.mode": "Modalità vinile",
+    "vinyl.open_hint": "Tocca per aprire la modalità vinile",
+    "vinyl.close_hint": "Tocca la copertina per tornare indietro",
+    "vinyl.record_hint": "Tocca il disco per riprodurre o mettere in pausa",
+    "vinyl.tonearm_hint": "Trascina il braccio per cambiare la posizione di riproduzione",
+    "vinyl.tmi_hint": "Tieni premuta la copertina per aprire TMI",
+    "tmi.disclaimer": "Le informazioni TMI generate dall'IA potrebbero non essere sempre accurate."
   },
   "th": {
     "button.close": "ปิด",
@@ -8493,7 +8612,14 @@
     "lyrics.provider.type_karaoke_sync_data": "เนื้อเพลงคาราโอเกะ (ivLyrics Sync)",
     "lyrics.provider.type_synced": "เนื้อเพลงซิงค์",
     "lyrics.provider.type_plain": "เนื้อเพลงไม่ซิงค์",
-    "lyrics.provider.open_project": "เปิดหน้าผู้ให้บริการ"
+    "lyrics.provider.open_project": "เปิดหน้าผู้ให้บริการ",
+    "vinyl.mode": "โหมดแผ่นเสียง",
+    "vinyl.open_hint": "แตะเพื่อเปิดโหมดแผ่นเสียง",
+    "vinyl.close_hint": "แตะปกอัลบั้มเพื่อกลับ",
+    "vinyl.record_hint": "แตะแผ่นเสียงเพื่อเล่นหรือหยุดชั่วคราว",
+    "vinyl.tonearm_hint": "ลากโทนอาร์มเพื่อเปลี่ยนตำแหน่งการเล่น",
+    "vinyl.tmi_hint": "แตะปกอัลบั้มค้างไว้เพื่อเปิด TMI",
+    "tmi.disclaimer": "TMI ที่สร้างโดย AI อาจไม่ถูกต้องเสมอไป"
   },
   "vi": {
     "button.close": "Đóng",
@@ -8965,7 +9091,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Lời Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Lời đồng bộ",
     "lyrics.provider.type_plain": "Lời chưa đồng bộ",
-    "lyrics.provider.open_project": "Mở trang nhà cung cấp"
+    "lyrics.provider.open_project": "Mở trang nhà cung cấp",
+    "vinyl.mode": "Chế độ đĩa than",
+    "vinyl.open_hint": "Chạm để mở chế độ đĩa than",
+    "vinyl.close_hint": "Chạm vào bìa album để quay lại",
+    "vinyl.record_hint": "Chạm vào đĩa để phát hoặc tạm dừng",
+    "vinyl.tonearm_hint": "Kéo cần máy hát để thay đổi vị trí phát",
+    "vinyl.tmi_hint": "Nhấn giữ bìa album để mở TMI",
+    "tmi.disclaimer": "TMI do AI tạo có thể không phải lúc nào cũng chính xác."
   },
   "id": {
     "button.close": "Tutup",
@@ -9437,7 +9570,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Lirik Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Lirik Sinkron",
     "lyrics.provider.type_plain": "Lirik Tidak Sinkron",
-    "lyrics.provider.open_project": "Buka halaman penyedia"
+    "lyrics.provider.open_project": "Buka halaman penyedia",
+    "vinyl.mode": "Mode vinil",
+    "vinyl.open_hint": "Ketuk untuk membuka mode vinil",
+    "vinyl.close_hint": "Ketuk sampul album untuk kembali",
+    "vinyl.record_hint": "Ketuk piringan untuk memutar atau menjeda",
+    "vinyl.tonearm_hint": "Seret lengan pemutar untuk mengubah posisi pemutaran",
+    "vinyl.tmi_hint": "Tekan lama sampul album untuk membuka TMI",
+    "tmi.disclaimer": "TMI yang dibuat AI mungkin tidak selalu akurat."
   },
   "ms": {
     "button.close": "tutup",
@@ -9909,7 +10049,14 @@
     "lyrics.provider.type_karaoke_sync_data": "Lirik Karaoke (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Lirik Senada (Synced)",
     "lyrics.provider.type_plain": "Lirik Biasa (Unsynced)",
-    "lyrics.provider.open_project": "Buka halaman penyedia"
+    "lyrics.provider.open_project": "Buka halaman penyedia",
+    "vinyl.mode": "Mod vinil",
+    "vinyl.open_hint": "Ketik untuk membuka mod vinil",
+    "vinyl.close_hint": "Ketik kulit album untuk kembali",
+    "vinyl.record_hint": "Ketik piring hitam untuk main atau jeda",
+    "vinyl.tonearm_hint": "Seret lengan pikap untuk menukar kedudukan main balik",
+    "vinyl.tmi_hint": "Tekan lama kulit album untuk membuka TMI",
+    "tmi.disclaimer": "TMI yang dijana AI mungkin tidak sentiasa tepat."
   },
   "tr": {
     "button.close": "Kapat",
@@ -10381,6 +10528,13 @@
     "lyrics.provider.type_karaoke_sync_data": "Karaoke Sözleri (ivLyrics Sync)",
     "lyrics.provider.type_synced": "Senkronize Sözler",
     "lyrics.provider.type_plain": "Düz Metin Sözleri",
-    "lyrics.provider.open_project": "Sağlayıcı sayfasını aç"
+    "lyrics.provider.open_project": "Sağlayıcı sayfasını aç",
+    "vinyl.mode": "Plak modu",
+    "vinyl.open_hint": "Plak modunu açmak için dokunun",
+    "vinyl.close_hint": "Geri dönmek için albüm kapağına dokunun",
+    "vinyl.record_hint": "Oynatmak veya duraklatmak için plağa dokunun",
+    "vinyl.tonearm_hint": "Oynatma konumunu değiştirmek için pikap kolunu sürükleyin",
+    "vinyl.tmi_hint": "TMI'ı açmak için albüm kapağını basılı tutun",
+    "tmi.disclaimer": "Yapay zekâ tarafından oluşturulan TMI her zaman doğru olmayabilir."
   }
 }
