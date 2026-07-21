@@ -41,6 +41,13 @@ enum AppI18n {
         "spotify.step4.desc"
     ]
 
+    private static let sharedFallbackKeys: [String: String] = [
+        "setting.preview_hidden": "preview.none",
+        "setting.main_preview_original": "preview.original",
+        "setting.main_preview_pronunciation": "preview.pronunciation",
+        "setting.main_preview_translation": "preview.translation"
+    ]
+
     private static let extraStrings: [String: [String: String]] = [
         "ko": [
             "button.close": "닫기",
@@ -575,26 +582,41 @@ enum AppI18n {
     static func t(_ lang: String?, _ key: String) -> String {
         let normalized = normalize(lang)
         if iosOverrideKeys.contains(key) {
-            if let value = extraStrings[normalized]?[key] {
+            if let value = nonBlank(extraStrings[normalized]?[key]) {
                 return value
             }
-            if let value = extraStrings["en"]?[key] {
+            if let value = nonBlank(extraStrings["en"]?[key]) {
                 return value
             }
         }
-        if let value = androidStrings[normalized]?[key] {
+        if let value = nonBlank(androidStrings[normalized]?[key]) {
             return value
         }
-        if let value = extraStrings[normalized]?[key] {
+        if let value = nonBlank(extraStrings[normalized]?[key]) {
             return value
         }
-        if let value = androidStrings["en"]?[key] {
+        if let fallbackKey = sharedFallbackKeys[key],
+           let value = nonBlank(androidStrings[normalized]?[fallbackKey]) {
             return value
         }
-        if let value = extraStrings["en"]?[key] {
+        if let value = nonBlank(androidStrings["en"]?[key]) {
+            return value
+        }
+        if let value = nonBlank(extraStrings["en"]?[key]) {
+            return value
+        }
+        if let fallbackKey = sharedFallbackKeys[key],
+           let value = nonBlank(androidStrings["en"]?[fallbackKey]) {
             return value
         }
         return key
+    }
+
+    private static func nonBlank(_ value: String?) -> String? {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return value
     }
 
     static func format(_ lang: String?, _ key: String, _ arguments: [CVarArg]) -> String {
