@@ -28,6 +28,9 @@ final class AppSettings: ObservableObject {
     static let typoLyricsOriginal = "lyrics_original"
     static let typoLyricsPronunciation = "lyrics_pronunciation"
     static let typoLyricsTranslation = "lyrics_translation"
+    static let typoVinylOriginal = "vinyl_original"
+    static let typoVinylPronunciation = "vinyl_pronunciation"
+    static let typoVinylTranslation = "vinyl_translation"
     static let typoWeightRegular = "regular"
     static let typoWeightSemibold = "semibold"
     static let typoWeightBold = "bold"
@@ -136,6 +139,14 @@ final class AppSettings: ObservableObject {
         TypographySlot(id: typoLyricsTranslation, label: "Lyrics Translation", defaultSizePercent: 100, defaultWeight: typoWeightSemibold)
     ]
 
+    static let vinylTypographySlots: [TypographySlot] = [
+        TypographySlot(id: typoVinylOriginal, label: "Vinyl Original", defaultSizePercent: 100, defaultWeight: typoWeightBold),
+        TypographySlot(id: typoVinylPronunciation, label: "Vinyl Pronunciation", defaultSizePercent: 100, defaultWeight: typoWeightSemibold),
+        TypographySlot(id: typoVinylTranslation, label: "Vinyl Translation", defaultSizePercent: 100, defaultWeight: typoWeightSemibold)
+    ]
+
+    static let allTypographySlots = typographySlots + vinylTypographySlots
+
     static let speakerColorSlots: [SpeakerColorSlot] = [
         SpeakerColorSlot(id: speakerColorNormal, label: "Normal", defaultColor: "#ffffff"),
         SpeakerColorSlot(id: "duet1", label: "Duet 1", defaultColor: "#e4d8ff"),
@@ -186,6 +197,9 @@ final class AppSettings: ObservableObject {
     @Published var pipLyricsTextAlignment: String { didSet { set("pip_lyrics_text_alignment", Self.normalizeLyricsAlignment(pipLyricsTextAlignment)) } }
     @Published var pipLyricsSizePercent: Int { didSet { set("pip_lyrics_size_percent", Self.clampPipLyricsSizePercent(pipLyricsSizePercent)) } }
     @Published var pipTranslationSizePercent: Int { didSet { set("pip_translation_size_percent", Self.clampPipTranslationSizePercent(pipTranslationSizePercent)) } }
+    @Published var vinylAlbumSizePercent: Int { didSet { set("vinyl_album_size_percent", Self.clampVinylSizePercent(vinylAlbumSizePercent)) } }
+    @Published var vinylRecordSizePercent: Int { didSet { set("vinyl_record_size_percent", Self.clampVinylSizePercent(vinylRecordSizePercent)) } }
+    @Published var vinylAnimationsEnabled: Bool { didSet { set("vinyl_animations_enabled", vinylAnimationsEnabled) } }
     @Published var backgroundMode: String { didSet { set("background_mode", backgroundMode); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundBrightness: Int { didSet { set("background_brightness", backgroundBrightness); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundBlur: Int { didSet { set("background_blur", backgroundBlur); bumpBackgroundRevisionIfNeeded() } }
@@ -252,6 +266,9 @@ final class AppSettings: ObservableObject {
         pipLyricsTextAlignment = Self.normalizeLyricsAlignment(defaults.string(forKey: "pip_lyrics_text_alignment") ?? "center")
         pipLyricsSizePercent = Self.clampPipLyricsSizePercent(defaults.object(forKey: "pip_lyrics_size_percent") as? Int ?? 150)
         pipTranslationSizePercent = Self.clampPipTranslationSizePercent(defaults.object(forKey: "pip_translation_size_percent") as? Int ?? 100)
+        vinylAlbumSizePercent = Self.clampVinylSizePercent(defaults.object(forKey: "vinyl_album_size_percent") as? Int ?? 100)
+        vinylRecordSizePercent = Self.clampVinylSizePercent(defaults.object(forKey: "vinyl_record_size_percent") as? Int ?? 100)
+        vinylAnimationsEnabled = defaults.object(forKey: "vinyl_animations_enabled") as? Bool ?? true
         backgroundMode = Self.normalizeBackgroundMode(defaults.string(forKey: "background_mode") ?? Self.backgroundGradient)
         backgroundBrightness = min(100, max(0, defaults.object(forKey: "background_brightness") as? Int ?? 30))
         backgroundBlur = min(100, max(0, defaults.object(forKey: "background_blur") as? Int ?? 20))
@@ -429,7 +446,7 @@ final class AppSettings: ObservableObject {
             storedObject = object
         }
         var styles: [String: TypographyStyle] = [:]
-        for slot in Self.typographySlots {
+        for slot in Self.allTypographySlots {
             if let slotObject = storedObject[slot.id] as? [String: Any] {
                 styles[slot.id] = TypographyStyle(
                     sizePercent: slotObject["size"] as? Int ?? slot.defaultSizePercent,
@@ -656,7 +673,7 @@ final class AppSettings: ObservableObject {
 
     private func saveTypographySettings(_ typography: TypographySettings) {
         var object: [String: Any] = [:]
-        for slot in Self.typographySlots {
+        for slot in Self.allTypographySlots {
             let style = typography.style(slot.id)
             object[slot.id] = [
                 "size": style.sizePercent,
@@ -921,7 +938,11 @@ final class AppSettings: ObservableObject {
 
     static func typographySlotById(_ slotId: String?) -> TypographySlot {
         let normalized = (slotId ?? "").trimmed
-        return typographySlots.first { $0.id == normalized } ?? typographySlots[0]
+        return allTypographySlots.first { $0.id == normalized } ?? typographySlots[0]
+    }
+
+    static func clampVinylSizePercent(_ value: Int) -> Int {
+        min(140, max(70, value))
     }
 
     static func speakerColorSlotById(_ slotId: String?) -> SpeakerColorSlot {
@@ -1429,7 +1450,7 @@ final class AppSettings: ObservableObject {
 
         init(styles: [String: TypographyStyle]) {
             var values: [String: TypographyStyle] = [:]
-            for slot in AppSettings.typographySlots {
+            for slot in AppSettings.allTypographySlots {
                 if let style = styles[slot.id] {
                     values[slot.id] = TypographyStyle(sizePercent: style.sizePercent, weight: style.weight, slot: slot)
                 } else {
@@ -1446,6 +1467,14 @@ final class AppSettings: ObservableObject {
         func style(_ slotId: String) -> TypographyStyle {
             let slot = AppSettings.typographySlotById(slotId)
             return styles[slot.id] ?? slot.defaultStyle
+        }
+
+        var forVinylPreview: TypographySettings {
+            var values = styles
+            values[AppSettings.typoMainPreviewOriginal] = style(AppSettings.typoVinylOriginal)
+            values[AppSettings.typoMainPreviewPronunciation] = style(AppSettings.typoVinylPronunciation)
+            values[AppSettings.typoMainPreviewTranslation] = style(AppSettings.typoVinylTranslation)
+            return TypographySettings(styles: values)
         }
     }
 

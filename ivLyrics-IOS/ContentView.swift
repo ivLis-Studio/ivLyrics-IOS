@@ -280,10 +280,19 @@ struct ContentView: View {
             .scaleEffect(vinylModeVisible ? 0.985 : 1)
             .allowsHitTesting(!vinylModeVisible)
             .accessibilityHidden(vinylModeVisible)
-            .animation(.timingCurve(0.22, 0.74, 0.28, 1, duration: 0.36), value: vinylModeVisible)
+            .animation(
+                settings.vinylAnimationsEnabled
+                    ? .timingCurve(0.22, 0.74, 0.28, 1, duration: 0.36)
+                    : nil,
+                value: vinylModeVisible
+            )
             if vinylModeVisible {
                 VinylPlayerModeView(isPresented: $vinylModeVisible)
-                    .transition(.opacity.combined(with: .scale(scale: 0.975)))
+                    .transition(
+                        settings.vinylAnimationsEnabled
+                            ? .opacity.combined(with: .scale(scale: 0.975))
+                            : .identity
+                    )
                     .zIndex(4)
             }
             overlayContent(
@@ -691,7 +700,9 @@ struct ContentView: View {
         showLyricsPage(false)
         showingLyricsMetaMenu = false
         dismissLyricsMetaTip()
-        withAnimation(.timingCurve(0.18, 0.80, 0.22, 1, duration: 0.42)) {
+        withAnimation(settings.vinylAnimationsEnabled
+            ? .timingCurve(0.18, 0.80, 0.22, 1, duration: 0.42)
+            : nil) {
             vinylModeVisible = true
         }
     }
@@ -2981,6 +2992,7 @@ struct MainLyricPreviewPanel: View {
     // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     var chromeless = false
+    var typographyOverride: AppSettings.TypographySettings? = nil
     @State private var emptyLyricsPreviewKey = ""
     @State private var hiddenEmptyLyricsPreviewKey = ""
     @State private var emptyLyricsPreviewToken = UUID()
@@ -2993,7 +3005,11 @@ struct MainLyricPreviewPanel: View {
                 if !rows.isEmpty {
                     VStack(spacing: 4) {
                         ForEach(rows) { row in
-                            MainLyricPreviewRowView(row: row, positionMs: model.adjustedPositionMs)
+                            MainLyricPreviewRowView(
+                                row: row,
+                                positionMs: model.adjustedPositionMs,
+                                typographyOverride: typographyOverride
+                            )
                         }
                     }
                     .frame(maxWidth: .infinity, minHeight: reservedContentHeight, alignment: .center)
@@ -3017,7 +3033,7 @@ struct MainLyricPreviewPanel: View {
     }
 
     private var reservedContentHeight: CGFloat {
-        let typography = settings.typographySettings()
+        let typography = typographyOverride ?? settings.typographySettings()
         let primarySize = typography.scaledSize(slotId: AppSettings.typoMainPreviewOriginal, baseSize: 17)
         let pronunciationSize = typography.scaledSize(slotId: AppSettings.typoMainPreviewPronunciation, baseSize: 14.5)
         let translationSize = typography.scaledSize(slotId: AppSettings.typoMainPreviewTranslation, baseSize: 14.5)
@@ -3432,6 +3448,7 @@ private struct MainLyricPreviewRowView: View {
     @EnvironmentObject private var settings: AppSettings
     var row: MainLyricPreviewRow
     var positionMs: Int64
+    var typographyOverride: AppSettings.TypographySettings? = nil
     @State private var contentWidth: CGFloat = 0
 
     var body: some View {
@@ -3475,7 +3492,7 @@ private struct MainLyricPreviewRowView: View {
 
     private var typography: AppSettings.TypographySettings {
         _ = settings.typographyRevision
-        return settings.typographySettings()
+        return typographyOverride ?? settings.typographySettings()
     }
 
     private var lineProgress: CGFloat {
@@ -6872,6 +6889,7 @@ struct SettingsView: View {
     private enum SettingsTab: String, CaseIterable, Identifiable {
         case lyrics
         case display
+        case fullscreen
         case ai
         case tools
 
@@ -6964,26 +6982,29 @@ struct SettingsView: View {
     }
 
     private var settingsTabs: some View {
-        HStack(spacing: 10) {
-            ForEach(SettingsTab.allCases) { tab in
-                Button {
-                    withAnimation(.easeOut(duration: 0.16)) {
-                        selectedTab = tab
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(SettingsTab.allCases) { tab in
+                    Button {
+                        withAnimation(.easeOut(duration: 0.16)) {
+                            selectedTab = tab
+                        }
+                    } label: {
+                        Text(settings.t(tab.titleKey))
+                            .font(.pretendard(15, weight: .bold))
+                            .foregroundStyle(selectedTab == tab ? Color(red: 0.08, green: 0.08, blue: 0.09) : .white)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.horizontal, 16)
+                            .frame(minWidth: 96, minHeight: 48)
+                            .background(
+                                selectedTab == tab
+                                    ? Color(red: 0.94, green: 0.94, blue: 0.95)
+                                    : Color(red: 0.17, green: 0.17, blue: 0.19),
+                                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            )
                     }
-                } label: {
-                    Text(settings.t(tab.titleKey))
-                        .font(.pretendard(15, weight: .bold))
-                        .foregroundStyle(selectedTab == tab ? Color(red: 0.08, green: 0.08, blue: 0.09) : .white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(
-                            selectedTab == tab
-                                ? Color(red: 0.94, green: 0.94, blue: 0.95)
-                                : Color(red: 0.17, green: 0.17, blue: 0.19),
-                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        )
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -6995,6 +7016,8 @@ struct SettingsView: View {
             lyricsSettingsPage
         case .display:
             displaySettingsPage
+        case .fullscreen:
+            fullscreenSettingsPage
         case .ai:
             aiSettingsPage
         case .tools:
@@ -7288,6 +7311,79 @@ struct SettingsView: View {
 
             backgroundSettingsSection
             trackBackgroundSettingsSection
+        }
+    }
+
+    private var fullscreenSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            settingsSection(settings.t("vinyl.mode"), description: settings.t("vinyl.settings.subtitle")) {
+                settingsCard(
+                    settings.t("vinyl.settings.album_size"),
+                    description: settings.t("vinyl.settings.album_size_desc")
+                ) {
+                    HStack {
+                        Slider(value: Binding(get: {
+                            Double(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent))
+                        }, set: { value in
+                            settings.vinylAlbumSizePercent = AppSettings.clampVinylSizePercent(Int(value.rounded()))
+                        }), in: 70...140, step: 5, onEditingChanged: { editing in
+                            if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
+                        })
+                        Text("\(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent))%")
+                            .font(.pretendard(13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.68))
+                    }
+                }
+
+                settingsCard(
+                    settings.t("vinyl.settings.record_size"),
+                    description: settings.t("vinyl.settings.record_size_desc")
+                ) {
+                    HStack {
+                        Slider(value: Binding(get: {
+                            Double(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent))
+                        }, set: { value in
+                            settings.vinylRecordSizePercent = AppSettings.clampVinylSizePercent(Int(value.rounded()))
+                        }), in: 70...140, step: 5, onEditingChanged: { editing in
+                            if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
+                        })
+                        Text("\(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent))%")
+                            .font(.pretendard(13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.68))
+                    }
+                }
+
+                settingsToggleCard(
+                    settings.t("vinyl.settings.animations"),
+                    description: settings.t("vinyl.settings.animations_desc"),
+                    binding: settingsSavedBinding(\.vinylAnimationsEnabled)
+                )
+            }
+
+            settingsSection(settings.t("section.typography"), description: settings.t("vinyl.settings.typography_desc")) {
+                ForEach(AppSettings.vinylTypographySlots) { slot in
+                    settingsCard(
+                        settings.t("typography.slot.\(slot.id)"),
+                        description: settings.t("typography.slot.\(slot.id)_desc")
+                    ) {
+                        VStack(spacing: 10) {
+                            HStack {
+                                Slider(value: typographySizeBinding(slot), in: 70...160, step: 1, onEditingChanged: { editing in
+                                    if !editing { model.showSavedToast(settings.t("toast.typography_saved")) }
+                                })
+                                Text("\(typographyStyle(slot).sizePercent)%")
+                                    .foregroundStyle(.white.opacity(0.68))
+                            }
+                            Picker(settings.t("field.weight"), selection: typographyWeightBinding(slot)) {
+                                Text(settings.t("typography.weight.regular")).tag(AppSettings.typoWeightRegular)
+                                Text(settings.t("typography.weight.semibold")).tag(AppSettings.typoWeightSemibold)
+                                Text(settings.t("typography.weight.bold")).tag(AppSettings.typoWeightBold)
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    }
+                }
+            }
         }
     }
 

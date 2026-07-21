@@ -30,16 +30,21 @@ struct VinylPlayerModeView: View {
             let geometry = VinylSceneGeometry(
                 container: proxy.size,
                 playProgress: playProgress,
-                entranceProgress: entranceProgress
+                entranceProgress: entranceProgress,
+                albumScale: CGFloat(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent)) / 100,
+                recordScale: CGFloat(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent)) / 100
             )
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !spinning)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !spinning || !settings.vinylAnimationsEnabled)) { timeline in
                 scene(
                     geometry: geometry,
                     spinDegrees: spinDegrees(at: timeline.date)
                 )
             }
 
-            MainLyricPreviewPanel(chromeless: true)
+            MainLyricPreviewPanel(
+                chromeless: true,
+                typographyOverride: settings.typographySettings().forVinylPreview
+            )
                 .frame(
                     width: max(0, proxy.size.width - (geometry.isLandscape ? 64 : 32)),
                     height: geometry.lyricHeight
@@ -73,6 +78,9 @@ struct VinylPlayerModeView: View {
         }
         .onChange(of: model.currentTrack?.playing == true) { _, playing in
             updatePlaying(playing, animated: true)
+        }
+        .onChange(of: settings.vinylAnimationsEnabled) { _, enabled in
+            updateAnimationPreference(enabled)
         }
         .onDisappear {
             trackTransitionToken = UUID()
@@ -364,10 +372,14 @@ struct VinylPlayerModeView: View {
         if let displayedTrack {
             loadAccent(for: displayedTrack)
         }
-        DispatchQueue.main.async {
-            withAnimation(.timingCurve(0.18, 0.82, 0.22, 1, duration: 0.78)) {
-                entranceProgress = 1
+        if settings.vinylAnimationsEnabled {
+            DispatchQueue.main.async {
+                withAnimation(.timingCurve(0.18, 0.82, 0.22, 1, duration: 0.78)) {
+                    entranceProgress = 1
+                }
             }
+        } else {
+            entranceProgress = 1
         }
         updatePlaying(model.currentTrack?.playing == true, animated: false)
     }
@@ -385,7 +397,7 @@ struct VinylPlayerModeView: View {
             self.displayedTrack = next
             return
         }
-        guard animateChange else {
+        guard animateChange && settings.vinylAnimationsEnabled else {
             self.displayedTrack = next
             incomingTrack = nil
             return
@@ -447,6 +459,16 @@ struct VinylPlayerModeView: View {
     private func updatePlaying(_ playing: Bool, animated: Bool) {
         let token = UUID()
         spinToken = token
+        guard settings.vinylAnimationsEnabled else {
+            freezeSpin(at: Date())
+            spinning = false
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                playProgress = playing ? 1 : 0
+            }
+            return
+        }
         if playing {
             let animation = Animation.timingCurve(0.18, 0.76, 0.22, 1, duration: animated ? 1.08 : 0.01)
             withAnimation(animation) {
@@ -480,8 +502,32 @@ struct VinylPlayerModeView: View {
     private func close() {
         guard isPresented else { return }
         performHaptic(.soft)
+        guard settings.vinylAnimationsEnabled else {
+            isPresented = false
+            return
+        }
         withAnimation(.timingCurve(0.22, 0.74, 0.28, 1, duration: 0.36)) {
             isPresented = false
+        }
+    }
+
+    private func updateAnimationPreference(_ enabled: Bool) {
+        guard !enabled else {
+            updatePlaying(model.currentTrack?.playing == true, animated: false)
+            return
+        }
+        trackTransitionToken = UUID()
+        spinToken = UUID()
+        freezeSpin(at: Date())
+        spinning = false
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedTrack = model.currentTrack ?? incomingTrack ?? displayedTrack
+            incomingTrack = nil
+            trackTransitionProgress = 0
+            entranceProgress = 1
+            playProgress = model.currentTrack?.playing == true ? 1 : 0
         }
     }
 
@@ -673,7 +719,13 @@ private struct VinylSceneGeometry {
     let lyricBottom: CGFloat
     let isLandscape: Bool
 
-    init(container: CGSize, playProgress: CGFloat, entranceProgress: CGFloat) {
+    init(
+        container: CGSize,
+        playProgress: CGFloat,
+        entranceProgress: CGFloat,
+        albumScale: CGFloat,
+        recordScale: CGFloat
+    ) {
         self.container = container
         isLandscape = container.width > container.height
         lyricHeight = isLandscape ? 102 : 136
@@ -683,7 +735,14 @@ private struct VinylSceneGeometry {
         let rawSize = isLandscape
             ? min(container.width * 0.31, availableHeight * 0.74)
             : min(container.width * 0.72, availableHeight * 0.48)
-        let size = max(isLandscape ? 150 : 184, min(rawSize, availableHeight * 0.78))
+        let safeAlbumScale = min(1.4, max(0.7, albumScale))
+        let safeRecordScale = min(1.4, max(0.7, recordScale))
+        let maximumScale = max(1, max(safeAlbumScale, safeRecordScale))
+        let heightConstrainedSize = min(rawSize, availableHeight * 0.94 / maximumScale)
+        let widthConstrainedSize = isLandscape
+            ? heightConstrainedSize
+            : min(heightConstrainedSize, container.width * 0.94 / maximumScale)
+        let size = max(isLandscape ? 150 : 184, min(widthConstrainedSize, availableHeight * 0.78))
         let entrance = vinylSmoothStep(0, 1, entranceProgress)
         let entryOffset = (1 - entrance) * (isLandscape ? 34 : 50)
 
@@ -695,8 +754,14 @@ private struct VinylSceneGeometry {
             let pausedRecordX = pausedCoverX + size * 0.402
             let playingRecordX = playingCoverX + size * 0.82
             let recordX = vinylLerp(pausedRecordX, playingRecordX, playProgress)
-            cover = CGRect(x: coverX, y: centerY - size * 0.5, width: size, height: size)
-            record = CGRect(x: recordX, y: centerY - size * 0.5, width: size, height: size)
+            cover = vinylScaledRect(
+                CGRect(x: coverX, y: centerY - size * 0.5, width: size, height: size),
+                scale: safeAlbumScale
+            )
+            record = vinylScaledRect(
+                CGRect(x: recordX, y: centerY - size * 0.5, width: size, height: size),
+                scale: safeRecordScale
+            )
         } else {
             let centerX = container.width * 0.5
             let pausedCoverY = max(34, availableHeight * 0.10) + entryOffset
@@ -710,13 +775,19 @@ private struct VinylSceneGeometry {
             )
             let recordX = centerX - size * 0.5
             let recordY = vinylLerp(pausedCoverY + size * 0.40, playingCoverY + size * 0.58, playProgress)
-            cover = CGRect(
-                x: coverCenterX - coverSize * 0.5,
-                y: coverCenterY - coverSize * 0.5,
-                width: coverSize,
-                height: coverSize
+            cover = vinylScaledRect(
+                CGRect(
+                    x: coverCenterX - coverSize * 0.5,
+                    y: coverCenterY - coverSize * 0.5,
+                    width: coverSize,
+                    height: coverSize
+                ),
+                scale: safeAlbumScale
             )
-            record = CGRect(x: recordX, y: recordY, width: size, height: size)
+            record = vinylScaledRect(
+                CGRect(x: recordX, y: recordY, width: size, height: size),
+                scale: safeRecordScale
+            )
         }
         let playingCoverRotation = isLandscape ? -5.0 : -3.0
         coverRotation = vinylLerp(0, playingCoverRotation, vinylSmoothStep(0.28, 1, playProgress))
@@ -1030,6 +1101,18 @@ private func vinylSmoothStep<T: BinaryFloatingPoint>(_ start: T, _ end: T, _ val
 
 private func vinylLerp<T: BinaryFloatingPoint>(_ start: T, _ end: T, _ progress: T) -> T {
     start + (end - start) * max(0, min(1, progress))
+}
+
+private func vinylScaledRect(_ rect: CGRect, scale: CGFloat) -> CGRect {
+    let safeScale = min(1.4, max(0.7, scale))
+    let width = rect.width * safeScale
+    let height = rect.height * safeScale
+    return CGRect(
+        x: rect.midX - width * 0.5,
+        y: rect.midY - height * 0.5,
+        width: width,
+        height: height
+    )
 }
 
 private func vinylInterpolate(_ start: CGRect, _ end: CGRect, _ progress: CGFloat) -> CGRect {
