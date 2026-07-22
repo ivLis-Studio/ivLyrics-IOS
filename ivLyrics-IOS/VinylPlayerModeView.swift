@@ -103,7 +103,7 @@ struct VinylPlayerModeView: View {
                     rotation: spinDegrees,
                     interactive: incomingTrack == nil
                 )
-                .zIndex(1)
+                .zIndex(0)
 
                 cover(
                     track: displayedTrack,
@@ -111,19 +111,24 @@ struct VinylPlayerModeView: View {
                     rotation: geometry.coverRotation,
                     closeEnabled: incomingTrack == nil
                 )
-                .zIndex(2)
+                .zIndex(1)
 
                 if incomingTrack != nil {
                     incomingLayers(geometry: geometry, spinDegrees: spinDegrees)
-                } else if frontRecordProgress > 0 {
+                }
+
+                // Keep the playing pair stable while a replacement arrives:
+                // old album (1), old LP (2), new LP (3), new album (4), raised LP (5).
+                // When paused this duplicate fades out, leaving the base LP behind its cover.
+                if frontRecordProgress > 0 {
                     disc(
                         track: displayedTrack,
                         frame: geometry.record,
                         rotation: spinDegrees,
-                        interactive: frontRecordProgress > 0.04
+                        interactive: incomingTrack == nil && frontRecordProgress > 0.04
                     )
                     .opacity(frontRecordProgress)
-                    .zIndex(3)
+                    .zIndex(2)
                 }
 
                 tonearm(geometry: geometry)
