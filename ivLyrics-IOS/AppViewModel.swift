@@ -1057,9 +1057,14 @@ final class AppViewModel: ObservableObject {
         setPlayback(playing: !track.playing)
     }
 
-    private func setPlayback(playing targetPlaying: Bool) {
+    func pausePlayback() {
+        setPlayback(playing: false, forceCommand: true)
+    }
+
+    private func setPlayback(playing targetPlaying: Bool, forceCommand: Bool = false) {
         guard var track = currentTrack else { return }
-        guard track.playing != targetPlaying else { return }
+        let playbackChanged = track.playing != targetPlaying
+        guard playbackChanged || forceCommand else { return }
         let position = track.positionNow()
         if spotifyAppRemotePlaybackService.connected || spotifyLivePolling {
             spotifyPlaybackInteractionGuard.registerPlayback(
@@ -1068,9 +1073,11 @@ final class AppViewModel: ObservableObject {
                 uptime: ProcessInfo.processInfo.systemUptime
             )
         }
-        track = track.withPlayback(positionMs: position, playing: targetPlaying)
-        currentTrack = track
-        nowPositionMs = track.positionNow()
+        if playbackChanged {
+            track = track.withPlayback(positionMs: position, playing: targetPlaying)
+            currentTrack = track
+            nowPositionMs = track.positionNow()
+        }
         if spotifyAppRemotePlaybackService.connected {
             spotifyAppRemotePlaybackService.setPlayback(playing: targetPlaying)
             scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: false)

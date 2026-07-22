@@ -7353,6 +7353,71 @@ struct SettingsView: View {
                     }
                 }
 
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(settings.t("vinyl.settings.tonearm_title"))
+                        .font(.pretendard(18, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(settings.t("vinyl.settings.tonearm_subtitle"))
+                        .font(.pretendard(12, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 8)
+
+                settingsCard(
+                    settings.t("vinyl.settings.tonearm_style"),
+                    description: settings.t("vinyl.settings.tonearm_style_desc")
+                ) {
+                    Picker("", selection: Binding(get: {
+                        AppSettings.normalizeVinylTonearmStyle(settings.vinylTonearmStyle)
+                    }, set: { value in
+                        settings.vinylTonearmStyle = AppSettings.normalizeVinylTonearmStyle(value)
+                        model.showSavedToast(settings.t("toast.settings_saved"))
+                    })) {
+                        Text(settings.t("vinyl.settings.tonearm_style_s")).tag(AppSettings.vinylTonearmStyleS)
+                        Text(settings.t("vinyl.settings.tonearm_style_straight")).tag(AppSettings.vinylTonearmStyleStraight)
+                        Text(settings.t("vinyl.settings.tonearm_style_j")).tag(AppSettings.vinylTonearmStyleJ)
+                        Text(settings.t("vinyl.settings.tonearm_style_linear")).tag(AppSettings.vinylTonearmStyleLinear)
+                    }
+                    .labelsHidden()
+                    .settingsMenuSurface()
+                }
+
+                settingsCard(
+                    settings.t("vinyl.settings.tonearm_finish"),
+                    description: settings.t("vinyl.settings.tonearm_finish_desc")
+                ) {
+                    Picker("", selection: Binding(get: {
+                        AppSettings.normalizeVinylTonearmFinish(settings.vinylTonearmFinish)
+                    }, set: { value in
+                        settings.vinylTonearmFinish = AppSettings.normalizeVinylTonearmFinish(value)
+                        model.showSavedToast(settings.t("toast.settings_saved"))
+                    })) {
+                        Text(settings.t("vinyl.settings.tonearm_finish_white")).tag(AppSettings.vinylTonearmFinishWhite)
+                        Text(settings.t("vinyl.settings.tonearm_finish_silver")).tag(AppSettings.vinylTonearmFinishSilver)
+                        Text(settings.t("vinyl.settings.tonearm_finish_black")).tag(AppSettings.vinylTonearmFinishBlack)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                settingsCard(
+                    settings.t("vinyl.settings.tonearm_size"),
+                    description: settings.t("vinyl.settings.tonearm_size_desc")
+                ) {
+                    HStack {
+                        Slider(value: Binding(get: {
+                            Double(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent))
+                        }, set: { value in
+                            settings.vinylTonearmSizePercent = AppSettings.clampVinylTonearmSizePercent(Int(value.rounded()))
+                        }), in: 80...120, step: 5, onEditingChanged: { editing in
+                            if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
+                        })
+                        Text("\(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent))%")
+                            .font(.pretendard(13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.68))
+                    }
+                }
+
                 settingsToggleCard(
                     settings.t("vinyl.settings.animations"),
                     description: settings.t("vinyl.settings.animations_desc"),

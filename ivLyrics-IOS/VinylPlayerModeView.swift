@@ -233,18 +233,36 @@ struct VinylPlayerModeView: View {
     }
 
     private func tonearm(geometry: VinylSceneGeometry) -> some View {
+        let style = AppSettings.normalizeVinylTonearmStyle(settings.vinylTonearmStyle)
+        let finish = AppSettings.normalizeVinylTonearmFinish(settings.vinylTonearmFinish)
+        let sizeScale = CGFloat(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent)) / 100
+        let linear = style == AppSettings.vinylTonearmStyleLinear
+        let progress = tonearmDragState?.progress
+            ?? (model.currentTrack?.playing == true
+                ? playbackProgress
+                : (linear ? VinylTonearmGeometry.linearParkProgress : VinylTonearmGeometry.progress(forRotation: VinylTonearmGeometry.parkDegrees)))
         let rotation = tonearmDragState?.rotation
             ?? (model.currentTrack?.playing == true
                 ? VinylTonearmGeometry.rotation(for: playbackProgress)
                 : VinylTonearmGeometry.parkDegrees)
-        let points = VinylTonearmGeometry.points(record: geometry.record, rotation: rotation)
+        let points = VinylTonearmGeometry.points(
+            record: geometry.record,
+            rotation: rotation,
+            style: style,
+            sizeScale: sizeScale,
+            progress: progress
+        )
 
         return ZStack(alignment: .topLeading) {
             Canvas { context, _ in
                 VinylTonearmArtwork.draw(
                     context: context,
                     record: geometry.record,
-                    rotation: rotation
+                    rotation: rotation,
+                    progress: progress,
+                    style: style,
+                    finish: finish,
+                    sizeScale: sizeScale
                 )
             }
             .allowsHitTesting(false)
@@ -253,7 +271,7 @@ struct VinylPlayerModeView: View {
                 .frame(width: 68, height: 68)
                 .contentShape(Circle())
                 .position(points.head)
-                .gesture(tonearmDragGesture(geometry: geometry))
+                .gesture(tonearmDragGesture(geometry: geometry, style: style, sizeScale: sizeScale))
                 .accessibilityElement()
                 .accessibilityLabel(settings.t("vinyl.tonearm_hint"))
                 .accessibilityAdjustableAction { direction in
@@ -271,13 +289,19 @@ struct VinylPlayerModeView: View {
         .frame(width: geometry.container.width, height: geometry.container.height)
     }
 
-    private func tonearmDragGesture(geometry: VinylSceneGeometry) -> some Gesture {
+    private func tonearmDragGesture(
+        geometry: VinylSceneGeometry,
+        style: String,
+        sizeScale: CGFloat
+    ) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(VinylCoordinateSpace.name))
             .updating($tonearmDragState) { value, state, _ in
                 state = updatedTonearmDragState(
                     location: value.location,
                     startLocation: value.startLocation,
                     record: geometry.record,
+                    style: style,
+                    sizeScale: sizeScale,
                     existing: state
                 )
             }
@@ -286,6 +310,8 @@ struct VinylPlayerModeView: View {
                     location: value.location,
                     startLocation: value.startLocation,
                     record: geometry.record,
+                    style: style,
+                    sizeScale: sizeScale,
                     existing: tonearmDragState
                 )
                 let moved = hypot(
@@ -293,20 +319,22 @@ struct VinylPlayerModeView: View {
                     value.location.y - value.startLocation.y
                 ) > 18
                 let ejected = drag.seeking && (
-                    drag.rawRotation <= VinylTonearmGeometry.ejectDegrees
+                    (drag.linear
+                        ? drag.rawProgress <= VinylTonearmGeometry.linearEjectProgress
+                        : drag.rawRotation <= VinylTonearmGeometry.ejectDegrees)
                         || moved && !geometry.record.contains(value.location)
                 )
                 performHaptic(ejected ? .rigid : .light)
                 if ejected {
-                    if model.currentTrack?.playing == true {
-                        model.togglePlayback()
-                    }
+                    model.pausePlayback()
                     return
                 }
                 if drag.seeking {
                     guard model.durationMs > 0 else { return }
                     model.seek(toPlaybackPositionMs: Int64((Double(model.durationMs) * drag.progress).rounded()))
-                } else if drag.rotation >= VinylTonearmGeometry.cuePlayDegrees,
+                } else if (drag.linear
+                            ? drag.progress >= VinylTonearmGeometry.linearCuePlayProgress
+                            : drag.rotation >= VinylTonearmGeometry.cuePlayDegrees),
                           model.currentTrack?.playing != true {
                     model.togglePlayback()
                 }
@@ -317,21 +345,56 @@ struct VinylPlayerModeView: View {
         location: CGPoint,
         startLocation: CGPoint,
         record: CGRect,
+        style: String,
+        sizeScale: CGFloat,
         existing: VinylTonearmDragState?
     ) -> VinylTonearmDragState {
+        let linear = style == AppSettings.vinylTonearmStyleLinear
         var next = existing ?? {
             let seeking = model.currentTrack?.playing == true
+            if linear {
+                let initialProgress = seeking ? playbackProgress : VinylTonearmGeometry.linearParkProgress
+                return VinylTonearmDragState(
+                    seeking: seeking,
+                    linear: true,
+                    pointerOffset: initialProgress - VinylTonearmGeometry.linearPointerProgress(
+                        startLocation,
+                        record: record,
+                        sizeScale: sizeScale
+                    ),
+                    rotation: VinylTonearmGeometry.rotation(for: initialProgress),
+                    rawRotation: VinylTonearmGeometry.rotation(for: initialProgress),
+                    progress: initialProgress,
+                    rawProgress: initialProgress
+                )
+            }
             let initialRotation = seeking
                 ? VinylTonearmGeometry.rotation(for: playbackProgress)
                 : VinylTonearmGeometry.parkDegrees
             return VinylTonearmDragState(
                 seeking: seeking,
+                linear: false,
                 pointerOffset: initialRotation - VinylTonearmGeometry.pointerAngle(startLocation, record: record),
                 rotation: initialRotation,
                 rawRotation: initialRotation,
-                progress: VinylTonearmGeometry.progress(forRotation: initialRotation)
+                progress: VinylTonearmGeometry.progress(forRotation: initialRotation),
+                rawProgress: VinylTonearmGeometry.progress(forRotation: initialRotation)
             )
         }()
+        if next.linear {
+            let candidate = VinylTonearmGeometry.linearPointerProgress(
+                location,
+                record: record,
+                sizeScale: sizeScale
+            ) + next.pointerOffset
+            next.rawProgress = candidate
+            next.progress = next.seeking
+                ? max(VinylTonearmGeometry.linearParkProgress, min(1, candidate))
+                : max(VinylTonearmGeometry.linearParkProgress, min(0, candidate))
+            next.rotation = VinylTonearmGeometry.rotation(for: next.progress)
+            next.rawRotation = next.rotation
+            return next
+        }
         var candidate = VinylTonearmGeometry.pointerAngle(location, record: record) + next.pointerOffset
         while candidate - next.rotation > 180 { candidate -= 360 }
         while candidate - next.rotation < -180 { candidate += 360 }
@@ -340,6 +403,7 @@ struct VinylPlayerModeView: View {
             ? max(VinylTonearmGeometry.parkDegrees, min(VinylTonearmGeometry.endDegrees, candidate))
             : max(VinylTonearmGeometry.parkDegrees, min(VinylTonearmGeometry.startDegrees, candidate))
         next.progress = VinylTonearmGeometry.progress(forRotation: next.rotation)
+        next.rawProgress = next.progress
         return next
     }
 
@@ -824,10 +888,12 @@ private struct VinylSceneGeometry {
 
 private struct VinylTonearmDragState {
     let seeking: Bool
+    let linear: Bool
     let pointerOffset: Double
     var rotation: Double
     var rawRotation: Double
     var progress: Double
+    var rawProgress: Double
 }
 
 private enum VinylTonearmGeometry {
@@ -837,6 +903,10 @@ private enum VinylTonearmGeometry {
     static let parkDegrees = -14.0
     static let ejectDegrees = -8.2
     static let cuePlayDegrees = -7.2
+    static let linearParkProgress = -0.44
+    static let linearEjectProgress = -0.2
+    static let linearCuePlayProgress = -0.08
+    static let linearTravel: CGFloat = 95
     static let viewBoxHeight: CGFloat = 620
     static let pivotSVG = CGPoint(x: 183, y: 64)
     static let headSVG = CGPoint(x: 46, y: 524)
@@ -856,22 +926,46 @@ private enum VinylTonearmGeometry {
         max(0, min(1, (rotation - startDegrees) / (endDegrees - startDegrees)))
     }
 
-    static func points(record: CGRect, rotation: Double) -> Points {
-        let scale = record.width / viewBoxHeight
+    static func points(
+        record: CGRect,
+        rotation: Double,
+        style: String = AppSettings.vinylTonearmStyleS,
+        sizeScale: CGFloat = 1,
+        progress: Double = 0
+    ) -> Points {
+        let scale = record.width / viewBoxHeight * sizeScale
+        if style == AppSettings.vinylTonearmStyleLinear {
+            let outerX = record.minX + record.width * 0.86
+            let pivot = CGPoint(
+                x: outerX - linearTravel * scale * CGFloat(progress),
+                y: record.minY + record.height * 0.1032
+            )
+            return Points(
+                pivot: pivot,
+                head: CGPoint(x: pivot.x - 10 * scale, y: pivot.y + (544 - 64) * scale),
+                radius: record.width * 0.5,
+                scale: scale
+            )
+        }
         let pivot = CGPoint(
             x: record.minX + record.width * 0.8766,
             y: record.minY + record.height * 0.1032
         )
         return Points(
             pivot: pivot,
-            head: point(headSVG, record: record, rotation: rotation),
+            head: point(headSVG, record: record, rotation: rotation, sizeScale: sizeScale),
             radius: record.width * 0.5,
             scale: scale
         )
     }
 
-    static func point(_ svgPoint: CGPoint, record: CGRect, rotation: Double) -> CGPoint {
-        let scale = record.width / viewBoxHeight
+    static func point(
+        _ svgPoint: CGPoint,
+        record: CGRect,
+        rotation: Double,
+        sizeScale: CGFloat = 1
+    ) -> CGPoint {
+        let scale = record.width / viewBoxHeight * sizeScale
         let pivot = CGPoint(
             x: record.minX + record.width * 0.8766,
             y: record.minY + record.height * 0.1032
@@ -891,12 +985,65 @@ private enum VinylTonearmGeometry {
         if degrees < 0 { degrees += 360 }
         return degrees
     }
+
+    static func linearPointerProgress(
+        _ location: CGPoint,
+        record: CGRect,
+        sizeScale: CGFloat
+    ) -> Double {
+        let scale = max(0.0001, record.width / viewBoxHeight * sizeScale)
+        let outerX = record.minX + record.width * 0.86
+        return Double((outerX - location.x) / (linearTravel * scale))
+    }
 }
 
 private enum VinylTonearmArtwork {
-    static func draw(context: GraphicsContext, record: CGRect, rotation: Double) {
-        let points = VinylTonearmGeometry.points(record: record, rotation: rotation)
+    private struct Appearance {
+        let base: [Color]
+        let tube: [Color]
+        let housing: Color
+        let edge: Color
+        let highlight: Color
+        let needle: Color
+    }
+
+    static func draw(
+        context: GraphicsContext,
+        record: CGRect,
+        rotation: Double,
+        progress: Double,
+        style: String,
+        finish: String,
+        sizeScale: CGFloat
+    ) {
+        let appearance = appearance(for: finish)
+        if style == AppSettings.vinylTonearmStyleLinear {
+            drawLinear(
+                context: context,
+                record: record,
+                progress: progress,
+                appearance: appearance,
+                sizeScale: sizeScale
+            )
+            return
+        }
+
+        let points = VinylTonearmGeometry.points(
+            record: record,
+            rotation: rotation,
+            style: style,
+            sizeScale: sizeScale,
+            progress: progress
+        )
         let scale = points.scale
+        let point: (CGFloat, CGFloat) -> CGPoint = { x, y in
+            VinylTonearmGeometry.point(
+                CGPoint(x: x, y: y),
+                record: record,
+                rotation: rotation,
+                sizeScale: sizeScale
+            )
+        }
 
         var base = Path()
         base.addEllipse(in: CGRect(
@@ -909,27 +1056,25 @@ private enum VinylTonearmArtwork {
             base,
             with: .radialGradient(
                 Gradient(stops: [
-                    .init(color: .white.opacity(0.88), location: 0),
-                    .init(color: Color(white: 0.985).opacity(0.62), location: 0.58),
-                    .init(color: Color(white: 0.933).opacity(0.34), location: 1)
+                    .init(color: appearance.base[0].opacity(0.88), location: 0),
+                    .init(color: appearance.base[1].opacity(0.72), location: 0.58),
+                    .init(color: appearance.base[2].opacity(0.58), location: 1)
                 ]),
-                center: VinylTonearmGeometry.point(CGPoint(x: 172, y: 43), record: record, rotation: 0),
+                center: VinylTonearmGeometry.point(
+                    CGPoint(x: 172, y: 43),
+                    record: record,
+                    rotation: 0,
+                    sizeScale: sizeScale
+                ),
                 startRadius: 0,
                 endRadius: 95 * scale
             )
         )
         let baseShadow = base.applying(CGAffineTransform(translationX: 0, y: 2 * scale))
         context.stroke(baseShadow, with: .color(.black.opacity(0.14)), lineWidth: 3 * scale)
-        context.stroke(base, with: .color(Color(white: 0.86).opacity(0.62)), lineWidth: 2 * scale)
+        context.stroke(base, with: .color(appearance.edge.opacity(0.72)), lineWidth: 2 * scale)
 
-        var arm = Path()
-        arm.move(to: p(189, 75, record, rotation))
-        arm.addCurve(
-            to: p(78, 474, record, rotation),
-            control1: p(184, 172, record, rotation),
-            control2: p(151, 330, record, rotation)
-        )
-        arm.addLine(to: p(58, 513, record, rotation))
+        let arm = armPath(style: style, highlight: false, point: point)
         context.stroke(
             arm,
             with: .color(.black.opacity(0.32)),
@@ -938,100 +1083,277 @@ private enum VinylTonearmArtwork {
         context.stroke(
             arm,
             with: .linearGradient(
-                Gradient(stops: [
-                    .init(color: Color(white: 0.667), location: 0),
-                    .init(color: Color(white: 0.98), location: 0.24),
-                    .init(color: .white, location: 0.55),
-                    .init(color: Color(white: 0.733), location: 1)
-                ]),
-                startPoint: p(28, 280, record, rotation),
-                endPoint: p(210, 280, record, rotation)
+                tubeGradient(appearance),
+                startPoint: point(28, 280),
+                endPoint: point(210, 280)
             ),
             style: StrokeStyle(lineWidth: 14 * scale, lineCap: .round, lineJoin: .round)
         )
 
-        var armHighlight = Path()
-        armHighlight.move(to: p(184, 79, record, rotation))
-        armHighlight.addCurve(
-            to: p(74, 469, record, rotation),
-            control1: p(178, 179, record, rotation),
-            control2: p(145, 330, record, rotation)
-        )
         context.stroke(
-            armHighlight,
-            with: .color(.white.opacity(0.94)),
+            armPath(style: style, highlight: true, point: point),
+            with: .color(appearance.highlight),
             style: StrokeStyle(lineWidth: 3 * scale, lineCap: .round)
         )
 
         let pivotHousing = polygon([
             (151, 35), (200, 39), (215, 66), (207, 109),
             (170, 111), (151, 91), (144, 61)
-        ], record: record, rotation: rotation)
-        drawHousing(pivotHousing, context: context, scale: scale)
+        ], point: point)
+        drawHousing(pivotHousing, context: context, scale: scale, appearance: appearance)
 
         var pivotHighlight = Path()
-        pivotHighlight.move(to: p(158, 42, record, rotation))
-        pivotHighlight.addLine(to: p(194, 45, record, rotation))
-        pivotHighlight.addLine(to: p(207, 65, record, rotation))
-        pivotHighlight.addLine(to: p(202, 91, record, rotation))
+        pivotHighlight.move(to: point(158, 42))
+        pivotHighlight.addLine(to: point(194, 45))
+        pivotHighlight.addLine(to: point(207, 65))
+        pivotHighlight.addLine(to: point(202, 91))
         context.stroke(
             pivotHighlight,
-            with: .color(.white.opacity(0.95)),
+            with: .color(appearance.highlight),
             style: StrokeStyle(lineWidth: 4 * scale, lineCap: .round, lineJoin: .round)
         )
 
         let headshell = polygon([
             (47, 490), (75, 508), (54, 546), (30, 540),
             (17, 522), (24, 506)
-        ], record: record, rotation: rotation)
-        drawHousing(headshell, context: context, scale: scale)
+        ], point: point)
+        drawHousing(headshell, context: context, scale: scale, appearance: appearance)
 
         var headHighlight = Path()
-        headHighlight.move(to: p(28, 509, record, rotation))
-        headHighlight.addLine(to: p(66, 517, record, rotation))
-        headHighlight.addLine(to: p(49, 539, record, rotation))
+        headHighlight.move(to: point(28, 509))
+        headHighlight.addLine(to: point(66, 517))
+        headHighlight.addLine(to: point(49, 539))
         context.stroke(
             headHighlight,
-            with: .color(.white.opacity(0.95)),
+            with: .color(appearance.highlight),
             style: StrokeStyle(lineWidth: 4 * scale, lineCap: .round, lineJoin: .round)
         )
 
         var needle = Path()
-        needle.move(to: p(35, 539, record, rotation))
-        needle.addLine(to: p(33, 555, record, rotation))
-        needle.move(to: p(48, 542, record, rotation))
-        needle.addLine(to: p(53, 557, record, rotation))
+        needle.move(to: point(35, 539))
+        needle.addLine(to: point(33, 555))
+        needle.move(to: point(48, 542))
+        needle.addLine(to: point(53, 557))
         context.stroke(
             needle,
-            with: .color(Color(white: 0.933)),
+            with: .color(appearance.needle),
             style: StrokeStyle(lineWidth: 5 * scale, lineCap: .square)
         )
     }
 
-    private static func drawHousing(_ path: Path, context: GraphicsContext, scale: CGFloat) {
+    private static func drawLinear(
+        context: GraphicsContext,
+        record: CGRect,
+        progress: Double,
+        appearance: Appearance,
+        sizeScale: CGFloat
+    ) {
+        let points = VinylTonearmGeometry.points(
+            record: record,
+            rotation: 0,
+            style: AppSettings.vinylTonearmStyleLinear,
+            sizeScale: sizeScale,
+            progress: progress
+        )
+        let scale = points.scale
+        let outerX = record.minX + record.width * 0.86
+        let railY = record.minY + record.height * 0.1032
+        let railStart = CGPoint(x: outerX - 140 * scale, y: railY)
+        let railEnd = CGPoint(x: outerX + 60 * scale, y: railY)
+
+        var railShadow = Path()
+        railShadow.move(to: CGPoint(x: railStart.x, y: railStart.y + 4 * scale))
+        railShadow.addLine(to: CGPoint(x: railEnd.x, y: railEnd.y + 4 * scale))
+        context.stroke(
+            railShadow,
+            with: .color(.black.opacity(0.3)),
+            style: StrokeStyle(lineWidth: 20 * scale, lineCap: .round)
+        )
+        var rail = Path()
+        rail.move(to: railStart)
+        rail.addLine(to: railEnd)
+        context.stroke(
+            rail,
+            with: .linearGradient(tubeGradient(appearance), startPoint: railStart, endPoint: railEnd),
+            style: StrokeStyle(lineWidth: 16 * scale, lineCap: .round)
+        )
+        for center in [railStart, railEnd] {
+            var cap = Path()
+            cap.addEllipse(in: CGRect(
+                x: center.x - 18 * scale,
+                y: center.y - 18 * scale,
+                width: 36 * scale,
+                height: 36 * scale
+            ))
+            context.fill(cap, with: .color(appearance.housing))
+            context.stroke(cap, with: .color(appearance.edge), lineWidth: 2 * scale)
+        }
+
+        let point: (CGFloat, CGFloat) -> CGPoint = { x, y in
+            CGPoint(
+                x: points.pivot.x + (x - 170) * scale,
+                y: points.pivot.y + (y - 64) * scale
+            )
+        }
+        var arm = Path()
+        arm.move(to: point(170, 87))
+        arm.addLine(to: point(170, 476))
+        arm.addLine(to: point(160, 510))
+        context.stroke(
+            arm,
+            with: .color(.black.opacity(0.32)),
+            style: StrokeStyle(lineWidth: 17 * scale, lineCap: .round, lineJoin: .round)
+        )
+        context.stroke(
+            arm,
+            with: .linearGradient(
+                tubeGradient(appearance),
+                startPoint: point(140, 280),
+                endPoint: point(200, 280)
+            ),
+            style: StrokeStyle(lineWidth: 14 * scale, lineCap: .round, lineJoin: .round)
+        )
+        var armHighlight = Path()
+        armHighlight.move(to: point(165, 91))
+        armHighlight.addLine(to: point(165, 472))
+        context.stroke(
+            armHighlight,
+            with: .color(appearance.highlight),
+            style: StrokeStyle(lineWidth: 3 * scale, lineCap: .round)
+        )
+
+        let carriage = polygon([(144, 38), (196, 38), (196, 104), (144, 104)], point: point)
+        drawHousing(carriage, context: context, scale: scale, appearance: appearance)
+        var carriageHighlight = Path()
+        carriageHighlight.move(to: point(153, 48))
+        carriageHighlight.addLine(to: point(187, 48))
+        carriageHighlight.addLine(to: point(187, 86))
+        context.stroke(
+            carriageHighlight,
+            with: .color(appearance.highlight),
+            style: StrokeStyle(lineWidth: 4 * scale, lineCap: .round, lineJoin: .round)
+        )
+
+        let headshell = polygon([
+            (139, 487), (182, 487), (184, 529), (146, 542), (132, 523)
+        ], point: point)
+        drawHousing(headshell, context: context, scale: scale, appearance: appearance)
+        var headHighlight = Path()
+        headHighlight.move(to: point(146, 496))
+        headHighlight.addLine(to: point(174, 496))
+        headHighlight.addLine(to: point(175, 521))
+        context.stroke(
+            headHighlight,
+            with: .color(appearance.highlight),
+            style: StrokeStyle(lineWidth: 4 * scale, lineCap: .round, lineJoin: .round)
+        )
+        var needle = Path()
+        needle.move(to: point(149, 537))
+        needle.addLine(to: point(148, 555))
+        needle.move(to: point(164, 533))
+        needle.addLine(to: point(168, 552))
+        context.stroke(
+            needle,
+            with: .color(appearance.needle),
+            style: StrokeStyle(lineWidth: 5 * scale, lineCap: .square)
+        )
+    }
+
+    private static func armPath(
+        style: String,
+        highlight: Bool,
+        point: (CGFloat, CGFloat) -> CGPoint
+    ) -> Path {
+        var path = Path()
+        if style == AppSettings.vinylTonearmStyleStraight {
+            path.move(to: point(highlight ? 184 : 189, highlight ? 79 : 75))
+            path.addLine(to: point(highlight ? 53 : 58, highlight ? 508 : 513))
+            return path
+        }
+        if style == AppSettings.vinylTonearmStyleJ {
+            path.move(to: point(highlight ? 184 : 189, highlight ? 79 : 75))
+            path.addLine(to: point(highlight ? 175 : 181, highlight ? 369 : 372))
+            path.addCurve(
+                to: point(highlight ? 55 : 58, highlight ? 507 : 513),
+                control1: point(highlight ? 173 : 179, highlight ? 424 : 432),
+                control2: point(highlight ? 135 : 139, highlight ? 474 : 481)
+            )
+            return path
+        }
+        path.move(to: point(highlight ? 184 : 189, highlight ? 79 : 75))
+        path.addCurve(
+            to: point(highlight ? 74 : 78, highlight ? 469 : 474),
+            control1: point(highlight ? 178 : 184, highlight ? 179 : 172),
+            control2: point(highlight ? 145 : 151, 330)
+        )
+        if !highlight { path.addLine(to: point(58, 513)) }
+        return path
+    }
+
+    private static func drawHousing(
+        _ path: Path,
+        context: GraphicsContext,
+        scale: CGFloat,
+        appearance: Appearance
+    ) {
         let shadow = path.applying(CGAffineTransform(translationX: 2 * scale, y: 5 * scale))
         context.fill(shadow, with: .color(.black.opacity(0.18)))
-        context.fill(path, with: .color(Color(white: 0.988).opacity(0.97)))
-        context.stroke(path, with: .color(Color(white: 0.90).opacity(0.80)), lineWidth: scale)
+        context.fill(path, with: .color(appearance.housing))
+        context.stroke(path, with: .color(appearance.edge), lineWidth: scale)
     }
 
     private static func polygon(
         _ values: [(CGFloat, CGFloat)],
-        record: CGRect,
-        rotation: Double
+        point: (CGFloat, CGFloat) -> CGPoint
     ) -> Path {
         var path = Path()
         guard let first = values.first else { return path }
-        path.move(to: p(first.0, first.1, record, rotation))
+        path.move(to: point(first.0, first.1))
         for value in values.dropFirst() {
-            path.addLine(to: p(value.0, value.1, record, rotation))
+            path.addLine(to: point(value.0, value.1))
         }
         path.closeSubpath()
         return path
     }
 
-    private static func p(_ x: CGFloat, _ y: CGFloat, _ record: CGRect, _ rotation: Double) -> CGPoint {
-        VinylTonearmGeometry.point(CGPoint(x: x, y: y), record: record, rotation: rotation)
+    private static func tubeGradient(_ appearance: Appearance) -> Gradient {
+        Gradient(stops: [
+            .init(color: appearance.tube[0], location: 0),
+            .init(color: appearance.tube[1], location: 0.24),
+            .init(color: appearance.tube[2], location: 0.55),
+            .init(color: appearance.tube[3], location: 1)
+        ])
+    }
+
+    private static func appearance(for finish: String) -> Appearance {
+        if finish == AppSettings.vinylTonearmFinishBlack {
+            return Appearance(
+                base: [Color(white: 0.34), Color(white: 0.145), Color(white: 0.035)],
+                tube: [Color(white: 0.02), Color(white: 0.34), Color(white: 0.12), Color(white: 0.01)],
+                housing: Color(white: 0.10).opacity(0.98),
+                edge: Color(white: 0.37).opacity(0.9),
+                highlight: .white.opacity(0.34),
+                needle: Color(white: 0.67)
+            )
+        }
+        if finish == AppSettings.vinylTonearmFinishSilver {
+            return Appearance(
+                base: [Color(white: 0.96), Color(white: 0.76), Color(white: 0.48)],
+                tube: [Color(white: 0.35), Color(white: 0.86), Color(white: 0.97), Color(white: 0.46)],
+                housing: Color(white: 0.73).opacity(0.98),
+                edge: Color(white: 0.40).opacity(0.88),
+                highlight: .white.opacity(0.76),
+                needle: Color(white: 0.74)
+            )
+        }
+        return Appearance(
+            base: [.white, Color(white: 0.985), Color(white: 0.933)],
+            tube: [Color(white: 0.667), Color(white: 0.98), .white, Color(white: 0.733)],
+            housing: Color(white: 0.988).opacity(0.97),
+            edge: Color(white: 0.90).opacity(0.80),
+            highlight: .white.opacity(0.95),
+            needle: Color(white: 0.933)
+        )
     }
 }
 

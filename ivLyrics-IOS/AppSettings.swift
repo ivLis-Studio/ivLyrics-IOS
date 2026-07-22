@@ -45,6 +45,13 @@ final class AppSettings: ObservableObject {
     static let lyricsTypeKaraoke = "karaoke"
     static let lyricsTypeSynced = "synced"
     static let lyricsTypePlain = "plain"
+    static let vinylTonearmStyleS = "s"
+    static let vinylTonearmStyleStraight = "straight"
+    static let vinylTonearmStyleJ = "j"
+    static let vinylTonearmStyleLinear = "linear"
+    static let vinylTonearmFinishWhite = "white"
+    static let vinylTonearmFinishSilver = "silver"
+    static let vinylTonearmFinishBlack = "black"
 
     static let lyricsProviders: [LyricsProvider] = [
         LyricsProvider(
@@ -202,6 +209,9 @@ final class AppSettings: ObservableObject {
     @Published var vinylAnimationsEnabled: Bool { didSet { set("vinyl_animations_enabled", vinylAnimationsEnabled) } }
     @Published var vinylCenterRotationEnabled: Bool { didSet { set("vinyl_center_rotation_enabled", vinylCenterRotationEnabled) } }
     @Published var vinylLyricsEnabled: Bool { didSet { set("vinyl_lyrics_enabled", vinylLyricsEnabled) } }
+    @Published var vinylTonearmStyle: String { didSet { set("vinyl_tonearm_style", Self.normalizeVinylTonearmStyle(vinylTonearmStyle)) } }
+    @Published var vinylTonearmFinish: String { didSet { set("vinyl_tonearm_finish", Self.normalizeVinylTonearmFinish(vinylTonearmFinish)) } }
+    @Published var vinylTonearmSizePercent: Int { didSet { set("vinyl_tonearm_size_percent", Self.clampVinylTonearmSizePercent(vinylTonearmSizePercent)) } }
     @Published var backgroundMode: String { didSet { set("background_mode", backgroundMode); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundBrightness: Int { didSet { set("background_brightness", backgroundBrightness); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundBlur: Int { didSet { set("background_blur", backgroundBlur); bumpBackgroundRevisionIfNeeded() } }
@@ -273,6 +283,9 @@ final class AppSettings: ObservableObject {
         vinylAnimationsEnabled = defaults.object(forKey: "vinyl_animations_enabled") as? Bool ?? true
         vinylCenterRotationEnabled = defaults.object(forKey: "vinyl_center_rotation_enabled") as? Bool ?? true
         vinylLyricsEnabled = defaults.object(forKey: "vinyl_lyrics_enabled") as? Bool ?? true
+        vinylTonearmStyle = Self.normalizeVinylTonearmStyle(defaults.string(forKey: "vinyl_tonearm_style") ?? Self.vinylTonearmStyleS)
+        vinylTonearmFinish = Self.normalizeVinylTonearmFinish(defaults.string(forKey: "vinyl_tonearm_finish") ?? Self.vinylTonearmFinishWhite)
+        vinylTonearmSizePercent = Self.clampVinylTonearmSizePercent(defaults.object(forKey: "vinyl_tonearm_size_percent") as? Int ?? 100)
         backgroundMode = Self.normalizeBackgroundMode(defaults.string(forKey: "background_mode") ?? Self.backgroundGradient)
         backgroundBrightness = min(100, max(0, defaults.object(forKey: "background_brightness") as? Int ?? 30))
         backgroundBlur = min(100, max(0, defaults.object(forKey: "background_blur") as? Int ?? 20))
@@ -947,6 +960,28 @@ final class AppSettings: ObservableObject {
 
     static func clampVinylSizePercent(_ value: Int) -> Int {
         min(140, max(70, value))
+    }
+
+    static func clampVinylTonearmSizePercent(_ value: Int) -> Int {
+        min(120, max(80, value))
+    }
+
+    static func normalizeVinylTonearmStyle(_ value: String?) -> String {
+        switch (value ?? "").trimmed {
+        case vinylTonearmStyleStraight, vinylTonearmStyleJ, vinylTonearmStyleLinear:
+            return (value ?? "").trimmed
+        default:
+            return vinylTonearmStyleS
+        }
+    }
+
+    static func normalizeVinylTonearmFinish(_ value: String?) -> String {
+        switch (value ?? "").trimmed {
+        case vinylTonearmFinishSilver, vinylTonearmFinishBlack:
+            return (value ?? "").trimmed
+        default:
+            return vinylTonearmFinishWhite
+        }
     }
 
     static func speakerColorSlotById(_ slotId: String?) -> SpeakerColorSlot {
