@@ -7358,6 +7358,12 @@ struct SettingsView: View {
                     description: settings.t("vinyl.settings.animations_desc"),
                     binding: settingsSavedBinding(\.vinylAnimationsEnabled)
                 )
+
+                settingsToggleCard(
+                    settings.t("vinyl.settings.lyrics"),
+                    description: settings.t("vinyl.settings.lyrics_desc"),
+                    binding: settingsSavedBinding(\.vinylLyricsEnabled)
+                )
             }
 
             settingsSection(settings.t("section.typography"), description: settings.t("vinyl.settings.typography_desc")) {

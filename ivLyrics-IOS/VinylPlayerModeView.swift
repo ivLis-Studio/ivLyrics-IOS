@@ -32,7 +32,8 @@ struct VinylPlayerModeView: View {
                 playProgress: playProgress,
                 entranceProgress: entranceProgress,
                 albumScale: CGFloat(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent)) / 100,
-                recordScale: CGFloat(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent)) / 100
+                recordScale: CGFloat(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent)) / 100,
+                lyricsVisible: settings.vinylLyricsEnabled
             )
             TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !spinning || !settings.vinylAnimationsEnabled)) { timeline in
                 scene(
@@ -41,20 +42,22 @@ struct VinylPlayerModeView: View {
                 )
             }
 
-            MainLyricPreviewPanel(
-                chromeless: true,
-                typographyOverride: settings.typographySettings().forVinylPreview
-            )
-                .frame(
-                    width: max(0, proxy.size.width - (geometry.isLandscape ? 64 : 32)),
-                    height: geometry.lyricHeight
+            if settings.vinylLyricsEnabled {
+                MainLyricPreviewPanel(
+                    chromeless: true,
+                    typographyOverride: settings.typographySettings().forVinylPreview
                 )
-                .position(
-                    x: proxy.size.width * 0.5,
-                    y: proxy.size.height - geometry.lyricBottom - geometry.lyricHeight * 0.5
-                )
-                .contentShape(Rectangle())
-                .zIndex(20)
+                    .frame(
+                        width: max(0, proxy.size.width - (geometry.isLandscape ? 64 : 32)),
+                        height: geometry.lyricHeight
+                    )
+                    .position(
+                        x: proxy.size.width * 0.5,
+                        y: proxy.size.height - geometry.lyricBottom - geometry.lyricHeight * 0.5
+                    )
+                    .contentShape(Rectangle())
+                    .zIndex(20)
+            }
 
             if let loadingText = loadingIndicatorText {
                 VinylLoadingIndicator(text: loadingText)
@@ -724,13 +727,14 @@ private struct VinylSceneGeometry {
         playProgress: CGFloat,
         entranceProgress: CGFloat,
         albumScale: CGFloat,
-        recordScale: CGFloat
+        recordScale: CGFloat,
+        lyricsVisible: Bool
     ) {
         self.container = container
         isLandscape = container.width > container.height
-        lyricHeight = isLandscape ? 102 : 136
-        lyricBottom = isLandscape ? 8 : 14
-        let lyricReserve = lyricHeight + lyricBottom + (isLandscape ? 14 : 22)
+        lyricHeight = lyricsVisible ? (isLandscape ? 102 : 136) : 0
+        lyricBottom = lyricsVisible ? (isLandscape ? 8 : 14) : 0
+        let lyricReserve = lyricsVisible ? lyricHeight + lyricBottom + (isLandscape ? 14 : 22) : 0
         let availableHeight = max(220, container.height - lyricReserve)
         let rawSize = isLandscape
             ? min(container.width * 0.31, availableHeight * 0.74)

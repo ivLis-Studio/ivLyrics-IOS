@@ -140,9 +140,9 @@ final class AppSettings: ObservableObject {
     ]
 
     static let vinylTypographySlots: [TypographySlot] = [
-        TypographySlot(id: typoVinylOriginal, label: "Vinyl Original", defaultSizePercent: 100, defaultWeight: typoWeightBold),
-        TypographySlot(id: typoVinylPronunciation, label: "Vinyl Pronunciation", defaultSizePercent: 100, defaultWeight: typoWeightSemibold),
-        TypographySlot(id: typoVinylTranslation, label: "Vinyl Translation", defaultSizePercent: 100, defaultWeight: typoWeightSemibold)
+        TypographySlot(id: typoVinylOriginal, label: "Vinyl Original", defaultSizePercent: 70, defaultWeight: typoWeightSemibold),
+        TypographySlot(id: typoVinylPronunciation, label: "Vinyl Pronunciation", defaultSizePercent: 70, defaultWeight: typoWeightSemibold),
+        TypographySlot(id: typoVinylTranslation, label: "Vinyl Translation", defaultSizePercent: 70, defaultWeight: typoWeightSemibold)
     ]
 
     static let allTypographySlots = typographySlots + vinylTypographySlots
@@ -200,6 +200,7 @@ final class AppSettings: ObservableObject {
     @Published var vinylAlbumSizePercent: Int { didSet { set("vinyl_album_size_percent", Self.clampVinylSizePercent(vinylAlbumSizePercent)) } }
     @Published var vinylRecordSizePercent: Int { didSet { set("vinyl_record_size_percent", Self.clampVinylSizePercent(vinylRecordSizePercent)) } }
     @Published var vinylAnimationsEnabled: Bool { didSet { set("vinyl_animations_enabled", vinylAnimationsEnabled) } }
+    @Published var vinylLyricsEnabled: Bool { didSet { set("vinyl_lyrics_enabled", vinylLyricsEnabled) } }
     @Published var backgroundMode: String { didSet { set("background_mode", backgroundMode); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundBrightness: Int { didSet { set("background_brightness", backgroundBrightness); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundBlur: Int { didSet { set("background_blur", backgroundBlur); bumpBackgroundRevisionIfNeeded() } }
@@ -269,6 +270,7 @@ final class AppSettings: ObservableObject {
         vinylAlbumSizePercent = Self.clampVinylSizePercent(defaults.object(forKey: "vinyl_album_size_percent") as? Int ?? 100)
         vinylRecordSizePercent = Self.clampVinylSizePercent(defaults.object(forKey: "vinyl_record_size_percent") as? Int ?? 100)
         vinylAnimationsEnabled = defaults.object(forKey: "vinyl_animations_enabled") as? Bool ?? true
+        vinylLyricsEnabled = defaults.object(forKey: "vinyl_lyrics_enabled") as? Bool ?? true
         backgroundMode = Self.normalizeBackgroundMode(defaults.string(forKey: "background_mode") ?? Self.backgroundGradient)
         backgroundBrightness = min(100, max(0, defaults.object(forKey: "background_brightness") as? Int ?? 30))
         backgroundBlur = min(100, max(0, defaults.object(forKey: "background_blur") as? Int ?? 20))
