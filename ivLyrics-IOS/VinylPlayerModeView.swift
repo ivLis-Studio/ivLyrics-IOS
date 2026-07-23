@@ -37,7 +37,8 @@ struct VinylPlayerModeView: View {
                 entranceProgress: entranceProgress,
                 albumScale: CGFloat(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent)) / 100,
                 recordScale: CGFloat(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent)) / 100,
-                lyricsVisible: settings.vinylLyricsEnabled
+                lyricsVisible: settings.vinylLyricsEnabled,
+                culturalAnnotationsVisible: settings.culturalAnnotationsEnabled
             )
             TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !spinning || !settings.vinylAnimationsEnabled)) { timeline in
                 scene(
@@ -49,7 +50,8 @@ struct VinylPlayerModeView: View {
             if settings.vinylLyricsEnabled {
                 MainLyricPreviewPanel(
                     chromeless: true,
-                    typographyOverride: settings.typographySettings().forVinylPreview
+                    typographyOverride: settings.typographySettings().forVinylPreview,
+                    showsCulturalAnnotations: true
                 )
                     .frame(
                         width: max(0, proxy.size.width - (geometry.isLandscape ? 64 : 32)),
@@ -505,6 +507,9 @@ struct VinylPlayerModeView: View {
         }
         if model.lyricsSupplementFuriganaLoading {
             return settings.t("loading.pronunciation")
+        }
+        if model.culturalAnnotationsLoading {
+            return model.culturalAnnotationsLoadingText
         }
         return nil
     }
@@ -1004,11 +1009,16 @@ private struct VinylSceneGeometry {
         entranceProgress: CGFloat,
         albumScale: CGFloat,
         recordScale: CGFloat,
-        lyricsVisible: Bool
+        lyricsVisible: Bool,
+        culturalAnnotationsVisible: Bool
     ) {
         self.container = container
         isLandscape = container.width > container.height
-        lyricHeight = lyricsVisible ? (isLandscape ? 102 : 136) : 0
+        lyricHeight = lyricsVisible
+            ? (culturalAnnotationsVisible
+                ? (isLandscape ? 126 : 162)
+                : (isLandscape ? 102 : 136))
+            : 0
         lyricBottom = lyricsVisible ? (isLandscape ? 8 : 14) : 0
         let lyricReserve = lyricsVisible ? lyricHeight + lyricBottom + (isLandscape ? 14 : 22) : 0
         let availableHeight = max(220, container.height - lyricReserve)

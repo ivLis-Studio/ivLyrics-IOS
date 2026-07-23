@@ -3037,6 +3037,7 @@ struct MainLyricPreviewPanel: View {
     @EnvironmentObject private var playbackClock: PlaybackClock
     var chromeless = false
     var typographyOverride: AppSettings.TypographySettings? = nil
+    var showsCulturalAnnotations = false
     @State private var emptyLyricsPreviewKey = ""
     @State private var hiddenEmptyLyricsPreviewKey = ""
     @State private var emptyLyricsPreviewToken = UUID()
@@ -3083,7 +3084,10 @@ struct MainLyricPreviewPanel: View {
         let translationSize = typography.scaledSize(slotId: AppSettings.typoMainPreviewTranslation, baseSize: 14.5)
         let primaryRow = primarySize * 1.22 + max(7, primarySize * 0.46 * 0.82)
         let secondaryRow = max(pronunciationSize, translationSize) * 1.18
-        return primaryRow + 2 * (4 + secondaryRow)
+        let culturalRow = showsCulturalAnnotations && settings.culturalAnnotationsEnabled
+            ? 4 + CGFloat(AppSettings.clampCulturalFontSize(settings.culturalAnnotationsVinylFontSize)) * 1.4
+            : 0
+        return primaryRow + 2 * (4 + secondaryRow) + culturalRow
     }
 
     private func previewRows(previewItems: Int) -> [MainLyricPreviewRow] {
@@ -3102,8 +3106,8 @@ struct MainLyricPreviewPanel: View {
         switch entry {
         case .interlude(let info):
             return [MainLyricPreviewRow.interlude(interludeLabel(info.kind))]
-        case .line(_, let line, _):
-            return previewRows(for: line, previewItems: previewItems)
+        case .line(let lineIndex, let line, _):
+            return previewRows(for: line, lineIndex: lineIndex, previewItems: previewItems)
         }
     }
 
@@ -3118,9 +3122,16 @@ struct MainLyricPreviewPanel: View {
         return [MainLyricPreviewRow(text: detail.isEmpty ? settings.t("status.lyrics_waiting") : detail, primary: true)]
     }
 
-    private func previewRows(for line: LyricsLine, previewItems: Int) -> [MainLyricPreviewRow] {
+    private func previewRows(for line: LyricsLine, lineIndex: Int, previewItems: Int) -> [MainLyricPreviewRow] {
         var rows: [MainLyricPreviewRow] = []
         let original = originalPreviewText(line)
+        let culturalAnnotations = showsCulturalAnnotations && settings.culturalAnnotationsEnabled
+            ? CulturalAnnotation.forLine(
+                model.culturalAnnotations,
+                lineIndex: lineIndex,
+                text: original.text
+            )
+            : []
         if AppSettings.previewItemEnabled(previewItems, AppSettings.previewItemOriginal) {
             addPreviewRow(&rows, text: original.text, rubyText: original.rubyText, syllables: original.syllables, kind: original.kind, speaker: line.speaker, slotId: AppSettings.typoMainPreviewOriginal)
         }
@@ -3148,6 +3159,26 @@ struct MainLyricPreviewPanel: View {
         }
         if rows.isEmpty {
             addPreviewRow(&rows, text: original.text, rubyText: original.rubyText, syllables: original.syllables, kind: original.kind, speaker: line.speaker, slotId: AppSettings.typoMainPreviewOriginal)
+        }
+        if !culturalAnnotations.isEmpty,
+           let originalIndex = rows.firstIndex(where: { $0.slotId == AppSettings.typoMainPreviewOriginal }) {
+            rows[originalIndex].text = CulturalAnnotation.annotateText(
+                rows[originalIndex].text,
+                annotations: culturalAnnotations
+            )
+            rows[originalIndex].syllables = CulturalAnnotation.annotateSyllables(
+                text: original.text,
+                syllables: rows[originalIndex].syllables,
+                annotations: culturalAnnotations
+            )
+            rows[originalIndex].rubyText = ""
+        }
+        for (index, annotation) in culturalAnnotations.enumerated() {
+            rows.append(MainLyricPreviewRow(
+                text: "\(index + 1). \(annotation.note)",
+                primary: false,
+                type: .cultural
+            ))
         }
         return rows.map { row in
             var syncedRow = row
@@ -3388,6 +3419,7 @@ private enum MainLyricPreviewRowType: String {
     case text
     case interlude
     case loading
+    case cultural
 }
 
 private struct MainLyricPreviewRow: Identifiable {
@@ -3510,6 +3542,14 @@ private struct MainLyricPreviewRowView: View {
         case .loading:
             MainLyricPreviewLoadingSkeleton()
             .frame(maxWidth: .infinity, alignment: .center)
+        case .cultural:
+            Text(row.text)
+                .font(vinylCulturalAnnotationFont)
+                .foregroundStyle(.white.opacity(Double(settings.culturalAnnotationsVinylOpacity) / 100))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .center)
         case .text:
             MainLyricPreviewSlideLayout(lineProgress: lineProgress) {
                 previewTextView
@@ -3537,6 +3577,28 @@ private struct MainLyricPreviewRowView: View {
     private var typography: AppSettings.TypographySettings {
         _ = settings.typographyRevision
         return typographyOverride ?? settings.typographySettings()
+    }
+
+    private var vinylCulturalAnnotationFont: Font {
+        let size = CGFloat(AppSettings.clampCulturalFontSize(settings.culturalAnnotationsVinylFontSize))
+        let weight: Font.Weight
+        switch AppSettings.clampCulturalFontWeight(settings.culturalAnnotationsVinylFontWeight) {
+        case 100: weight = .ultraLight
+        case 200: weight = .thin
+        case 300: weight = .light
+        case 400: weight = .regular
+        case 500: weight = .medium
+        case 600: weight = .semibold
+        case 700: weight = .bold
+        case 800: weight = .heavy
+        default: weight = .black
+        }
+        switch AppSettings.normalizeCulturalFontFamily(settings.culturalAnnotationsVinylFontFamily) {
+        case "system": return .system(size: size, weight: weight)
+        case "serif": return .system(size: size, weight: weight, design: .serif)
+        case "monospace": return .system(size: size, weight: weight, design: .monospaced)
+        default: return .custom("Pretendard", size: size).weight(weight)
+        }
     }
 
     private var lineProgress: CGFloat {
@@ -7709,6 +7771,39 @@ struct SettingsView: View {
                             )
                         }
                     }
+                    settingsCard("\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_font_family"))") {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Picker("", selection: $settings.culturalAnnotationsVinylFontFamily) {
+                                Text(settings.t("font.pretendard")).tag("pretendard")
+                                Text(settings.t("font.system")).tag("system")
+                                Text(settings.t("font.serif")).tag("serif")
+                                Text(settings.t("font.monospace")).tag("monospace")
+                            }
+                            .labelsHidden()
+                            .settingsMenuSurface()
+
+                            culturalAnnotationSlider(
+                                title: "\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_font_size"))",
+                                value: culturalAnnotationVinylFontSizeBinding,
+                                range: 10...28,
+                                valueText: "\(settings.culturalAnnotationsVinylFontSize)px"
+                            )
+                            culturalAnnotationSlider(
+                                title: "\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_font_weight"))",
+                                value: culturalAnnotationVinylFontWeightBinding,
+                                range: 100...900,
+                                step: 100,
+                                valueText: "\(settings.culturalAnnotationsVinylFontWeight)"
+                            )
+                            culturalAnnotationSlider(
+                                title: "\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_opacity"))",
+                                value: culturalAnnotationVinylOpacityBinding,
+                                range: 20...100,
+                                step: 5,
+                                valueText: "\(settings.culturalAnnotationsVinylOpacity)%"
+                            )
+                        }
+                    }
                 }
                 if let url = URL(string: selectedProvider.apiKeyURL), !selectedProvider.apiKeyURL.trimmed.isEmpty {
                     Link(settings.t("button.get_key"), destination: url)
@@ -8287,6 +8382,27 @@ struct SettingsView: View {
         Binding(
             get: { Double(settings.culturalAnnotationsOpacity) },
             set: { settings.culturalAnnotationsOpacity = AppSettings.clampCulturalOpacity(Int($0.rounded())) }
+        )
+    }
+
+    private var culturalAnnotationVinylFontSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.culturalAnnotationsVinylFontSize) },
+            set: { settings.culturalAnnotationsVinylFontSize = AppSettings.clampCulturalFontSize(Int($0.rounded())) }
+        )
+    }
+
+    private var culturalAnnotationVinylFontWeightBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.culturalAnnotationsVinylFontWeight) },
+            set: { settings.culturalAnnotationsVinylFontWeight = AppSettings.clampCulturalFontWeight(Int($0.rounded())) }
+        )
+    }
+
+    private var culturalAnnotationVinylOpacityBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.culturalAnnotationsVinylOpacity) },
+            set: { settings.culturalAnnotationsVinylOpacity = AppSettings.clampCulturalOpacity(Int($0.rounded())) }
         )
     }
 

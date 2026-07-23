@@ -185,6 +185,10 @@ final class AppSettings: ObservableObject {
     @Published var culturalAnnotationsFontSize: Int { didSet { set("cultural_annotations_font_size", Self.clampCulturalFontSize(culturalAnnotationsFontSize)) } }
     @Published var culturalAnnotationsFontWeight: Int { didSet { set("cultural_annotations_font_weight", Self.clampCulturalFontWeight(culturalAnnotationsFontWeight)) } }
     @Published var culturalAnnotationsOpacity: Int { didSet { set("cultural_annotations_opacity", Self.clampCulturalOpacity(culturalAnnotationsOpacity)) } }
+    @Published var culturalAnnotationsVinylFontFamily: String { didSet { set("cultural_annotations_vinyl_font_family", Self.normalizeCulturalFontFamily(culturalAnnotationsVinylFontFamily)) } }
+    @Published var culturalAnnotationsVinylFontSize: Int { didSet { set("cultural_annotations_vinyl_font_size", Self.clampCulturalFontSize(culturalAnnotationsVinylFontSize)) } }
+    @Published var culturalAnnotationsVinylFontWeight: Int { didSet { set("cultural_annotations_vinyl_font_weight", Self.clampCulturalFontWeight(culturalAnnotationsVinylFontWeight)) } }
+    @Published var culturalAnnotationsVinylOpacity: Int { didSet { set("cultural_annotations_vinyl_opacity", Self.clampCulturalOpacity(culturalAnnotationsVinylOpacity)) } }
     @Published var apiKeys: String { didSet { set("api_keys", apiKeys) } }
     @Published var pollinationsAccessToken: String { didSet { set("pollinations_access_token", pollinationsAccessToken) } }
     @Published var baseUrl: String { didSet { set("base_url", baseUrl) } }
@@ -263,6 +267,10 @@ final class AppSettings: ObservableObject {
         culturalAnnotationsFontSize = Self.clampCulturalFontSize(defaults.object(forKey: "cultural_annotations_font_size") as? Int ?? 14)
         culturalAnnotationsFontWeight = Self.clampCulturalFontWeight(defaults.object(forKey: "cultural_annotations_font_weight") as? Int ?? 300)
         culturalAnnotationsOpacity = Self.clampCulturalOpacity(defaults.object(forKey: "cultural_annotations_opacity") as? Int ?? 60)
+        culturalAnnotationsVinylFontFamily = Self.normalizeCulturalFontFamily(defaults.string(forKey: "cultural_annotations_vinyl_font_family") ?? "pretendard")
+        culturalAnnotationsVinylFontSize = Self.clampCulturalFontSize(defaults.object(forKey: "cultural_annotations_vinyl_font_size") as? Int ?? 12)
+        culturalAnnotationsVinylFontWeight = Self.clampCulturalFontWeight(defaults.object(forKey: "cultural_annotations_vinyl_font_weight") as? Int ?? 300)
+        culturalAnnotationsVinylOpacity = Self.clampCulturalOpacity(defaults.object(forKey: "cultural_annotations_vinyl_opacity") as? Int ?? 60)
         apiKeys = defaults.string(forKey: "api_keys") ?? ""
         pollinationsAccessToken = defaults.string(forKey: "pollinations_access_token") ?? ""
         baseUrl = defaults.string(forKey: "base_url")?.trimmed.isEmpty == false ? defaults.string(forKey: "base_url")! : provider.defaultBaseUrl
@@ -344,6 +352,10 @@ final class AppSettings: ObservableObject {
             culturalAnnotationsFontSize: Self.clampCulturalFontSize(culturalAnnotationsFontSize),
             culturalAnnotationsFontWeight: Self.clampCulturalFontWeight(culturalAnnotationsFontWeight),
             culturalAnnotationsOpacity: Self.clampCulturalOpacity(culturalAnnotationsOpacity),
+            culturalAnnotationsVinylFontFamily: Self.normalizeCulturalFontFamily(culturalAnnotationsVinylFontFamily),
+            culturalAnnotationsVinylFontSize: Self.clampCulturalFontSize(culturalAnnotationsVinylFontSize),
+            culturalAnnotationsVinylFontWeight: Self.clampCulturalFontWeight(culturalAnnotationsVinylFontWeight),
+            culturalAnnotationsVinylOpacity: Self.clampCulturalOpacity(culturalAnnotationsVinylOpacity),
             apiKeys: apiKeys,
             pollinationsAccessToken: pollinationsAccessToken,
             baseUrl: baseUrl,
@@ -1307,6 +1319,10 @@ final class AppSettings: ObservableObject {
         var culturalAnnotationsFontSize: Int
         var culturalAnnotationsFontWeight: Int
         var culturalAnnotationsOpacity: Int
+        var culturalAnnotationsVinylFontFamily: String
+        var culturalAnnotationsVinylFontSize: Int
+        var culturalAnnotationsVinylFontWeight: Int
+        var culturalAnnotationsVinylOpacity: Int
         var apiKeys: String
         var pollinationsAccessToken: String
         var baseUrl: String
