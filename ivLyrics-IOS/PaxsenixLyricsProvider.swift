@@ -1,7 +1,7 @@
 import Foundation
 
 enum PaxsenixLyricsProvider {
-    private static let cacheEntityRevision = "|paxsenix-entities-v1"
+    private static let cacheEntityRevision = "|paxsenix-entities-v1-ja-lines-v1"
     private static let encodedEndpoints = [
         "homepage": "aHR0cHM6Ly9seXJpY3MucGF4c2VuaXgub3Jn",
         "catalogSearch": "aHR0cHM6Ly9pdHVuZXMuYXBwbGUuY29tL3NlYXJjaA==",
@@ -11,6 +11,11 @@ enum PaxsenixLyricsProvider {
     ]
     private static let encodedStructuredProviderId = "a3Vnb3U="
     private static let requestTimeout: TimeInterval = 12
+    private static let japaneseLineSplitTriggerWidth = 22.0
+    private static let japaneseLineSplitHardWidth = 26.0
+    private static let japaneseLineSplitMinimumWidth = 6.0
+    private static let japaneseLineSplitMinimumDurationMs: Int64 = 500
+    private static let japaneseLineSplitMaximumSegments = 4
     private static let structuredReferenceLineRegex = try? NSRegularExpression(
         pattern: #"^\[(\d+),(\d+)\](.*)$"#
     )
@@ -60,6 +65,11 @@ enum PaxsenixLyricsProvider {
     private static let namedLyricEntities: [String: String] = [
         "amp": "&", "apos": "'", "quot": "\"", "lt": "<", "gt": ">"
     ]
+
+    private struct JapaneseSplitSegmentKey: Hashable {
+        let start: Int
+        let end: Int
+    }
 #if DEBUG
     private static let lyricEntityRegressionChecks: Void = {
         assert(decodeLyricEntities("Don&apos;t stop") == "Don't stop")
@@ -92,6 +102,29 @@ enum PaxsenixLyricsProvider {
             referenceText: nil
         )
         assert(splitApostrophe.map(\.text).joined() == "Don't")
+
+        let longJapaneseLine = LyricsLine(
+            startTimeMs: 26_115,
+            endTimeMs: 34_353,
+            text: "ドラマの中に迷い込んだ 結末を知らないアクター 君と僕との相関図が まだ空白で気になんだ",
+            syllables: [
+                LyricsLine.Syllable(text: "ドラマの中に迷い込ん", startTimeMs: 26_115, endTimeMs: 27_615),
+                LyricsLine.Syllable(text: "だ ", startTimeMs: 27_615, endTimeMs: 27_997),
+                LyricsLine.Syllable(text: "結末を知らないアク", startTimeMs: 28_137, endTimeMs: 29_758),
+                LyricsLine.Syllable(text: "ター ", startTimeMs: 29_758, endTimeMs: 30_094),
+                LyricsLine.Syllable(text: "君と僕との相関図が ", startTimeMs: 30_234, endTimeMs: 32_027),
+                LyricsLine.Syllable(text: "まだ空白", startTimeMs: 32_180, endTimeMs: 33_005),
+                LyricsLine.Syllable(text: "で気になん", startTimeMs: 33_207, endTimeMs: 33_903),
+                LyricsLine.Syllable(text: "だ", startTimeMs: 33_903, endTimeMs: 34_353)
+            ]
+        )
+        let splitJapanese = splitLongJapaneseLine(longJapaneseLine, previous: nil, next: nil)
+        assert(splitJapanese.map(\.text) == [
+            "ドラマの中に迷い込んだ 結末を知らないアクター",
+            "君と僕との相関図が まだ空白で気になんだ"
+        ])
+        assert(splitJapanese.map(\.startTimeMs) == [26_115, 30_234])
+        assert(splitJapanese.map(\.endTimeMs) == [30_094, 34_353])
     }()
 #endif
     private static let speakerPalette: [(color: String, fallback: String)] = [
@@ -478,18 +511,290 @@ enum PaxsenixLyricsProvider {
         }
         karaokeLines.sort { $0.startTimeMs < $1.startTimeMs }
         guard !karaokeLines.isEmpty else { return nil }
+        let displayLines = hasSyllableSync && isJapanesePayload(payload)
+            ? splitLongJapaneseLines(karaokeLines)
+            : karaokeLines
 
         let karaoke = hasSyllableSync
-            && karaokeLines.contains(where: { !$0.syllables.isEmpty || !$0.vocalParts.isEmpty })
-            ? CrossLineVocalNormalizer.normalize(karaokeLines)
+            && displayLines.contains(where: { !$0.syllables.isEmpty || !$0.vocalParts.isEmpty })
+            ? CrossLineVocalNormalizer.normalize(displayLines)
             : nil
         let synced = string(payload["syncType"]).lowercased() == "none"
             ? nil
-            : karaokeLines.map(demoteSynced)
-        let plain = karaokeLines.map {
+            : displayLines.map(demoteSynced)
+        let plain = displayLines.map {
             LyricsLine(startTimeMs: 0, endTimeMs: 0, text: $0.text)
         }
         return ParsedVariants(karaoke: karaoke, synced: synced, plain: plain)
+    }
+
+    private static func isJapanesePayload(_ payload: [String: Any]) -> Bool {
+        let metadata = payload["metadata"] as? [String: Any]
+        return [
+            string(metadata?["language"]),
+            string(metadata?["languageTag"]),
+            string(payload["language"]),
+            string(payload["languageTag"])
+        ].contains(where: isJapaneseLanguageTag)
+    }
+
+    private static func isJapaneseLanguageTag(_ value: String) -> Bool {
+        let tag = value.trimmed.lowercased()
+        return tag == "ja" || tag.hasPrefix("ja-") || tag.hasPrefix("ja_")
+    }
+
+    private static func splitLongJapaneseLines(_ lines: [LyricsLine]) -> [LyricsLine] {
+        lines.enumerated().flatMap { index, line in
+            let previous = index > 0 ? lines[index - 1] : nil
+            let next = index + 1 < lines.count ? lines[index + 1] : nil
+            return splitLongJapaneseLine(line, previous: previous, next: next)
+        }
+    }
+
+    private static func splitLongJapaneseLine(
+        _ line: LyricsLine,
+        previous: LyricsLine?,
+        next: LyricsLine?
+    ) -> [LyricsLine] {
+        let syllables = line.syllables
+        guard line.vocalParts.isEmpty,
+              syllables.count >= 2 else {
+            return [line]
+        }
+
+        for index in syllables.indices {
+            let syllable = syllables[index]
+            guard !normalizeJapaneseSplitText(syllable.text).isEmpty,
+                  syllable.endTimeMs >= syllable.startTimeMs,
+                  measureJapaneseLyricsWidth(syllable.text) <= japaneseLineSplitHardWidth else {
+                return [line]
+            }
+            if index > 0 {
+                let prior = syllables[index - 1]
+                guard syllable.startTimeMs > prior.startTimeMs,
+                      syllable.startTimeMs >= prior.endTimeMs else {
+                    return [line]
+                }
+            }
+        }
+
+        guard let first = syllables.first,
+              let last = syllables.last,
+              previous == nil || previous!.endTimeMs <= first.startTimeMs,
+              next == nil || next!.startTimeMs >= last.endTimeMs else {
+            return [line]
+        }
+
+        let normalizedLineText = normalizeJapaneseSplitText(line.text)
+        let normalizedSyllableText = normalizeJapaneseSplitText(syllables.map(\.text).joined())
+        let lineWidth = measureJapaneseLyricsWidth(normalizedLineText)
+        guard !normalizedLineText.isEmpty,
+              normalizedLineText == normalizedSyllableText,
+              lineWidth > japaneseLineSplitTriggerWidth else {
+            return [line]
+        }
+
+        var boundaryGaps: [Int: Int64] = [:]
+        let candidates = (1..<syllables.count).filter { boundary in
+            let left = syllables[boundary - 1]
+            let right = syllables[boundary]
+            guard left.endTimeMs <= right.startTimeMs,
+                  endsWithJapaneseSplitWhitespace(left.text)
+                    || startsWithJapaneseSplitWhitespace(right.text) else {
+                return false
+            }
+            boundaryGaps[boundary] = max(0, right.startTimeMs - left.endTimeMs)
+            return true
+        }
+        guard !candidates.isEmpty else { return [line] }
+
+        let minimumCount = max(2, Int(ceil(lineWidth / japaneseLineSplitHardWidth)))
+        let maximumCount = min(
+            japaneseLineSplitMaximumSegments,
+            min(candidates.count + 1, syllables.count)
+        )
+        guard minimumCount <= maximumCount else { return [line] }
+
+        var bestBoundaries: [Int]?
+        var bestScore = Double.greatestFiniteMagnitude
+        var segmentMetrics: [JapaneseSplitSegmentKey: (width: Double, duration: Int64)] = [:]
+        for segmentCount in minimumCount...maximumCount {
+            var chosen: [Int] = []
+            chooseJapaneseSplitBoundaries(
+                candidates: candidates,
+                needed: segmentCount - 1,
+                cursor: 0,
+                chosen: &chosen
+            ) { boundaries in
+                let points = [0] + boundaries + [syllables.count]
+                let targetWidth = lineWidth / Double(segmentCount)
+                var score = 0.0
+                for segment in 0..<segmentCount {
+                    let start = points[segment]
+                    let end = points[segment + 1]
+                    let key = JapaneseSplitSegmentKey(start: start, end: end)
+                    let metrics: (width: Double, duration: Int64)
+                    if let cached = segmentMetrics[key] {
+                        metrics = cached
+                    } else {
+                        let slice = Array(syllables[start..<end])
+                        metrics = (
+                            width: measureJapaneseLyricsWidth(slice.map(\.text).joined()),
+                            duration: (slice.last?.endTimeMs ?? 0) - (slice.first?.startTimeMs ?? 0)
+                        )
+                        segmentMetrics[key] = metrics
+                    }
+                    guard metrics.width >= japaneseLineSplitMinimumWidth,
+                          metrics.width <= japaneseLineSplitHardWidth,
+                          metrics.duration >= japaneseLineSplitMinimumDurationMs else {
+                        return
+                    }
+                    score += pow(metrics.width - targetWidth, 2)
+                    if segment < segmentCount - 1,
+                       let gap = boundaryGaps[points[segment + 1]] {
+                        score -= min(Double(gap) / 200.0, 1.0)
+                    }
+                }
+                if score < bestScore {
+                    bestScore = score
+                    bestBoundaries = boundaries
+                }
+            }
+            if bestBoundaries != nil { break }
+        }
+        guard let bestBoundaries else { return [line] }
+
+        let points = [0] + bestBoundaries + [syllables.count]
+        let fragments = (0..<(points.count - 1)).map { index in
+            let slice = Array(syllables[points[index]..<points[index + 1]])
+            return LyricsLine(
+                startTimeMs: index == 0
+                    ? min(line.startTimeMs, slice[0].startTimeMs)
+                    : slice[0].startTimeMs,
+                endTimeMs: index == points.count - 2
+                    ? max(line.endTimeMs, slice.last!.endTimeMs)
+                    : slice.last!.endTimeMs,
+                text: trimJapaneseSplitWhitespace(slice.map(\.text).joined()),
+                syllables: slice,
+                speaker: line.speaker,
+                speakerColor: line.speakerColor,
+                speakerFallback: line.speakerFallback,
+                kind: line.kind,
+                pronunciationText: line.pronunciationText,
+                translationText: line.translationText,
+                furiganaText: line.furiganaText
+            )
+        }
+
+        guard fragments.reduce(0, { $0 + $1.syllables.count }) == syllables.count,
+              normalizeJapaneseSplitText(fragments.map(\.text).joined(separator: " "))
+                == normalizedLineText else {
+            return [line]
+        }
+        for index in fragments.indices where index > 0 {
+            guard fragments[index - 1].endTimeMs <= fragments[index].startTimeMs else {
+                return [line]
+            }
+        }
+        return fragments
+    }
+
+    private static func chooseJapaneseSplitBoundaries(
+        candidates: [Int],
+        needed: Int,
+        cursor: Int,
+        chosen: inout [Int],
+        visit: ([Int]) -> Void
+    ) {
+        if chosen.count == needed {
+            visit(chosen)
+            return
+        }
+        guard cursor < candidates.count,
+              candidates.count - cursor >= needed - chosen.count else {
+            return
+        }
+        for index in cursor..<candidates.count {
+            chosen.append(candidates[index])
+            chooseJapaneseSplitBoundaries(
+                candidates: candidates,
+                needed: needed,
+                cursor: index + 1,
+                chosen: &chosen,
+                visit: visit
+            )
+            chosen.removeLast()
+        }
+    }
+
+    private static func normalizeJapaneseSplitText(_ value: String) -> String {
+        var result = ""
+        var pendingSpace = false
+        for character in value {
+            if isJapaneseSplitWhitespace(character) {
+                pendingSpace = !result.isEmpty
+                continue
+            }
+            if pendingSpace {
+                result.append(" ")
+                pendingSpace = false
+            }
+            result.append(character)
+        }
+        return result
+    }
+
+    private static func trimJapaneseSplitWhitespace(_ value: String) -> String {
+        String(
+            value
+                .drop(while: isJapaneseSplitWhitespace)
+                .reversed()
+                .drop(while: isJapaneseSplitWhitespace)
+                .reversed()
+        )
+    }
+
+    private static func startsWithJapaneseSplitWhitespace(_ value: String) -> Bool {
+        value.first.map(isJapaneseSplitWhitespace) == true
+    }
+
+    private static func endsWithJapaneseSplitWhitespace(_ value: String) -> Bool {
+        value.last.map(isJapaneseSplitWhitespace) == true
+    }
+
+    private static func isJapaneseSplitWhitespace(_ character: Character) -> Bool {
+        character.isWhitespace || character.unicodeScalars.contains { $0.value == 0x3000 }
+    }
+
+    private static func measureJapaneseLyricsWidth(_ text: String) -> Double {
+        text.reduce(0) { total, character in
+            if character.unicodeScalars.allSatisfy({ CharacterSet.nonBaseCharacters.contains($0) }) {
+                return total
+            }
+            if isJapaneseSplitWhitespace(character) { return total + 0.33 }
+            if isFullWidthLyricsCharacter(character) { return total + 1.0 }
+            if isASCII(character, range: 65...90) { return total + 0.72 }
+            if isASCII(character, range: 97...122) { return total + 0.58 }
+            if character.isNumber { return total + 0.62 }
+            if ".,'’!?;:()-".contains(character) { return total + 0.38 }
+            return total + 0.8
+        }
+    }
+
+    private static func isASCII(_ character: Character, range: ClosedRange<UInt32>) -> Bool {
+        character.unicodeScalars.count == 1
+            && character.unicodeScalars.first.map { range.contains($0.value) } == true
+    }
+
+    private static func isFullWidthLyricsCharacter(_ character: Character) -> Bool {
+        character.unicodeScalars.contains { scalar in
+            let value = scalar.value
+            return (0x3040...0x30ff).contains(value)
+                || (0x3400...0x9fff).contains(value)
+                || (0xac00...0xd7af).contains(value)
+                || (0xf900...0xfaff).contains(value)
+                || (0x1f000...0x1faff).contains(value)
+        }
     }
 
     private static func parseTimedTokens(
