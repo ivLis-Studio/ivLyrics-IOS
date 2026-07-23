@@ -518,7 +518,12 @@
     "tab.general": "일반",
     "tab.appearance": "화면",
     "tab.player": "플레이어",
-    "tab.system": "시스템"
+    "tab.system": "시스템",
+    "status.lyrics_loading_provider_format": "%@에서 가사를 불러오는 중…",
+    "loading.translation_provider_format": "%@에서 번역을 생성하는 중…",
+    "loading.pronunciation_provider_format": "%@에서 발음을 생성하는 중…",
+    "status.ai_generating_provider_format": "%@에서 AI 가사를 생성하는 중…",
+    "tmi.loading_provider_format": "%@에서 TMI를 생성하는 중…"
   },
   "en": {
     "button.close": "Close",
@@ -1039,7 +1044,12 @@
     "tab.general": "General",
     "tab.appearance": "Appearance",
     "tab.player": "Player",
-    "tab.system": "System"
+    "tab.system": "System",
+    "status.lyrics_loading_provider_format": "Loading lyrics from %@…",
+    "loading.translation_provider_format": "Generating translation with %@…",
+    "loading.pronunciation_provider_format": "Generating pronunciation with %@…",
+    "status.ai_generating_provider_format": "Generating AI lyrics with %@…",
+    "tmi.loading_provider_format": "Generating TMI with %@…"
   },
   "zh-CN": {
     "button.close": "关闭",
@@ -1560,7 +1570,12 @@
     "tab.general": "通用",
     "tab.appearance": "外观",
     "tab.player": "播放器",
-    "tab.system": "系统"
+    "tab.system": "系统",
+    "status.lyrics_loading_provider_format": "正在从 %@ 加载歌词…",
+    "loading.translation_provider_format": "正在使用 %@ 生成翻译…",
+    "loading.pronunciation_provider_format": "正在使用 %@ 生成发音…",
+    "status.ai_generating_provider_format": "正在使用 %@ 生成 AI 歌词…",
+    "tmi.loading_provider_format": "正在使用 %@ 生成 TMI…"
   },
   "zh-TW": {
     "button.close": "關閉",
@@ -2081,7 +2096,12 @@
     "tab.general": "一般",
     "tab.appearance": "外觀",
     "tab.player": "播放器",
-    "tab.system": "系統"
+    "tab.system": "系統",
+    "status.lyrics_loading_provider_format": "正在從 %@ 載入歌詞…",
+    "loading.translation_provider_format": "正在使用 %@ 產生翻譯…",
+    "loading.pronunciation_provider_format": "正在使用 %@ 產生發音…",
+    "status.ai_generating_provider_format": "正在使用 %@ 產生 AI 歌詞…",
+    "tmi.loading_provider_format": "正在使用 %@ 產生 TMI…"
   },
   "ja": {
     "button.close": "閉じる",
@@ -2602,7 +2622,12 @@
     "tab.general": "一般",
     "tab.appearance": "外観",
     "tab.player": "プレーヤー",
-    "tab.system": "システム"
+    "tab.system": "システム",
+    "status.lyrics_loading_provider_format": "%@ から歌詞を読み込み中…",
+    "loading.translation_provider_format": "%@ で翻訳を生成中…",
+    "loading.pronunciation_provider_format": "%@ で発音を生成中…",
+    "status.ai_generating_provider_format": "%@ で AI 歌詞を生成中…",
+    "tmi.loading_provider_format": "%@ で TMI を生成中…"
   },
   "hi": {
     "button.close": "बंद करें",
@@ -3123,7 +3148,12 @@
     "tab.general": "सामान्य",
     "tab.appearance": "रूप-रंग",
     "tab.player": "प्लेयर",
-    "tab.system": "सिस्टम"
+    "tab.system": "सिस्टम",
+    "status.lyrics_loading_provider_format": "%@ से गीत लोड किए जा रहे हैं…",
+    "loading.translation_provider_format": "%@ से अनुवाद बनाया जा रहा है…",
+    "loading.pronunciation_provider_format": "%@ से उच्चारण बनाया जा रहा है…",
+    "status.ai_generating_provider_format": "%@ से AI गीत बनाए जा रहे हैं…",
+    "tmi.loading_provider_format": "%@ से TMI बनाया जा रहा है…"
   },
   "es": {
     "button.close": "Cerrar",
@@ -3644,7 +3674,12 @@
     "tab.general": "General",
     "tab.appearance": "Apariencia",
     "tab.player": "Reproductor",
-    "tab.system": "Sistema"
+    "tab.system": "Sistema",
+    "status.lyrics_loading_provider_format": "Cargando letras desde %@…",
+    "loading.translation_provider_format": "Generando traducción con %@…",
+    "loading.pronunciation_provider_format": "Generando pronunciación con %@…",
+    "status.ai_generating_provider_format": "Generando letras con IA mediante %@…",
+    "tmi.loading_provider_format": "Generando TMI con %@…"
   },
   "fr": {
     "button.close": "Fermer",
@@ -4165,7 +4200,12 @@
     "tab.general": "Général",
     "tab.appearance": "Apparence",
     "tab.player": "Lecteur",
-    "tab.system": "Système"
+    "tab.system": "Système",
+    "status.lyrics_loading_provider_format": "Chargement des paroles depuis %@…",
+    "loading.translation_provider_format": "Génération de la traduction avec %@…",
+    "loading.pronunciation_provider_format": "Génération de la prononciation avec %@…",
+    "status.ai_generating_provider_format": "Génération des paroles par IA avec %@…",
+    "tmi.loading_provider_format": "Génération du TMI avec %@…"
   },
   "ar": {
     "button.close": "أغلق",
@@ -4686,7 +4726,12 @@
     "tab.general": "عام",
     "tab.appearance": "المظهر",
     "tab.player": "المشغل",
-    "tab.system": "النظام"
+    "tab.system": "النظام",
+    "status.lyrics_loading_provider_format": "جارٍ تحميل كلمات الأغنية من %@…",
+    "loading.translation_provider_format": "جارٍ إنشاء الترجمة باستخدام %@…",
+    "loading.pronunciation_provider_format": "جارٍ إنشاء النطق باستخدام %@…",
+    "status.ai_generating_provider_format": "جارٍ إنشاء كلمات الأغنية بالذكاء الاصطناعي باستخدام %@…",
+    "tmi.loading_provider_format": "جارٍ إنشاء TMI باستخدام %@…"
   },
   "fa": {
     "button.close": "بستن",
@@ -5207,7 +5252,12 @@
     "tab.general": "عمومی",
     "tab.appearance": "ظاهر",
     "tab.player": "پخش‌کننده",
-    "tab.system": "سیستم"
+    "tab.system": "سیستم",
+    "status.lyrics_loading_provider_format": "در حال بارگیری متن ترانه از %@…",
+    "loading.translation_provider_format": "در حال تولید ترجمه با %@…",
+    "loading.pronunciation_provider_format": "در حال تولید تلفظ با %@…",
+    "status.ai_generating_provider_format": "در حال تولید متن ترانه با هوش مصنوعی از طریق %@…",
+    "tmi.loading_provider_format": "در حال تولید TMI با %@…"
   },
   "de": {
     "button.close": "Schließen",
@@ -5728,7 +5778,12 @@
     "tab.general": "Allgemein",
     "tab.appearance": "Darstellung",
     "tab.player": "Player",
-    "tab.system": "System"
+    "tab.system": "System",
+    "status.lyrics_loading_provider_format": "Liedtext wird von %@ geladen…",
+    "loading.translation_provider_format": "Übersetzung wird mit %@ erstellt…",
+    "loading.pronunciation_provider_format": "Aussprache wird mit %@ erstellt…",
+    "status.ai_generating_provider_format": "KI-Liedtext wird mit %@ erstellt…",
+    "tmi.loading_provider_format": "TMI wird mit %@ erstellt…"
   },
   "ru": {
     "button.close": "Закрыть",
@@ -6249,7 +6304,12 @@
     "tab.general": "Общие",
     "tab.appearance": "Оформление",
     "tab.player": "Плеер",
-    "tab.system": "Система"
+    "tab.system": "Система",
+    "status.lyrics_loading_provider_format": "Загрузка текста из %@…",
+    "loading.translation_provider_format": "Создание перевода с помощью %@…",
+    "loading.pronunciation_provider_format": "Создание произношения с помощью %@…",
+    "status.ai_generating_provider_format": "Создание текста с помощью ИИ-сервиса %@…",
+    "tmi.loading_provider_format": "Создание TMI с помощью %@…"
   },
   "sv": {
     "button.close": "Nära",
@@ -6770,7 +6830,12 @@
     "tab.general": "Allmänt",
     "tab.appearance": "Utseende",
     "tab.player": "Spelare",
-    "tab.system": "System"
+    "tab.system": "System",
+    "status.lyrics_loading_provider_format": "Låttext läses in från %@…",
+    "loading.translation_provider_format": "Översättning skapas med %@…",
+    "loading.pronunciation_provider_format": "Uttal skapas med %@…",
+    "status.ai_generating_provider_format": "AI-låttext skapas med %@…",
+    "tmi.loading_provider_format": "TMI skapas med %@…"
   },
   "pt": {
     "button.close": "Fechar",
@@ -7291,7 +7356,12 @@
     "tab.general": "Geral",
     "tab.appearance": "Aparência",
     "tab.player": "Reprodutor",
-    "tab.system": "Sistema"
+    "tab.system": "Sistema",
+    "status.lyrics_loading_provider_format": "Carregando letras de %@…",
+    "loading.translation_provider_format": "Gerando tradução com %@…",
+    "loading.pronunciation_provider_format": "Gerando pronúncia com %@…",
+    "status.ai_generating_provider_format": "Gerando letras com IA usando %@…",
+    "tmi.loading_provider_format": "Gerando TMI com %@…"
   },
   "bn": {
     "button.close": "বন্ধ",
@@ -7812,7 +7882,12 @@
     "tab.general": "সাধারণ",
     "tab.appearance": "চেহারা",
     "tab.player": "প্লেয়ার",
-    "tab.system": "সিস্টেম"
+    "tab.system": "সিস্টেম",
+    "status.lyrics_loading_provider_format": "%@ থেকে গানের কথা লোড হচ্ছে…",
+    "loading.translation_provider_format": "%@ দিয়ে অনুবাদ তৈরি হচ্ছে…",
+    "loading.pronunciation_provider_format": "%@ দিয়ে উচ্চারণ তৈরি হচ্ছে…",
+    "status.ai_generating_provider_format": "%@ দিয়ে AI গানের কথা তৈরি হচ্ছে…",
+    "tmi.loading_provider_format": "%@ দিয়ে TMI তৈরি হচ্ছে…"
   },
   "cs": {
     "button.close": "Zavřít",
@@ -8333,7 +8408,12 @@
     "tab.general": "Obecné",
     "tab.appearance": "Vzhled",
     "tab.player": "Přehrávač",
-    "tab.system": "Systém"
+    "tab.system": "Systém",
+    "status.lyrics_loading_provider_format": "Načítání textu z %@…",
+    "loading.translation_provider_format": "Generování překladu pomocí %@…",
+    "loading.pronunciation_provider_format": "Generování výslovnosti pomocí %@…",
+    "status.ai_generating_provider_format": "Generování AI textu pomocí %@…",
+    "tmi.loading_provider_format": "Generování TMI pomocí %@…"
   },
   "it": {
     "button.close": "Chiudi",
@@ -8854,7 +8934,12 @@
     "tab.general": "Generali",
     "tab.appearance": "Aspetto",
     "tab.player": "Lettore",
-    "tab.system": "Sistema"
+    "tab.system": "Sistema",
+    "status.lyrics_loading_provider_format": "Caricamento dei testi da %@…",
+    "loading.translation_provider_format": "Generazione della traduzione con %@…",
+    "loading.pronunciation_provider_format": "Generazione della pronuncia con %@…",
+    "status.ai_generating_provider_format": "Generazione dei testi AI con %@…",
+    "tmi.loading_provider_format": "Generazione del TMI con %@…"
   },
   "th": {
     "button.close": "ปิด",
@@ -9375,7 +9460,12 @@
     "tab.general": "ทั่วไป",
     "tab.appearance": "รูปลักษณ์",
     "tab.player": "เครื่องเล่น",
-    "tab.system": "ระบบ"
+    "tab.system": "ระบบ",
+    "status.lyrics_loading_provider_format": "กำลังโหลดเนื้อเพลงจาก %@…",
+    "loading.translation_provider_format": "กำลังสร้างคำแปลด้วย %@…",
+    "loading.pronunciation_provider_format": "กำลังสร้างคำอ่านด้วย %@…",
+    "status.ai_generating_provider_format": "กำลังสร้างเนื้อเพลง AI ด้วย %@…",
+    "tmi.loading_provider_format": "กำลังสร้าง TMI ด้วย %@…"
   },
   "vi": {
     "button.close": "Đóng",
@@ -9896,7 +9986,12 @@
     "tab.general": "Chung",
     "tab.appearance": "Giao diện",
     "tab.player": "Trình phát",
-    "tab.system": "Hệ thống"
+    "tab.system": "Hệ thống",
+    "status.lyrics_loading_provider_format": "Đang tải lời bài hát từ %@…",
+    "loading.translation_provider_format": "Đang tạo bản dịch bằng %@…",
+    "loading.pronunciation_provider_format": "Đang tạo cách phát âm bằng %@…",
+    "status.ai_generating_provider_format": "Đang tạo lời bài hát AI bằng %@…",
+    "tmi.loading_provider_format": "Đang tạo TMI bằng %@…"
   },
   "id": {
     "button.close": "Tutup",
@@ -10417,7 +10512,12 @@
     "tab.general": "Umum",
     "tab.appearance": "Tampilan",
     "tab.player": "Pemutar",
-    "tab.system": "Sistem"
+    "tab.system": "Sistem",
+    "status.lyrics_loading_provider_format": "Memuat lirik dari %@…",
+    "loading.translation_provider_format": "Membuat terjemahan dengan %@…",
+    "loading.pronunciation_provider_format": "Membuat pelafalan dengan %@…",
+    "status.ai_generating_provider_format": "Membuat lirik AI dengan %@…",
+    "tmi.loading_provider_format": "Membuat TMI dengan %@…"
   },
   "ms": {
     "button.close": "tutup",
@@ -10938,7 +11038,12 @@
     "tab.general": "Umum",
     "tab.appearance": "Penampilan",
     "tab.player": "Pemain",
-    "tab.system": "Sistem"
+    "tab.system": "Sistem",
+    "status.lyrics_loading_provider_format": "Memuatkan lirik daripada %@…",
+    "loading.translation_provider_format": "Menjana terjemahan dengan %@…",
+    "loading.pronunciation_provider_format": "Menjana sebutan dengan %@…",
+    "status.ai_generating_provider_format": "Menjana lirik AI dengan %@…",
+    "tmi.loading_provider_format": "Menjana TMI dengan %@…"
   },
   "tr": {
     "button.close": "Kapat",
@@ -11459,6 +11564,11 @@
     "tab.general": "Genel",
     "tab.appearance": "Görünüm",
     "tab.player": "Oynatıcı",
-    "tab.system": "Sistem"
+    "tab.system": "Sistem",
+    "status.lyrics_loading_provider_format": "%@ üzerinden şarkı sözleri yükleniyor…",
+    "loading.translation_provider_format": "%@ ile çeviri oluşturuluyor…",
+    "loading.pronunciation_provider_format": "%@ ile telaffuz oluşturuluyor…",
+    "status.ai_generating_provider_format": "%@ ile AI şarkı sözleri oluşturuluyor…",
+    "tmi.loading_provider_format": "%@ ile TMI oluşturuluyor…"
   }
 }

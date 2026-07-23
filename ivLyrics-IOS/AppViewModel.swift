@@ -77,6 +77,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var creatorPrivacyRequestInFlight = false
     @Published private(set) var creatorPrivacyLoginInProgress = false
     @Published private(set) var aiLyricsGenerating = false
+    @Published private(set) var lyricsLoadingProviderName = ""
     @Published private(set) var lyricsSupplementPronunciationLoading = false
     @Published private(set) var lyricsSupplementTranslationLoading = false
     @Published private(set) var lyricsSupplementFuriganaLoading = false
@@ -86,6 +87,42 @@ final class AppViewModel: ObservableObject {
     @Published var updateDialogPresented = false
     @Published var initialSetupPresented = false
     @Published var onboardingStep = 0
+
+    var lyricsLoadingText: String {
+        let providerName = lyricsLoadingProviderName.trimmed
+        return providerName.isEmpty
+            ? settings.t("status.lyrics_loading")
+            : settings.tf("status.lyrics_loading_provider_format", providerName)
+    }
+
+    var aiTranslationLoadingText: String {
+        aiProviderLoadingText(
+            formatKey: "loading.translation_provider_format",
+            fallbackKey: "loading.translation"
+        )
+    }
+
+    var aiPronunciationLoadingText: String {
+        aiProviderLoadingText(
+            formatKey: "loading.pronunciation_provider_format",
+            fallbackKey: "loading.pronunciation"
+        )
+    }
+
+    var aiLyricsLoadingText: String {
+        aiProviderLoadingText(
+            formatKey: "status.ai_generating_provider_format",
+            fallbackKey: "status.ai_generating"
+        )
+    }
+
+    var tmiLoadingText: String {
+        aiProviderLoadingText(
+            formatKey: "tmi.loading_provider_format",
+            fallbackKey: "tmi.loading"
+        )
+    }
+
     let playbackClock = PlaybackClock()
     private(set) var nowPositionMs: Int64 {
         get { playbackClock.nowPositionMs }
@@ -424,7 +461,8 @@ final class AppViewModel: ObservableObject {
     func applyDebugLyricsLoadingState() {
         cancelLyricsLoadTask()
         status = .loading
-        let loadingResult = LyricsResult.empty(settings.t("status.lyrics_loading"))
+        lyricsLoadingProviderName = "LRCLIB"
+        let loadingResult = LyricsResult.empty(lyricsLoadingText)
         baseLyricsResult = loadingResult
         lyricsResult = loadingResult
     }
@@ -929,10 +967,11 @@ final class AppViewModel: ObservableObject {
         }
         cancelLyricsLoadTask()
         status = .loading
+        lyricsLoadingProviderName = ""
         logs = []
         manualCandidates = []
         metadataTranslation = nil
-        let loadingResult = LyricsResult.empty(settings.t("status.lyrics_loading"))
+        let loadingResult = LyricsResult.empty(lyricsLoadingText)
         baseLyricsResult = loadingResult
         lyricsResult = loadingResult
         resetYouTubeBackgroundForTrack()
@@ -1295,8 +1334,9 @@ final class AppViewModel: ObservableObject {
         guard let track = currentTrack else { return }
         cancelLyricsLoadTask()
         status = .loading
+        lyricsLoadingProviderName = "LRCLIB"
         manualLrclibStatus = settings.t("lyrics.lrclib_search.selecting")
-        let loadingResult = LyricsResult.empty(settings.t("status.lyrics_loading"))
+        let loadingResult = LyricsResult.empty(lyricsLoadingText)
         baseLyricsResult = loadingResult
         lyricsResult = loadingResult
         let requestID = lyricsLoadRequestID
@@ -1313,6 +1353,7 @@ final class AppViewModel: ObservableObject {
                 let final = await applyLyricsSupplements(track: track, base: base, bypassCache: false)
                 guard isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
                 lyricsResult = final
+                lyricsLoadingProviderName = ""
                 status = .loaded
                 manualLrclibStatus = settings.t("lyrics.lrclib_search.loaded")
                 showSavedToast(manualLrclibStatus)
@@ -1321,6 +1362,7 @@ final class AppViewModel: ObservableObject {
             } catch {
                 guard isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
                 let detail = error.localizedDescription.trimmed.isEmpty ? "unknown error" : error.localizedDescription.trimmed
+                lyricsLoadingProviderName = ""
                 manualLrclibStatus = settings.tf("lyrics.lrclib_search.error_format", detail)
                 status = .failed(detail)
                 showSavedToast(manualLrclibStatus)
@@ -1969,6 +2011,13 @@ final class AppViewModel: ObservableObject {
                 onCachedLyricsLoaded: { [weak self] cached in
                     self?.applyCachedLyricsPreview(cached, track: track, requestID: requestID)
                 },
+                onProviderLoading: { [weak self] providerName in
+                    self?.applyLyricsProviderLoading(
+                        providerName,
+                        track: track,
+                        requestID: requestID
+                    )
+                },
                 onSpotifyMetadataResolved: { [weak self] metadata in
                     self?.applyEarlySpotifyLyricsMetadata(metadata)
                 }
@@ -2002,6 +2051,7 @@ final class AppViewModel: ObservableObject {
             }
             trackOffsetMs = settings.trackSyncOffsetMs(loaded.trackKey)
             videoOffsetMs = settings.trackVideoSyncOffsetMs(loaded.trackKey)
+            lyricsLoadingProviderName = ""
             status = .loaded
             appendLog("lyrics base ready: lines=\(baseResult.lines.count); supplements continue independently")
             await Task.yield()
@@ -2014,6 +2064,7 @@ final class AppViewModel: ObservableObject {
             await loadYouTubeIfNeeded(track: resolvedTrack, result: finalResult)
         } catch {
             guard isLyricsLoadCurrent(requestID, trackKey: track.stableKey), let failedTrack = currentTrack else { return }
+            lyricsLoadingProviderName = ""
             if !baseLyricsResult.lines.isEmpty {
                 status = .loaded
                 appendLog("lyrics background sync-data recheck failed: \(error.localizedDescription); cached lyrics kept")
@@ -2050,8 +2101,24 @@ final class AppViewModel: ObservableObject {
         guard !cached.lines.isEmpty else { return }
         baseLyricsResult = cached
         lyricsResult = cached
+        lyricsLoadingProviderName = ""
         status = .loaded
         appendLog("lyrics cache ready: lines=\(cached.lines.count); sync-data recheck continues in background")
+    }
+
+    private func applyLyricsProviderLoading(
+        _ providerName: String,
+        track: TrackSnapshot,
+        requestID: UUID
+    ) {
+        guard status == .loading,
+              isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else {
+            return
+        }
+        lyricsLoadingProviderName = providerName.trimmed
+        let loadingResult = LyricsResult.empty(lyricsLoadingText)
+        baseLyricsResult = loadingResult
+        lyricsResult = loadingResult
     }
 
     private func hydrateSpotifyAppRemoteMetadataIfNeeded(_ playback: SpotifyPlaybackSnapshot) {
@@ -2091,6 +2158,11 @@ final class AppViewModel: ObservableObject {
     }
 
     private func applySpotifyPlayback(_ playback: SpotifyPlaybackSnapshot, loadLyricsIfNeeded: Bool) {
+#if DEBUG
+        if ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_LYRICS_LOADING"] == "1" {
+            return
+        }
+#endif
         let playback = spotifyPlaybackInteractionGuard.reconcile(
             playback,
             currentTrack: currentTrack,
@@ -2123,7 +2195,10 @@ final class AppViewModel: ObservableObject {
             resetYouTubeBackgroundForTrack()
             appendLog("spotify live track: \(incoming.title) / \(incoming.artist)" + (playback.deviceName.isEmpty ? "" : " / \(playback.deviceName)"))
             cancelLyricsLoadTask()
-            let loadingResult = LyricsResult.empty(settings.t(loadLyricsIfNeeded ? "status.lyrics_loading" : "status.lyrics_waiting"))
+            lyricsLoadingProviderName = ""
+            let loadingResult = LyricsResult.empty(
+                loadLyricsIfNeeded ? lyricsLoadingText : settings.t("status.lyrics_waiting")
+            )
             baseLyricsResult = loadingResult
             lyricsResult = loadingResult
             status = loadLyricsIfNeeded ? .loading : .idle
@@ -2433,8 +2508,16 @@ final class AppViewModel: ObservableObject {
         metadataTranslationTask = nil
         furiganaRefreshTask?.cancel()
         furiganaRefreshTask = nil
+        lyricsLoadingProviderName = ""
         resetCurrentFurigana()
         resetLyricsSupplementLoading()
+    }
+
+    private func aiProviderLoadingText(formatKey: String, fallbackKey: String) -> String {
+        let providerName = settings.snapshot.provider.label.trimmed
+        return providerName.isEmpty
+            ? settings.t(fallbackKey)
+            : settings.tf(formatKey, providerName)
     }
 
     private func isLyricsLoadCurrent(_ requestID: UUID, trackKey: String) -> Bool {

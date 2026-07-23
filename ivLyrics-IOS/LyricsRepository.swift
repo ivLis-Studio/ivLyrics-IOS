@@ -225,6 +225,7 @@ actor LyricsRepository {
         track: TrackSnapshot,
         settings: AppSettings.Snapshot,
         onCachedLyricsLoaded: ((LoadedLyrics) async -> Void)? = nil,
+        onProviderLoading: ((String) async -> Void)? = nil,
         onSpotifyMetadataResolved: ((ResolvedSpotifyMetadata) async -> Void)? = nil
     ) async throws -> LoadedLyrics {
         guard track.hasUsableMetadata else {
@@ -457,6 +458,9 @@ actor LyricsRepository {
         func loadOnce(_ providerId: String) async -> ProviderVariants? {
             if attempted.contains(providerId) { return attempts[providerId] }
             attempted.insert(providerId)
+            if let providerName = AppSettings.lyricsProviderById(providerId)?.name {
+                await onProviderLoading?(providerName)
+            }
             do {
                 if let variants = try await loadProviderVariants(
                     providerId: providerId,

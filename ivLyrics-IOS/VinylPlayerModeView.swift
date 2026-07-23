@@ -495,12 +495,15 @@ struct VinylPlayerModeView: View {
 
     private var loadingIndicatorText: String? {
         if model.status == .loading || model.lyricsResult.lines.isEmpty && model.lyricsResult.detail.lowercased().contains("loading") {
-            return settings.t("status.lyrics_loading")
+            return model.lyricsLoadingText
         }
         if model.lyricsSupplementTranslationLoading {
-            return settings.t("loading.translation")
+            return model.aiTranslationLoadingText
         }
-        if model.lyricsSupplementPronunciationLoading || model.lyricsSupplementFuriganaLoading {
+        if model.lyricsSupplementPronunciationLoading {
+            return model.aiPronunciationLoadingText
+        }
+        if model.lyricsSupplementFuriganaLoading {
             return settings.t("loading.pronunciation")
         }
         return nil

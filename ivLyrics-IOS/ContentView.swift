@@ -1364,7 +1364,9 @@ struct HeaderBar: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("ivLyrics")
                     .font(.pretendard(21, weight: .bold))
-                Text(model.status.text(settings: settings))
+                Text(model.status == .loading
+                    ? model.lyricsLoadingText
+                    : model.status.text(settings: settings))
                     .font(.pretendard(12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.72))
             }
@@ -2672,7 +2674,7 @@ private struct TmiSheetView: View {
             HStack(spacing: 12) {
                 ProgressView()
                     .tint(.white)
-                Text(settings.t("tmi.loading"))
+                Text(model.tmiLoadingText)
                     .font(.pretendard(13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.86))
                 Spacer(minLength: 0)
@@ -3072,7 +3074,7 @@ struct MainLyricPreviewPanel: View {
     private func emptyPreviewRows() -> [MainLyricPreviewRow] {
         let detail = model.lyricsResult.detail.trimmed
         if model.status == .loading || isLoadingLyricsPreview(detail) {
-            return [.loading(settings.t("status.lyrics_loading"))]
+            return [.loading(model.lyricsLoadingText)]
         }
         if hiddenEmptyLyricsPreviewKey == buildEmptyLyricsPreviewKey(detail: detail) {
             return []
@@ -3090,7 +3092,7 @@ struct MainLyricPreviewPanel: View {
             addSupplementPreviewRow(
                 &rows,
                 text: line.pronunciationText,
-                generatingText: settings.t("loading.pronunciation"),
+                generatingText: model.aiPronunciationLoadingText,
                 fallback: original,
                 speaker: line.speaker,
                 generating: model.lyricsSupplementPronunciationLoading,
@@ -3101,7 +3103,7 @@ struct MainLyricPreviewPanel: View {
             addSupplementPreviewRow(
                 &rows,
                 text: line.translationText,
-                generatingText: settings.t("loading.translation"),
+                generatingText: model.aiTranslationLoadingText,
                 fallback: original,
                 speaker: line.speaker,
                 generating: model.lyricsSupplementTranslationLoading,
@@ -3892,8 +3894,20 @@ struct LyricsTimelineView: View {
         LazyVStack(spacing: 12) {
             if model.lyricsResult.lines.isEmpty {
                 if model.status == .loading {
-                    LyricsLoadingSkeleton()
-                        .padding(.horizontal, 14)
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack(spacing: 9) {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                            Text(model.lyricsLoadingText)
+                                .font(.pretendard(13, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.78))
+                                .lineLimit(2)
+                        }
+                        LyricsLoadingSkeleton()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
                 } else {
                     Text(model.lyricsResult.detail)
                         .font(.body.weight(.medium))
