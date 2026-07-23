@@ -9,11 +9,7 @@
 ### 요약
 {ko_summary}
 
-### 주요 변경
-{ko_highlights}
-
-### 개선 및 수정
-{ko_fixes}
+{ko_sections}
 
 ### 설치
 - `{ipa_name}`은 무서명 IPA입니다. AltStore 등에서 사용자 Apple ID로 서명한 뒤 설치해야 합니다.
@@ -24,11 +20,7 @@
 ### Summary
 {en_summary}
 
-### Highlights
-{en_highlights}
-
-### Improvements and Fixes
-{en_fixes}
+{en_sections}
 
 ### Installation
 - `{ipa_name}` is an unsigned IPA. Sign it with your Apple ID through AltStore or another signing tool before installation.
