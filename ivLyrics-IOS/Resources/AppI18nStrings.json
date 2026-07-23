@@ -16,7 +16,7 @@
     "toast.back_exit": "뒤로가기를 한 번 더 누르면 종료됩니다",
     "toast.ui_language_saved": "앱 표시 언어 저장됨",
     "settings.title": "설정",
-    "settings.subtitle": "가사, 화면, 전체화면, AI, 도구 설정",
+    "settings.subtitle": "일반, 가사, 화면, 플레이어, AI, 시스템 설정",
     "tab.lyrics": "가사",
     "tab.display": "화면",
     "tab.ai": "AI",
@@ -514,7 +514,11 @@
     "lyrics.global_sync.title": "전역 싱크 오프셋",
     "lyrics.global_sync.help": "모든 곡에 적용되며 곡별 및 Bluetooth 오프셋과 별도로 더해집니다. +값은 가사를 더 일찍, -값은 더 늦게 보여줍니다.",
     "lyrics.global_sync.reset": "전역 오프셋 초기화",
-    "toast.global_sync_offset_format": "전역 싱크 오프셋 %s"
+    "toast.global_sync_offset_format": "전역 싱크 오프셋 %s",
+    "tab.general": "일반",
+    "tab.appearance": "화면",
+    "tab.player": "플레이어",
+    "tab.system": "시스템"
   },
   "en": {
     "button.close": "Close",
@@ -533,7 +537,7 @@
     "toast.back_exit": "Press Back again to exit",
     "toast.ui_language_saved": "App language saved",
     "settings.title": "Settings",
-    "settings.subtitle": "Lyrics, display, fullscreen, AI, and tools",
+    "settings.subtitle": "General, lyrics, appearance, player, AI, and system settings",
     "tab.lyrics": "Lyrics",
     "tab.display": "Display",
     "tab.ai": "AI",
@@ -1031,7 +1035,11 @@
     "lyrics.global_sync.title": "Global Sync Offset",
     "lyrics.global_sync.help": "Applies to every song and is added separately to per-song and Bluetooth offsets. Positive values show lyrics earlier; negative values show them later.",
     "lyrics.global_sync.reset": "Reset Global Offset",
-    "toast.global_sync_offset_format": "Global sync offset %s"
+    "toast.global_sync_offset_format": "Global sync offset %s",
+    "tab.general": "General",
+    "tab.appearance": "Appearance",
+    "tab.player": "Player",
+    "tab.system": "System"
   },
   "zh-CN": {
     "button.close": "关闭",
@@ -1050,7 +1058,7 @@
     "toast.back_exit": "再次返回即可退出",
     "toast.ui_language_saved": "应用语言已保存",
     "settings.title": "设置",
-    "settings.subtitle": "歌词、显示、全屏、AI 和工具设置",
+    "settings.subtitle": "通用、歌词、外观、播放器、AI 和系统设置",
     "tab.lyrics": "歌词",
     "tab.display": "显示",
     "tab.ai": "AI",
@@ -1548,7 +1556,11 @@
     "lyrics.global_sync.title": "全局同步偏移",
     "lyrics.global_sync.help": "应用于所有歌曲，并与单曲偏移和 Bluetooth 偏移分别叠加。+ 值会更早显示歌词，- 值会更晚显示。",
     "lyrics.global_sync.reset": "重置全局偏移",
-    "toast.global_sync_offset_format": "全局同步偏移 %s"
+    "toast.global_sync_offset_format": "全局同步偏移 %s",
+    "tab.general": "通用",
+    "tab.appearance": "外观",
+    "tab.player": "播放器",
+    "tab.system": "系统"
   },
   "zh-TW": {
     "button.close": "關閉",
@@ -1567,7 +1579,7 @@
     "toast.back_exit": "再次按返回退出",
     "toast.ui_language_saved": "已儲存應用程式語言",
     "settings.title": "設定",
-    "settings.subtitle": "歌詞、顯示、全螢幕、AI、工具",
+    "settings.subtitle": "一般、歌詞、外觀、播放器、AI 與系統設定",
     "tab.lyrics": "歌詞",
     "tab.display": "展示",
     "tab.ai": "人工智慧",
@@ -2065,7 +2077,11 @@
     "lyrics.global_sync.title": "全域同步偏移",
     "lyrics.global_sync.help": "套用於所有歌曲，並與單曲偏移和 Bluetooth 偏移分別疊加。+ 值會更早顯示歌詞，- 值會更晚顯示。",
     "lyrics.global_sync.reset": "重設全域偏移",
-    "toast.global_sync_offset_format": "全域同步偏移 %s"
+    "toast.global_sync_offset_format": "全域同步偏移 %s",
+    "tab.general": "一般",
+    "tab.appearance": "外觀",
+    "tab.player": "播放器",
+    "tab.system": "系統"
   },
   "ja": {
     "button.close": "閉じる",
@@ -2084,7 +2100,7 @@
     "toast.back_exit": "もう一度戻ると終了します",
     "toast.ui_language_saved": "アプリ表示言語を保存しました",
     "settings.title": "設定",
-    "settings.subtitle": "歌詞、表示、全画面、AI、ツール設定",
+    "settings.subtitle": "一般、歌詞、外観、プレーヤー、AI、システム設定",
     "tab.lyrics": "歌詞",
     "tab.display": "表示",
     "tab.ai": "AI",
@@ -2582,7 +2598,11 @@
     "lyrics.global_sync.title": "グローバル同期オフセット",
     "lyrics.global_sync.help": "すべての曲に適用され、曲別オフセットと Bluetooth オフセットに個別に加算されます。+値は歌詞を早く、-値は遅く表示します。",
     "lyrics.global_sync.reset": "グローバルオフセットをリセット",
-    "toast.global_sync_offset_format": "グローバル同期オフセット %s"
+    "toast.global_sync_offset_format": "グローバル同期オフセット %s",
+    "tab.general": "一般",
+    "tab.appearance": "外観",
+    "tab.player": "プレーヤー",
+    "tab.system": "システム"
   },
   "hi": {
     "button.close": "बंद करें",
@@ -2601,7 +2621,7 @@
     "toast.back_exit": "बाहर निकलने के लिए फिर से वापस दबाएँ",
     "toast.ui_language_saved": "ऐप की भाषा सहेजी गई",
     "settings.title": "सेटिंग्स",
-    "settings.subtitle": "गीत, डिस्प्ले, फ़ुलस्क्रीन, AI और उपकरण",
+    "settings.subtitle": "सामान्य, गीत, रूप-रंग, प्लेयर, AI और सिस्टम सेटिंग",
     "tab.lyrics": "गीत",
     "tab.display": "डिस्प्ले",
     "tab.ai": "AI",
@@ -3099,7 +3119,11 @@
     "lyrics.global_sync.title": "वैश्विक सिंक ऑफसेट",
     "lyrics.global_sync.help": "यह सभी गानों पर लागू होता है और प्रति-गाना तथा Bluetooth ऑफसेट में अलग से जुड़ता है। + मान गीत पहले और - मान बाद में दिखाते हैं।",
     "lyrics.global_sync.reset": "वैश्विक ऑफसेट रीसेट करें",
-    "toast.global_sync_offset_format": "वैश्विक सिंक ऑफसेट %s"
+    "toast.global_sync_offset_format": "वैश्विक सिंक ऑफसेट %s",
+    "tab.general": "सामान्य",
+    "tab.appearance": "रूप-रंग",
+    "tab.player": "प्लेयर",
+    "tab.system": "सिस्टम"
   },
   "es": {
     "button.close": "Cerrar",
@@ -3118,7 +3142,7 @@
     "toast.back_exit": "Presione Atrás nuevamente para salir",
     "toast.ui_language_saved": "Idioma de la aplicación guardado",
     "settings.title": "Ajustes",
-    "settings.subtitle": "Letras, pantalla, pantalla completa, IA y herramientas",
+    "settings.subtitle": "Ajustes generales, de letras, apariencia, reproductor, IA y sistema",
     "tab.lyrics": "Letras",
     "tab.display": "Pantalla",
     "tab.ai": "AI",
@@ -3616,7 +3640,11 @@
     "lyrics.global_sync.title": "Desplazamiento global",
     "lyrics.global_sync.help": "Se aplica a todas las canciones y se suma por separado a los ajustes por canción y Bluetooth. Los valores + muestran la letra antes; los valores - la muestran después.",
     "lyrics.global_sync.reset": "Restablecer desplazamiento global",
-    "toast.global_sync_offset_format": "Desplazamiento global %s"
+    "toast.global_sync_offset_format": "Desplazamiento global %s",
+    "tab.general": "General",
+    "tab.appearance": "Apariencia",
+    "tab.player": "Reproductor",
+    "tab.system": "Sistema"
   },
   "fr": {
     "button.close": "Fermer",
@@ -3635,7 +3663,7 @@
     "toast.back_exit": "Appuyez à nouveau sur Retour pour quitter",
     "toast.ui_language_saved": "Langue de l'application enregistrée",
     "settings.title": "Paramètres",
-    "settings.subtitle": "Paroles, affichage, plein écran, IA et outils",
+    "settings.subtitle": "Réglages généraux, paroles, apparence, lecteur, IA et système",
     "tab.lyrics": "Paroles",
     "tab.display": "Affichage",
     "tab.ai": "AI",
@@ -4133,7 +4161,11 @@
     "lyrics.global_sync.title": "Décalage global",
     "lyrics.global_sync.help": "S’applique à tous les morceaux et s’ajoute séparément aux décalages par morceau et Bluetooth. Les valeurs + affichent les paroles plus tôt, les valeurs - plus tard.",
     "lyrics.global_sync.reset": "Réinitialiser le décalage global",
-    "toast.global_sync_offset_format": "Décalage global %s"
+    "toast.global_sync_offset_format": "Décalage global %s",
+    "tab.general": "Général",
+    "tab.appearance": "Apparence",
+    "tab.player": "Lecteur",
+    "tab.system": "Système"
   },
   "ar": {
     "button.close": "أغلق",
@@ -4152,7 +4184,7 @@
     "toast.back_exit": "اضغط على \"رجوع\" مرة أخرى للخروج من",
     "toast.ui_language_saved": "تم حفظ لغة التطبيق",
     "settings.title": "إعدادات",
-    "settings.subtitle": "كلمات الأغاني والعرض وملء الشاشة والذكاء الاصطناعي والأدوات",
+    "settings.subtitle": "إعدادات عامة وكلمات الأغاني والمظهر والمشغل والذكاء الاصطناعي والنظام",
     "tab.lyrics": "كلمات",
     "tab.display": "العرض",
     "tab.ai": "AI",
@@ -4650,7 +4682,11 @@
     "lyrics.global_sync.title": "إزاحة المزامنة العامة",
     "lyrics.global_sync.help": "تُطبّق على جميع الأغاني وتُضاف بشكل مستقل إلى إزاحة الأغنية وإزاحة Bluetooth. تعرض القيم + الكلمات أبكر والقيم - لاحقًا.",
     "lyrics.global_sync.reset": "إعادة ضبط الإزاحة العامة",
-    "toast.global_sync_offset_format": "إزاحة المزامنة العامة %s"
+    "toast.global_sync_offset_format": "إزاحة المزامنة العامة %s",
+    "tab.general": "عام",
+    "tab.appearance": "المظهر",
+    "tab.player": "المشغل",
+    "tab.system": "النظام"
   },
   "fa": {
     "button.close": "بستن",
@@ -4669,7 +4705,7 @@
     "toast.back_exit": "برای خروج دوباره Back را فشار دهید",
     "toast.ui_language_saved": "زبان برنامه ذخیره شد",
     "settings.title": "تنظیمات",
-    "settings.subtitle": "متن ترانه، صفحه نمایش، تمام‌صفحه، هوش مصنوعی و ابزار",
+    "settings.subtitle": "تنظیمات عمومی، متن ترانه، ظاهر، پخش‌کننده، هوش مصنوعی و سیستم",
     "tab.lyrics": "متن ترانه",
     "tab.display": "نمایش",
     "tab.ai": "هوش مصنوعی",
@@ -5167,7 +5203,11 @@
     "lyrics.global_sync.title": "افست همگام‌سازی سراسری",
     "lyrics.global_sync.help": "روی همه آهنگ‌ها اعمال می‌شود و جداگانه به افست هر آهنگ و Bluetooth افزوده می‌شود. مقادیر + متن را زودتر و مقادیر - دیرتر نشان می‌دهند.",
     "lyrics.global_sync.reset": "بازنشانی افست سراسری",
-    "toast.global_sync_offset_format": "افست همگام‌سازی سراسری %s"
+    "toast.global_sync_offset_format": "افست همگام‌سازی سراسری %s",
+    "tab.general": "عمومی",
+    "tab.appearance": "ظاهر",
+    "tab.player": "پخش‌کننده",
+    "tab.system": "سیستم"
   },
   "de": {
     "button.close": "Schließen",
@@ -5186,7 +5226,7 @@
     "toast.back_exit": "Drücken Sie erneut „Zurück“, um den Vorgang zu beenden.",
     "toast.ui_language_saved": "App-Sprache gespeichert.",
     "settings.title": "Einstellungen",
-    "settings.subtitle": "Liedtext, Anzeige, Vollbild, KI und Werkzeuge.",
+    "settings.subtitle": "Einstellungen für Allgemein, Liedtexte, Darstellung, Player, KI und System",
     "tab.lyrics": "Liedtext.",
     "tab.display": "Anzeige.",
     "tab.ai": "AI.",
@@ -5684,7 +5724,11 @@
     "lyrics.global_sync.title": "Globaler Sync-Offset",
     "lyrics.global_sync.help": "Gilt für alle Songs und wird getrennt zu Song- und Bluetooth-Offsets addiert. Positive Werte zeigen Liedtexte früher, negative später.",
     "lyrics.global_sync.reset": "Globalen Offset zurücksetzen",
-    "toast.global_sync_offset_format": "Globaler Sync-Offset %s"
+    "toast.global_sync_offset_format": "Globaler Sync-Offset %s",
+    "tab.general": "Allgemein",
+    "tab.appearance": "Darstellung",
+    "tab.player": "Player",
+    "tab.system": "System"
   },
   "ru": {
     "button.close": "Закрыть",
@@ -5703,7 +5747,7 @@
     "toast.back_exit": "Нажмите «Назад» еще раз, чтобы выйти",
     "toast.ui_language_saved": "Язык приложения сохранен",
     "settings.title": "Настройки",
-    "settings.subtitle": "Тексты, дисплей, полноэкранный режим, искусственный интеллект и инструменты",
+    "settings.subtitle": "Общие настройки, текст, оформление, плеер, ИИ и система",
     "tab.lyrics": "Текст",
     "tab.display": "Отображение",
     "tab.ai": "AI",
@@ -6201,7 +6245,11 @@
     "lyrics.global_sync.title": "Глобальное смещение",
     "lyrics.global_sync.help": "Применяется ко всем песням и отдельно складывается со смещениями песни и Bluetooth. Значения + показывают текст раньше, значения - позже.",
     "lyrics.global_sync.reset": "Сбросить глобальное смещение",
-    "toast.global_sync_offset_format": "Глобальное смещение %s"
+    "toast.global_sync_offset_format": "Глобальное смещение %s",
+    "tab.general": "Общие",
+    "tab.appearance": "Оформление",
+    "tab.player": "Плеер",
+    "tab.system": "Система"
   },
   "sv": {
     "button.close": "Nära",
@@ -6220,7 +6268,7 @@
     "toast.back_exit": "Tryck på Tillbaka igen för att avsluta",
     "toast.ui_language_saved": "Appens språk har sparats",
     "settings.title": "Inställningar",
-    "settings.subtitle": "Texter, display, helskärm, AI och verktyg",
+    "settings.subtitle": "Inställningar för allmänt, text, utseende, spelare, AI och system",
     "tab.lyrics": "Text",
     "tab.display": "Visa",
     "tab.ai": "AI",
@@ -6718,7 +6766,11 @@
     "lyrics.global_sync.title": "Global synkförskjutning",
     "lyrics.global_sync.help": "Gäller alla låtar och läggs separat till låt- och Bluetooth-förskjutningar. Positiva värden visar texten tidigare, negativa senare.",
     "lyrics.global_sync.reset": "Återställ global förskjutning",
-    "toast.global_sync_offset_format": "Global synkförskjutning %s"
+    "toast.global_sync_offset_format": "Global synkförskjutning %s",
+    "tab.general": "Allmänt",
+    "tab.appearance": "Utseende",
+    "tab.player": "Spelare",
+    "tab.system": "System"
   },
   "pt": {
     "button.close": "Fechar",
@@ -6737,7 +6789,7 @@
     "toast.back_exit": "Pressione Voltar novamente para sair",
     "toast.ui_language_saved": "Idioma do aplicativo salvo",
     "settings.title": "Configurações",
-    "settings.subtitle": "Letras, exibição, tela cheia, IA e ferramentas",
+    "settings.subtitle": "Ajustes gerais, letras, aparência, reprodutor, IA e sistema",
     "tab.lyrics": "Letras",
     "tab.display": "Exibir",
     "tab.ai": "AI",
@@ -7235,7 +7287,11 @@
     "lyrics.global_sync.title": "Deslocamento global",
     "lyrics.global_sync.help": "Aplica-se a todas as músicas e soma-se separadamente aos ajustes por música e Bluetooth. Valores + mostram a letra mais cedo; valores - mais tarde.",
     "lyrics.global_sync.reset": "Redefinir deslocamento global",
-    "toast.global_sync_offset_format": "Deslocamento global %s"
+    "toast.global_sync_offset_format": "Deslocamento global %s",
+    "tab.general": "Geral",
+    "tab.appearance": "Aparência",
+    "tab.player": "Reprodutor",
+    "tab.system": "Sistema"
   },
   "bn": {
     "button.close": "বন্ধ",
@@ -7254,7 +7310,7 @@
     "toast.back_exit": "প্রস্থান করতে আবার ব্যাক টিপুন",
     "toast.ui_language_saved": "অ্যাপের ভাষা সংরক্ষিত",
     "settings.title": "সেটিংস",
-    "settings.subtitle": "লিরিক্স, ডিসপ্লে, পূর্ণস্ক্রিন, এআই এবং টুলস",
+    "settings.subtitle": "সাধারণ, গানের কথা, চেহারা, প্লেয়ার, AI ও সিস্টেম সেটিংস",
     "tab.lyrics": "গানের কথা",
     "tab.display": "প্রদর্শন",
     "tab.ai": "এআই",
@@ -7752,7 +7808,11 @@
     "lyrics.global_sync.title": "গ্লোবাল সিঙ্ক অফসেট",
     "lyrics.global_sync.help": "এটি সব গানে প্রযোজ্য এবং প্রতি-গান ও Bluetooth অফসেটের সঙ্গে আলাদাভাবে যোগ হয়। + মান লিরিক্স আগে এবং - মান পরে দেখায়।",
     "lyrics.global_sync.reset": "গ্লোবাল অফসেট রিসেট",
-    "toast.global_sync_offset_format": "গ্লোবাল সিঙ্ক অফসেট %s"
+    "toast.global_sync_offset_format": "গ্লোবাল সিঙ্ক অফসেট %s",
+    "tab.general": "সাধারণ",
+    "tab.appearance": "চেহারা",
+    "tab.player": "প্লেয়ার",
+    "tab.system": "সিস্টেম"
   },
   "cs": {
     "button.close": "Zavřít",
@@ -7771,7 +7831,7 @@
     "toast.back_exit": "Opětovným stisknutím tlačítka Zpět opustíte nabídku",
     "toast.ui_language_saved": "Jazyk aplikace byl uložen",
     "settings.title": "Nastavení",
-    "settings.subtitle": "Texty, zobrazení, celá obrazovka, AI a nástroje",
+    "settings.subtitle": "Obecná nastavení, texty, vzhled, přehrávač, AI a systém",
     "tab.lyrics": "Text písně",
     "tab.display": "Zobrazení",
     "tab.ai": "AI",
@@ -8269,7 +8329,11 @@
     "lyrics.global_sync.title": "Globální posun synchronizace",
     "lyrics.global_sync.help": "Platí pro všechny skladby a samostatně se přičítá k posunu skladby a Bluetooth. Kladné hodnoty zobrazí text dříve, záporné později.",
     "lyrics.global_sync.reset": "Obnovit globální posun",
-    "toast.global_sync_offset_format": "Globální posun synchronizace %s"
+    "toast.global_sync_offset_format": "Globální posun synchronizace %s",
+    "tab.general": "Obecné",
+    "tab.appearance": "Vzhled",
+    "tab.player": "Přehrávač",
+    "tab.system": "Systém"
   },
   "it": {
     "button.close": "Chiudi",
@@ -8288,7 +8352,7 @@
     "toast.back_exit": "Premi di nuovo Indietro per uscire",
     "toast.ui_language_saved": "Lingua dell'app salvata",
     "settings.title": "Impostazioni",
-    "settings.subtitle": "Testi, display, schermo intero, IA e strumenti",
+    "settings.subtitle": "Impostazioni generali, testi, aspetto, lettore, IA e sistema",
     "tab.lyrics": "Testi",
     "tab.display": "Display",
     "tab.ai": "AI",
@@ -8786,7 +8850,11 @@
     "lyrics.global_sync.title": "Offset globale",
     "lyrics.global_sync.help": "Si applica a tutti i brani e si somma separatamente agli offset del brano e Bluetooth. I valori + mostrano il testo prima, i valori - dopo.",
     "lyrics.global_sync.reset": "Reimposta offset globale",
-    "toast.global_sync_offset_format": "Offset globale %s"
+    "toast.global_sync_offset_format": "Offset globale %s",
+    "tab.general": "Generali",
+    "tab.appearance": "Aspetto",
+    "tab.player": "Lettore",
+    "tab.system": "Sistema"
   },
   "th": {
     "button.close": "ปิด",
@@ -8805,7 +8873,7 @@
     "toast.back_exit": "กด Back อีกครั้งเพื่อออกจาก",
     "toast.ui_language_saved": "ภาษาที่บันทึกไว้ของแอป",
     "settings.title": "การตั้งค่า",
-    "settings.subtitle": "เนื้อเพลง การแสดงผล เต็มหน้าจอ AI และเครื่องมือ",
+    "settings.subtitle": "การตั้งค่าทั่วไป เนื้อเพลง รูปลักษณ์ เครื่องเล่น AI และระบบ",
     "tab.lyrics": "เนื้อเพลง",
     "tab.display": "จอแสดงผล",
     "tab.ai": "AI",
@@ -9303,7 +9371,11 @@
     "lyrics.global_sync.title": "ออฟเซ็ตซิงค์ส่วนกลาง",
     "lyrics.global_sync.help": "ใช้กับทุกเพลงและบวกแยกจากออฟเซ็ตประจำเพลงและ Bluetooth ค่า + จะแสดงเนื้อเพลงเร็วขึ้น ส่วนค่า - จะแสดงช้าลง",
     "lyrics.global_sync.reset": "รีเซ็ตออฟเซ็ตส่วนกลาง",
-    "toast.global_sync_offset_format": "ออฟเซ็ตซิงค์ส่วนกลาง %s"
+    "toast.global_sync_offset_format": "ออฟเซ็ตซิงค์ส่วนกลาง %s",
+    "tab.general": "ทั่วไป",
+    "tab.appearance": "รูปลักษณ์",
+    "tab.player": "เครื่องเล่น",
+    "tab.system": "ระบบ"
   },
   "vi": {
     "button.close": "Đóng",
@@ -9322,7 +9394,7 @@
     "toast.back_exit": "Nhấn Quay lại lần nữa để thoát",
     "toast.ui_language_saved": "Đã lưu ngôn ngữ ứng dụng",
     "settings.title": "Cài đặt",
-    "settings.subtitle": "Lời bài hát, màn hình, toàn màn hình, AI và công cụ",
+    "settings.subtitle": "Cài đặt chung, lời bài hát, giao diện, trình phát, AI và hệ thống",
     "tab.lyrics": "Lời bài hát",
     "tab.display": "Hiển thị",
     "tab.ai": "AI",
@@ -9820,7 +9892,11 @@
     "lyrics.global_sync.title": "Bù đồng bộ toàn cục",
     "lyrics.global_sync.help": "Áp dụng cho mọi bài hát và được cộng riêng với bù theo bài hát và Bluetooth. Giá trị + hiển thị lời sớm hơn, giá trị - hiển thị muộn hơn.",
     "lyrics.global_sync.reset": "Đặt lại bù toàn cục",
-    "toast.global_sync_offset_format": "Bù đồng bộ toàn cục %s"
+    "toast.global_sync_offset_format": "Bù đồng bộ toàn cục %s",
+    "tab.general": "Chung",
+    "tab.appearance": "Giao diện",
+    "tab.player": "Trình phát",
+    "tab.system": "Hệ thống"
   },
   "id": {
     "button.close": "Tutup",
@@ -9839,7 +9915,7 @@
     "toast.back_exit": "Tekan Kembali lagi untuk keluar",
     "toast.ui_language_saved": "Bahasa aplikasi disimpan",
     "settings.title": "Pengaturan",
-    "settings.subtitle": "Lirik, tampilan, layar penuh, AI, dan alat",
+    "settings.subtitle": "Pengaturan umum, lirik, tampilan, pemutar, AI, dan sistem",
     "tab.lyrics": "Lirik",
     "tab.display": "Tampilan",
     "tab.ai": "AI",
@@ -10337,7 +10413,11 @@
     "lyrics.global_sync.title": "Offset sinkronisasi global",
     "lyrics.global_sync.help": "Berlaku untuk semua lagu dan ditambahkan secara terpisah ke offset per lagu dan Bluetooth. Nilai + menampilkan lirik lebih awal, nilai - lebih lambat.",
     "lyrics.global_sync.reset": "Reset offset global",
-    "toast.global_sync_offset_format": "Offset sinkronisasi global %s"
+    "toast.global_sync_offset_format": "Offset sinkronisasi global %s",
+    "tab.general": "Umum",
+    "tab.appearance": "Tampilan",
+    "tab.player": "Pemutar",
+    "tab.system": "Sistem"
   },
   "ms": {
     "button.close": "tutup",
@@ -10356,7 +10436,7 @@
     "toast.back_exit": "Tekan Kembali sekali lagi untuk keluar",
     "toast.ui_language_saved": "Bahasa apl disimpan",
     "settings.title": "tetapan",
-    "settings.subtitle": "Lirik, paparan, skrin penuh, AI dan alatan",
+    "settings.subtitle": "Tetapan umum, lirik, penampilan, pemain, AI dan sistem",
     "tab.lyrics": "Lirik",
     "tab.display": "Paparan",
     "tab.ai": "AI",
@@ -10854,7 +10934,11 @@
     "lyrics.global_sync.title": "Ofset penyegerakan global",
     "lyrics.global_sync.help": "Digunakan pada semua lagu dan ditambah secara berasingan pada ofset setiap lagu dan Bluetooth. Nilai + memaparkan lirik lebih awal, nilai - lebih lewat.",
     "lyrics.global_sync.reset": "Tetapkan semula ofset global",
-    "toast.global_sync_offset_format": "Ofset penyegerakan global %s"
+    "toast.global_sync_offset_format": "Ofset penyegerakan global %s",
+    "tab.general": "Umum",
+    "tab.appearance": "Penampilan",
+    "tab.player": "Pemain",
+    "tab.system": "Sistem"
   },
   "tr": {
     "button.close": "Kapat",
@@ -10873,7 +10957,7 @@
     "toast.back_exit": "Çıkmak için Geri'ye tekrar basın",
     "toast.ui_language_saved": "Uygulama dili kaydedildi",
     "settings.title": "Ayarlar",
-    "settings.subtitle": "Sözler, görünüm, tam ekran, AI ve araçlar",
+    "settings.subtitle": "Genel, şarkı sözleri, görünüm, oynatıcı, AI ve sistem ayarları",
     "tab.lyrics": "Sözler",
     "tab.display": "Görünüm",
     "tab.ai": "AI",
@@ -11371,6 +11455,10 @@
     "lyrics.global_sync.title": "Genel senkron ofseti",
     "lyrics.global_sync.help": "Tüm şarkılara uygulanır ve şarkı ile Bluetooth ofsetlerine ayrı olarak eklenir. + değerler sözleri daha erken, - değerler daha geç gösterir.",
     "lyrics.global_sync.reset": "Genel ofseti sıfırla",
-    "toast.global_sync_offset_format": "Genel senkron ofseti %s"
+    "toast.global_sync_offset_format": "Genel senkron ofseti %s",
+    "tab.general": "Genel",
+    "tab.appearance": "Görünüm",
+    "tab.player": "Oynatıcı",
+    "tab.system": "Sistem"
   }
 }

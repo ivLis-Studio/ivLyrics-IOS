@@ -6893,21 +6893,32 @@ private struct SpotifySetupInstructionsPanel: View {
 
 struct SettingsView: View {
     private enum SettingsTab: String, CaseIterable, Identifiable {
+        case general
         case lyrics
-        case display
-        case fullscreen
+        case appearance
+        case player
         case ai
-        case tools
+        case system
 
         var id: String { rawValue }
         var titleKey: String { "tab.\(rawValue)" }
+        var systemImage: String {
+            switch self {
+            case .general: return "slider.horizontal.3"
+            case .lyrics: return "text.quote"
+            case .appearance: return "paintbrush"
+            case .player: return "play.rectangle"
+            case .ai: return "sparkles"
+            case .system: return "gearshape.2"
+            }
+        }
     }
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @State private var settingsLogsPresented = false
-    @State private var selectedTab: SettingsTab = .lyrics
+    @State private var selectedTab: SettingsTab = .general
     @State private var paxsenixModels: [PaxsenixAIProvider.Model] = []
     @State private var paxsenixModelsLoading = false
     @State private var paxsenixModelsError = ""
@@ -6929,8 +6940,13 @@ struct SettingsView: View {
                     settingsTabs
                         .padding(.top, 20)
 
-                    selectedSettingsPage
-                        .padding(.top, 22)
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(settings.t(selectedTab.titleKey))
+                            .font(.pretendard(21, weight: .bold))
+                            .foregroundStyle(.white)
+                        selectedSettingsPage
+                    }
+                    .padding(.top, 22)
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
@@ -6977,13 +6993,14 @@ struct SettingsView: View {
             Button {
                 dismiss()
             } label: {
-                Text(settings.t("button.close"))
-                    .font(.pretendard(16, weight: .semibold))
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 88, height: 48)
-                    .background(Color(red: 0.23, green: 0.23, blue: 0.25), in: Capsule())
+                    .frame(width: 44, height: 44)
+                    .background(Color(red: 0.23, green: 0.23, blue: 0.25), in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(settings.t("button.close"))
         }
     }
 
@@ -6996,18 +7013,22 @@ struct SettingsView: View {
                             selectedTab = tab
                         }
                     } label: {
-                        Text(settings.t(tab.titleKey))
-                            .font(.pretendard(15, weight: .bold))
-                            .foregroundStyle(selectedTab == tab ? Color(red: 0.08, green: 0.08, blue: 0.09) : .white)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .padding(.horizontal, 16)
-                            .frame(minWidth: 96, minHeight: 48)
-                            .background(
-                                selectedTab == tab
-                                    ? Color(red: 0.94, green: 0.94, blue: 0.95)
-                                    : Color(red: 0.17, green: 0.17, blue: 0.19),
-                                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            )
+                        HStack(spacing: 7) {
+                            Image(systemName: tab.systemImage)
+                                .font(.system(size: 13, weight: .semibold))
+                            Text(settings.t(tab.titleKey))
+                                .font(.pretendard(14, weight: .semibold))
+                        }
+                        .foregroundStyle(selectedTab == tab ? Color(red: 0.05, green: 0.10, blue: 0.11) : .white.opacity(0.82))
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 13)
+                        .frame(minWidth: 88, minHeight: 40)
+                        .background(
+                            selectedTab == tab
+                                ? Color(red: 0.75, green: 0.88, blue: 0.86)
+                                : Color.white.opacity(0.07),
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -7018,42 +7039,23 @@ struct SettingsView: View {
     @ViewBuilder
     private var selectedSettingsPage: some View {
         switch selectedTab {
+        case .general:
+            generalSettingsPage
         case .lyrics:
             lyricsSettingsPage
-        case .display:
-            displaySettingsPage
-        case .fullscreen:
-            fullscreenSettingsPage
+        case .appearance:
+            appearanceSettingsPage
+        case .player:
+            playerSettingsPage
         case .ai:
             aiSettingsPage
-        case .tools:
-            toolsSettingsPage
+        case .system:
+            systemSettingsPage
         }
     }
 
-    private var lyricsSettingsPage: some View {
+    private var generalSettingsPage: some View {
         VStack(alignment: .leading, spacing: 26) {
-            settingsSection(
-                settings.t("section.lyrics_providers"),
-                description: settings.t("section.lyrics_providers_desc")
-            ) {
-                settingsToggleCard(
-                    settings.t("setting.lyrics_type_priority"),
-                    description: settings.t("setting.lyrics_type_priority_desc"),
-                    binding: lyricsTypePriorityBinding
-                )
-                settingsToggleCard(
-                    settings.t("setting.sync_data_provider_priority"),
-                    description: settings.t("setting.sync_data_provider_priority_desc"),
-                    binding: syncDataProviderPriorityBinding
-                )
-                ForEach(Array(settings.lyricsProviderOrder.enumerated()), id: \.element) { index, providerId in
-                    if let provider = AppSettings.lyricsProviderById(providerId) {
-                        lyricsProviderSettingsCard(provider, index: index)
-                    }
-                }
-            }
-
             settingsSection(settings.t("section.language"), description: settings.t("section.language_desc")) {
                 settingsCard(settings.t("setting.ui_language"), description: settings.t("setting.ui_language_desc")) {
                     Picker("", selection: uiLanguageBinding) {
@@ -7092,6 +7094,49 @@ struct SettingsView: View {
                         Toggle(settings.t("setting.main_preview_original"), isOn: previewItemBinding(AppSettings.previewItemOriginal))
                         Toggle(settings.t("setting.main_preview_pronunciation"), isOn: previewItemBinding(AppSettings.previewItemPronunciation))
                         Toggle(settings.t("setting.main_preview_translation"), isOn: previewItemBinding(AppSettings.previewItemTranslation))
+                    }
+                }
+            }
+
+            settingsSection(settings.t("section.player"), description: settings.t("section.player_desc")) {
+                settingsToggleCard(
+                    settings.t("setting.keep_screen_on"),
+                    description: settings.t("setting.keep_screen_on_desc"),
+                    binding: keepScreenOnBinding
+                )
+                settingsToggleCard(
+                    settings.t("setting.landscape_auto_hide"),
+                    description: settings.t("setting.landscape_auto_hide_desc"),
+                    binding: landscapeAutoHideBinding
+                )
+                settingsToggleCard(
+                    settings.t("setting.landscape_center_no_lyrics"),
+                    description: settings.t("setting.landscape_center_no_lyrics_desc"),
+                    binding: landscapeCenterNoLyricsBinding
+                )
+            }
+        }
+    }
+
+    private var lyricsSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            settingsSection(
+                settings.t("section.lyrics_providers"),
+                description: settings.t("section.lyrics_providers_desc")
+            ) {
+                settingsToggleCard(
+                    settings.t("setting.lyrics_type_priority"),
+                    description: settings.t("setting.lyrics_type_priority_desc"),
+                    binding: lyricsTypePriorityBinding
+                )
+                settingsToggleCard(
+                    settings.t("setting.sync_data_provider_priority"),
+                    description: settings.t("setting.sync_data_provider_priority_desc"),
+                    binding: syncDataProviderPriorityBinding
+                )
+                ForEach(Array(settings.lyricsProviderOrder.enumerated()), id: \.element) { index, providerId in
+                    if let provider = AppSettings.lyricsProviderById(providerId) {
+                        lyricsProviderSettingsCard(provider, index: index)
                     }
                 }
             }
@@ -7181,12 +7226,9 @@ struct SettingsView: View {
         }
     }
 
-    private var displaySettingsPage: some View {
+    private var appearanceSettingsPage: some View {
         VStack(alignment: .leading, spacing: 26) {
-            settingsSection(settings.t("section.player"), description: settings.t("section.player_desc")) {
-                settingsToggleCard(settings.t("setting.keep_screen_on"), description: settings.t("setting.keep_screen_on_desc"), binding: keepScreenOnBinding)
-                settingsToggleCard(settings.t("setting.landscape_auto_hide"), description: settings.t("setting.landscape_auto_hide_desc"), binding: landscapeAutoHideBinding)
-                settingsToggleCard(settings.t("setting.landscape_center_no_lyrics"), description: settings.t("setting.landscape_center_no_lyrics_desc"), binding: landscapeCenterNoLyricsBinding)
+            settingsSection(settings.t("section.typography"), description: settings.t("section.typography_desc")) {
                 settingsCard(settings.t("setting.lyrics_alignment"), description: settings.t("setting.lyrics_alignment_desc")) {
                     Picker("", selection: lyricsAlignmentBinding) {
                         Text(settings.t("alignment.left")).tag("left")
@@ -7196,10 +7238,60 @@ struct SettingsView: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                 }
+                ForEach(AppSettings.typographySlots) { slot in
+                    settingsCard(slot.label) {
+                        VStack(spacing: 10) {
+                            HStack {
+                                Slider(value: typographySizeBinding(slot), in: 70...160, step: 1, onEditingChanged: { editing in
+                                    if !editing { model.showSavedToast(settings.t("toast.typography_saved")) }
+                                })
+                                Text("\(typographyStyle(slot).sizePercent)%")
+                                    .foregroundStyle(.white.opacity(0.68))
+                            }
+                            Picker(settings.t("field.weight"), selection: typographyWeightBinding(slot)) {
+                                Text(settings.t("typography.weight.regular")).tag(AppSettings.typoWeightRegular)
+                                Text(settings.t("typography.weight.semibold")).tag(AppSettings.typoWeightSemibold)
+                                Text(settings.t("typography.weight.bold")).tag(AppSettings.typoWeightBold)
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    }
+                }
             }
 
+            settingsSection(settings.t("section.speaker_colors"), description: settings.t("section.speaker_colors_desc")) {
+                settingsToggleCard(
+                    settings.t("setting.creator_speaker_colors"),
+                    description: settings.t("setting.creator_speaker_colors_desc"),
+                    binding: settingsSavedBinding(\.useSyncCreatorSpeakerColors)
+                )
+                settingsCard(settings.t("section.speaker_colors")) {
+                    VStack(spacing: 12) {
+                        ForEach(AppSettings.speakerColorSlots) { slot in
+                            SpeakerColorRow(slot: slot)
+                                .environmentObject(settings)
+                        }
+                        settingsActionButton(settings.t("button.reset"), role: .destructive) {
+                            settings.resetSpeakerColors()
+                            model.showSavedToast(settings.t("toast.speaker_colors_reset"))
+                        }
+                    }
+                }
+            }
+
+            backgroundSettingsSection
+            trackBackgroundSettingsSection
+        }
+    }
+
+    private var playerSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 26) {
             settingsSection(settings.t("section.pip"), description: settings.t("section.pip_desc")) {
-                settingsToggleCard(settings.t("setting.pip_show_artwork"), description: settings.t("setting.pip_show_artwork_desc"), binding: pipShowArtworkBinding)
+                settingsToggleCard(
+                    settings.t("setting.pip_show_artwork"),
+                    description: settings.t("setting.pip_show_artwork_desc"),
+                    binding: pipShowArtworkBinding
+                )
                 settingsCard(settings.t("setting.pip_background"), description: settings.t("setting.pip_background_desc")) {
                     Picker("", selection: Binding(get: {
                         AppSettings.normalizePipBackgroundMode(settings.pipBackgroundMode)
@@ -7273,55 +7365,6 @@ struct SettingsView: View {
                 }
             }
 
-            settingsSection(settings.t("section.typography"), description: settings.t("section.typography_desc")) {
-                ForEach(AppSettings.typographySlots) { slot in
-                    settingsCard(slot.label) {
-                        VStack(spacing: 10) {
-                            HStack {
-                                Slider(value: typographySizeBinding(slot), in: 70...160, step: 1, onEditingChanged: { editing in
-                                    if !editing { model.showSavedToast(settings.t("toast.typography_saved")) }
-                                })
-                                Text("\(typographyStyle(slot).sizePercent)%")
-                                    .foregroundStyle(.white.opacity(0.68))
-                            }
-                            Picker(settings.t("field.weight"), selection: typographyWeightBinding(slot)) {
-                                Text(settings.t("typography.weight.regular")).tag(AppSettings.typoWeightRegular)
-                                Text(settings.t("typography.weight.semibold")).tag(AppSettings.typoWeightSemibold)
-                                Text(settings.t("typography.weight.bold")).tag(AppSettings.typoWeightBold)
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                    }
-                }
-            }
-
-            settingsSection(settings.t("section.speaker_colors"), description: settings.t("section.speaker_colors_desc")) {
-                settingsToggleCard(
-                    settings.t("setting.creator_speaker_colors"),
-                    description: settings.t("setting.creator_speaker_colors_desc"),
-                    binding: settingsSavedBinding(\.useSyncCreatorSpeakerColors)
-                )
-                settingsCard(settings.t("section.speaker_colors")) {
-                    VStack(spacing: 12) {
-                        ForEach(AppSettings.speakerColorSlots) { slot in
-                            SpeakerColorRow(slot: slot)
-                                .environmentObject(settings)
-                        }
-                        settingsActionButton(settings.t("button.reset"), role: .destructive) {
-                            settings.resetSpeakerColors()
-                            model.showSavedToast(settings.t("toast.speaker_colors_reset"))
-                        }
-                    }
-                }
-            }
-
-            backgroundSettingsSection
-            trackBackgroundSettingsSection
-        }
-    }
-
-    private var fullscreenSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
             settingsSection(settings.t("vinyl.mode"), description: settings.t("vinyl.settings.subtitle")) {
                 settingsCard(
                     settings.t("vinyl.settings.album_size"),
@@ -7610,7 +7653,7 @@ struct SettingsView: View {
         }
     }
 
-    private var toolsSettingsPage: some View {
+    private var systemSettingsPage: some View {
         VStack(alignment: .leading, spacing: 26) {
             settingsSection(
                 settings.t("creator_privacy.section"),
@@ -7855,7 +7898,7 @@ struct SettingsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.pretendard(23, weight: .bold))
+                .font(.pretendard(18, weight: .bold))
                 .foregroundStyle(.white)
             if !description.trimmed.isEmpty {
                 Text(description)
@@ -7878,7 +7921,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             if !title.trimmed.isEmpty {
                 Text(title)
-                    .font(.pretendard(16, weight: .semibold))
+                    .font(.pretendard(15, weight: .semibold))
                     .foregroundStyle(.white)
             }
             if !description.trimmed.isEmpty {
@@ -7891,14 +7934,14 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func settingsToggleCard(_ title: String, description: String = "", binding: Binding<Bool>) -> some View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 7) {
                 Text(title)
-                    .font(.pretendard(16, weight: .semibold))
+                    .font(.pretendard(15, weight: .semibold))
                     .foregroundStyle(.white)
                 if !description.trimmed.isEmpty {
                     Text(description)
@@ -7913,7 +7956,7 @@ struct SettingsView: View {
                 .fixedSize()
         }
         .padding(16)
-        .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func settingsActionButton(_ title: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
@@ -7923,7 +7966,7 @@ struct SettingsView: View {
                 .foregroundStyle(role == .destructive ? Color(red: 1.0, green: 0.45, blue: 0.48) : .white)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
-                .background(Color.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .background(Color.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -8389,7 +8432,7 @@ private extension View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .frame(minHeight: 48)
-            .background(Color.white.opacity(0.22), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .background(Color.white.opacity(0.22), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
