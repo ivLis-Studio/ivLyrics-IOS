@@ -460,6 +460,11 @@ def ai_release_content(current_tag, previous, ipa, commits, stat_text):
     api_key = os.environ.get("AI_API_KEY", "").strip()
     api_url = normalize_chat_url(os.environ.get("AI_BASE_URL", ""))
     model = os.environ.get("AI_MODEL", "").strip() or "gpt-4o-mini"
+    try:
+        timeout_seconds = int(os.environ.get("AI_TIMEOUT_SECONDS", "300"))
+    except ValueError:
+        timeout_seconds = 300
+    timeout_seconds = min(max(timeout_seconds, 60), 900)
     if not api_key or not api_url:
         return {}
 
@@ -555,7 +560,7 @@ def ai_release_content(current_tag, previous, ipa, commits, stat_text):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             data = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace").strip()

@@ -104,6 +104,7 @@ jobs:
           AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_TIMEOUT_SECONDS: "300"
         run: python3 .github/scripts/generate_release_metadata.py
 
       - name: Upload workflow artifact
