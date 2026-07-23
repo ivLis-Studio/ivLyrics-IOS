@@ -180,6 +180,11 @@ final class AppSettings: ObservableObject {
     @Published var pronunciationEnabled: Bool { didSet { saveDefaultLanguageRuleFromPublished() } }
     @Published var metadataTranslationEnabled: Bool { didSet { set("metadata_translation_enabled", metadataTranslationEnabled) } }
     @Published var japaneseFuriganaEnabled: Bool { didSet { set("japanese_furigana_enabled", japaneseFuriganaEnabled) } }
+    @Published var culturalAnnotationsEnabled: Bool { didSet { set("cultural_annotations_enabled", culturalAnnotationsEnabled) } }
+    @Published var culturalAnnotationsFontFamily: String { didSet { set("cultural_annotations_font_family", Self.normalizeCulturalFontFamily(culturalAnnotationsFontFamily)) } }
+    @Published var culturalAnnotationsFontSize: Int { didSet { set("cultural_annotations_font_size", Self.clampCulturalFontSize(culturalAnnotationsFontSize)) } }
+    @Published var culturalAnnotationsFontWeight: Int { didSet { set("cultural_annotations_font_weight", Self.clampCulturalFontWeight(culturalAnnotationsFontWeight)) } }
+    @Published var culturalAnnotationsOpacity: Int { didSet { set("cultural_annotations_opacity", Self.clampCulturalOpacity(culturalAnnotationsOpacity)) } }
     @Published var apiKeys: String { didSet { set("api_keys", apiKeys) } }
     @Published var pollinationsAccessToken: String { didSet { set("pollinations_access_token", pollinationsAccessToken) } }
     @Published var baseUrl: String { didSet { set("base_url", baseUrl) } }
@@ -253,6 +258,11 @@ final class AppSettings: ObservableObject {
         pronunciationEnabled = ruleConfig.defaultRule.pronunciationEnabled
         metadataTranslationEnabled = defaults.object(forKey: "metadata_translation_enabled") as? Bool ?? true
         japaneseFuriganaEnabled = defaults.object(forKey: "japanese_furigana_enabled") as? Bool ?? false
+        culturalAnnotationsEnabled = defaults.object(forKey: "cultural_annotations_enabled") as? Bool ?? false
+        culturalAnnotationsFontFamily = Self.normalizeCulturalFontFamily(defaults.string(forKey: "cultural_annotations_font_family") ?? "pretendard")
+        culturalAnnotationsFontSize = Self.clampCulturalFontSize(defaults.object(forKey: "cultural_annotations_font_size") as? Int ?? 14)
+        culturalAnnotationsFontWeight = Self.clampCulturalFontWeight(defaults.object(forKey: "cultural_annotations_font_weight") as? Int ?? 300)
+        culturalAnnotationsOpacity = Self.clampCulturalOpacity(defaults.object(forKey: "cultural_annotations_opacity") as? Int ?? 60)
         apiKeys = defaults.string(forKey: "api_keys") ?? ""
         pollinationsAccessToken = defaults.string(forKey: "pollinations_access_token") ?? ""
         baseUrl = defaults.string(forKey: "base_url")?.trimmed.isEmpty == false ? defaults.string(forKey: "base_url")! : provider.defaultBaseUrl
@@ -329,6 +339,11 @@ final class AppSettings: ObservableObject {
             pronunciationEnabled: ruleConfig.defaultRule.pronunciationEnabled,
             metadataTranslationEnabled: metadataTranslationEnabled,
             japaneseFuriganaEnabled: japaneseFuriganaEnabled,
+            culturalAnnotationsEnabled: culturalAnnotationsEnabled,
+            culturalAnnotationsFontFamily: Self.normalizeCulturalFontFamily(culturalAnnotationsFontFamily),
+            culturalAnnotationsFontSize: Self.clampCulturalFontSize(culturalAnnotationsFontSize),
+            culturalAnnotationsFontWeight: Self.clampCulturalFontWeight(culturalAnnotationsFontWeight),
+            culturalAnnotationsOpacity: Self.clampCulturalOpacity(culturalAnnotationsOpacity),
             apiKeys: apiKeys,
             pollinationsAccessToken: pollinationsAccessToken,
             baseUrl: baseUrl,
@@ -1070,6 +1085,25 @@ final class AppSettings: ObservableObject {
         min(250, max(50, value))
     }
 
+    static func normalizeCulturalFontFamily(_ value: String?) -> String {
+        let normalized = (value ?? "").trimmed.lowercased()
+        return ["pretendard", "system", "serif", "monospace"].contains(normalized)
+            ? normalized
+            : "pretendard"
+    }
+
+    static func clampCulturalFontSize(_ value: Int) -> Int {
+        min(28, max(10, value))
+    }
+
+    static func clampCulturalFontWeight(_ value: Int) -> Int {
+        min(900, max(100, Int((Double(value) / 100).rounded()) * 100))
+    }
+
+    static func clampCulturalOpacity(_ value: Int) -> Int {
+        min(100, max(20, value))
+    }
+
     static func autoTargetLanguage() -> String {
         let identifier = Locale.current.identifier
         if identifier.lowercased().hasPrefix("zh") {
@@ -1268,6 +1302,11 @@ final class AppSettings: ObservableObject {
         var pronunciationEnabled: Bool
         var metadataTranslationEnabled: Bool
         var japaneseFuriganaEnabled: Bool
+        var culturalAnnotationsEnabled: Bool
+        var culturalAnnotationsFontFamily: String
+        var culturalAnnotationsFontSize: Int
+        var culturalAnnotationsFontWeight: Int
+        var culturalAnnotationsOpacity: Int
         var apiKeys: String
         var pollinationsAccessToken: String
         var baseUrl: String

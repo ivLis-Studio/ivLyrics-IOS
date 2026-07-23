@@ -252,6 +252,23 @@ struct LyricsMetaMenuOverlay: View {
                     isOn: selectedRulePronunciationBinding
                 )
             }
+
+            if settings.culturalAnnotationsEnabled {
+                Button {
+                    model.regenerateCulturalAnnotations()
+                    dismiss()
+                } label: {
+                    Label(
+                        settings.t("button.regenerate_cultural_annotations"),
+                        systemImage: "arrow.clockwise"
+                    )
+                    .font(.pretendard(13, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 

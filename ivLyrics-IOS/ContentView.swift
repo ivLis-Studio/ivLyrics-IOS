@@ -1524,8 +1524,14 @@ private struct LyricsPageOverlay: View {
                     .contentShape(Rectangle())
                     .gesture(dismissDragGesture)
 
+                if model.culturalAnnotationsLoading {
+                    CulturalAnnotationLoadingPill()
+                        .padding(.top, 8)
+                        .padding(.horizontal, 24)
+                }
+
                 LyricsTimelineScrollView(
-                    topPadding: 16,
+                    topPadding: model.culturalAnnotationsLoading ? 10 : 16,
                     bottomPadding: safeAreaBottom + 28,
                     horizontalPadding: 24,
                     centerAnchorY: 0.42
@@ -2433,6 +2439,8 @@ private struct LandscapeCommandBar: View {
 }
 
 private struct LandscapeLyricsPane: View {
+    @EnvironmentObject private var model: AppViewModel
+
     var body: some View {
         LyricsTimelineScrollView(
             topPadding: 6,
@@ -2446,6 +2454,34 @@ private struct LandscapeLyricsPane: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
         }
+        .overlay(alignment: .topTrailing) {
+            if model.culturalAnnotationsLoading {
+                CulturalAnnotationLoadingPill()
+                    .padding(.top, 8)
+                    .padding(.trailing, 12)
+            }
+        }
+    }
+}
+
+private struct CulturalAnnotationLoadingPill: View {
+    @EnvironmentObject private var model: AppViewModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(.white)
+            Text(model.culturalAnnotationsLoadingText)
+                .font(.pretendard(12, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white.opacity(0.84))
+        .padding(.horizontal, 12)
+        .frame(height: 34)
+        .background(.black.opacity(0.34), in: Capsule())
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .allowsHitTesting(false)
     }
 }
 
@@ -3928,10 +3964,18 @@ struct LyricsTimelineView: View {
                         switch item {
                         case .line(let index, let line, _):
                             let lineActive = itemActive || (activeItemID == nil && index == model.activeLineIndex)
+                            let originalText = model.displayText(for: line)
                             LyricsLineView(
                                 lineIndex: index,
                                 line: line,
-                                originalText: model.displayText(for: line),
+                                originalText: originalText,
+                                culturalAnnotations: settings.culturalAnnotationsEnabled
+                                    ? CulturalAnnotation.forLine(
+                                        model.culturalAnnotations,
+                                        lineIndex: index,
+                                        text: originalText
+                                    )
+                                    : [],
                                 active: lineActive,
                                 displayDistance: displayDistance,
                                 progress: lineActive ? model.progress(for: line) : 0,
@@ -4903,6 +4947,7 @@ struct LyricsLineView: View, Equatable {
     var lineIndex: Int
     var line: LyricsLine
     var originalText: String
+    var culturalAnnotations: [CulturalAnnotation] = []
     var active: Bool
     var displayDistance: Double
     var progress: Double
@@ -4919,6 +4964,7 @@ struct LyricsLineView: View, Equatable {
         lhs.lineIndex == rhs.lineIndex
             && lhs.line == rhs.line
             && lhs.originalText == rhs.originalText
+            && lhs.culturalAnnotations == rhs.culturalAnnotations
             && lhs.active == rhs.active
             && lhs.displayDistance == rhs.displayDistance
             && lhs.progress == rhs.progress
@@ -4957,6 +5003,13 @@ struct LyricsLineView: View, Equatable {
                     .multilineTextAlignment(textAlignment)
             } else if !useVocalPartSupplements, translationLoading {
                 supplementReserveText(LyricsTimelineDisplayBuilder.supplementPlaceholderText(line), slotId: AppSettings.typoLyricsTranslation, baseSize: 14)
+            }
+            ForEach(Array(culturalAnnotations.enumerated()), id: \.element.id) { index, annotation in
+                Text("\(index + 1). \(annotation.note)")
+                    .font(culturalAnnotationFont)
+                    .foregroundStyle(.white.opacity(Double(settings.culturalAnnotationsOpacity) / 100))
+                    .multilineTextAlignment(textAlignment)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: frameAlignment)
@@ -5000,6 +5053,7 @@ struct LyricsLineView: View, Equatable {
                             text: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part),
                             rubyText: settings.japaneseFuriganaEnabled ? part.furiganaText : "",
                             syllables: shouldRenderTimedKaraoke ? part.syllables : [],
+                            culturalAnnotations: culturalAnnotations,
                             startTimeMs: part.startTimeMs,
                             endTimeMs: part.endTimeMs,
                             positionMs: positionMs,
@@ -5025,6 +5079,7 @@ struct LyricsLineView: View, Equatable {
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: line.syllables,
+                culturalAnnotations: culturalAnnotations,
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
@@ -5041,6 +5096,7 @@ struct LyricsLineView: View, Equatable {
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: [],
+                culturalAnnotations: culturalAnnotations,
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
@@ -5058,6 +5114,7 @@ struct LyricsLineView: View, Equatable {
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: [],
+                culturalAnnotations: culturalAnnotations,
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
@@ -5115,6 +5172,34 @@ struct LyricsLineView: View, Equatable {
 
     private func hasTimedSyllables(_ syllables: [LyricsLine.Syllable]) -> Bool {
         syllables.contains { $0.endTimeMs > $0.startTimeMs }
+    }
+
+    private var culturalAnnotationFont: Font {
+        let size = CGFloat(AppSettings.clampCulturalFontSize(settings.culturalAnnotationsFontSize))
+        let weight = culturalAnnotationFontWeight
+        switch AppSettings.normalizeCulturalFontFamily(settings.culturalAnnotationsFontFamily) {
+        case "system":
+            return .system(size: size, weight: weight)
+        case "serif":
+            return .system(size: size, weight: weight, design: .serif)
+        case "monospace":
+            return .system(size: size, weight: weight, design: .monospaced)
+        default:
+            return .custom("Pretendard-Regular", size: size).weight(weight)
+        }
+    }
+
+    private var culturalAnnotationFontWeight: Font.Weight {
+        switch AppSettings.clampCulturalFontWeight(settings.culturalAnnotationsFontWeight) {
+        case ...200: return .ultraLight
+        case 300: return .light
+        case 400: return .regular
+        case 500: return .medium
+        case 600: return .semibold
+        case 700: return .bold
+        case 800: return .heavy
+        default: return .black
+        }
     }
 
     private var lineActiveColor: Color {
@@ -5186,6 +5271,7 @@ struct SyllableKaraokeText: View {
     var text: String
     var rubyText: String = ""
     var syllables: [LyricsLine.Syllable]
+    var culturalAnnotations: [CulturalAnnotation] = []
     var startTimeMs: Int64
     var endTimeMs: Int64
     var positionMs: Int64
@@ -5216,7 +5302,10 @@ struct SyllableKaraokeText: View {
         let segments = karaokeSegments
         Group {
             if segments.isEmpty {
-                Text(text.isEmpty ? " " : text)
+                Text(CulturalAnnotation.annotateText(
+                    text.isEmpty ? " " : text,
+                    annotations: culturalAnnotations
+                ))
                     .foregroundStyle(fallbackColor)
                     .multilineTextAlignment(alignment)
                     .modifier(LyricGlyphEffectModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, segmentIndex: 0, rowSeed: effectRowSeed, color: activeColor))
@@ -5242,7 +5331,12 @@ struct SyllableKaraokeText: View {
 
     private var karaokeSegments: [KaraokeSyllableSegment] {
         let annotations = rubyAnnotations
-        let displaySyllables = effectiveSyllables
+        let sourceSyllables = effectiveSyllables
+        let displaySyllables = CulturalAnnotation.annotateSyllables(
+            text: text,
+            syllables: sourceSyllables,
+            annotations: culturalAnnotations
+        )
         let bounceActiveIndex = bounceEnabled && active && !displaySyllables.isEmpty
             ? activeSegmentIndex(in: displaySyllables)
             : nil
@@ -5250,7 +5344,9 @@ struct SyllableKaraokeText: View {
         timedSegments.reserveCapacity(displaySyllables.count)
         var sourceOffset = 0
         for (index, syllable) in displaySyllables.enumerated() {
-            let sourceLength = syllable.text.count
+            let sourceLength = sourceSyllables.indices.contains(index)
+                ? sourceSyllables[index].text.count
+                : syllable.text.count
             defer { sourceOffset += sourceLength }
             guard !syllable.text.isEmpty else { continue }
             let bounce = karaokeBounce(for: syllable, index: index, activeIndex: bounceActiveIndex)
@@ -5269,7 +5365,7 @@ struct SyllableKaraokeText: View {
         if !timedSegments.isEmpty {
             return timedSegments
         }
-        return untimedRubySegments(annotations: annotations)
+        return addingCulturalMarkers(to: untimedRubySegments(annotations: annotations))
     }
 
     private func untimedRubySegments(annotations: [FuriganaRepository.RubyAnnotation]) -> [KaraokeSyllableSegment] {
@@ -5316,6 +5412,39 @@ struct SyllableKaraokeText: View {
             }
         }
         return result
+    }
+
+    private func addingCulturalMarkers(
+        to segments: [KaraokeSyllableSegment]
+    ) -> [KaraokeSyllableSegment] {
+        let markers = CulturalAnnotation.markerInsertions(
+            in: text,
+            annotations: culturalAnnotations
+        )
+        guard !markers.isEmpty, !segments.isEmpty else { return segments }
+        var markerIndex = 0
+        var sourceOffset = 0
+        return segments.map { sourceSegment in
+            var segment = sourceSegment
+            let endOffset = sourceOffset + sourceSegment.text.count
+            var localMarkers: [CulturalAnnotation.MarkerInsertion] = []
+            while markerIndex < markers.count, markers[markerIndex].offset <= endOffset {
+                let marker = markers[markerIndex]
+                markerIndex += 1
+                if marker.offset > sourceOffset {
+                    localMarkers.append(marker)
+                }
+            }
+            for marker in localMarkers.reversed() {
+                let index = segment.text.index(
+                    segment.text.startIndex,
+                    offsetBy: marker.offset - sourceOffset
+                )
+                segment.text.insert(contentsOf: "[\(marker.number)]", at: index)
+            }
+            sourceOffset = endOffset
+            return segment
+        }
     }
 
     private var rubyAnnotations: [FuriganaRepository.RubyAnnotation] {
@@ -7541,6 +7670,46 @@ struct SettingsView: View {
                     .labelsHidden()
                     .settingsMenuSurface()
                 }
+                settingsToggleCard(
+                    settings.t("setting.cultural_annotations"),
+                    description: settings.t("setting.cultural_annotations_desc"),
+                    binding: culturalAnnotationsEnabledBinding
+                )
+                if settings.culturalAnnotationsEnabled {
+                    settingsCard(settings.t("setting.cultural_font_family")) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Picker("", selection: $settings.culturalAnnotationsFontFamily) {
+                                Text(settings.t("font.pretendard")).tag("pretendard")
+                                Text(settings.t("font.system")).tag("system")
+                                Text(settings.t("font.serif")).tag("serif")
+                                Text(settings.t("font.monospace")).tag("monospace")
+                            }
+                            .labelsHidden()
+                            .settingsMenuSurface()
+
+                            culturalAnnotationSlider(
+                                title: settings.t("setting.cultural_font_size"),
+                                value: culturalAnnotationFontSizeBinding,
+                                range: 10...28,
+                                valueText: "\(settings.culturalAnnotationsFontSize)px"
+                            )
+                            culturalAnnotationSlider(
+                                title: settings.t("setting.cultural_font_weight"),
+                                value: culturalAnnotationFontWeightBinding,
+                                range: 100...900,
+                                step: 100,
+                                valueText: "\(settings.culturalAnnotationsFontWeight)"
+                            )
+                            culturalAnnotationSlider(
+                                title: settings.t("setting.cultural_opacity"),
+                                value: culturalAnnotationOpacityBinding,
+                                range: 20...100,
+                                step: 5,
+                                valueText: "\(settings.culturalAnnotationsOpacity)%"
+                            )
+                        }
+                    }
+                }
                 if let url = URL(string: selectedProvider.apiKeyURL), !selectedProvider.apiKeyURL.trimmed.isEmpty {
                     Link(settings.t("button.get_key"), destination: url)
                         .font(.pretendard(15, weight: .semibold))
@@ -7992,6 +8161,26 @@ struct SettingsView: View {
             .textFieldStyle(PlayerTextFieldStyle())
     }
 
+    private func culturalAnnotationSlider(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double = 1,
+        valueText: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(title)
+                    .font(.pretendard(13, weight: .semibold))
+                Spacer()
+                Text(valueText)
+                    .font(.pretendard(12))
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+            Slider(value: value, in: range, step: step)
+        }
+    }
+
     private var effectiveRuleSourceLang: String {
         model.effectiveSelectedRuleSourceLang
     }
@@ -8067,6 +8256,37 @@ struct SettingsView: View {
                 settings.setProvider(value)
                 model.showSavedToast(settings.t("toast.provider_saved"))
             }
+        )
+    }
+
+    private var culturalAnnotationsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.culturalAnnotationsEnabled },
+            set: { enabled in
+                settings.culturalAnnotationsEnabled = enabled
+                model.culturalAnnotationsSettingChanged(enabled: enabled)
+            }
+        )
+    }
+
+    private var culturalAnnotationFontSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.culturalAnnotationsFontSize) },
+            set: { settings.culturalAnnotationsFontSize = AppSettings.clampCulturalFontSize(Int($0.rounded())) }
+        )
+    }
+
+    private var culturalAnnotationFontWeightBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.culturalAnnotationsFontWeight) },
+            set: { settings.culturalAnnotationsFontWeight = AppSettings.clampCulturalFontWeight(Int($0.rounded())) }
+        )
+    }
+
+    private var culturalAnnotationOpacityBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.culturalAnnotationsOpacity) },
+            set: { settings.culturalAnnotationsOpacity = AppSettings.clampCulturalOpacity(Int($0.rounded())) }
         )
     }
 

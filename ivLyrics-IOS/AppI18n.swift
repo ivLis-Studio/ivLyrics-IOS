@@ -589,6 +589,9 @@ enum AppI18n {
 
     static func t(_ lang: String?, _ key: String) -> String {
         let normalized = normalize(lang)
+        if let value = nonBlank(CulturalAnnotationI18n.value(language: normalized, key: key)) {
+            return value
+        }
         if iosOverrideKeys.contains(key) {
             if let value = nonBlank(extraStrings[normalized]?[key]) {
                 return value

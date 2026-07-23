@@ -77,6 +77,8 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var creatorPrivacyRequestInFlight = false
     @Published private(set) var creatorPrivacyLoginInProgress = false
     @Published private(set) var aiLyricsGenerating = false
+    @Published private(set) var culturalAnnotations: [CulturalAnnotation] = []
+    @Published private(set) var culturalAnnotationsLoading = false
     @Published private(set) var lyricsLoadingProviderName = ""
     @Published private(set) var lyricsSupplementPronunciationLoading = false
     @Published private(set) var lyricsSupplementTranslationLoading = false
@@ -114,6 +116,10 @@ final class AppViewModel: ObservableObject {
             formatKey: "status.ai_generating_provider_format",
             fallbackKey: "status.ai_generating"
         )
+    }
+
+    var culturalAnnotationsLoadingText: String {
+        settings.t("loading.cultural_annotations")
     }
 
     var tmiLoadingText: String {
@@ -187,6 +193,8 @@ final class AppViewModel: ObservableObject {
     private let pollinationsAuthClient = PollinationsAuthClient()
     private let creatorAccountClient = CreatorAccountClient()
     private let updateChecker = UpdateChecker()
+    private var culturalAnnotationTask: Task<Void, Never>?
+    private var culturalAnnotationRequestKey = ""
     private let creatorProfileEndpoint = "https://lyrics.api.ivl.is/user/creator-profile"
     private let syncDataSpotifyOrigin = "https://xpui.app.spotify.com"
     private let syncDataSpotifyReferer = "https://xpui.app.spotify.com/"
@@ -1402,6 +1410,9 @@ final class AppViewModel: ObservableObject {
             showSavedToast(settings.t("toast.current_track_missing"))
             return
         }
+        culturalAnnotationTask?.cancel()
+        culturalAnnotations = []
+        culturalAnnotationsLoading = false
         furiganaRepository.clearTrackCache(track.stableKey)
         let cacheIsrc = IvLyricsUtilities.firstNonEmpty(baseLyricsResult.isrc, lyricsResult.isrc, track.isrc)
         Task { @MainActor [weak self] in
@@ -1417,6 +1428,9 @@ final class AppViewModel: ObservableObject {
     }
 
     func clearAllCaches() {
+        culturalAnnotationTask?.cancel()
+        culturalAnnotations = []
+        culturalAnnotationsLoading = false
         furiganaRepository.clearCache()
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -1430,6 +1444,9 @@ final class AppViewModel: ObservableObject {
     }
 
     func clearAiCaches() {
+        culturalAnnotationTask?.cancel()
+        culturalAnnotations = []
+        culturalAnnotationsLoading = false
         furiganaRepository.clearCache()
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -1473,6 +1490,37 @@ final class AppViewModel: ObservableObject {
             return
         }
         requestMetadataTranslation(track: track, base: baseLyricsResult, bypassCache: true)
+    }
+
+    func culturalAnnotationsSettingChanged(enabled: Bool) {
+        culturalAnnotationTask?.cancel()
+        culturalAnnotationTask = nil
+        culturalAnnotationRequestKey = ""
+        culturalAnnotations = []
+        culturalAnnotationsLoading = false
+        guard enabled else { return }
+        regenerateCulturalAnnotations()
+    }
+
+    func regenerateCulturalAnnotations() {
+        culturalAnnotationTask?.cancel()
+        culturalAnnotationRequestKey = ""
+        culturalAnnotations = []
+        culturalAnnotationsLoading = false
+        guard settings.culturalAnnotationsEnabled,
+              let track = currentTrack,
+              !baseLyricsResult.lines.isEmpty else {
+            return
+        }
+        let base = baseLyricsResult
+        culturalAnnotationTask = Task { [weak self] in
+            guard let self else { return }
+            await self.loadCulturalAnnotationsIfNeeded(
+                track: track,
+                base: base,
+                bypassCache: true
+            )
+        }
     }
 
     func japaneseFuriganaSettingChanged(enabled: Bool) {
@@ -2292,8 +2340,51 @@ final class AppViewModel: ObservableObject {
     private func applyLyricsSupplements(track: TrackSnapshot, base: LyricsResult, bypassCache: Bool) async -> LyricsResult {
         async let aiResult = applySupplements(track: track, base: base, bypassCache: bypassCache)
         async let furiganaResult = loadFuriganaIfNeeded(track: track, base: base, bypassCache: bypassCache)
-        let (supplemented, furigana) = await (aiResult, furiganaResult)
+        async let culturalResult: Void = loadCulturalAnnotationsIfNeeded(
+            track: track,
+            base: base,
+            bypassCache: bypassCache
+        )
+        let (supplemented, furigana, _) = await (aiResult, furiganaResult, culturalResult)
         return mergeFuriganaIntoResult(supplemented, furiganaSource: furigana)
+    }
+
+    private func loadCulturalAnnotationsIfNeeded(
+        track: TrackSnapshot,
+        base: LyricsResult,
+        bypassCache: Bool
+    ) async {
+        let snapshot = settings.snapshot
+        guard snapshot.culturalAnnotationsEnabled,
+              !base.lines.isEmpty,
+              snapshot.hasApiKey,
+              !snapshot.model.trimmed.isEmpty else {
+            culturalAnnotationRequestKey = ""
+            culturalAnnotations = []
+            culturalAnnotationsLoading = false
+            return
+        }
+        let trackKey = track.stableKey
+        let sourceLang = effectiveSelectedSourceLang(lines: base.lines)
+        let requestToken = UUID().uuidString
+        culturalAnnotationRequestKey = requestToken
+        culturalAnnotationsLoading = true
+        let response = await aiRepository.loadCulturalAnnotations(
+            track: track,
+            baseResult: base,
+            settings: snapshot,
+            sourceLangOverride: sourceLang,
+            bypassCache: bypassCache
+        )
+        if Task.isCancelled { return }
+        appendLogs(response.logs)
+        guard currentTrack?.stableKey == trackKey,
+              culturalAnnotationRequestKey == requestToken,
+              settings.culturalAnnotationsEnabled else {
+            return
+        }
+        culturalAnnotations = response.annotations
+        culturalAnnotationsLoading = false
     }
 
     private func applySupplements(track: TrackSnapshot, base: LyricsResult, bypassCache: Bool) async -> LyricsResult {
@@ -2504,6 +2595,11 @@ final class AppViewModel: ObservableObject {
         lyricsLoadRequestID = UUID()
         loadTask?.cancel()
         loadTask = nil
+        culturalAnnotationTask?.cancel()
+        culturalAnnotationTask = nil
+        culturalAnnotationRequestKey = ""
+        culturalAnnotations = []
+        culturalAnnotationsLoading = false
         metadataTranslationTask?.cancel()
         metadataTranslationTask = nil
         furiganaRefreshTask?.cancel()
