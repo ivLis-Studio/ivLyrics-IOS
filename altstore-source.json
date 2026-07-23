@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.1.3",
+          "buildVersion": "27",
+          "date": "2026-07-23",
+          "localizedDescription": "v1.1.3은 AI 기반 문화적 맥락 주석을 추가하고, LP 모드와 설정에서 이를 활용할 수 있도록 확장했습니다. Spotify DJ 전환 중 가사 동기화를 개선했으며, 가사 로딩 상태, 일본어 줄바꿈, LP 애니메이션, 설정 탐색 및 번역도 다듬었습니다. 또한 릴리스 메타데이터와 자동화 도구를 정비했습니다.\n\nv1.1.3 adds AI-powered cultural-context annotations and extends them into LP Mode and Settings. It also improves lyric synchronization through Spotify DJ transitions, lyric loading feedback, Japanese line wrapping, LP animations, Settings navigation, and translations. Release metadata and automation tooling were updated as well.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.3/ivLyrics-IOS-v1.1.3-unsigned.ipa",
+          "size": 6849227,
+          "sha256": "cc347a031b788d06e6c57391059ec0a7fb3ed950aa880a296f48b3556a5c153a",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.2",
           "buildVersion": "26",
           "date": "2026-07-23",
