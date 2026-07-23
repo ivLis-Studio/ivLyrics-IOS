@@ -225,6 +225,9 @@ final class AppViewModel: ObservableObject {
     private var lastSeekCommandUptimeMs: Int64 = 0
     private var lastSeekCommandPositionMs: Int64 = -1
     private var spotifyPlaybackInteractionGuard = SpotifyPlaybackInteractionGuard()
+    private var spotifyDJLyricsTimeline = SpotifyDJLyricsTimeline()
+    private var spotifyDJLyricsOffsetMs: Int64 = 0
+    private var currentSpotifyDJContext = false
     private var automaticUpdateCheckStarted = false
     private let defaults = UserDefaults.standard
     private let keyLastAutoUpdateCheckMs = "last_auto_update_check_ms"
@@ -428,11 +431,17 @@ final class AppViewModel: ObservableObject {
     }
 
     var adjustedPositionMs: Int64 {
-        let adjusted = nowPositionMs + Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
-        if durationMs > 0 {
-            return max(0, min(durationMs, adjusted))
+        let adjusted = nowPositionMs
+            + spotifyDJLyricsOffsetMs
+            + Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
+        if lyricsDurationMs > 0 {
+            return max(0, min(lyricsDurationMs, adjusted))
         }
         return max(0, adjusted)
+    }
+
+    var lyricsDurationMs: Int64 {
+        durationMs > 0 ? durationMs + spotifyDJLyricsOffsetMs : 0
     }
 
     var firstLyricTimeMs: Int64 {
@@ -521,6 +530,7 @@ final class AppViewModel: ObservableObject {
             positionMs: 0,
             playing: false
         )
+        resetSpotifyDJLyricsTimeline()
         currentTrack = track
         nowPositionMs = 0
         selectedRuleSourceLang = "auto"
@@ -581,6 +591,7 @@ final class AppViewModel: ObservableObject {
                     playing: false,
                     artworkURL: resolved.artworkURL
                 )
+                resetSpotifyDJLyricsTimeline()
                 currentTrack = track
                 nowPositionMs = 0
                 selectedRuleSourceLang = "auto"
@@ -752,6 +763,7 @@ final class AppViewModel: ObservableObject {
         spotifyLivePolling = false
         spotifyAppRemoteConnected = false
         spotifyPlaybackInteractionGuard.reset()
+        resetSpotifyDJLyricsTimeline()
         spotifyAppRemotePlaybackService.stop()
         appendLog("spotify live: polling stopped")
     }
@@ -1189,7 +1201,9 @@ final class AppViewModel: ObservableObject {
     func seek(toLyricsTimeMs lyricsTimeMs: Int64) {
         guard var track = currentTrack else { return }
         let duration = max(0, track.durationMs)
-        let target = lyricsTimeMs - Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
+        let target = lyricsTimeMs
+            - spotifyDJLyricsOffsetMs
+            - Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
         let position = duration > 0 ? max(0, min(duration, target)) : max(0, target)
         seekPlayer(to: position, track: &track)
         lyricsFocusRequestRevision &+= 1
@@ -2198,7 +2212,8 @@ final class AppViewModel: ObservableObject {
                     progressMs: progress,
                     playing: playback.playing,
                     fetchedAt: Date(),
-                    deviceName: playback.deviceName
+                    deviceName: playback.deviceName,
+                    spotifyDJContext: playback.spotifyDJContext
                 ),
                 loadLyricsIfNeeded: false
             )
@@ -2211,10 +2226,11 @@ final class AppViewModel: ObservableObject {
             return
         }
 #endif
+        let uptime = ProcessInfo.processInfo.systemUptime
         let playback = spotifyPlaybackInteractionGuard.reconcile(
             playback,
             currentTrack: currentTrack,
-            uptime: ProcessInfo.processInfo.systemUptime
+            uptime: uptime
         )
         let incoming = playback.track
         let incomingKey = incoming.stableKey
@@ -2226,6 +2242,13 @@ final class AppViewModel: ObservableObject {
         inputSpotifyId = incoming.trackId
         inputIsrc = incoming.isrc
         inputDuration = formatDurationInput(incoming.durationMs)
+        currentSpotifyDJContext = playback.spotifyDJContext
+        updateSpotifyDJLyricsTimeline(
+            track: incoming,
+            playerPositionMs: playback.progressMs,
+            spotifyDJContext: playback.spotifyDJContext,
+            uptime: uptime
+        )
         currentTrack = incoming
         nowPositionMs = playback.progressMs
         let nextTrackOffsetMs = settings.trackSyncOffsetMs(incomingKey)
@@ -2884,7 +2907,16 @@ final class AppViewModel: ObservableObject {
         let playbackTimer = Timer(timeInterval: Self.playbackClockInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                let position = self.currentTrack?.positionNow() ?? 0
+                let uptime = ProcessInfo.processInfo.systemUptime
+                let position = self.currentTrack?.positionNow(uptime: uptime) ?? 0
+                if let track = self.currentTrack {
+                    self.updateSpotifyDJLyricsTimeline(
+                        track: track,
+                        playerPositionMs: position,
+                        spotifyDJContext: self.currentSpotifyDJContext,
+                        uptime: uptime
+                    )
+                }
                 let positionChanged = position != self.nowPositionMs
                 if positionChanged {
                     self.nowPositionMs = position
@@ -2895,6 +2927,39 @@ final class AppViewModel: ObservableObject {
         playbackTimer.tolerance = Self.playbackClockTolerance
         RunLoop.main.add(playbackTimer, forMode: .common)
         timer = playbackTimer
+    }
+
+    private func updateSpotifyDJLyricsTimeline(
+        track: TrackSnapshot,
+        playerPositionMs: Int64,
+        spotifyDJContext: Bool,
+        uptime: TimeInterval
+    ) {
+        let previousOffsetMs = spotifyDJLyricsOffsetMs
+        let lyricsPositionMs = spotifyDJLyricsTimeline.update(
+            trackKey: track.stableKey,
+            playerPositionMs: playerPositionMs,
+            playing: track.playing,
+            spotifyDJContext: spotifyDJContext,
+            spotifyDJSegment: Self.isSpotifyDJSegment(track),
+            uptime: uptime
+        )
+        spotifyDJLyricsOffsetMs = max(0, lyricsPositionMs - playerPositionMs)
+        if spotifyDJLyricsOffsetMs > 0, spotifyDJLyricsOffsetMs != previousOffsetMs {
+            appendLog("spotify DJ: lyrics timeline corrected by \(spotifyDJLyricsOffsetMs)ms")
+        }
+    }
+
+    private func resetSpotifyDJLyricsTimeline() {
+        spotifyDJLyricsTimeline.reset()
+        spotifyDJLyricsOffsetMs = 0
+        currentSpotifyDJContext = false
+    }
+
+    private static func isSpotifyDJSegment(_ track: TrackSnapshot) -> Bool {
+        guard track.artist.trimmed.lowercased() == "dj x" else { return false }
+        let title = track.title.trimmed.lowercased()
+        return title == "welcome" || title == "up next"
     }
 
     private func updatePictureInPictureState(force: Bool = false) {

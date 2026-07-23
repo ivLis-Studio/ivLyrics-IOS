@@ -686,11 +686,40 @@ struct SpotifyResolvedTrack: Equatable, Sendable {
 }
 
 struct SpotifyPlaybackSnapshot: Equatable, Sendable {
+    private static let spotifyDJPlaylistID = "37i9dQZF1EYkqdzj48dyYq"
+
     var track: TrackSnapshot
     var progressMs: Int64
     var playing: Bool
     var fetchedAt: Date
     var deviceName: String
+    var spotifyDJContext: Bool
+
+    init(
+        track: TrackSnapshot,
+        progressMs: Int64,
+        playing: Bool,
+        fetchedAt: Date,
+        deviceName: String,
+        spotifyDJContext: Bool = false
+    ) {
+        self.track = track
+        self.progressMs = max(0, progressMs)
+        self.playing = playing
+        self.fetchedAt = fetchedAt
+        self.deviceName = deviceName
+        self.spotifyDJContext = spotifyDJContext
+    }
+
+    static func detectsSpotifyDJContext(title: String, uri: String) -> Bool {
+        let normalizedTitle = title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if normalizedTitle == "dj" || normalizedTitle == "spotify dj" {
+            return true
+        }
+        return uri.range(of: spotifyDJPlaylistID, options: .caseInsensitive) != nil
+    }
 }
 
 struct SpotifyPlaybackInteractionGuard {
@@ -793,7 +822,8 @@ struct SpotifyPlaybackInteractionGuard {
             progressMs: positionMs,
             playing: playing,
             fetchedAt: snapshot.fetchedAt,
-            deviceName: snapshot.deviceName
+            deviceName: snapshot.deviceName,
+            spotifyDJContext: snapshot.spotifyDJContext
         )
     }
 }

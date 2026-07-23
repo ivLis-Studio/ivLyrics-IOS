@@ -256,6 +256,8 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
         let duration = Int64(track.duration)
         let position = Int64(playerState.playbackPosition)
         let playing = !playerState.isPaused
+        let contextTitle = playerState.contextTitle.trimmed
+        let contextURI = playerState.contextURI.absoluteString
         let snapshotTrack = TrackSnapshot(
             title: title,
             artist: artist,
@@ -273,7 +275,11 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
             progressMs: position,
             playing: playing,
             fetchedAt: Date(),
-            deviceName: "Spotify App Remote"
+            deviceName: "Spotify App Remote",
+            spotifyDJContext: SpotifyPlaybackSnapshot.detectsSpotifyDJContext(
+                title: contextTitle,
+                uri: contextURI
+            )
         )
     }
 

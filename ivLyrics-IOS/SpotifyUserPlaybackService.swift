@@ -186,7 +186,19 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
         let progress = int64Value(root["progress_ms"])
         let playing = boolValue(root["is_playing"])
         let device = (root["device"] as? [String: Any])?["name"] as? String ?? ""
-        return SpotifyPlaybackSnapshot(track: track.withPlayback(positionMs: progress, playing: playing), progressMs: progress, playing: playing, fetchedAt: Date(), deviceName: device)
+        let context = root["context"] as? [String: Any]
+        let contextURI = context?["uri"] as? String ?? ""
+        return SpotifyPlaybackSnapshot(
+            track: track.withPlayback(positionMs: progress, playing: playing),
+            progressMs: progress,
+            playing: playing,
+            fetchedAt: Date(),
+            deviceName: device,
+            spotifyDJContext: SpotifyPlaybackSnapshot.detectsSpotifyDJContext(
+                title: "",
+                uri: contextURI
+            )
+        )
     }
 
     func setPlayback(playing: Bool, clientId: String) async throws {

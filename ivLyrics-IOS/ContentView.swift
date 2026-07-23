@@ -3097,7 +3097,7 @@ struct MainLyricPreviewPanel: View {
         guard let entry = LyricsTimelineDisplayBuilder.previewItem(
             context: model.timelineContext,
             positionMs: model.adjustedPositionMs,
-            trackDurationMs: model.durationMs,
+            trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
         ) else {
             return [MainLyricPreviewRow(text: settings.t("status.lyrics_waiting"), primary: true)]
@@ -3971,13 +3971,13 @@ struct LyricsTimelineView: View {
         let items = LyricsTimelineDisplayBuilder.items(
             context: timelineContext,
             positionMs: position,
-            trackDurationMs: model.durationMs,
+            trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
         )
         let activeItemID = LyricsTimelineDisplayBuilder.previewItem(
             context: timelineContext,
             positionMs: position,
-            trackDurationMs: model.durationMs,
+            trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
         )?.id
         let activeDisplayIndex = activeItemID.flatMap { id in
@@ -4248,7 +4248,7 @@ private struct LyricsTimelineScrollView: View {
         LyricsTimelineDisplayBuilder.scrollTargetID(
             context: model.timelineContext,
             positionMs: model.adjustedPositionMs,
-            trackDurationMs: model.durationMs,
+            trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled,
             vocalPartAnchorsEnabled: !settings.karaokeDataAsLineSynced
         )
