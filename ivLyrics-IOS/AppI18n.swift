@@ -38,7 +38,10 @@ enum AppI18n {
 
     private static let iosOverrideKeys: Set<String> = [
         "spotify.step3.desc",
-        "spotify.step4.desc"
+        "spotify.step4.title",
+        "spotify.step4.desc",
+        "spotify.step5.title",
+        "spotify.step5.desc"
     ]
 
     private static let sharedFallbackKeys: [String: String] = [
@@ -593,6 +596,9 @@ enum AppI18n {
             return value
         }
         if iosOverrideKeys.contains(key) {
+            if let value = nonBlank(androidStrings[normalized]?[key]) {
+                return value
+            }
             if let value = nonBlank(extraStrings[normalized]?[key]) {
                 return value
             }

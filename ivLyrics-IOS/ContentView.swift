@@ -7444,7 +7444,10 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                 }
                 ForEach(AppSettings.typographySlots) { slot in
-                    settingsCard(slot.label) {
+                    settingsCard(
+                        settings.t("typography.slot.\(slot.id)"),
+                        description: settings.t("typography.slot.\(slot.id)_desc")
+                    ) {
                         VStack(spacing: 10) {
                             HStack {
                                 Slider(value: typographySizeBinding(slot), in: 70...160, step: 1, onEditingChanged: { editing in
@@ -8614,7 +8617,7 @@ struct SettingsView: View {
 
     private var selectedRuleSourceLabel: String {
         if model.selectedRuleSourceLang == "auto" {
-            return "auto(\(model.effectiveDetectedLyricsSourceLang))"
+            return "\(settings.t("label.auto")) (\(model.effectiveDetectedLyricsSourceLang))"
         }
         let language = AppSettings.languageInfo(effectiveRuleSourceLang)
         return "\(language.nativeName) · \(language.name)"
