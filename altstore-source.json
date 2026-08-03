@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.1.5",
+          "buildVersion": "29",
+          "date": "2026-08-03",
+          "localizedDescription": "ivLyrics iOS 1.1.5는 앱의 주요 화면, 가사 메타데이터 메뉴, 재생용 LP 모드 및 상태 처리에 대한 업데이트를 포함합니다. 일부 현지화 문자열도 함께 조정되어 관련 화면에서 표시되는 텍스트가 갱신됩니다. 또한 이전 1.1.4 배포본의 AltStore 소스 메타데이터가 실제 파일 정보에 맞게 정정되었습니다.\n\nivLyrics iOS 1.1.5 includes updates to the app’s primary screens, lyrics metadata menu, LP playback mode, and state handling. Some localized strings were also adjusted, updating text shown in the affected screens. In addition, AltStore source metadata for the previous 1.1.4 distribution was corrected to match its actual file information.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.5/ivLyrics-IOS-v1.1.5-unsigned.ipa",
+          "size": 6860688,
+          "sha256": "fe195b1e76549d3e264eeaf7909a54b43002e178578058c78cc3f3735f9d88ea",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.4",
           "buildVersion": "28",
           "date": "2026-08-03",
