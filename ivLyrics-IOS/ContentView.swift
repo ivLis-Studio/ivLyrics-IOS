@@ -155,6 +155,7 @@ struct ContentView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var showingSettings = false
     @State private var showingLogs = false
     @State private var landscapeControlsVisible = true
@@ -279,9 +280,9 @@ struct ContentView: View {
             .opacity(vinylModeVisible ? 0 : 1)
             .scaleEffect(vinylModeVisible ? 0.985 : 1)
             .allowsHitTesting(!vinylModeVisible)
-            .accessibilityHidden(vinylModeVisible)
+            .accessibilityHidden(vinylModeVisible || showingLyricsMetaMenu || model.tmiPresented || model.updateDialogPresented)
             .animation(
-                settings.vinylAnimationsEnabled
+                settings.vinylAnimationsEnabled && !accessibilityReduceMotion
                     ? .timingCurve(0.22, 0.74, 0.28, 1, duration: 0.36)
                     : nil,
                 value: vinylModeVisible
@@ -289,7 +290,7 @@ struct ContentView: View {
             if vinylModeVisible {
                 VinylPlayerModeView(isPresented: $vinylModeVisible)
                     .transition(
-                        settings.vinylAnimationsEnabled
+                        settings.vinylAnimationsEnabled && !accessibilityReduceMotion
                             ? .opacity.combined(with: .scale(scale: 0.975))
                             : .identity
                     )
@@ -700,7 +701,7 @@ struct ContentView: View {
         showLyricsPage(false)
         showingLyricsMetaMenu = false
         dismissLyricsMetaTip()
-        withAnimation(settings.vinylAnimationsEnabled
+        withAnimation(settings.vinylAnimationsEnabled && !accessibilityReduceMotion
             ? .timingCurve(0.18, 0.80, 0.22, 1, duration: 0.42)
             : nil) {
             vinylModeVisible = true
@@ -2226,6 +2227,7 @@ private struct LandscapeArtworkView: View {
 }
 
 private struct LandscapeTransportControls: View {
+    @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
@@ -2252,6 +2254,7 @@ private struct LandscapeTransportControls: View {
                     Color.clear
                 }
                 .buttonStyle(AndroidTransportButtonStyle(kind: .previous, size: 54))
+                .accessibilityLabel(settings.t("button.prev_track"))
                 Button { model.togglePlayback() } label: {
                     Color.clear
                 }
@@ -2261,10 +2264,12 @@ private struct LandscapeTransportControls: View {
                     playing: model.currentTrack?.playing == true,
                     size: 62
                 ))
+                .accessibilityLabel(settings.t("debug.play_pause"))
                 Button { model.skipToNextTrack() } label: {
                     Color.clear
                 }
                 .buttonStyle(AndroidTransportButtonStyle(kind: .next, size: 54))
+                .accessibilityLabel(settings.t("button.next_track"))
             }
             .buttonStyle(.plain)
         }
@@ -2641,6 +2646,8 @@ private struct TmiSheetView: View {
                 .padding(.horizontal, 16)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
     private func tmiBodyHeight(_ screenHeight: CGFloat) -> CGFloat {
@@ -3685,6 +3692,7 @@ private struct MainLyricPreviewInterludeIcon: View {
 }
 
 private struct MainLyricPreviewLoadingSkeleton: View {
+    @EnvironmentObject private var settings: AppSettings
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
             let nowMs = timeline.date.timeIntervalSinceReferenceDate * 1_000
@@ -3702,11 +3710,12 @@ private struct MainLyricPreviewLoadingSkeleton: View {
             .frame(width: 210)
         }
         .frame(height: 26)
-        .accessibilityLabel("Loading lyrics")
+        .accessibilityLabel(settings.t("status.lyrics_loading"))
     }
 }
 
 private struct LyricsLoadingSkeleton: View {
+    @EnvironmentObject private var settings: AppSettings
     private let widths: [CGFloat] = [0.62, 0.86, 0.74, 0.92, 0.56]
 
     var body: some View {
@@ -3728,7 +3737,7 @@ private struct LyricsLoadingSkeleton: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .accessibilityLabel("Loading lyrics")
+        .accessibilityLabel(settings.t("status.lyrics_loading"))
     }
 }
 
@@ -3963,6 +3972,7 @@ struct LyricsTimelineView: View {
     @EnvironmentObject private var model: AppViewModel
     // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var animatedCenterIndex: Double?
 
     var body: some View {
@@ -4073,7 +4083,7 @@ struct LyricsTimelineView: View {
                 animatedCenterIndex = next
                 return
             }
-            withAnimation(LyricsMotion.centering) {
+            withAnimation(accessibilityReduceMotion ? nil : LyricsMotion.centering) {
                 animatedCenterIndex = next
             }
         }
@@ -4144,6 +4154,7 @@ private struct LyricsTimelineScrollView: View {
     @EnvironmentObject private var model: AppViewModel
     // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var autoScrollPaused = false
     @State private var lastScrolledTargetID: String?
     @State private var autoScrollResumeTask: Task<Void, Never>?
@@ -4227,6 +4238,10 @@ private struct LyricsTimelineScrollView: View {
                         autoScrollPaused = false
                         scrollToTarget(activeTargetID, proxy: proxy, animated: true, force: true)
                     }
+                    .onChange(of: model.lyricsSupplementLayoutRevision) { _, _ in
+                        guard !autoScrollPaused else { return }
+                        scrollToTarget(activeTargetID, proxy: proxy, animated: false, force: true)
+                    }
                     .onDisappear {
                         autoScrollResumeTask?.cancel()
                         autoScrollResumeTask = nil
@@ -4285,7 +4300,7 @@ private struct LyricsTimelineScrollView: View {
                 anchor: UnitPoint(x: 0.5, y: min(1, max(0, centerAnchorY)))
             )
         }
-        if animated {
+        if animated && !accessibilityReduceMotion {
             withAnimation(LyricsMotion.centering, action)
         } else {
             action()
@@ -5330,6 +5345,7 @@ struct LyricsLineView: View, Equatable {
 }
 
 struct SyllableKaraokeText: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     var text: String
     var rubyText: String = ""
     var syllables: [LyricsLine.Syllable]
@@ -5351,9 +5367,9 @@ struct SyllableKaraokeText: View {
 
     var body: some View {
         let displayKind = normalizedKind
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !requiresContinuousEffect(displayKind))) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: accessibilityReduceMotion || !requiresContinuousEffect(displayKind))) { timeline in
             karaokeBody(
-                nowMs: timeline.date.timeIntervalSinceReferenceDate * 1_000,
+                nowMs: accessibilityReduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate * 1_000,
                 displayKind: displayKind
             )
         }
@@ -5419,7 +5435,7 @@ struct SyllableKaraokeText: View {
             syllables: sourceSyllables,
             annotations: culturalAnnotations
         )
-        let bounceActiveIndex = bounceEnabled && active && !displaySyllables.isEmpty
+        let bounceActiveIndex = bounceEnabled && !accessibilityReduceMotion && active && !displaySyllables.isEmpty
             ? activeSegmentIndex(in: displaySyllables)
             : nil
         var timedSegments: [KaraokeSyllableSegment] = []
@@ -5701,6 +5717,7 @@ private struct KaraokeWhitespaceLayoutKey: LayoutValueKey {
 }
 
 private struct KaraokeSyllableSegmentView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var segment: KaraokeSyllableSegment
     var kind: String
     var active: Bool
@@ -5713,6 +5730,7 @@ private struct KaraokeSyllableSegmentView: View {
             if !segment.rubyText.isEmpty {
                 Text(segment.rubyText)
                     .font(.system(size: max(9, textSize * 0.42), weight: .semibold))
+                    .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 0.85 : 1)
                     .foregroundStyle((segment.fill > 0 ? segment.activeColor : segment.baseColor).opacity(0.84))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
@@ -5944,18 +5962,27 @@ private struct KaraokeSegmentFlowLayout: Layout {
         let units = makeWrapUnits(subviews: subviews)
         for unit in units {
             let sizes = unit.map { subviews[$0].sizeThatFits(.unspecified) }
-            let unitWidth = sizes.reduce(0) { $0 + $1.width }
-            if unitWidth <= maxWidth {
-                if !currentIndices.isEmpty, currentWidth + unitWidth > maxWidth {
+            let separatorCount = unit.prefix { subviews[$0][KaraokeWhitespaceLayoutKey.self] }.count
+            let phraseIndices = Array(unit.dropFirst(separatorCount))
+            let separatorWidth = sizes.prefix(separatorCount).reduce(0) { $0 + $1.width }
+            let phraseWidth = sizes.dropFirst(separatorCount).reduce(0) { $0 + $1.width }
+            if phraseWidth <= maxWidth {
+                let spacingWidth = currentIndices.isEmpty ? 0 : separatorWidth
+                if !currentIndices.isEmpty, currentWidth + spacingWidth + phraseWidth > maxWidth {
                     flushRow()
                 }
-                currentIndices.append(contentsOf: unit)
-                currentWidth += unitWidth
+                if !currentIndices.isEmpty {
+                    currentIndices.append(contentsOf: unit.prefix(separatorCount))
+                    currentWidth += separatorWidth
+                }
+                currentIndices.append(contentsOf: phraseIndices)
+                currentWidth += phraseWidth
                 currentHeight = max(currentHeight, sizes.map(\.height).max() ?? 0)
                 continue
             }
-            for (offset, index) in unit.enumerated() {
-                let size = sizes[offset]
+            // Only an oversized single phrase falls back to its constituent glyph/syllable segments.
+            for index in phraseIndices {
+                let size = subviews[index].sizeThatFits(.unspecified)
                 if !currentIndices.isEmpty, currentWidth + size.width > maxWidth {
                     flushRow()
                 }
@@ -5972,13 +5999,17 @@ private struct KaraokeSegmentFlowLayout: Layout {
         var units: [[Int]] = []
         var current: [Int] = []
         for index in subviews.indices {
-            current.append(index)
             if subviews[index][KaraokeWhitespaceLayoutKey.self] {
-                units.append(current)
-                current = []
+                if current.contains(where: { !subviews[$0][KaraokeWhitespaceLayoutKey.self] }) {
+                    units.append(current)
+                    current = []
+                }
+                current.append(index)
+            } else {
+                current.append(index)
             }
         }
-        if !current.isEmpty {
+        if current.contains(where: { !subviews[$0][KaraokeWhitespaceLayoutKey.self] }) {
             units.append(current)
         }
         return units
@@ -8877,6 +8908,8 @@ struct UpdateSheetView: View {
                 .padding(.horizontal, 16)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
     private func dismissDialog() {

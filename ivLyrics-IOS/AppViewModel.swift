@@ -43,6 +43,7 @@ final class AppViewModel: ObservableObject {
         }
     }
     @Published private(set) var baseLyricsResult = LyricsResult.empty("")
+    @Published private(set) var lyricsSupplementLayoutRevision = 0
     @Published private(set) var status: AppStatus = .idle
     @Published private(set) var logs: [String] = []
     @Published private(set) var metadataTranslation: AiLyricsRepository.MetadataTranslation?
@@ -1354,13 +1355,13 @@ final class AppViewModel: ObservableObject {
 
     func applyManualCandidate(_ candidate: ManualLrclibCandidate) {
         guard let track = currentTrack else { return }
+        let previousBase = baseLyricsResult
+        let previousResult = lyricsResult
+        let previousStatus = status
         cancelLyricsLoadTask()
         status = .loading
         lyricsLoadingProviderName = "LRCLIB"
         manualLrclibStatus = settings.t("lyrics.lrclib_search.selecting")
-        let loadingResult = LyricsResult.empty(lyricsLoadingText)
-        baseLyricsResult = loadingResult
-        lyricsResult = loadingResult
         let requestID = lyricsLoadRequestID
         loadTask = Task { [weak self] in
             guard let self else { return }
@@ -1374,7 +1375,7 @@ final class AppViewModel: ObservableObject {
                 requestMetadataTranslation(track: track, base: base, bypassCache: false)
                 let final = await applyLyricsSupplements(track: track, base: base, bypassCache: false)
                 guard isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
-                lyricsResult = final
+                publishFinalSupplementResult(final)
                 lyricsLoadingProviderName = ""
                 status = .loaded
                 manualLrclibStatus = settings.t("lyrics.lrclib_search.loaded")
@@ -1384,9 +1385,11 @@ final class AppViewModel: ObservableObject {
             } catch {
                 guard isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
                 let detail = error.localizedDescription.trimmed.isEmpty ? "unknown error" : error.localizedDescription.trimmed
+                baseLyricsResult = previousBase
+                lyricsResult = previousResult
                 lyricsLoadingProviderName = ""
                 manualLrclibStatus = settings.tf("lyrics.lrclib_search.error_format", detail)
-                status = .failed(detail)
+                status = previousStatus
                 showSavedToast(manualLrclibStatus)
                 appendLog("manual LRCLIB apply failed: \(detail)")
             }
@@ -2121,7 +2124,7 @@ final class AppViewModel: ObservableObject {
             requestMetadataTranslation(track: resolvedTrack, base: baseResult, bypassCache: bypassCache)
             let finalResult = await applyLyricsSupplements(track: resolvedTrack, base: baseResult, bypassCache: bypassCache)
             guard isLyricsLoadCurrent(requestID, trackKey: resolvedTrack.stableKey) else { return }
-            lyricsResult = finalResult
+            publishFinalSupplementResult(finalResult)
             status = .loaded
             await loadYouTubeIfNeeded(track: resolvedTrack, result: finalResult)
         } catch {
@@ -2134,7 +2137,7 @@ final class AppViewModel: ObservableObject {
                 requestMetadataTranslation(track: failedTrack, base: cachedBase, bypassCache: bypassCache)
                 let finalResult = await applyLyricsSupplements(track: failedTrack, base: cachedBase, bypassCache: bypassCache)
                 guard isLyricsLoadCurrent(requestID, trackKey: failedTrack.stableKey) else { return }
-                lyricsResult = finalResult
+                publishFinalSupplementResult(finalResult)
                 await loadYouTubeIfNeeded(track: failedTrack, result: finalResult)
                 return
             }
@@ -2302,7 +2305,7 @@ final class AppViewModel: ObservableObject {
             self.requestMetadataTranslation(track: track, base: base, bypassCache: true)
             let finalResult = await self.applyLyricsSupplements(track: track, base: base, bypassCache: true)
             guard self.isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
-            self.lyricsResult = finalResult
+            self.publishFinalSupplementResult(finalResult)
             self.status = .loaded
             self.appendLog(self.settings.t(snapshot.enabled ? "status.ai_applied" : "status.ai_disabled"))
         }
@@ -2370,6 +2373,11 @@ final class AppViewModel: ObservableObject {
         )
         let (supplemented, furigana, _) = await (aiResult, furiganaResult, culturalResult)
         return mergeFuriganaIntoResult(supplemented, furiganaSource: furigana)
+    }
+
+    private func publishFinalSupplementResult(_ result: LyricsResult) {
+        lyricsResult = result
+        lyricsSupplementLayoutRevision &+= 1
     }
 
     private func loadCulturalAnnotationsIfNeeded(
@@ -2490,6 +2498,7 @@ final class AppViewModel: ObservableObject {
     private func applyAiSupplementPartial(track: TrackSnapshot, response: AiLyricsRepository.SupplementResponse) {
         guard !Task.isCancelled, currentTrack?.stableKey == track.stableKey else { return }
         lyricsResult = mergeCurrentFurigana(into: response.result, trackKey: track.stableKey)
+        lyricsSupplementLayoutRevision &+= 1
         setLyricsSupplementLoading(
             pronunciation: response.pronunciationLoading,
             translation: response.translationLoading,

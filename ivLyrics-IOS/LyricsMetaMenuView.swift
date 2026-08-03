@@ -73,6 +73,8 @@ struct LyricsMetaMenuOverlay: View {
                 .offset(y: max(0, dragOffset))
         }
         .transition(.opacity.combined(with: .move(edge: .top)))
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
     private var panel: some View {

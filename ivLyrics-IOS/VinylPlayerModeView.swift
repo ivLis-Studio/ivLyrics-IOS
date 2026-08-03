@@ -10,6 +10,7 @@ struct VinylPlayerModeView: View {
     @EnvironmentObject private var model: AppViewModel
     // Keeps the tonearm and active lyric renderer synchronized with the shared playback clock.
     @EnvironmentObject private var playbackClock: PlaybackClock
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Binding var isPresented: Bool
 
     @State private var displayedTrack: TrackSnapshot?
@@ -40,10 +41,10 @@ struct VinylPlayerModeView: View {
                 lyricsVisible: settings.vinylLyricsEnabled,
                 culturalAnnotationsVisible: settings.culturalAnnotationsEnabled
             )
-            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !spinning || !settings.vinylAnimationsEnabled)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !spinning || !effectiveAnimationsEnabled)) { timeline in
                 scene(
                     geometry: geometry,
-                    spinDegrees: spinDegrees(at: timeline.date)
+                    spinDegrees: accessibilityReduceMotion ? spinBaseDegrees : spinDegrees(at: timeline.date)
                 )
             }
 
@@ -89,7 +90,10 @@ struct VinylPlayerModeView: View {
             updatePlaying(playing, animated: true)
         }
         .onChange(of: settings.vinylAnimationsEnabled) { _, enabled in
-            updateAnimationPreference(enabled)
+            updateAnimationPreference(enabled && !accessibilityReduceMotion)
+        }
+        .onChange(of: accessibilityReduceMotion) { _, reduceMotion in
+            updateAnimationPreference(settings.vinylAnimationsEnabled && !reduceMotion)
         }
         .onDisappear {
             trackTransitionToken = UUID()
@@ -527,7 +531,7 @@ struct VinylPlayerModeView: View {
         if let displayedTrack {
             loadAccent(for: displayedTrack)
         }
-        if settings.vinylAnimationsEnabled {
+        if effectiveAnimationsEnabled {
             DispatchQueue.main.async {
                 withAnimation(.timingCurve(0.18, 0.82, 0.22, 1, duration: 0.78)) {
                     entranceProgress = 1
@@ -538,7 +542,7 @@ struct VinylPlayerModeView: View {
         }
         updatePlaying(
             model.currentTrack?.playing == true,
-            animated: settings.vinylAnimationsEnabled
+            animated: effectiveAnimationsEnabled
         )
     }
 
@@ -555,7 +559,7 @@ struct VinylPlayerModeView: View {
             self.displayedTrack = next
             return
         }
-        guard animateChange && settings.vinylAnimationsEnabled else {
+        guard animateChange && effectiveAnimationsEnabled else {
             self.displayedTrack = next
             incomingTrack = nil
             return
@@ -679,7 +683,7 @@ struct VinylPlayerModeView: View {
         let token = UUID()
         spinToken = token
         playbackSequenceToken = token
-        guard settings.vinylAnimationsEnabled, animated else {
+        guard effectiveAnimationsEnabled, animated else {
             freezeSpin(at: Date())
             spinning = playing
             spinOrigin = Date()
@@ -771,7 +775,7 @@ struct VinylPlayerModeView: View {
     private func close() {
         guard isPresented else { return }
         performHaptic(.soft)
-        guard settings.vinylAnimationsEnabled else {
+        guard effectiveAnimationsEnabled else {
             isPresented = false
             return
         }
@@ -801,6 +805,10 @@ struct VinylPlayerModeView: View {
             playProgress = model.currentTrack?.playing == true ? 1 : 0
             tonearmEngagement = model.currentTrack?.playing == true ? 1 : 0
         }
+    }
+
+    private var effectiveAnimationsEnabled: Bool {
+        settings.vinylAnimationsEnabled && !accessibilityReduceMotion
     }
 
     private func performHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
