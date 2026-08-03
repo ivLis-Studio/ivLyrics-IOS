@@ -5372,6 +5372,14 @@ struct SyllableKaraokeText: View {
                     .multilineTextAlignment(alignment)
                     .modifier(LyricGlyphEffectModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, segmentIndex: 0, rowSeed: effectRowSeed, color: activeColor))
                     .modifier(LyricLineMotionModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
+            } else if LyricsTextShaping.requiresContinuousShaping(text) {
+                Text(continuouslyShapedText(segments))
+                    .multilineTextAlignment(alignment)
+                    .lineLimit(singleLine ? 1 : nil)
+                    .fixedSize(horizontal: singleLine, vertical: false)
+                    .modifier(LyricGlyphEffectModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, segmentIndex: 0, rowSeed: effectRowSeed, color: activeColor))
+                    .modifier(LyricLineMotionModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
+                    .accessibilityLabel(text)
             } else {
                 KaraokeSegmentFlowLayout(alignment: alignment, wraps: !singleLine) {
                     ForEach(segments) { segment in
@@ -5389,6 +5397,18 @@ struct SyllableKaraokeText: View {
                 .accessibilityLabel(text)
             }
         }
+    }
+
+    private func continuouslyShapedText(
+        _ segments: [KaraokeSyllableSegment]
+    ) -> AttributedString {
+        var result = AttributedString()
+        for segment in segments {
+            var run = AttributedString(segment.text)
+            run.foregroundColor = segment.fill > 0 ? segment.activeColor : segment.baseColor
+            result.append(run)
+        }
+        return result
     }
 
     private var karaokeSegments: [KaraokeSyllableSegment] {
@@ -5541,11 +5561,12 @@ struct SyllableKaraokeText: View {
         let characters = text.map(String.init)
         guard !characters.isEmpty else { return [] }
         let duration = endTimeMs - startTimeMs
-        return characters.enumerated().map { index, character in
+        let synthetic = characters.enumerated().map { index, character in
             let start = startTimeMs + Int64((Double(duration) * Double(index) / Double(characters.count)).rounded())
             let end = startTimeMs + Int64((Double(duration) * Double(index + 1) / Double(characters.count)).rounded())
             return LyricsLine.Syllable(text: character, startTimeMs: start, endTimeMs: max(start, end))
         }
+        return KaraokeSyllableTimingNormalizer.expandTimedChunks(synthetic)
     }
 
     private var fallbackColor: Color {
@@ -6185,7 +6206,12 @@ private struct LyricsMotionDebugPreview: View {
 
 private struct KaraokeDebugPreview: View {
     @EnvironmentObject private var settings: AppSettings
-    private let longText = "Someone to die for you and more"
+    private var arabicPreviewEnabled: Bool {
+        ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_KARAOKE_ARABIC"] == "1"
+    }
+    private var longText: String {
+        arabicPreviewEnabled ? "تايهة و توهتك في القصة ويايا" : "Someone to die for you and more"
+    }
     private let bounceSyllables = Array("ABCDEF").enumerated().map { index, character in
         LyricsLine.Syllable(
             text: String(character),
@@ -6211,13 +6237,13 @@ private struct KaraokeDebugPreview: View {
                 positionMs: 5_000,
                 active: true,
                 activeColor: .white,
-                alignment: .leading,
+                alignment: arabicPreviewEnabled ? .trailing : .leading,
                 bounceEnabled: false,
                 bounceTextSize: 38,
                 syntheticTimingEnabled: true
             )
             .font(.pretendard(38, weight: .bold))
-            .frame(width: 320, alignment: .leading)
+            .frame(width: 320, alignment: arabicPreviewEnabled ? .trailing : .leading)
 
             Text("Only C should bounce")
                 .font(.pretendard(15, weight: .semibold))

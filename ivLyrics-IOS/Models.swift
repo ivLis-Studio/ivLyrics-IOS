@@ -430,12 +430,37 @@ struct LyricsLine: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+enum LyricsTextShaping {
+    static func requiresContinuousShaping(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            let value = scalar.value
+            return (0x0600...0x06FF).contains(value)
+                || (0x0750...0x077F).contains(value)
+                || (0x0870...0x089F).contains(value)
+                || (0x08A0...0x08FF).contains(value)
+                || (0xFB50...0xFDFF).contains(value)
+                || (0xFE70...0xFEFF).contains(value)
+                || (0x1EE00...0x1EEFF).contains(value)
+        }
+    }
+}
+
 enum KaraokeSyllableTimingNormalizer {
     static func expandTimedChunks(_ syllables: [LyricsLine.Syllable]) -> [LyricsLine.Syllable] {
 #if DEBUG
         _ = regressionChecks
 #endif
-        return expandTimedChunksUnchecked(syllables)
+        return normalizedTimedChunksUnchecked(syllables)
+    }
+
+    private static func normalizedTimedChunksUnchecked(
+        _ syllables: [LyricsLine.Syllable]
+    ) -> [LyricsLine.Syllable] {
+        let expanded = expandTimedChunksUnchecked(syllables)
+        guard LyricsTextShaping.requiresContinuousShaping(expanded.map(\.text).joined()) else {
+            return expanded
+        }
+        return mergeWordRuns(expanded)
     }
 
     private static func expandTimedChunksUnchecked(
@@ -480,6 +505,49 @@ enum KaraokeSyllableTimingNormalizer {
         return result
     }
 
+    /// Arabic contextual forms and bidi ordering require a continuous logical word.
+    /// Preserve each word as one renderer item while retaining its complete time span.
+    private static func mergeWordRuns(
+        _ syllables: [LyricsLine.Syllable]
+    ) -> [LyricsLine.Syllable] {
+        guard !syllables.isEmpty else { return [] }
+        var result: [LyricsLine.Syllable] = []
+        result.reserveCapacity(syllables.count)
+        var word = ""
+        var wordStartMs: Int64 = 0
+        var wordEndMs: Int64 = 0
+
+        func flushWord() {
+            guard !word.isEmpty else { return }
+            result.append(LyricsLine.Syllable(
+                text: word,
+                startTimeMs: wordStartMs,
+                endTimeMs: wordEndMs
+            ))
+            word = ""
+        }
+
+        for syllable in syllables where !syllable.text.isEmpty {
+            let isWhitespace = syllable.text.unicodeScalars.allSatisfy {
+                CharacterSet.whitespacesAndNewlines.contains($0)
+            }
+            if isWhitespace {
+                flushWord()
+                result.append(syllable)
+                continue
+            }
+            if word.isEmpty {
+                wordStartMs = syllable.startTimeMs
+                wordEndMs = syllable.endTimeMs
+            } else {
+                wordEndMs = max(wordEndMs, syllable.endTimeMs)
+            }
+            word.append(syllable.text)
+        }
+        flushWord()
+        return result
+    }
+
 #if DEBUG
     private static let regressionChecks: Void = {
         let oneCharacter = LyricsLine.Syllable(text: "한", startTimeMs: 100, endTimeMs: 400)
@@ -504,6 +572,20 @@ enum KaraokeSyllableTimingNormalizer {
 
         let untimed = LyricsLine.Syllable(text: "word", startTimeMs: 800, endTimeMs: 800)
         assert(expandTimedChunksUnchecked([untimed]) == [untimed])
+
+        let arabicText = "مرحبا بك"
+        let arabicCharacters = arabicText.enumerated().map { index, character in
+            LyricsLine.Syllable(
+                text: String(character),
+                startTimeMs: Int64(index * 100),
+                endTimeMs: Int64((index + 1) * 100)
+            )
+        }
+        let arabic = normalizedTimedChunksUnchecked(arabicCharacters)
+        assert(arabic.map(\.text) == ["مرحبا", " ", "بك"])
+        assert(arabic.map(\.text).joined() == arabicText)
+        assert(arabic.first?.startTimeMs == 0)
+        assert(arabic.last?.endTimeMs == Int64(arabicCharacters.count * 100))
     }()
 #endif
 }
