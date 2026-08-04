@@ -98,6 +98,7 @@ actor LyricsRepository {
 
     struct SpotifyTrackHydration: Sendable {
         var track: TrackSnapshot
+        var spotifyArtworkURL: URL?
         var logs: [String]
     }
 
@@ -1008,13 +1009,13 @@ actor LyricsRepository {
         let trackId = track.trackId
         guard !trackId.isEmpty else {
             log("spotify live metadata: no Spotify track id to hydrate")
-            return SpotifyTrackHydration(track: track, logs: logs)
+            return SpotifyTrackHydration(track: track, spotifyArtworkURL: nil, logs: logs)
         }
         do {
             var token = try await getSpotifyAccessToken(forceRefresh: false, settings: settings, log: log)
             guard !token.isEmpty else {
                 log("spotify live metadata: token unavailable")
-                return SpotifyTrackHydration(track: track, logs: logs)
+                return SpotifyTrackHydration(track: track, spotifyArtworkURL: nil, logs: logs)
             }
             let match: SpotifyTrackMatch?
             do {
@@ -1032,7 +1033,7 @@ actor LyricsRepository {
                 token = try await getSpotifyAccessToken(forceRefresh: true, settings: settings, log: log)
                 guard !token.isEmpty else {
                     log("spotify live metadata: token refresh failed")
-                    return SpotifyTrackHydration(track: track, logs: logs)
+                    return SpotifyTrackHydration(track: track, spotifyArtworkURL: nil, logs: logs)
                 }
                 match = try await fetchSpotifyTrackById(
                     token: token,
@@ -1044,12 +1045,16 @@ actor LyricsRepository {
                 )
             }
             guard let match else {
-                return SpotifyTrackHydration(track: track, logs: logs)
+                return SpotifyTrackHydration(track: track, spotifyArtworkURL: nil, logs: logs)
             }
-            return SpotifyTrackHydration(track: hydratedTrack(base: track, match: match), logs: logs)
+            return SpotifyTrackHydration(
+                track: hydratedTrack(base: track, match: match),
+                spotifyArtworkURL: match.artworkURL,
+                logs: logs
+            )
         } catch {
             log("spotify live metadata error: \(error.localizedDescription)")
-            return SpotifyTrackHydration(track: track, logs: logs)
+            return SpotifyTrackHydration(track: track, spotifyArtworkURL: nil, logs: logs)
         }
     }
 

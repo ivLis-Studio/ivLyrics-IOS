@@ -2213,7 +2213,7 @@ private struct LandscapeArtworkView: View {
                 .fill(Color(red: 34.0 / 255.0, green: 35.0 / 255.0, blue: 40.0 / 255.0))
             if let url = model.currentTrack?.artworkURL {
                 AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
+                    image.resizable().scaledToFit()
                 } placeholder: {
                     Color.clear
                 }
@@ -2502,7 +2502,7 @@ struct ArtworkView: View {
                 .fill(Color(red: 34.0 / 255.0, green: 35.0 / 255.0, blue: 40.0 / 255.0))
             if let url = model.currentTrack?.artworkURL {
                 AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
+                    image.resizable().scaledToFit()
                 } placeholder: {
                     Color.clear
                 }
@@ -2667,7 +2667,7 @@ private struct TmiSheetView: View {
                     .fill(.white.opacity(0.10))
                 if let url = track?.artworkURL {
                     AsyncImage(url: url) { image in
-                        image.resizable().scaledToFill()
+                        image.resizable().scaledToFit()
                     } placeholder: {
                         Image(systemName: "music.note")
                             .foregroundStyle(.white.opacity(0.58))

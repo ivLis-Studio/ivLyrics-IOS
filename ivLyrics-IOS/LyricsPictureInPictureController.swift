@@ -885,7 +885,9 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private func drawArtwork(_ image: UIImage, in rect: CGRect, cornerRadius: CGFloat, context: CGContext) {
         context.saveGState()
         UIBezierPath(roundedRect: rect, cornerRadius: cornerRadius).addClip()
-        drawAspectFill(image, in: rect, context: context)
+        UIColor(white: 0.12, alpha: 1).setFill()
+        UIRectFill(rect)
+        drawAspectFit(image, in: rect)
         context.restoreGState()
         UIColor.white.withAlphaComponent(0.12).setStroke()
         let path = UIBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), cornerRadius: cornerRadius)
@@ -919,6 +921,14 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         context.clip(to: rect)
         image.draw(in: target)
         context.restoreGState()
+    }
+
+    private func drawAspectFit(_ image: UIImage, in rect: CGRect) {
+        guard image.size.width > 0, image.size.height > 0 else { return }
+        let scale = min(rect.width / image.size.width, rect.height / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let target = CGRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height)
+        image.draw(in: target)
     }
 
     private func makePixelBuffer(width: Int, height: Int) -> CVPixelBuffer? {
