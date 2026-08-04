@@ -23,7 +23,7 @@
           "version": "1.1.6",
           "buildVersion": "30",
           "date": "2026-08-04",
-          "localizedDescription": "ivLyrics iOS 1.1.6은 앨범 이미지 표시를 개선하여 일반 화면과 가사 화면의 화면 속 화면 모드에서 더 안정적으로 앨범 아트를 보여 줍니다. 또한 앱 릴리스 버전 정보를 1.1.6(빌드 30)으로 갱신하고, 이전 1.1.5 배포본의 AltStore 메타데이터를 정리했습니다.\n\nivLyrics iOS 1.1.6 improves album-image display so album art is shown more reliably in both the main interface and Lyrics Picture in Picture mode. It also updates the app’s release version to 1.1.6 (build 30) and refreshes AltStore metadata for the previous 1.1.5 distribution.",
+          "localizedDescription": "iPhone과 iPad에서 앨범 이미지가 낮은 화질로 남거나 양옆이 잘리는 문제를 수정했습니다. Spotify Web API에서 받은 고화질 앨범 이미지 URL을 트랙별로 유지하고, 캐시된 곡을 다시 열 때도 낮은 화질 이미지로 되돌아가지 않습니다. 이미지 메타데이터를 일시적으로 받지 못하면 30초 뒤 다시 시도하며, 세로·가로·TMI·가사 PIP 화면은 앨범 전체가 보이는 aspect-fit 방식으로 표시합니다.\n\nFixed album artwork remaining low-resolution or being cropped on iPhone and iPad. High-resolution artwork URLs resolved through the Spotify Web API are preserved per track and reused when returning to cached songs. Temporarily unavailable artwork metadata is retried after 30 seconds, and portrait, landscape, TMI, and Lyrics Picture in Picture surfaces now use aspect-fit rendering so the complete cover remains visible.",
           "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.6/ivLyrics-IOS-v1.1.6-unsigned.ipa",
           "size": 6864950,
           "sha256": "33a962cda30dcc70ebd3221e15eabdea2a8b7ba8b3e3c3a782824d86877d09a7",
