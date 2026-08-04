@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.1.6",
+          "buildVersion": "30",
+          "date": "2026-08-04",
+          "localizedDescription": "ivLyrics iOS 1.1.6은 앨범 이미지 표시를 개선하여 일반 화면과 가사 화면의 화면 속 화면 모드에서 더 안정적으로 앨범 아트를 보여 줍니다. 또한 앱 릴리스 버전 정보를 1.1.6(빌드 30)으로 갱신하고, 이전 1.1.5 배포본의 AltStore 메타데이터를 정리했습니다.\n\nivLyrics iOS 1.1.6 improves album-image display so album art is shown more reliably in both the main interface and Lyrics Picture in Picture mode. It also updates the app’s release version to 1.1.6 (build 30) and refreshes AltStore metadata for the previous 1.1.5 distribution.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.6/ivLyrics-IOS-v1.1.6-unsigned.ipa",
+          "size": 6864950,
+          "sha256": "33a962cda30dcc70ebd3221e15eabdea2a8b7ba8b3e3c3a782824d86877d09a7",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.5",
           "buildVersion": "29",
           "date": "2026-08-03",
