@@ -37,6 +37,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate release webhook helper
+        run: node --test .github/scripts/send_release_webhook.test.mjs
+
       - name: Select newest Xcode
         shell: bash
         run: |
@@ -170,6 +173,15 @@ jobs:
                 --notes-file "$NOTES_PATH"
             fi
           fi
+
+      - name: Send iOS release notes to Discord
+        env:
+          RELEASE_WEBHOOK_URL: ${{ secrets.RELEASE_NOTES_WEBHOOK_URL }}
+          RELEASE_PLATFORM: ios
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+          RELEASE_TITLE: ivLyrics iOS ${{ steps.release.outputs.release_tag }}
+          RELEASE_NOTES_PATH: ${{ steps.release_metadata.outputs.notes_path }}
+        run: node .github/scripts/send_release_webhook.mjs
 
       - name: Update AltStore source on main
         env:
