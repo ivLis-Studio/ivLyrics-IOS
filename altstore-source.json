@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.1.7",
+          "buildVersion": "31",
+          "date": "2026-08-07",
+          "localizedDescription": "ivLyrics iOS 1.1.7에서는 후원 중인 크리에이터의 고유 색상을 앱에서 표시해 더 쉽게 알아볼 수 있도록 했습니다. 또한 릴리스 공지 자동화와 AltStore 배포 메타데이터 관리가 개선되었으며, 앱 내 재생 및 가사 기능의 동작에는 영향을 주지 않습니다.\n\nivLyrics iOS 1.1.7 displays the distinctive colors of creators you support, making them easier to recognize in the app. This release also improves release-announcement automation and AltStore distribution metadata maintenance, without changing in-app playback or lyrics behavior.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.7/ivLyrics-IOS-v1.1.7-unsigned.ipa",
+          "size": 6884940,
+          "sha256": "344c082f1d7f20d7c3ac9634ad1472ac5215f2a4916ad4ea0d1078bee7edd101",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.6",
           "buildVersion": "30",
           "date": "2026-08-04",
