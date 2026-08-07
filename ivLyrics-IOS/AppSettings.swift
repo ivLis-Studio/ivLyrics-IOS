@@ -52,6 +52,27 @@ final class AppSettings: ObservableObject {
     static let vinylTonearmFinishWhite = "white"
     static let vinylTonearmFinishSilver = "silver"
     static let vinylTonearmFinishBlack = "black"
+    private static let cloudSettingKeys: Set<String> = [
+        "provider", "ui_lang", "output_lang", "target_lang", "pronunciation_lang", "language_rules_v2",
+        "translation_enabled", "pronunciation_enabled", "metadata_translation_enabled",
+        "japanese_furigana_enabled", "cultural_annotations_enabled", "cultural_annotations_font_family",
+        "cultural_annotations_font_size", "cultural_annotations_font_weight", "cultural_annotations_opacity",
+        "cultural_annotations_vinyl_font_family", "cultural_annotations_vinyl_font_size",
+        "cultural_annotations_vinyl_font_weight", "cultural_annotations_vinyl_opacity", "model", "max_tokens",
+        "temperature", "preview_mode", "preview_items", "auto_instrumental_break", "interlude_labels_enabled",
+        "synced_lyrics_karaoke_animation", "karaoke_bounce_effect", "karaoke_data_as_line_synced",
+        "use_sync_creator_speaker_colors", "lyrics_text_alignment", "keep_screen_on",
+        "landscape_auto_hide_controls", "landscape_center_no_lyrics", "pip_show_artwork", "pip_orientation",
+        "pip_background_mode", "pip_lyrics_text_alignment", "pip_lyrics_size_percent",
+        "pip_translation_size_percent", "vinyl_album_size_percent", "vinyl_record_size_percent",
+        "vinyl_animations_enabled", "vinyl_center_rotation_enabled", "vinyl_lyrics_enabled",
+        "vinyl_tonearm_style", "vinyl_tonearm_finish", "vinyl_tonearm_size_percent", "background_mode",
+        "background_brightness", "background_blur", "background_noise", "background_reduce_motion",
+        "background_solid_color", "background_video_scale", "lyrics_provider_order_v1",
+        "lyrics_provider_enabled_v1", "lyrics_provider_types_v1", "lyrics_prefer_sync_data_provider",
+        "lyrics_prefer_type_over_provider", "typography_settings_v1", "speaker_color_settings_v1",
+        "global_sync_offset_ms"
+    ]
 
     static let lyricsProviders: [LyricsProvider] = [
         LyricsProvider(
@@ -330,6 +351,89 @@ final class AppSettings: ObservableObject {
 
     func tf(_ key: String, _ arguments: CVarArg...) -> String {
         AppI18n.format(uiLang, key, arguments)
+    }
+
+    func exportCloudSettings() -> [String: Any] {
+        let stored = defaults.dictionaryRepresentation()
+        return Self.cloudSettingKeys.reduce(into: [String: Any]()) { result, key in
+            guard let value = stored[key],
+                  value is String || value is NSNumber || value is Bool else { return }
+            result[key] = value
+        }
+    }
+
+    func importCloudSettings(_ values: [String: Any]) {
+        for key in Self.cloudSettingKeys {
+            guard let value = values[key], !(value is NSNull),
+                  value is String || value is NSNumber || value is Bool else { continue }
+            defaults.set(value, forKey: key)
+        }
+
+        let loaded = AppSettings(defaults: defaults)
+        providerId = loaded.providerId
+        uiLang = loaded.uiLang
+        outputLang = loaded.outputLang
+        translationEnabled = loaded.translationEnabled
+        pronunciationEnabled = loaded.pronunciationEnabled
+        metadataTranslationEnabled = loaded.metadataTranslationEnabled
+        japaneseFuriganaEnabled = loaded.japaneseFuriganaEnabled
+        culturalAnnotationsEnabled = loaded.culturalAnnotationsEnabled
+        culturalAnnotationsFontFamily = loaded.culturalAnnotationsFontFamily
+        culturalAnnotationsFontSize = loaded.culturalAnnotationsFontSize
+        culturalAnnotationsFontWeight = loaded.culturalAnnotationsFontWeight
+        culturalAnnotationsOpacity = loaded.culturalAnnotationsOpacity
+        culturalAnnotationsVinylFontFamily = loaded.culturalAnnotationsVinylFontFamily
+        culturalAnnotationsVinylFontSize = loaded.culturalAnnotationsVinylFontSize
+        culturalAnnotationsVinylFontWeight = loaded.culturalAnnotationsVinylFontWeight
+        culturalAnnotationsVinylOpacity = loaded.culturalAnnotationsVinylOpacity
+        model = loaded.model
+        maxTokens = loaded.maxTokens
+        temperature = loaded.temperature
+        previewMode = loaded.previewMode
+        previewItems = loaded.previewItems
+        autoInstrumentalBreakEnabled = loaded.autoInstrumentalBreakEnabled
+        interludeLabelsEnabled = loaded.interludeLabelsEnabled
+        syncedLyricsKaraokeAnimationEnabled = loaded.syncedLyricsKaraokeAnimationEnabled
+        karaokeBounceEffectEnabled = loaded.karaokeBounceEffectEnabled
+        karaokeDataAsLineSynced = loaded.karaokeDataAsLineSynced
+        useSyncCreatorSpeakerColors = loaded.useSyncCreatorSpeakerColors
+        lyricsTextAlignment = loaded.lyricsTextAlignment
+        keepScreenOn = loaded.keepScreenOn
+        landscapeAutoHideControls = loaded.landscapeAutoHideControls
+        landscapeCenterNoLyrics = loaded.landscapeCenterNoLyrics
+        pipShowArtwork = loaded.pipShowArtwork
+        pipOrientation = loaded.pipOrientation
+        pipBackgroundMode = loaded.pipBackgroundMode
+        pipLyricsTextAlignment = loaded.pipLyricsTextAlignment
+        pipLyricsSizePercent = loaded.pipLyricsSizePercent
+        pipTranslationSizePercent = loaded.pipTranslationSizePercent
+        vinylAlbumSizePercent = loaded.vinylAlbumSizePercent
+        vinylRecordSizePercent = loaded.vinylRecordSizePercent
+        vinylAnimationsEnabled = loaded.vinylAnimationsEnabled
+        vinylCenterRotationEnabled = loaded.vinylCenterRotationEnabled
+        vinylLyricsEnabled = loaded.vinylLyricsEnabled
+        vinylTonearmStyle = loaded.vinylTonearmStyle
+        vinylTonearmFinish = loaded.vinylTonearmFinish
+        vinylTonearmSizePercent = loaded.vinylTonearmSizePercent
+        backgroundMode = loaded.backgroundMode
+        backgroundBrightness = loaded.backgroundBrightness
+        backgroundBlur = loaded.backgroundBlur
+        backgroundNoiseEnabled = loaded.backgroundNoiseEnabled
+        backgroundReduceMotionEnabled = loaded.backgroundReduceMotionEnabled
+        backgroundSolidColor = loaded.backgroundSolidColor
+        backgroundVideoScale = loaded.backgroundVideoScale
+        lyricsProviderOrder = loaded.lyricsProviderOrder
+        lyricsProviderEnabled = loaded.lyricsProviderEnabled
+        lyricsProviderTypes = loaded.lyricsProviderTypes
+        preferSyncDataProvider = loaded.preferSyncDataProvider
+        preferLyricsTypeOverProviderOrder = loaded.preferLyricsTypeOverProviderOrder
+        cachedTypographySettings = nil
+        cachedSpeakerColorSettings = nil
+        cachedSnapshot = nil
+        languageRulesRevision += 1
+        backgroundSettingsRevision += 1
+        typographyRevision += 1
+        speakerColorRevision += 1
     }
 
     var snapshot: Snapshot {

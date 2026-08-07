@@ -22,6 +22,7 @@ final class CreatorAccountClient {
     private static let keychainService = "kr.ivlis.ivlyrics.creator-account"
     private static let keychainAccount = "discord-session"
     private static let deviceUserHashKey = "creator_device_user_hash"
+    private static let cloudSaveDeviceIdKey = "cloud_save_device_id"
 
     private let defaults: UserDefaults
     private var pendingLoginNonce: String?
@@ -43,6 +44,16 @@ final class CreatorAccountClient {
             return nil
         }
         return session
+    }
+
+    func cloudSaveDeviceId() -> String {
+        let current = (defaults.string(forKey: Self.cloudSaveDeviceIdKey) ?? "").trimmed
+        if current.range(of: #"^ios-[A-Za-z0-9-]{16,80}$"#, options: .regularExpression) != nil {
+            return current
+        }
+        let generated = "ios-\(UUID().uuidString.lowercased())"
+        defaults.set(generated, forKey: Self.cloudSaveDeviceIdKey)
+        return generated
     }
 
     func startDiscordLogin(language: String) async throws -> URL {

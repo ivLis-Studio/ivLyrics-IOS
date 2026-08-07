@@ -79,6 +79,12 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var creatorPrivacyState: CreatorPrivacyState = .signedOut
     @Published private(set) var creatorPrivacyRequestInFlight = false
     @Published private(set) var creatorPrivacyLoginInProgress = false
+    @Published private(set) var cloudSettingsRequestInFlight = false
+    @Published private(set) var cloudSettingsLoaded = false
+    @Published private(set) var cloudSettingsExists = false
+    @Published private(set) var cloudSettingsRevision: Int64 = 0
+    @Published private(set) var cloudSettingsUpdatedAt: Int64 = 0
+    @Published private(set) var cloudMonthlyRequiredAlertPresented = false
     @Published private(set) var aiLyricsGenerating = false
     @Published private(set) var culturalAnnotations: [CulturalAnnotation] = []
     @Published private(set) var culturalAnnotationsLoading = false
@@ -195,6 +201,7 @@ final class AppViewModel: ObservableObject {
     let pictureInPictureController = LyricsPictureInPictureController()
     private let pollinationsAuthClient = PollinationsAuthClient()
     private let creatorAccountClient = CreatorAccountClient()
+    private lazy var cloudSettingsClient = CloudSettingsClient(accountClient: creatorAccountClient)
     private let creatorSupportClient = CreatorSupportClient()
     private let updateChecker = UpdateChecker()
     private var culturalAnnotationTask: Task<Void, Never>?
@@ -210,6 +217,9 @@ final class AppViewModel: ObservableObject {
     private var toastTask: Task<Void, Never>?
     private var pollinationsAuthTask: Task<Void, Never>?
     private var creatorPrivacyTask: Task<Void, Never>?
+    private var cloudSettingsTask: Task<Void, Never>?
+    private var cloudSettingsRecord = CloudSettingsClient.Record.empty
+    private var cloudSettingsStatusOverrideKey = ""
     private var creatorSupportTask: Task<Void, Never>?
     private var creatorSupportRequestKey = ""
     private var spotifyPollTask: Task<Void, Never>?
@@ -343,6 +353,7 @@ final class AppViewModel: ObservableObject {
         toastTask?.cancel()
         pollinationsAuthTask?.cancel()
         creatorPrivacyTask?.cancel()
+        cloudSettingsTask?.cancel()
         creatorSupportTask?.cancel()
         spotifyPollTask?.cancel()
         spotifyMetadataHydrationTask?.cancel()
@@ -431,6 +442,42 @@ final class AppViewModel: ObservableObject {
         case .privateProfile:
             return settings.t("creator_privacy.status_private")
         }
+    }
+
+    var cloudSettingsCanApply: Bool {
+        creatorAccountConnected && cloudSettingsLoaded && cloudSettingsExists && !cloudSettingsRequestInFlight
+    }
+
+    var cloudSettingsActionsEnabled: Bool {
+        creatorAccountConnected && !cloudSettingsRequestInFlight
+    }
+
+    var cloudSettingsSupportBlocked: Bool {
+        cloudSettingsStatusOverrideKey == "cloud_sync.monthly_required"
+    }
+
+    var cloudSettingsStatusText: String {
+        if cloudSettingsRequestInFlight {
+            return settings.t("cloud_sync.status_working")
+        }
+        if !cloudSettingsStatusOverrideKey.isEmpty {
+            return settings.t(cloudSettingsStatusOverrideKey)
+        }
+        guard creatorAccountConnected else {
+            return settings.t("cloud_sync.login_required")
+        }
+        guard cloudSettingsLoaded else {
+            return settings.t("cloud_sync.status_not_loaded")
+        }
+        guard cloudSettingsExists else {
+            return settings.t("cloud_sync.status_empty")
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: settings.uiLang)
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        let updated = formatter.string(from: Date(timeIntervalSince1970: TimeInterval(cloudSettingsUpdatedAt)))
+        return settings.tf("cloud_sync.status_found_format", cloudSettingsRevision, updated)
     }
 
     var pollinationsCanOpenLoginPage: Bool {
@@ -839,6 +886,7 @@ final class AppViewModel: ObservableObject {
             creatorPrivacyRequestInFlight = false
             creatorPrivacyLoginInProgress = false
             creatorPrivacyState = .signedOut
+            resetCloudSettingsState()
             return
         }
         if creatorPrivacyState == .signedOut {
@@ -973,6 +1021,7 @@ final class AppViewModel: ObservableObject {
                 creatorPrivacyRequestInFlight = false
                 creatorPrivacyLoginInProgress = false
                 creatorPrivacyState = .signedOut
+                resetCloudSettingsState()
                 inAppBrowserURL = nil
                 appendLog("creator privacy: signed out")
                 showSavedToast(settings.t("creator_privacy.disconnected"))
@@ -984,6 +1033,195 @@ final class AppViewModel: ObservableObject {
                 showSavedToast(settings.t("creator_privacy.logout_failed"))
             }
         }
+    }
+
+    func refreshCloudSettings() {
+        guard prepareCloudSettingsOperation() else { return }
+        cloudSettingsTask?.cancel()
+        cloudSettingsStatusOverrideKey = ""
+        cloudSettingsRequestInFlight = true
+        cloudSettingsTask = Task { [weak self] in
+            guard let self else { return }
+            guard await ensureMonthlyCloudSupport() else {
+                cloudSettingsRequestInFlight = false
+                return
+            }
+            do {
+                let record = try await cloudSettingsClient.load(language: settings.uiLang)
+                if Task.isCancelled { return }
+                setCloudSettingsRecord(record)
+                cloudSettingsRequestInFlight = false
+            } catch {
+                if Task.isCancelled { return }
+                finishCloudSettingsFailure(error)
+            }
+        }
+    }
+
+    func uploadCloudSettings() {
+        guard prepareCloudSettingsOperation() else { return }
+        cloudSettingsTask?.cancel()
+        cloudSettingsStatusOverrideKey = ""
+        cloudSettingsRequestInFlight = true
+        cloudSettingsTask = Task { [weak self] in
+            guard let self else { return }
+            guard await ensureMonthlyCloudSupport() else {
+                cloudSettingsRequestInFlight = false
+                return
+            }
+            do {
+                let current = try await cloudSettingsClient.load(language: settings.uiLang)
+                if Task.isCancelled { return }
+                let saved = try await cloudSettingsClient.save(
+                    settings: settings.exportCloudSettings(),
+                    baseRevision: current.revision,
+                    language: settings.uiLang
+                )
+                if Task.isCancelled { return }
+                setCloudSettingsRecord(saved)
+                cloudSettingsRequestInFlight = false
+                showSavedToast(settings.t("cloud_sync.uploaded"))
+            } catch {
+                if Task.isCancelled { return }
+                finishCloudSettingsFailure(error)
+            }
+        }
+    }
+
+    func applyCloudSettings() {
+        guard prepareCloudSettingsOperation() else { return }
+        cloudSettingsTask?.cancel()
+        cloudSettingsStatusOverrideKey = ""
+        cloudSettingsRequestInFlight = true
+        cloudSettingsTask = Task { [weak self] in
+            guard let self else { return }
+            guard await ensureMonthlyCloudSupport() else {
+                cloudSettingsRequestInFlight = false
+                return
+            }
+            do {
+                let record = try await cloudSettingsClient.load(language: settings.uiLang)
+                guard record.exists else {
+                    throw CloudSettingsClient.CloudError(
+                        code: "not_found",
+                        statusCode: 404,
+                        message: "No iOS cloud settings were found"
+                    )
+                }
+                if Task.isCancelled { return }
+                settings.importCloudSettings(record.settings)
+                globalOffsetMs = settings.globalSyncOffsetMs()
+                refreshLocalizedStatusStrings()
+                setCloudSettingsRecord(record)
+                cloudSettingsRequestInFlight = false
+                showSavedToast(settings.t("cloud_sync.applied"))
+                refreshBackgroundForCurrentTrack()
+                reloadLyrics(bypassCache: false)
+            } catch {
+                if Task.isCancelled { return }
+                finishCloudSettingsFailure(error)
+            }
+        }
+    }
+
+    func deleteCloudSettings() {
+        guard prepareCloudSettingsOperation() else { return }
+        cloudSettingsTask?.cancel()
+        cloudSettingsStatusOverrideKey = ""
+        cloudSettingsRequestInFlight = true
+        cloudSettingsTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await cloudSettingsClient.delete(language: settings.uiLang)
+                if Task.isCancelled { return }
+                setCloudSettingsRecord(.empty)
+                cloudSettingsRequestInFlight = false
+                showSavedToast(settings.t("cloud_sync.deleted"))
+            } catch {
+                if Task.isCancelled { return }
+                finishCloudSettingsFailure(error)
+            }
+        }
+    }
+
+    private func prepareCloudSettingsOperation() -> Bool {
+        guard !cloudSettingsRequestInFlight else { return false }
+        guard creatorAccountClient.currentSession() != nil else {
+            creatorAccountConnected = false
+            showSavedToast(settings.t("cloud_sync.login_required"))
+            startCreatorAccountLogin()
+            return false
+        }
+        creatorAccountConnected = true
+        return true
+    }
+
+    private func ensureMonthlyCloudSupport() async -> Bool {
+        guard let session = creatorAccountClient.currentSession() else {
+            creatorAccountConnected = false
+            cloudSettingsStatusOverrideKey = "cloud_sync.login_required"
+            showSavedToast(settings.t("cloud_sync.login_required"))
+            return false
+        }
+        do {
+            let tier = try await creatorSupportClient.tier(userHash: session.userHash, forceRefresh: true)
+            guard tier == "monthly" else {
+                cloudSettingsStatusOverrideKey = "cloud_sync.monthly_required"
+                cloudMonthlyRequiredAlertPresented = true
+                showSavedToast(settings.t("cloud_sync.monthly_required"))
+                return false
+            }
+            return true
+        } catch {
+            cloudSettingsStatusOverrideKey = "cloud_sync.failed"
+            appendLog("cloud supporter role lookup failed: \(error.localizedDescription)")
+            showSavedToast(settings.t("cloud_sync.failed"))
+            return false
+        }
+    }
+
+    func dismissCloudMonthlyRequiredAlert() {
+        cloudMonthlyRequiredAlertPresented = false
+    }
+
+    private func setCloudSettingsRecord(_ record: CloudSettingsClient.Record) {
+        cloudSettingsRecord = record
+        cloudSettingsLoaded = true
+        cloudSettingsExists = record.exists
+        cloudSettingsRevision = record.revision
+        cloudSettingsUpdatedAt = record.updatedAt
+        cloudSettingsStatusOverrideKey = ""
+    }
+
+    private func resetCloudSettingsState() {
+        cloudSettingsTask?.cancel()
+        cloudSettingsTask = nil
+        cloudSettingsRequestInFlight = false
+        cloudSettingsLoaded = false
+        cloudSettingsExists = false
+        cloudSettingsRevision = 0
+        cloudSettingsUpdatedAt = 0
+        cloudSettingsRecord = .empty
+        cloudSettingsStatusOverrideKey = ""
+    }
+
+    private func finishCloudSettingsFailure(_ error: Error) {
+        cloudSettingsRequestInFlight = false
+        var key = "cloud_sync.failed"
+        if let cloudError = error as? CloudSettingsClient.CloudError {
+            switch cloudError.code {
+            case "monthly_supporter_required": key = "cloud_sync.monthly_required"
+            case "revision_conflict": key = "cloud_sync.conflict"
+            case "discord_login_required": key = "cloud_sync.login_required"
+            default: break
+            }
+        }
+        cloudSettingsStatusOverrideKey = key
+        if key == "cloud_sync.monthly_required" {
+            cloudMonthlyRequiredAlertPresented = true
+        }
+        appendLog("cloud settings failed: \(error.localizedDescription)")
+        showSavedToast(settings.t(key))
     }
 
     func refreshSpotifyPlayback(loadLyricsIfNeeded: Bool = true) async {
@@ -1938,6 +2176,7 @@ final class AppViewModel: ObservableObject {
             creatorAccountConnected = false
             creatorPrivacyLoginInProgress = false
             creatorPrivacyState = .signedOut
+            resetCloudSettingsState()
         } else {
             creatorAccountConnected = true
             creatorPrivacyState = fallbackState

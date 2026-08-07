@@ -7233,6 +7233,8 @@ struct SettingsView: View {
     @State private var paxsenixModels: [PaxsenixAIProvider.Model] = []
     @State private var paxsenixModelsLoading = false
     @State private var paxsenixModelsError = ""
+    @State private var cloudApplyConfirmationPresented = false
+    @State private var cloudDeleteConfirmationPresented = false
 
     var body: some View {
         ZStack {
@@ -8099,6 +8101,68 @@ struct SettingsView: View {
                 }
             }
 
+            settingsSection(
+                settings.t("cloud_sync.section"),
+                description: settings.t("cloud_sync.monthly_required")
+                    + "\n" + settings.t("cloud_sync.section_desc")
+            ) {
+                settingsCard(settings.t("cloud_sync.section")) {
+                    HStack(alignment: .center, spacing: 10) {
+                        if model.cloudSettingsRequestInFlight {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: model.cloudSettingsSupportBlocked
+                                  ? "exclamationmark.triangle.fill"
+                                  : (model.cloudSettingsExists ? "checkmark.icloud" : "icloud"))
+                                .foregroundStyle(model.cloudSettingsSupportBlocked
+                                                 ? Color.orange.opacity(0.92)
+                                                 : (model.cloudSettingsExists ? Color.green.opacity(0.85) : Color.white.opacity(0.40)))
+                        }
+                        Text(model.cloudSettingsStatusText)
+                            .font(.pretendard(13))
+                            .foregroundStyle(.white.opacity(0.68))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityLabel(model.cloudSettingsStatusText)
+                    }
+
+                    HStack(spacing: 10) {
+                        settingsActionButton(settings.t("cloud_sync.refresh")) {
+                            model.refreshCloudSettings()
+                        }
+                        settingsActionButton(settings.t("cloud_sync.upload")) {
+                            model.uploadCloudSettings()
+                        }
+                    }
+                    .disabled(!model.cloudSettingsActionsEnabled)
+
+                    HStack(spacing: 10) {
+                        settingsActionButton(settings.t("cloud_sync.apply")) {
+                            cloudApplyConfirmationPresented = true
+                        }
+                        .disabled(!model.cloudSettingsCanApply)
+                        settingsActionButton(settings.t("cloud_sync.delete"), role: .destructive) {
+                            cloudDeleteConfirmationPresented = true
+                        }
+                        .disabled(!model.cloudSettingsActionsEnabled)
+                    }
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.66, green: 0.55, blue: 0.98).opacity(0.72),
+                                    Color(red: 0.93, green: 0.28, blue: 0.60).opacity(0.42)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+            }
+
             settingsSection(settings.t("section.spotify_api")) {
                 settingsCard(settings.t("section.spotify_api")) {
                     SpotifySetupInstructionsPanel()
@@ -8188,6 +8252,31 @@ struct SettingsView: View {
                 settingsActionButton(settings.t("button.ai_cache_clear")) { model.clearAiCaches() }
                 settingsActionButton(settings.t("button.debug_log")) { settingsLogsPresented = true }
             }
+        }
+        .alert(settings.t("cloud_sync.apply"), isPresented: $cloudApplyConfirmationPresented) {
+            Button(settings.t("button.cancel"), role: .cancel) {}
+            Button(settings.t("cloud_sync.apply")) { model.applyCloudSettings() }
+        } message: {
+            Text(settings.t("cloud_sync.confirm_apply"))
+        }
+        .alert(settings.t("cloud_sync.delete"), isPresented: $cloudDeleteConfirmationPresented) {
+            Button(settings.t("button.cancel"), role: .cancel) {}
+            Button(settings.t("cloud_sync.delete"), role: .destructive) { model.deleteCloudSettings() }
+        } message: {
+            Text(settings.t("cloud_sync.confirm_delete"))
+        }
+        .alert(
+            settings.t("cloud_sync.section"),
+            isPresented: Binding(
+                get: { model.cloudMonthlyRequiredAlertPresented },
+                set: { presented in
+                    if !presented { model.dismissCloudMonthlyRequiredAlert() }
+                }
+            )
+        ) {
+            Button(settings.t("button.close")) { model.dismissCloudMonthlyRequiredAlert() }
+        } message: {
+            Text(settings.t("cloud_sync.monthly_required"))
         }
     }
 

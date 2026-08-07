@@ -88,23 +88,27 @@ actor CreatorSupportClient {
     }
 
     private func loadTier(userHash: String) async -> String {
-        var cache = readTierCache()
-        let cached = cache[userHash]
-        if let cached, cached.expiresAt > Date() {
-            return Self.normalizeTier(cached.tier)
-        }
-
         do {
-            let tier = try await fetchTier(userHash: userHash)
-            cache[userHash] = TierCacheEntry(
-                tier: tier,
-                expiresAt: Date().addingTimeInterval(Self.tierCacheTTL)
-            )
-            writeTierCache(cache)
-            return tier
+            return try await tier(userHash: userHash)
         } catch {
             return "none"
         }
+    }
+
+    func tier(userHash: String, forceRefresh: Bool = false) async throws -> String {
+        var cache = readTierCache()
+        let cached = cache[userHash]
+        if !forceRefresh, let cached, cached.expiresAt > Date() {
+            return Self.normalizeTier(cached.tier)
+        }
+
+        let tier = try await fetchTier(userHash: userHash)
+        cache[userHash] = TierCacheEntry(
+            tier: tier,
+            expiresAt: Date().addingTimeInterval(Self.tierCacheTTL)
+        )
+        writeTierCache(cache)
+        return tier
     }
 
     private func fetchTier(userHash: String) async throws -> String {
