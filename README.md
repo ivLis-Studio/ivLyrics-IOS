@@ -46,6 +46,12 @@ ivLyrics iOS는 iOS 17 이상을 지원합니다. 설치 후 Spotify 앱과 Spot
 
 ### AltStore로 설치
 
+<a href="https://intradeus.github.io/http-protocol-redirector?r=altstore://source?url=https://raw.githubusercontent.com/ivLis-Studio/ivLyrics-IOS/main/altstore-source.json">
+  <img src="https://raw.githubusercontent.com/StikStore/altdirect/refs/heads/main/assets/png/AltSource_Blue.png" alt="AltStore에 추가" width="200">
+</a>
+
+위 버튼을 누르면 ivLyrics 소스를 AltStore에 바로 추가할 수 있습니다.
+
 AltStore 소스 URL:
 
 ```text

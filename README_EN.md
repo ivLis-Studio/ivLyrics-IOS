@@ -46,6 +46,12 @@ ivLyrics iOS supports iOS 17 or later. The Spotify app and Spotify API configura
 
 ### Install with AltStore
 
+<a href="https://intradeus.github.io/http-protocol-redirector?r=altstore://source?url=https://raw.githubusercontent.com/ivLis-Studio/ivLyrics-IOS/main/altstore-source.json">
+  <img src="https://raw.githubusercontent.com/StikStore/altdirect/refs/heads/main/assets/png/AltSource_Blue.png" alt="Add to AltStore" width="200">
+</a>
+
+Use the button above to add the ivLyrics source directly to AltStore.
+
 AltStore source URL:
 
 ```text
