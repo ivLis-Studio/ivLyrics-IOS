@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.1.10",
+          "buildVersion": "34",
+          "date": "2026-08-07",
+          "localizedDescription": "세로 화면에서 앨범 아트 가장자리가 잘리던 표시 문제가 개선되었습니다. 또한 AltStore 소스의 이전 v1.1.9 릴리스 메타데이터가 실제 IPA 정보에 맞게 정리되었습니다.\n\nAn issue that could clip album-art edges in portrait orientation has been improved. The AltStore source metadata for the earlier v1.1.9 release has also been aligned with the actual IPA information.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.10/ivLyrics-IOS-v1.1.10-unsigned.ipa",
+          "size": 6931973,
+          "sha256": "19ee128cb3acf04738da5ab287093ff7bee9976c1f1279c305b859d171a6ec0e",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.9",
           "buildVersion": "33",
           "date": "2026-08-07",
