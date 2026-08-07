@@ -5479,13 +5479,14 @@ struct SyllableKaraokeText: View {
     private var karaokeSegments: [KaraokeSyllableSegment] {
         let annotations = rubyAnnotations
         let sourceSyllables = effectiveSyllables
+        let fillTimings = KaraokeSyllableTimingNormalizer.latinWordFillTimings(sourceSyllables)
         let displaySyllables = CulturalAnnotation.annotateSyllables(
             text: text,
             syllables: sourceSyllables,
             annotations: culturalAnnotations
         )
         let bounceActiveIndex = bounceEnabled && !accessibilityReduceMotion && active && !displaySyllables.isEmpty
-            ? activeSegmentIndex(in: displaySyllables)
+            ? activeSegmentIndex(in: displaySyllables, fillTimings: fillTimings)
             : nil
         var timedSegments: [KaraokeSyllableSegment] = []
         timedSegments.reserveCapacity(displaySyllables.count)
@@ -5494,14 +5495,27 @@ struct SyllableKaraokeText: View {
             let sourceLength = sourceSyllables.indices.contains(index)
                 ? sourceSyllables[index].text.count
                 : syllable.text.count
+            let fillTiming = fillTimings.indices.contains(index)
+                ? fillTimings[index]
+                : KaraokeSyllableTimingNormalizer.FillTiming(
+                    startTimeMs: syllable.startTimeMs,
+                    endTimeMs: syllable.endTimeMs
+            )
             defer { sourceOffset += sourceLength }
             guard !syllable.text.isEmpty else { continue }
-            let bounce = karaokeBounce(for: syllable, index: index, activeIndex: bounceActiveIndex)
+            let bounce = karaokeBounce(
+                fillTiming: fillTiming,
+                index: index,
+                activeIndex: bounceActiveIndex
+            )
             timedSegments.append(KaraokeSyllableSegment(
                 id: index,
                 text: syllable.text,
                 rubyText: rubyReading(start: sourceOffset, length: sourceLength, annotations: annotations),
-                fill: fillFraction(for: syllable),
+                fill: fillFraction(
+                    startTimeMs: fillTiming.startTimeMs,
+                    endTimeMs: fillTiming.endTimeMs
+                ),
                 baseColor: baseColor,
                 activeColor: activeColor,
                 bounceOffsetY: bounce.offsetY,
@@ -5654,30 +5668,30 @@ struct SyllableKaraokeText: View {
         ].contains(displayKind)
     }
 
-    private func fillFraction(for syllable: LyricsLine.Syllable) -> CGFloat {
+    private func fillFraction(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat {
         guard active else { return 0 }
-        if positionMs >= syllable.endTimeMs {
+        if positionMs >= endTimeMs {
             return 1
         }
-        if positionMs <= syllable.startTimeMs || syllable.endTimeMs <= syllable.startTimeMs {
+        if positionMs <= startTimeMs || endTimeMs <= startTimeMs {
             return 0
         }
-        return min(1, max(0, CGFloat(positionMs - syllable.startTimeMs) / CGFloat(syllable.endTimeMs - syllable.startTimeMs)))
+        return min(1, max(0, CGFloat(positionMs - startTimeMs) / CGFloat(endTimeMs - startTimeMs)))
     }
 
     private func karaokeBounce(
-        for syllable: LyricsLine.Syllable,
+        fillTiming: KaraokeSyllableTimingNormalizer.FillTiming,
         index: Int,
         activeIndex: Int?
     ) -> KaraokeBounceMetrics {
         guard bounceEnabled,
               active,
-              syllable.endTimeMs > syllable.startTimeMs,
+              fillTiming.endTimeMs > fillTiming.startTimeMs,
               let activeIndex else {
             return .idle
         }
         let distance = abs(CGFloat(index - activeIndex))
-        guard distance <= 3, let rawStrength = bounceStrength(startTimeMs: syllable.startTimeMs) else {
+        guard distance <= 3, let rawStrength = bounceStrength(startTimeMs: fillTiming.startTimeMs) else {
             return .idle
         }
         let attenuation = max(0.22, 1 - distance * 0.23)
@@ -5690,7 +5704,10 @@ struct SyllableKaraokeText: View {
         return KaraokeBounceMetrics(offsetY: offsetY, scale: scale)
     }
 
-    private func activeSegmentIndex(in syllables: [LyricsLine.Syllable]) -> Int? {
+    private func activeSegmentIndex(
+        in syllables: [LyricsLine.Syllable],
+        fillTimings: [KaraokeSyllableTimingNormalizer.FillTiming]
+    ) -> Int? {
         var fallbackIndex: Int?
         var fallbackEnd = Int64.min
         var nextIndex: Int?
@@ -5699,15 +5716,21 @@ struct SyllableKaraokeText: View {
             guard !syllable.text.unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) }) else {
                 continue
             }
-            if positionMs >= syllable.startTimeMs, positionMs < syllable.endTimeMs {
+            let timing = fillTimings.indices.contains(index)
+                ? fillTimings[index]
+                : KaraokeSyllableTimingNormalizer.FillTiming(
+                    startTimeMs: syllable.startTimeMs,
+                    endTimeMs: syllable.endTimeMs
+                )
+            if positionMs >= timing.startTimeMs, positionMs < timing.endTimeMs {
                 return index
             }
-            if positionMs >= syllable.endTimeMs, syllable.endTimeMs >= fallbackEnd {
-                fallbackEnd = syllable.endTimeMs
+            if positionMs >= timing.endTimeMs, timing.endTimeMs >= fallbackEnd {
+                fallbackEnd = timing.endTimeMs
                 fallbackIndex = index
             }
-            if positionMs < syllable.startTimeMs, syllable.startTimeMs < nextStart {
-                nextStart = syllable.startTimeMs
+            if positionMs < timing.startTimeMs, timing.startTimeMs < nextStart {
+                nextStart = timing.startTimeMs
                 nextIndex = index
             }
         }
@@ -5718,19 +5741,14 @@ struct SyllableKaraokeText: View {
     }
 
     private func bounceStrength(startTimeMs: Int64) -> CGFloat? {
-        let prelead: CGFloat = 70
         let rise: CGFloat = 220
         let release: CGFloat = 640
         let elapsed = CGFloat(positionMs - startTimeMs)
-        if elapsed < -prelead || elapsed > rise + release {
+        if elapsed < 0 || elapsed > rise + release {
             return nil
         }
-        if elapsed < 0 {
-            let progress = (elapsed + prelead) / prelead
-            return easeOutCubic(progress) * 0.22
-        }
         if elapsed <= rise {
-            return 0.22 + easeOutCubic(elapsed / rise) * 0.78
+            return easeOutCubic(elapsed / rise)
         }
         let progress = min(1, (elapsed - rise) / release)
         return pow(1 - progress, 1.38)

@@ -446,6 +446,11 @@ enum LyricsTextShaping {
 }
 
 enum KaraokeSyllableTimingNormalizer {
+    struct FillTiming: Equatable {
+        let startTimeMs: Int64
+        let endTimeMs: Int64
+    }
+
     static func expandTimedChunks(_ syllables: [LyricsLine.Syllable]) -> [LyricsLine.Syllable] {
 #if DEBUG
         _ = regressionChecks
@@ -457,10 +462,10 @@ enum KaraokeSyllableTimingNormalizer {
         _ syllables: [LyricsLine.Syllable]
     ) -> [LyricsLine.Syllable] {
         let expanded = expandTimedChunksUnchecked(syllables)
-        guard LyricsTextShaping.requiresContinuousShaping(expanded.map(\.text).joined()) else {
-            return expanded
+        if LyricsTextShaping.requiresContinuousShaping(expanded.map(\.text).joined()) {
+            return mergeWordRuns(expanded)
         }
-        return mergeWordRuns(expanded)
+        return expanded
     }
 
     private static func expandTimedChunksUnchecked(
@@ -548,6 +553,90 @@ enum KaraokeSyllableTimingNormalizer {
         return result
     }
 
+    /// Preserve every renderer item for per-character motion while distributing only
+    /// the fill timing evenly across each Latin word's complete timing span.
+    static func latinWordFillTimings(
+        _ syllables: [LyricsLine.Syllable]
+    ) -> [FillTiming] {
+        guard !syllables.isEmpty else { return [] }
+        var result = syllables.map {
+            FillTiming(startTimeMs: $0.startTimeMs, endTimeMs: $0.endTimeMs)
+        }
+        var wordIndices: [Int] = []
+
+        func flushWord() {
+            guard !wordIndices.isEmpty else { return }
+            let text = wordIndices.map { syllables[$0].text }.joined()
+            if isLatinWordText(text), let firstIndex = wordIndices.first {
+                let wordStartMs = syllables[firstIndex].startTimeMs
+                let wordEndMs = max(
+                    wordStartMs,
+                    wordIndices.map { syllables[$0].endTimeMs }.max() ?? wordStartMs
+                )
+                let durationMs = max(0, wordEndMs - wordStartMs)
+                let totalUnits = wordIndices.reduce(0) {
+                    $0 + max(1, syllables[$1].text.count)
+                }
+                var completedUnits = 0
+                for index in wordIndices {
+                    let units = max(1, syllables[index].text.count)
+                    let fillStartMs = wordStartMs + Int64(
+                        (Double(durationMs) * Double(completedUnits) / Double(totalUnits)).rounded()
+                    )
+                    completedUnits += units
+                    let fillEndMs = wordStartMs + Int64(
+                        (Double(durationMs) * Double(completedUnits) / Double(totalUnits)).rounded()
+                    )
+                    result[index] = FillTiming(
+                        startTimeMs: fillStartMs,
+                        endTimeMs: max(fillStartMs, fillEndMs)
+                    )
+                }
+            }
+            wordIndices.removeAll(keepingCapacity: true)
+        }
+
+        for (index, syllable) in syllables.enumerated() where !syllable.text.isEmpty {
+            let isWhitespace = syllable.text.unicodeScalars.allSatisfy {
+                CharacterSet.whitespacesAndNewlines.contains($0)
+            }
+            if isWhitespace {
+                flushWord()
+            } else {
+                wordIndices.append(index)
+            }
+        }
+        flushWord()
+        return result
+    }
+
+    private static func isLatinWordText(_ text: String) -> Bool {
+        var hasLatinLetter = false
+        for scalar in text.unicodeScalars where CharacterSet.letters.contains(scalar) {
+            guard isLatinLetter(scalar.value) else { return false }
+            hasLatinLetter = true
+        }
+        return hasLatinLetter
+    }
+
+    private static func isLatinLetter(_ value: UInt32) -> Bool {
+        switch value {
+        case 0x0041...0x005A,
+             0x0061...0x007A,
+             0x00C0...0x02E4,
+             0x1D00...0x1DBF,
+             0x1E00...0x1EFF,
+             0x2C60...0x2C7F,
+             0xA720...0xA7FF,
+             0xAB30...0xAB6F,
+             0xFF21...0xFF3A,
+             0xFF41...0xFF5A:
+            return true
+        default:
+            return false
+        }
+    }
+
 #if DEBUG
     private static let regressionChecks: Void = {
         let oneCharacter = LyricsLine.Syllable(text: "한", startTimeMs: 100, endTimeMs: 400)
@@ -572,6 +661,30 @@ enum KaraokeSyllableTimingNormalizer {
 
         let untimed = LyricsLine.Syllable(text: "word", startTimeMs: 800, endTimeMs: 800)
         assert(expandTimedChunksUnchecked([untimed]) == [untimed])
+
+        let latinCharacters = [
+            LyricsLine.Syllable(text: "U", startTimeMs: 100, endTimeMs: 160),
+            LyricsLine.Syllable(text: "h", startTimeMs: 160, endTimeMs: 200),
+            LyricsLine.Syllable(text: ",", startTimeMs: 200, endTimeMs: 800),
+            LyricsLine.Syllable(text: " ", startTimeMs: 800, endTimeMs: 900)
+        ]
+        let latin = normalizedTimedChunksUnchecked(latinCharacters)
+        assert(latin == latinCharacters)
+        let latinFill = latinWordFillTimings(latin)
+        assert(latinFill.map(\.startTimeMs) == [100, 333, 567, 800])
+        assert(latinFill.map(\.endTimeMs) == [333, 567, 800, 900])
+
+        let mixedText = "歌 hello 世界"
+        let mixedCharacters = mixedText.enumerated().map { index, character in
+            LyricsLine.Syllable(
+                text: String(character),
+                startTimeMs: Int64(index * 100),
+                endTimeMs: Int64((index + 1) * 100)
+            )
+        }
+        let mixed = normalizedTimedChunksUnchecked(mixedCharacters)
+        assert(mixed.map(\.text) == mixedText.map(String.init))
+        assert(mixed.map(\.text).joined() == mixedText)
 
         let arabicText = "مرحبا بك"
         let arabicCharacters = arabicText.enumerated().map { index, character in
