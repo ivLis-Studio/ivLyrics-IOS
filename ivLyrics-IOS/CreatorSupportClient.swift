@@ -27,7 +27,6 @@ struct CreatorSupportPresentation: Equatable, Sendable {
 
 actor CreatorSupportClient {
     private static let discordUserEndpoint = "https://discord.ivl.is/v1/user/"
-    private static let decorationsEndpoint = "https://lyrics.api.ivl.is/user/creator-decorations"
     private static let supporterRoleID = "1530978124073013478"
     private static let monthlySupporterRoleID = "1530978173590966282"
     private static let cacheKey = "creator_support_tier_cache_v1"
@@ -60,21 +59,26 @@ actor CreatorSupportClient {
             }
         }
 
-        let decorations = (try? await fetchDecorations(userHashes: userHashes)) ?? [:]
+        var decorations: [String: LyricsResult.SyncContributor.Decoration] = [:]
+        for contributor in contributors where userHashes.contains(contributor.userHash) {
+            if let decoration = contributor.decoration {
+                decorations[contributor.userHash] = decoration
+            }
+        }
         var result: [String: CreatorSupportPresentation] = [:]
         for userHash in userHashes {
             guard let tier = tiers[userHash], tier != "none",
                   let decoration = decorations[userHash] else {
                 continue
             }
-            let storedMode = Self.stringValue(decoration["mode"])
+            let storedMode = decoration.mode
             let presentation = CreatorSupportPresentation(
                 tier: tier,
                 mode: tier == "monthly" && storedMode == "gradient" ? "gradient" : "solid",
-                solidColor: Self.stringValue(decoration["solidColor"]),
-                gradientStartColor: Self.stringValue(decoration["gradientStartColor"]),
-                gradientEndColor: Self.stringValue(decoration["gradientEndColor"]),
-                gradientAngle: min(360, max(0, Self.intValue(decoration["gradientAngle"], fallback: 90)))
+                solidColor: decoration.solidColor,
+                gradientStartColor: decoration.gradientStartColor,
+                gradientEndColor: decoration.gradientEndColor,
+                gradientAngle: min(360, max(0, decoration.gradientAngle))
             )
             if presentation.hasDecoration {
                 result[userHash] = presentation
@@ -116,28 +120,6 @@ actor CreatorSupportClient {
             return "monthly"
         }
         return roleIDs.contains(Self.supporterRoleID) ? "supporter" : "none"
-    }
-
-    private func fetchDecorations(userHashes: [String]) async throws -> [String: [String: Any]] {
-        var components = URLComponents(string: Self.decorationsEndpoint)!
-        components.queryItems = [URLQueryItem(name: "userHashes", value: userHashes.joined(separator: ","))]
-        guard let url = components.url else { return [:] }
-        let root = try await getJSON(url: url)
-        guard Self.boolValue(root["success"]),
-              let payload = root["data"] as? [String: Any],
-              let items = payload["items"] as? [[String: Any]] else {
-            return [:]
-        }
-        var result: [String: [String: Any]] = [:]
-        for item in items {
-            let userHash = Self.stringValue(item["userHash"])
-            guard userHashes.contains(userHash),
-                  let decoration = item["decoration"] as? [String: Any] else {
-                continue
-            }
-            result[userHash] = decoration
-        }
-        return result
     }
 
     private func getJSON(url: URL) async throws -> [String: Any] {

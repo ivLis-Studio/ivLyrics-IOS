@@ -2253,6 +2253,7 @@ actor LyricsRepository {
             var profileAvailable = false
             var anonymous = false
             var isPrivate = false
+            var decoration: LyricsResult.SyncContributor.Decoration?
             if let string = raw as? String {
                 name = string.trimmed
             } else if let object = raw as? [String: Any] {
@@ -2272,6 +2273,17 @@ actor LyricsRepository {
                 profileAvailable = boolValue(object["profileAvailable"], fallback: !userHash.isEmpty)
                 if object.keys.contains("linked"), !boolValue(object["linked"], fallback: false) {
                     profileAvailable = false
+                }
+                if let value = object["decoration"] as? [String: Any] {
+                    decoration = LyricsResult.SyncContributor.Decoration(
+                        mode: stringValue(value["mode"]),
+                        solidColor: stringValue(value["solidColor"]),
+                        gradientStartColor: stringValue(value["gradientStartColor"]),
+                        gradientEndColor: stringValue(value["gradientEndColor"]),
+                        gradientAngle: (value["gradientAngle"] as? NSNumber)?.intValue
+                            ?? Int(stringValue(value["gradientAngle"]))
+                            ?? 90
+                    )
                 }
             }
             let identityHidden = anonymous || isPrivate
@@ -2298,7 +2310,8 @@ actor LyricsRepository {
                 userHash: userHash,
                 profileAvailable: profileAvailable,
                 anonymous: anonymous,
-                isPrivate: isPrivate
+                isPrivate: isPrivate,
+                decoration: decoration
             ))
         }
         return result

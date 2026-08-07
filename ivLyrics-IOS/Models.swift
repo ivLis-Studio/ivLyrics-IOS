@@ -675,11 +675,20 @@ struct LyricsResult: Codable, Equatable, Sendable {
     }
 
     struct SyncContributor: Codable, Equatable, Hashable, Sendable {
+        struct Decoration: Codable, Equatable, Hashable, Sendable {
+            var mode: String
+            var solidColor: String
+            var gradientStartColor: String
+            var gradientEndColor: String
+            var gradientAngle: Int
+        }
+
         var name: String
         var userHash: String
         var profileAvailable: Bool
         var anonymous: Bool
         var isPrivate: Bool
+        var decoration: Decoration?
 
         var identityHidden: Bool {
             anonymous || isPrivate
@@ -690,7 +699,8 @@ struct LyricsResult: Codable, Equatable, Sendable {
             userHash: String = "",
             profileAvailable: Bool = false,
             anonymous: Bool = false,
-            isPrivate: Bool = false
+            isPrivate: Bool = false,
+            decoration: Decoration? = nil
         ) {
             let safeName = name.trimmed
             let safeHash = userHash.trimmed
@@ -700,10 +710,11 @@ struct LyricsResult: Codable, Equatable, Sendable {
             self.profileAvailable = !shouldHideIdentity && profileAvailable && !safeHash.isEmpty
             self.anonymous = shouldHideIdentity
             self.isPrivate = isPrivate
+            self.decoration = shouldHideIdentity ? nil : decoration
         }
 
         private enum CodingKeys: String, CodingKey {
-            case name, userHash, profileAvailable, anonymous, isPrivate
+            case name, userHash, profileAvailable, anonymous, isPrivate, decoration
         }
 
         init(from decoder: Decoder) throws {
@@ -713,7 +724,8 @@ struct LyricsResult: Codable, Equatable, Sendable {
                 userHash: try container.decodeIfPresent(String.self, forKey: .userHash) ?? "",
                 profileAvailable: try container.decodeIfPresent(Bool.self, forKey: .profileAvailable) ?? false,
                 anonymous: try container.decodeIfPresent(Bool.self, forKey: .anonymous) ?? false,
-                isPrivate: try container.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? false
+                isPrivate: try container.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? false,
+                decoration: try container.decodeIfPresent(Decoration.self, forKey: .decoration)
             )
         }
 
@@ -724,6 +736,7 @@ struct LyricsResult: Codable, Equatable, Sendable {
             try container.encode(profileAvailable, forKey: .profileAvailable)
             try container.encode(anonymous, forKey: .anonymous)
             try container.encode(isPrivate, forKey: .isPrivate)
+            try container.encodeIfPresent(decoration, forKey: .decoration)
         }
     }
 }
