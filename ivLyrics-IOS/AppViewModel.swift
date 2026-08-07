@@ -40,9 +40,11 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var lyricsResult = LyricsResult.empty("") {
         didSet {
             cachedTimelineContext = nil
+            refreshCreatorSupportPresentations(for: lyricsResult)
         }
     }
     @Published private(set) var baseLyricsResult = LyricsResult.empty("")
+    @Published private(set) var creatorSupportPresentations: [String: CreatorSupportPresentation] = [:]
     @Published private(set) var lyricsSupplementLayoutRevision = 0
     @Published private(set) var status: AppStatus = .idle
     @Published private(set) var logs: [String] = []
@@ -193,6 +195,7 @@ final class AppViewModel: ObservableObject {
     let pictureInPictureController = LyricsPictureInPictureController()
     private let pollinationsAuthClient = PollinationsAuthClient()
     private let creatorAccountClient = CreatorAccountClient()
+    private let creatorSupportClient = CreatorSupportClient()
     private let updateChecker = UpdateChecker()
     private var culturalAnnotationTask: Task<Void, Never>?
     private var culturalAnnotationRequestKey = ""
@@ -207,6 +210,8 @@ final class AppViewModel: ObservableObject {
     private var toastTask: Task<Void, Never>?
     private var pollinationsAuthTask: Task<Void, Never>?
     private var creatorPrivacyTask: Task<Void, Never>?
+    private var creatorSupportTask: Task<Void, Never>?
+    private var creatorSupportRequestKey = ""
     private var spotifyPollTask: Task<Void, Never>?
     private var pipActiveCancellable: AnyCancellable?
     private var spotifyMetadataHydrationTask: Task<Void, Never>?
@@ -338,6 +343,7 @@ final class AppViewModel: ObservableObject {
         toastTask?.cancel()
         pollinationsAuthTask?.cancel()
         creatorPrivacyTask?.cancel()
+        creatorSupportTask?.cancel()
         spotifyPollTask?.cancel()
         spotifyMetadataHydrationTask?.cancel()
         updateTask?.cancel()
@@ -366,6 +372,41 @@ final class AppViewModel: ObservableObject {
 
     var creatorPrivacyIsPrivate: Bool {
         creatorPrivacyState == .privateProfile
+    }
+
+    func creatorSupportPresentation(for contributor: LyricsResult.SyncContributor) -> CreatorSupportPresentation? {
+        guard !contributor.identityHidden else { return nil }
+        return creatorSupportPresentations[contributor.userHash.trimmed]
+    }
+
+    private func refreshCreatorSupportPresentations(for result: LyricsResult) {
+        let userHashes = result.contributors.prefix(3).compactMap { contributor -> String? in
+            guard !contributor.identityHidden else { return nil }
+            let value = contributor.userHash.trimmed
+            guard (15...22).contains(value.count), value.allSatisfy(\.isNumber) else { return nil }
+            return value
+        }
+        guard !userHashes.isEmpty else {
+            creatorSupportTask?.cancel()
+            creatorSupportTask = nil
+            creatorSupportRequestKey = ""
+            creatorSupportPresentations = [:]
+            return
+        }
+
+        let trackKey = currentTrack?.stableKey ?? result.spotifyTrackId
+        let requestKey = ([trackKey] + userHashes).joined(separator: "|")
+        guard requestKey != creatorSupportRequestKey else { return }
+        creatorSupportRequestKey = requestKey
+        creatorSupportTask?.cancel()
+        let client = creatorSupportClient
+        let contributors = result.contributors
+        creatorSupportTask = Task { [weak self] in
+            let presentations = await client.load(contributors: contributors)
+            guard !Task.isCancelled, let self,
+                  self.creatorSupportRequestKey == requestKey else { return }
+            self.creatorSupportPresentations = presentations
+        }
     }
 
     var creatorPrivacyCanEdit: Bool {

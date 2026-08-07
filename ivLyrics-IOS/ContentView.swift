@@ -3914,18 +3914,67 @@ private struct LyricsContributorCredit: View {
                     await model.openSyncContributorProfile(contributor)
                 }
             } label: {
-                Text(contributorDisplayName(contributor))
-                    .foregroundStyle(.white.opacity(linkedNameOpacity))
+                CreatorContributorNameText(
+                    name: contributorDisplayName(contributor),
+                    presentation: model.creatorSupportPresentation(for: contributor),
+                    fallbackOpacity: linkedNameOpacity,
+                    supporterOpacity: subdued ? 0.45 : 1
+                )
             }
             .buttonStyle(.plain)
         } else {
-            Text(contributorDisplayName(contributor))
-                .foregroundStyle(.white.opacity(nameOpacity))
+            CreatorContributorNameText(
+                name: contributorDisplayName(contributor),
+                presentation: model.creatorSupportPresentation(for: contributor),
+                fallbackOpacity: nameOpacity,
+                supporterOpacity: subdued ? 0.45 : 1
+            )
         }
     }
 
     private func contributorDisplayName(_ contributor: LyricsResult.SyncContributor) -> String {
         contributor.identityHidden ? settings.t("lyrics.credit_anonymous") : contributor.name
+    }
+}
+
+private struct CreatorContributorNameText: View {
+    let name: String
+    let presentation: CreatorSupportPresentation?
+    let fallbackOpacity: Double
+    let supporterOpacity: Double
+
+    @ViewBuilder
+    var body: some View {
+        if let presentation, presentation.usesGradient {
+            let points = gradientPoints(angle: presentation.gradientAngle)
+            Text(name)
+                .foregroundStyle(LinearGradient(
+                    colors: [
+                        Color(hex: presentation.gradientStartColor),
+                        Color(hex: presentation.gradientEndColor)
+                    ],
+                    startPoint: points.start,
+                    endPoint: points.end
+                ))
+                .opacity(supporterOpacity)
+        } else if let presentation, presentation.hasDecoration {
+            Text(name)
+                .foregroundStyle(Color(hex: presentation.solidColor))
+                .opacity(supporterOpacity)
+        } else {
+            Text(name)
+                .foregroundStyle(.white.opacity(fallbackOpacity))
+        }
+    }
+
+    private func gradientPoints(angle: Int) -> (start: UnitPoint, end: UnitPoint) {
+        let radians = Double(angle) * .pi / 180
+        let directionX = sin(radians)
+        let directionY = -cos(radians)
+        return (
+            UnitPoint(x: 0.5 - directionX / 2, y: 0.5 - directionY / 2),
+            UnitPoint(x: 0.5 + directionX / 2, y: 0.5 + directionY / 2)
+        )
     }
 }
 
