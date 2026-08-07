@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.1.8",
+          "buildVersion": "32",
+          "date": "2026-08-07",
+          "localizedDescription": "v1.1.8에서는 제작자 장식 정보를 앱에 내장된 데이터로 사용하도록 개선했습니다. 가사 데이터와 함께 제작자 표시 정보를 처리해 별도 지원 클라이언트에 대한 의존성을 줄였습니다. 또한 AltStore 배포 소스의 v1.1.7 IPA 메타데이터를 실제 파일 정보에 맞게 정정했습니다.\n\nv1.1.8 improves creator decorations by using data embedded in the app's lyric-related models. Creator display information is handled together with lyric data, reducing reliance on a separate support client. The AltStore source metadata for the v1.1.7 IPA was also corrected to match the actual file.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.8/ivLyrics-IOS-v1.1.8-unsigned.ipa",
+          "size": 6887916,
+          "sha256": "6eb94d4bb150573ba9f8a007d3da767d048bf3aeb4b7e53605b3feb4e875d51f",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.7",
           "buildVersion": "31",
           "date": "2026-08-07",
