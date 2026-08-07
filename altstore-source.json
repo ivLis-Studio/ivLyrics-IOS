@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.1.9",
+          "buildVersion": "33",
+          "date": "2026-08-07",
+          "localizedDescription": "v1.1.9는 가사 가라오케 애니메이션의 채움 및 바운스 타이밍을 조정해 재생 흐름과의 일치감을 높였습니다. 후원자 혜택과 클라우드 설정 동기화를 추가하고, 관련 설정 화면 및 다국어 문구를 확장했습니다. 또한 이전 v1.1.8 배포 항목의 IPA 메타데이터를 실제 값으로 정비했습니다.\n\nv1.1.9 adjusts karaoke lyric fill and bounce timing for closer alignment with playback. It adds supporter perks and cloud settings synchronization, along with expanded settings UI and localized text. It also corrects the IPA metadata for the prior v1.1.8 distribution entry.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.9/ivLyrics-IOS-v1.1.9-unsigned.ipa",
+          "size": 6931864,
+          "sha256": "05db95938d580fe9039dd657cef82d10fa2a68ab98845895276900bd888152ef",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.8",
           "buildVersion": "32",
           "date": "2026-08-07",
