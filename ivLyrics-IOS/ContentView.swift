@@ -431,7 +431,9 @@ struct ContentView: View {
             let width = proxy.size.width
             let height = proxy.size.height
             let fullHeight = height + safeAreaInsets.top + safeAreaInsets.bottom
-            let artworkSize = max(180, min(width - 32, fullHeight * 0.45))
+            let horizontalPadding: CGFloat = 24
+            let contentWidth = max(0, width - horizontalPadding * 2)
+            let artworkSize = max(180, min(contentWidth, fullHeight * 0.45))
             let typography = settings.typographySettings()
             let artworkMetadataSpacing = min(30, max(18, height * 0.034))
             let metadataControlsSpacing = min(38, max(28, height * 0.045))
@@ -505,8 +507,8 @@ struct ContentView: View {
                         showLyricsPage(true)
                     }
             }
-            .frame(width: max(0, width - 48), height: max(0, height))
-            .padding(.horizontal, 24)
+            .frame(width: contentWidth, height: max(0, height))
+            .padding(.horizontal, horizontalPadding)
             .foregroundStyle(.white)
         }
         .simultaneousGesture(
