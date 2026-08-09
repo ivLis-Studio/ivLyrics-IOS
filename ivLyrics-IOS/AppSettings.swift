@@ -1747,6 +1747,13 @@ final class AppSettings: ObservableObject {
             !readyAIProviderSnapshots.isEmpty
         }
 
+        var hasEnabledAIProvider: Bool {
+            enabledAIProviderOrder.contains { providerId in
+                guard let provider = AppSettings.aiProviderById(providerId) else { return false }
+                return !provider.isKeyless
+            }
+        }
+
         var hasAnyTranslationProvider: Bool {
             hasKeylessTranslationProvider || hasReadyAIProvider
         }

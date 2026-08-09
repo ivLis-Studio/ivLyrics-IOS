@@ -2624,6 +2624,17 @@ private struct FirstLanguagePromptSheetView: View {
         pronunciationEnabled || translationEnabled
     }
 
+    private var shouldShowAIProviderHint: Bool {
+        let snapshot = settings.snapshot
+        return snapshot.hasKeylessTranslationProvider && !snapshot.hasEnabledAIProvider
+    }
+
+    private var aiProviderHintKey: String {
+        pronunciationEnabled
+            ? "first_language.pronunciation_ai_provider_hint"
+            : "first_language.ai_provider_hint"
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -2679,6 +2690,33 @@ private struct FirstLanguagePromptSheetView: View {
                         )
                     }
                     .padding(.top, 16)
+
+                    if shouldShowAIProviderHint {
+                        HStack(alignment: .top, spacing: 9) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(Color(red: 147.0 / 255.0, green: 197.0 / 255.0, blue: 253.0 / 255.0))
+                                .accessibilityHidden(true)
+                            Text(settings.t(aiProviderHintKey))
+                                .font(.pretendard(12.5))
+                                .foregroundStyle(Color(red: 219.0 / 255.0, green: 234.0 / 255.0, blue: 254.0 / 255.0).opacity(0.88))
+                                .lineSpacing(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(
+                            Color(red: 59.0 / 255.0, green: 130.0 / 255.0, blue: 246.0 / 255.0).opacity(0.10),
+                            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .stroke(Color(red: 96.0 / 255.0, green: 165.0 / 255.0, blue: 250.0 / 255.0).opacity(0.22))
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(settings.t(aiProviderHintKey))
+                        .padding(.top, 14)
+                    }
 
                     Button(actionTitle) {
                         applySelection()
