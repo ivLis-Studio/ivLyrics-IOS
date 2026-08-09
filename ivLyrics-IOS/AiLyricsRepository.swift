@@ -30,6 +30,7 @@ actor AiLyricsRepository {
     private var culturalAnnotationMemoryCache: [String: [CulturalAnnotation]] = [:]
     private var lastPartialEmitUptime: TimeInterval = 0
     private let partialEmitMinInterval: TimeInterval = 0.6
+    private let keylessTranslationProviders = KeylessTranslationProviders()
 
     struct SupplementResponse: Sendable {
         var result: LyricsResult
@@ -188,8 +189,11 @@ actor AiLyricsRepository {
         let targetLang = settings.resolveTargetLanguage(sourceLang: sourceLang)
         let pronunciationLang = settings.pronunciationLanguage
         let translationSkipped = settings.shouldSkipTranslation(sourceLang: sourceLang, resolvedTargetLang: targetLang)
-        let needsPronunciation = rule.pronunciationEnabled
-        let needsTranslation = rule.translationEnabled && !translationSkipped
+        let selectedAiReady = settings.hasReadyAIProvider
+        let requestedPronunciation = rule.pronunciationEnabled
+        let requestedTranslation = rule.translationEnabled && !translationSkipped
+        let needsPronunciation = requestedPronunciation && selectedAiReady
+        let needsTranslation = requestedTranslation && (settings.hasKeylessTranslationProvider || selectedAiReady)
 
         guard rule.enabled else {
             log("ai lyrics skipped for source=\(sourceLang): translation=false / pronunciation=false")
@@ -217,12 +221,15 @@ actor AiLyricsRepository {
             }
         }
 
-        guard settings.hasApiKey else {
-            log("ai lyrics skipped: API key missing for \(settings.provider.label)")
+        guard needsPronunciation || needsTranslation || (!requestedPronunciation && !requestedTranslation) else {
+            log("ai lyrics skipped: no enabled provider is fully configured")
             return SupplementResponse(result: baseResult, logs: logs, pronunciationLoading: false, translationLoading: false, hadError: true)
         }
+        if requestedPronunciation, !selectedAiReady, needsTranslation {
+            log("ai pronunciation skipped: selected AI provider is not fully configured")
+        }
 
-        log("ai lyrics: provider=\(settings.provider.label) / model=\(settings.model) / source=\(sourceLang)\(sourceLang.caseInsensitiveCompare(detectedSourceLang) == .orderedSame ? "" : " / detected=\(detectedSourceLang)") / pronunciation=\(pronunciationLang) / target=\(targetLang) / translation=\(rule.translationEnabled) / pronunciation=\(rule.pronunciationEnabled)")
+        log("ai lyrics: providers=\(settings.enabledAIProviderOrder.joined(separator: ",")) / source=\(sourceLang)\(sourceLang.caseInsensitiveCompare(detectedSourceLang) == .orderedSame ? "" : " / detected=\(detectedSourceLang)") / pronunciation=\(pronunciationLang) / target=\(targetLang) / translation=\(rule.translationEnabled) / pronunciation=\(rule.pronunciationEnabled)")
         if translationSkipped {
             log("ai translation skipped: source language matches target (\(sourceLang) -> \(targetLang))")
         }
@@ -392,34 +399,111 @@ actor AiLyricsRepository {
 
         let pronunciation = task == supplementTaskPronunciation
         do {
-            let prompt: String
+            let values: [String]
             if pronunciation {
-                prompt = buildPhoneticPrompt(requests: requests, lang: pronunciationLang)
+                let prompt = buildPhoneticPrompt(requests: requests, lang: pronunciationLang)
                 log("ai pronunciation stream request: lines=\(requests.count) / pronunciation=\(pronunciationLang)")
+                var resolvedValues: [String]?
+                var lastError: Error?
+                for providerSettings in settings.readyAIProviderSnapshots {
+                    await liveState.reset(task: task)
+                    do {
+                        log("ai pronunciation attempt: provider=\(providerSettings.provider.label) / model=\(providerSettings.model)")
+                        resolvedValues = try await loadSupplementValuesStreamFirst(
+                            prompt: prompt,
+                            settings: providerSettings,
+                            requests: requests,
+                            taskName: task,
+                            log: log
+                        ) { [self] index, value in
+                            await liveState.setValue(task: task, index: index, value: value)
+                            await emitSupplementPartial(
+                                baseResult: baseResult,
+                                requests: requests,
+                                settings: settings,
+                                sourceLang: sourceLang,
+                                targetLang: targetLang,
+                                pronunciationLang: pronunciationLang,
+                                rule: rule,
+                                translationSkipped: translationSkipped,
+                                liveState: liveState,
+                                partialUpdate: partialUpdate
+                            )
+                        }
+                        break
+                    } catch {
+                        lastError = error
+                        log("ai pronunciation fallback: provider=\(providerSettings.provider.label) / error=\(error.localizedDescription)")
+                    }
+                }
+                guard let resolvedValues else {
+                    throw lastError ?? NSError(
+                        domain: "ivLyrics.AIProviders",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "error.translation_providers_failed")]
+                    )
+                }
+                values = resolvedValues
             } else {
-                prompt = buildTranslationPrompt(requests: requests, lang: targetLang)
-                log("ai translation stream request: lines=\(requests.count)")
-            }
-            let values = try await loadSupplementValuesStreamFirst(
-                prompt: prompt,
-                settings: settings,
-                requests: requests,
-                taskName: task,
-                log: log
-            ) { [self] index, value in
-                await liveState.setValue(task: task, index: index, value: value)
-                await emitSupplementPartial(
-                    baseResult: baseResult,
-                    requests: requests,
-                    settings: settings,
-                    sourceLang: sourceLang,
-                    targetLang: targetLang,
-                    pronunciationLang: pronunciationLang,
-                    rule: rule,
-                    translationSkipped: translationSkipped,
-                    liveState: liveState,
-                    partialUpdate: partialUpdate
-                )
+                let prompt = buildTranslationPrompt(requests: requests, lang: targetLang)
+                var resolvedValues: [String]?
+                var lastError: Error?
+                for providerId in settings.enabledAIProviderOrder {
+                    guard let provider = AppSettings.aiProviderById(providerId) else { continue }
+                    await liveState.reset(task: task)
+                    do {
+                        if provider.isKeyless {
+                            log("translation attempt: provider=\(provider.label)")
+                            let result = try await keylessTranslationProviders.translate(
+                                providerId: provider.id,
+                                texts: requests.map(\.text),
+                                targetLanguage: targetLang
+                            )
+                            resolvedValues = result.values
+                            log("translation response: provider=\(result.providerLabel) / lines=\(result.values.count)")
+                        } else if let providerSettings = settings.selectingAIProvider(provider.id),
+                                  providerSettings.hasApiKey,
+                                  providerSettings.hasModel {
+                            log("ai translation attempt: provider=\(provider.label) / model=\(providerSettings.model)")
+                            resolvedValues = try await loadSupplementValuesStreamFirst(
+                                prompt: prompt,
+                                settings: providerSettings,
+                                requests: requests,
+                                taskName: task,
+                                log: log
+                            ) { [self] index, value in
+                                await liveState.setValue(task: task, index: index, value: value)
+                                await emitSupplementPartial(
+                                    baseResult: baseResult,
+                                    requests: requests,
+                                    settings: settings,
+                                    sourceLang: sourceLang,
+                                    targetLang: targetLang,
+                                    pronunciationLang: pronunciationLang,
+                                    rule: rule,
+                                    translationSkipped: translationSkipped,
+                                    liveState: liveState,
+                                    partialUpdate: partialUpdate
+                                )
+                            }
+                        } else {
+                            log("ai translation skipped: provider=\(provider.label) is not fully configured")
+                            continue
+                        }
+                        if resolvedValues != nil { break }
+                    } catch {
+                        lastError = error
+                        log("translation fallback: provider=\(provider.label) / error=\(error.localizedDescription)")
+                    }
+                }
+                guard let resolvedValues else {
+                    throw lastError ?? NSError(
+                        domain: "ivLyrics.AIProviders",
+                        code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "error.translation_providers_failed")]
+                    )
+                }
+                values = resolvedValues
             }
             await liveState.finish(task: task, values: values)
             log("ai \(task) response: lines=\(values.count)")
@@ -535,6 +619,8 @@ actor AiLyricsRepository {
             + "|source=\(sourceLang)"
             + "|target=\(targetLang)"
             + "|provider=\(settings.provider.id)"
+            + "|bingTranslate=\(settings.bingTranslateEnabled)"
+            + "|googleTranslate=\(settings.googleTranslateEnabled)"
             + "|model=\(settings.model)"
             + "|url=\(settings.baseUrl)"
             + "|temp=\(settings.temperature)"
@@ -589,11 +675,7 @@ actor AiLyricsRepository {
             + trackKey
             + "|lang=\(targetLang)"
             + "|prompt=\(tmiPromptVersion)"
-            + "|provider=\(settings.provider.id)"
-            + "|model=\(settings.model)"
-            + "|url=\(settings.baseUrl)"
-            + "|tok=\(settings.maxTokens)"
-            + "|temp=\(settings.temperature)"
+            + "|providers=\(IvLyricsUtilities.sha256(settings.cacheKey))"
             + "|text=\(IvLyricsUtilities.sha256(title + "\n" + artist))"
 
         if !bypassCache {
@@ -2125,6 +2207,14 @@ actor AiLyricsRepository {
             } else {
                 translation = values
                 translationLoading = false
+            }
+        }
+
+        func reset(task: String) {
+            if task == "pronunciation" {
+                pronunciation = Array(repeating: "", count: pronunciation.count)
+            } else {
+                translation = Array(repeating: "", count: translation.count)
             }
         }
 

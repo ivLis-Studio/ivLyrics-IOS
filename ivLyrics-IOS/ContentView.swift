@@ -280,7 +280,13 @@ struct ContentView: View {
             .opacity(vinylModeVisible ? 0 : 1)
             .scaleEffect(vinylModeVisible ? 0.985 : 1)
             .allowsHitTesting(!vinylModeVisible)
-            .accessibilityHidden(vinylModeVisible || showingLyricsMetaMenu || model.tmiPresented || model.updateDialogPresented)
+            .accessibilityHidden(
+                vinylModeVisible
+                    || showingLyricsMetaMenu
+                    || model.tmiPresented
+                    || model.updateDialogPresented
+                    || model.firstLanguagePrompt != nil
+            )
             .animation(
                 settings.vinylAnimationsEnabled && !accessibilityReduceMotion
                     ? .timingCurve(0.22, 0.74, 0.28, 1, duration: 0.36)
@@ -404,6 +410,12 @@ struct ContentView: View {
             UpdateSheetView()
                 .transition(.opacity)
                 .zIndex(13)
+        }
+        if let prompt = model.firstLanguagePrompt {
+            FirstLanguagePromptSheetView(prompt: prompt)
+                .id(prompt.id)
+                .transition(.opacity.combined(with: .scale(scale: 0.975)))
+                .zIndex(14)
         }
         if !model.toastMessage.trimmed.isEmpty {
             ToastBanner(
@@ -614,6 +626,11 @@ struct ContentView: View {
         if environment["IVLYRICS_DEBUG_SHOW_UPDATE"] == "1" {
             DispatchQueue.main.async {
                 model.updateDialogPresented = true
+            }
+        }
+        if environment["IVLYRICS_DEBUG_SHOW_FIRST_LANGUAGE"] == "1" {
+            DispatchQueue.main.async {
+                model.applyDebugFirstLanguagePrompt()
             }
         }
         if environment["IVLYRICS_DEBUG_SHOW_ONBOARDING"] == "1" {
@@ -2588,6 +2605,155 @@ private struct ArtworkSwipeActionsModifier: ViewModifier {
 private extension View {
     func artworkSwipeActions(size: CGFloat, onTap: (() -> Void)? = nil) -> some View {
         modifier(ArtworkSwipeActionsModifier(size: size, onTap: onTap))
+    }
+}
+
+private struct FirstLanguagePromptSheetView: View {
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var model: AppViewModel
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+
+    let prompt: FirstLanguagePrompt
+
+    @State private var pronunciationEnabled = false
+    @State private var translationEnabled = false
+
+    private let accent = Color(red: 47.0 / 255.0, green: 125.0 / 255.0, blue: 221.0 / 255.0)
+
+    private var hasSelection: Bool {
+        pronunciationEnabled || translationEnabled
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.opacity(0.56)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 96.0 / 255.0, green: 165.0 / 255.0, blue: 250.0 / 255.0).opacity(0.22))
+                        Image(systemName: "translate")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(Color(red: 147.0 / 255.0, green: 197.0 / 255.0, blue: 253.0 / 255.0))
+                    }
+                    .frame(width: 58, height: 58)
+                    .accessibilityHidden(true)
+
+                    Text(settings.tf("first_language.title_format", prompt.languageName))
+                        .font(.pretendard(20, weight: .bold))
+                        .foregroundStyle(Color(red: 248.0 / 255.0, green: 250.0 / 255.0, blue: 252.0 / 255.0))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .padding(.top, 16)
+
+                    Text(settings.t("first_language.message"))
+                        .font(.pretendard(16))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                        .padding(.top, 5)
+
+                    Text(settings.t("first_language.hint"))
+                        .font(.pretendard(12.5))
+                        .foregroundStyle(.white.opacity(0.45))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .padding(.top, 8)
+
+                    VStack(spacing: 0) {
+                        promptToggle(
+                            icon: "Abc",
+                            label: settings.t("first_language.pronunciation"),
+                            isOn: $pronunciationEnabled
+                        )
+
+                        Divider()
+                            .overlay(.white.opacity(0.09))
+
+                        promptToggle(
+                            icon: "文A",
+                            label: settings.t("first_language.translation"),
+                            isOn: $translationEnabled
+                        )
+                    }
+                    .padding(.top, 16)
+
+                    Button(actionTitle) {
+                        applySelection()
+                    }
+                    .font(.pretendard(15, weight: .semibold))
+                    .foregroundStyle(hasSelection ? Color.white : Color.white.opacity(0.62))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(
+                        hasSelection ? accent : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+                    .buttonStyle(.plain)
+                    .padding(.top, 16)
+                }
+                .padding(.horizontal, 28)
+                .padding(.top, 28)
+                .padding(.bottom, 22)
+                .frame(maxWidth: min(440, max(300, geometry.size.width - 32)))
+                .background(
+                    Color(red: 24.0 / 255.0, green: 24.0 / 255.0, blue: 27.0 / 255.0).opacity(0.98),
+                    in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(.white.opacity(0.10), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.44), radius: 32, y: 16)
+                .padding(.horizontal, 16)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+    }
+
+    private var actionTitle: String {
+        settings.t(hasSelection ? "first_language.apply" : "first_language.not_now")
+    }
+
+    private func promptToggle(icon: String, label: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            HStack(spacing: 12) {
+                Text(icon)
+                    .font(.pretendard(12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.66))
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
+                Text(label)
+                    .font(.pretendard(16, weight: .semibold))
+                    .foregroundStyle(Color(red: 248.0 / 255.0, green: 250.0 / 255.0, blue: 252.0 / 255.0))
+            }
+        }
+        .toggleStyle(SwitchToggleStyle(tint: accent))
+        .frame(minHeight: 58)
+        .accessibilityLabel(label)
+        .animation(accessibilityReduceMotion ? nil : .easeInOut(duration: 0.16), value: isOn.wrappedValue)
+    }
+
+    private func applySelection() {
+        let choice: FirstLanguagePromptChoice
+        switch (pronunciationEnabled, translationEnabled) {
+        case (true, true):
+            choice = .both
+        case (true, false):
+            choice = .pronunciation
+        case (false, true):
+            choice = .translation
+        case (false, false):
+            withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.16)) {
+                model.dismissFirstLanguagePrompt()
+            }
+            return
+        }
+        withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.16)) {
+            model.applyFirstLanguagePromptChoice(choice, prompt: prompt)
+        }
     }
 }
 
@@ -7854,14 +8020,17 @@ struct SettingsView: View {
             settingsSection(settings.t("section.ai_lyrics"), description: settings.t("section.ai_lyrics_desc")) {
                 settingsToggleCard(settings.t("lyrics.translation"), binding: $settings.translationEnabled)
                 settingsToggleCard(settings.t("lyrics.pronunciation"), binding: $settings.pronunciationEnabled)
-                settingsCard(settings.t("section.provider")) {
-                    Picker("", selection: providerBinding) {
-                        ForEach(AppSettings.providers) { provider in
-                            Text(provider.label).tag(provider.id)
+                settingsCard(
+                    settings.t("section.provider"),
+                    description: settings.t("setting.ai_provider_order_desc")
+                ) {
+                    VStack(spacing: 8) {
+                        ForEach(Array(settings.aiProviderOrder.enumerated()), id: \.element) { index, providerId in
+                            if let provider = AppSettings.aiProviderById(providerId) {
+                                aiProviderSettingsCard(provider, index: index)
+                            }
                         }
                     }
-                    .labelsHidden()
-                    .settingsMenuSurface()
                 }
                 settingsToggleCard(
                     settings.t("setting.cultural_annotations"),
@@ -8520,6 +8689,98 @@ struct SettingsView: View {
 
     private var selectedProvider: AppSettings.Provider {
         AppSettings.providerById(settings.providerId)
+    }
+
+    @ViewBuilder
+    private func aiProviderSettingsCard(_ provider: AppSettings.Provider, index: Int) -> some View {
+        let selected = !provider.isKeyless && settings.providerId == provider.id
+        HStack(spacing: 12) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.52))
+                .frame(width: 32, height: 44)
+                .contentShape(Rectangle())
+                .draggable(provider.id)
+                .accessibilityLabel(settings.tf("setting.ai_provider_drag_format", provider.label))
+
+            Button {
+                guard !provider.isKeyless else { return }
+                settings.setProvider(provider.id)
+                model.showSavedToast(settings.t("toast.provider_saved"))
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(provider.label)
+                        .font(.pretendard(14, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text(aiProviderDescription(provider))
+                        .font(.pretendard(11))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                    if selected {
+                        Text(settings.t("setting.ai_provider_selected"))
+                            .font(.pretendard(10, weight: .semibold))
+                            .foregroundStyle(Color(red: 0.58, green: 0.75, blue: 1.0))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(provider.isKeyless)
+
+            Toggle("", isOn: aiProviderEnabledBinding(provider.id))
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityLabel(settings.tf("setting.ai_provider_toggle_format", provider.label))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            selected ? Color(red: 0.22, green: 0.39, blue: 0.68).opacity(0.42) : Color.white.opacity(0.055),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(selected ? Color(red: 0.48, green: 0.67, blue: 1.0).opacity(0.55) : .white.opacity(0.06))
+        )
+        .dropDestination(for: String.self) { providerIds, location in
+            guard let sourceId = providerIds.first else { return false }
+            settings.moveAIProvider(sourceId, relativeTo: provider.id, after: location.y > 36)
+            model.translationProviderSettingsChanged()
+            return true
+        }
+        .accessibilityAction(named: Text(settings.t("accessibility.move_up"))) {
+            guard index > 0 else { return }
+            settings.moveAIProvider(provider.id, offset: -1)
+            model.translationProviderSettingsChanged()
+        }
+        .accessibilityAction(named: Text(settings.t("accessibility.move_down"))) {
+            guard index < settings.aiProviderOrder.count - 1 else { return }
+            settings.moveAIProvider(provider.id, offset: 1)
+            model.translationProviderSettingsChanged()
+        }
+    }
+
+    private func aiProviderDescription(_ provider: AppSettings.Provider) -> String {
+        switch provider.id {
+        case KeylessTranslationProviders.bingId:
+            return settings.t("setting.bing_translate_provider_desc")
+        case KeylessTranslationProviders.googleId:
+            return settings.t("setting.google_translate_provider_desc")
+        default:
+            return settings.t("provider.desc.\(provider.id)")
+        }
+    }
+
+    private func aiProviderEnabledBinding(_ providerId: String) -> Binding<Bool> {
+        Binding(
+            get: { settings.aiProviderEnabled[providerId] ?? false },
+            set: { enabled in
+                settings.setAIProviderEnabled(providerId, enabled: enabled)
+                model.translationProviderSettingsChanged()
+            }
+        )
     }
 
     @MainActor

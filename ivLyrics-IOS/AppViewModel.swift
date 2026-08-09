@@ -19,6 +19,21 @@ enum CreatorPrivacyState: Equatable {
     case privateProfile
 }
 
+struct FirstLanguagePrompt: Identifiable, Equatable {
+    let sourceLang: String
+    let languageName: String
+    let trackKey: String
+
+    var id: String { "\(trackKey)|\(sourceLang)" }
+}
+
+enum FirstLanguagePromptChoice {
+    case original
+    case pronunciation
+    case translation
+    case both
+}
+
 @MainActor
 final class AppViewModel: ObservableObject {
     private static let spotifyPlaybackRefreshBurstDelays: [UInt64] = [
@@ -98,6 +113,7 @@ final class AppViewModel: ObservableObject {
     @Published var updateDialogPresented = false
     @Published var initialSetupPresented = false
     @Published var onboardingStep = 0
+    @Published private(set) var firstLanguagePrompt: FirstLanguagePrompt?
 
     var lyricsLoadingText: String {
         let providerName = lyricsLoadingProviderName.trimmed
@@ -1282,6 +1298,59 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func applyFirstLanguagePromptChoice(
+        _ choice: FirstLanguagePromptChoice,
+        prompt selectedPrompt: FirstLanguagePrompt? = nil
+    ) {
+        guard let prompt = selectedPrompt ?? firstLanguagePrompt else { return }
+        if firstLanguagePrompt?.id == prompt.id {
+            firstLanguagePrompt = nil
+        }
+        let pronunciationEnabled: Bool
+        let translationEnabled: Bool
+        switch choice {
+        case .original:
+            pronunciationEnabled = false
+            translationEnabled = false
+        case .pronunciation:
+            pronunciationEnabled = true
+            translationEnabled = false
+        case .translation:
+            pronunciationEnabled = false
+            translationEnabled = true
+        case .both:
+            pronunciationEnabled = true
+            translationEnabled = true
+        }
+        settings.setLanguageRule(
+            sourceLang: prompt.sourceLang,
+            translationEnabled: translationEnabled,
+            pronunciationEnabled: pronunciationEnabled
+        )
+        if currentTrack?.stableKey == prompt.trackKey {
+            reloadLyrics(bypassCache: false)
+        }
+    }
+
+    func dismissFirstLanguagePrompt() {
+        guard let prompt = firstLanguagePrompt else { return }
+        firstLanguagePrompt = nil
+        if currentTrack?.stableKey == prompt.trackKey {
+            reloadLyrics(bypassCache: false)
+        }
+    }
+
+#if DEBUG
+    func applyDebugFirstLanguagePrompt() {
+        let locale = Locale(identifier: settings.uiLang)
+        firstLanguagePrompt = FirstLanguagePrompt(
+            sourceLang: "ja",
+            languageName: locale.localizedString(forLanguageCode: "ja") ?? "日本語",
+            trackKey: currentTrack?.stableKey ?? "debug-first-language"
+        )
+    }
+#endif
+
     func showTmiForCurrentTrack(bypassCache: Bool = false) {
         let snapshot = currentTrack ?? pendingManualTrackSnapshot()
         guard let snapshot, snapshot.hasUsableMetadata, !snapshot.isSpotifyDjSegment else {
@@ -1756,6 +1825,11 @@ final class AppViewModel: ObservableObject {
     func saveAiSettingsAndRegenerate() {
         showSavedToast(settings.t("toast.settings_saved"))
         regenerateCurrentAiSupplements(statusKey: "toast.settings_saved")
+    }
+
+    func translationProviderSettingsChanged() {
+        showSavedToast(settings.t("toast.translation_provider_saved"))
+        regenerateCurrentAiSupplements(statusKey: "toast.translation_provider_saved")
     }
 
     func saveLanguageRuleAndRegenerate() {
@@ -2662,6 +2736,10 @@ final class AppViewModel: ObservableObject {
     }
 
     private func applyLyricsSupplements(track: TrackSnapshot, base: LyricsResult, bypassCache: Bool) async -> LyricsResult {
+        if presentFirstLanguagePromptIfNeeded(track: track, base: base) {
+            resetLyricsSupplementLoading()
+            return base
+        }
         async let aiResult = applySupplements(track: track, base: base, bypassCache: bypassCache)
         async let furiganaResult = loadFuriganaIfNeeded(track: track, base: base, bypassCache: bypassCache)
         async let culturalResult: Void = loadCulturalAnnotationsIfNeeded(
@@ -2671,6 +2749,24 @@ final class AppViewModel: ObservableObject {
         )
         let (supplemented, furigana, _) = await (aiResult, furiganaResult, culturalResult)
         return mergeFuriganaIntoResult(supplemented, furiganaSource: furigana)
+    }
+
+    private func presentFirstLanguagePromptIfNeeded(track: TrackSnapshot, base: LyricsResult) -> Bool {
+        guard !base.lines.isEmpty else { return false }
+        let source = effectiveSelectedSourceLang(lines: base.lines)
+        guard settings.shouldPromptForFirstLanguage(source) else { return false }
+        settings.markFirstLanguagePrompted(source)
+        let languageCode = AppSettings.normalizeLanguageCode(source)
+        let displayCode = languageCode.split(separator: "-").first.map(String.init) ?? languageCode
+        let locale = Locale(identifier: settings.uiLang)
+        let languageName = locale.localizedString(forLanguageCode: displayCode)
+            ?? AppSettings.languageInfo(languageCode).nativeName
+        firstLanguagePrompt = FirstLanguagePrompt(
+            sourceLang: source,
+            languageName: languageName,
+            trackKey: track.stableKey
+        )
+        return true
     }
 
     private func publishFinalSupplementResult(_ result: LyricsResult) {
@@ -2976,8 +3072,7 @@ final class AppViewModel: ObservableObject {
     ) -> (pronunciation: Bool, translation: Bool) {
         guard track.hasUsableMetadata,
               !base.lines.isEmpty,
-              snapshot.enabled,
-              snapshot.hasApiKey else {
+              snapshot.enabled else {
             return (false, false)
         }
         let payload = supplementDetectionPayload(lines: base.lines)
@@ -2986,8 +3081,11 @@ final class AppViewModel: ObservableObject {
         }
         let rule = snapshot.ruleForSource(sourceLang)
         let targetLang = snapshot.resolveTargetLanguage(sourceLang: sourceLang)
-        let translation = rule.translationEnabled && !snapshot.shouldSkipTranslation(sourceLang: sourceLang, resolvedTargetLang: targetLang)
-        return (rule.pronunciationEnabled, translation)
+        let selectedAiReady = snapshot.hasApiKey && snapshot.hasModel
+        let translationRequested = rule.translationEnabled
+            && !snapshot.shouldSkipTranslation(sourceLang: sourceLang, resolvedTargetLang: targetLang)
+        let translation = translationRequested && (snapshot.hasKeylessTranslationProvider || selectedAiReady)
+        return (rule.pronunciationEnabled && selectedAiReady, translation)
     }
 
     private func effectiveSelectedSourceLang(lines: [LyricsLine]) -> String {
