@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.2.0",
+          "buildVersion": "36",
+          "date": "2026-08-09",
+          "localizedDescription": "v1.2.0에서는 별도 API 키 없이 가사 메타데이터를 번역할 수 있도록 AI 번역 흐름을 확장했습니다. 앱의 번역 처리와 화면 연동이 함께 개선되어, 지원되는 키리스 제공자를 통해 메타데이터 번역 결과를 사용할 수 있습니다. 또한 배포 소스의 이전 v1.1.11 IPA 메타데이터를 실제 파일 정보에 맞게 정정했습니다.\n\nv1.2.0 expands the AI translation flow so lyric metadata can be translated without a separate API key. Translation handling and UI integration were updated together, allowing metadata translation results to be used through supported keyless providers. The distribution-source metadata for the previous v1.1.11 IPA was also corrected to match the actual file.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.2.0/ivLyrics-IOS-v1.2.0-unsigned.ipa",
+          "size": 7019188,
+          "sha256": "b738d89b4ba2239189f7c494e3709fd8336df7fac725e7aae666f80e15bfc2d3",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.11",
           "buildVersion": "35",
           "date": "2026-08-09",
