@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.1.11",
+          "buildVersion": "35",
+          "date": "2026-08-09",
+          "localizedDescription": "v1.1.11은 가사 번역 제공업체 선택과 언어 설정을 하나의 흐름으로 정리하고, 주 언어에 맞는 제공업체 안내를 추가했습니다. 모든 지원 언어의 번역 문구도 다듬어 설정과 안내 화면의 표현을 개선했습니다. 또한 배포 안내와 AltStore 소스 메타데이터를 정비했습니다.\n\nv1.1.11 consolidates lyric translation provider selection and language setup, and adds provider guidance based on the primary language. It also polishes translated copy across every supported locale to improve settings and guidance screens. Distribution documentation and AltStore source metadata have also been maintained.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.1.11/ivLyrics-IOS-v1.1.11-unsigned.ipa",
+          "size": 7014563,
+          "sha256": "054d8fe94f85e790c45170cc08050b49881e8ed5b13939959ce033d39f5723a7",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.1.10",
           "buildVersion": "34",
           "date": "2026-08-07",
