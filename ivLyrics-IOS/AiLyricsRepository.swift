@@ -604,8 +604,8 @@ actor AiLyricsRepository {
               AppSettings.normalizeLanguageCode(sourceLang).caseInsensitiveCompare(targetLang) != .orderedSame else {
             return MetadataTranslationResponse(translation: nil, logs: logs, hadError: false)
         }
-        guard settings.hasApiKey else {
-            log("ai metadata skipped: API key missing for \(settings.provider.label)")
+        guard settings.hasAnyTranslationProvider else {
+            log("metadata translation skipped: no ready translation provider")
             return MetadataTranslationResponse(translation: nil, logs: logs, hadError: true)
         }
         let title = track.title.trimmed
@@ -618,42 +618,79 @@ actor AiLyricsRepository {
             + trackKey
             + "|source=\(sourceLang)"
             + "|target=\(targetLang)"
-            + "|provider=\(settings.provider.id)"
-            + "|bingTranslate=\(settings.bingTranslateEnabled)"
-            + "|googleTranslate=\(settings.googleTranslateEnabled)"
-            + "|model=\(settings.model)"
-            + "|url=\(settings.baseUrl)"
-            + "|temp=\(settings.temperature)"
+            + "|providers=\(IvLyricsUtilities.sha256(settings.cacheKey))"
             + "|text=\(IvLyricsUtilities.sha256(title + "\n" + artist))"
         if !bypassCache {
             if let cached = metadataMemoryCache[cacheKey] {
-                log("ai metadata cache hit: \(settings.provider.label)")
+                log("metadata translation cache hit")
                 return MetadataTranslationResponse(translation: cached, logs: logs, hadError: false)
             }
             if let persisted = metadataTranslationFromDisk(cacheKey) {
                 metadataMemoryCache[cacheKey] = persisted
-                log("ai metadata disk cache hit: \(settings.provider.label)")
+                log("metadata translation disk cache hit")
                 return MetadataTranslationResponse(translation: persisted, logs: logs, hadError: false)
             }
         }
-        log("ai metadata: provider=\(settings.provider.label) / source=\(sourceLang)\(sourceLang.caseInsensitiveCompare(detectedSourceLang) == .orderedSame ? "" : " / detected=\(detectedSourceLang)") / target=\(targetLang)")
-        do {
-            let raw = try await callProviderRaw(prompt: buildMetadataTranslationPrompt(title: title, artist: artist, lang: targetLang), settings: settings)
-            let lines = parseTextLines(raw, expectedLineCount: 2)
-            let translation = MetadataTranslation(
-                title: cleanMetadataOutputLine(lines.first ?? "", kind: "title", fallback: title),
-                artist: cleanMetadataOutputLine(lines.dropFirst().first ?? "", kind: "artist", fallback: artist),
-                sourceLang: sourceLang,
-                targetLang: targetLang
-            )
-            metadataMemoryCache[cacheKey] = translation
-            putMetadataTranslationToDisk(cacheKey: cacheKey, translation: translation)
-            log("ai metadata response: title=\(!translation.title.isEmpty) / artist=\(!translation.artist.isEmpty)")
-            return MetadataTranslationResponse(translation: translation, logs: logs, hadError: false)
-        } catch {
-            log("ai metadata error: \(error.localizedDescription)")
-            return MetadataTranslationResponse(translation: nil, logs: logs, hadError: true)
+        log("metadata translation: providers=\(settings.enabledAIProviderOrder.joined(separator: ",")) / source=\(sourceLang)\(sourceLang.caseInsensitiveCompare(detectedSourceLang) == .orderedSame ? "" : " / detected=\(detectedSourceLang)") / target=\(targetLang)")
+
+        var lastError: Error?
+        for providerId in settings.enabledAIProviderOrder {
+            guard let provider = AppSettings.aiProviderById(providerId) else { continue }
+            do {
+                let translation: MetadataTranslation
+                if provider.isKeyless {
+                    log("metadata translation attempt: provider=\(provider.label)")
+                    let result = try await keylessTranslationProviders.translate(
+                        providerId: provider.id,
+                        texts: [title, artist],
+                        targetLanguage: targetLang,
+                        preserveLyricsStructure: false
+                    )
+                    guard result.values.count == 2 else {
+                        throw NSError(
+                            domain: "ivLyrics.MetadataTranslation",
+                            code: 1,
+                            userInfo: [NSLocalizedDescriptionKey: "Invalid metadata translation response from \(provider.label)"]
+                        )
+                    }
+                    translation = MetadataTranslation(
+                        title: result.values[0].trimmed.isEmpty ? title : result.values[0].trimmed,
+                        artist: result.values[1].trimmed.isEmpty ? artist : result.values[1].trimmed,
+                        sourceLang: sourceLang,
+                        targetLang: targetLang
+                    )
+                    log("metadata translation response: provider=\(result.providerLabel)")
+                } else {
+                    guard let providerSettings = settings.selectingAIProvider(provider.id),
+                          providerSettings.hasApiKey,
+                          providerSettings.hasModel else {
+                        log("metadata translation skipped: provider=\(provider.label) is not fully configured")
+                        continue
+                    }
+                    log("ai metadata attempt: provider=\(provider.label) / model=\(providerSettings.model)")
+                    let raw = try await callProviderRaw(
+                        prompt: buildMetadataTranslationPrompt(title: title, artist: artist, lang: targetLang),
+                        settings: providerSettings
+                    )
+                    let lines = parseTextLines(raw, expectedLineCount: 2)
+                    translation = MetadataTranslation(
+                        title: cleanMetadataOutputLine(lines.first ?? "", kind: "title", fallback: title),
+                        artist: cleanMetadataOutputLine(lines.dropFirst().first ?? "", kind: "artist", fallback: artist),
+                        sourceLang: sourceLang,
+                        targetLang: targetLang
+                    )
+                }
+                metadataMemoryCache[cacheKey] = translation
+                putMetadataTranslationToDisk(cacheKey: cacheKey, translation: translation)
+                log("metadata translation response: title=\(!translation.title.isEmpty) / artist=\(!translation.artist.isEmpty)")
+                return MetadataTranslationResponse(translation: translation, logs: logs, hadError: false)
+            } catch {
+                lastError = error
+                log("metadata translation fallback: provider=\(provider.label) / error=\(error.localizedDescription)")
+            }
         }
+        log("metadata translation error: \(lastError?.localizedDescription ?? AppI18n.t(settings.uiLang, "error.translation_providers_failed"))")
+        return MetadataTranslationResponse(translation: nil, logs: logs, hadError: true)
     }
 
     func loadTmi(track: TrackSnapshot, settings: AppSettings.Snapshot, bypassCache: Bool = false) async -> TmiResponse {

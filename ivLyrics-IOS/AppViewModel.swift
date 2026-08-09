@@ -64,6 +64,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var status: AppStatus = .idle
     @Published private(set) var logs: [String] = []
     @Published private(set) var metadataTranslation: AiLyricsRepository.MetadataTranslation?
+    @Published private(set) var metadataTranslationLoading = false
     @Published var tmiPresented = false
     @Published private(set) var tmiTrack: TrackSnapshot?
     @Published private(set) var tmiInfo: AiLyricsRepository.TmiInfo?
@@ -145,6 +146,25 @@ final class AppViewModel: ObservableObject {
 
     var culturalAnnotationsLoadingText: String {
         settings.t("loading.cultural_annotations")
+    }
+
+    var lyricsGenerationLoadingText: String? {
+        if metadataTranslationLoading {
+            return settings.t("loading.translation")
+        }
+        if lyricsSupplementTranslationLoading {
+            return aiTranslationLoadingText
+        }
+        if lyricsSupplementPronunciationLoading {
+            return aiPronunciationLoadingText
+        }
+        if lyricsSupplementFuriganaLoading {
+            return settings.t("loading.pronunciation")
+        }
+        if culturalAnnotationsLoading {
+            return culturalAnnotationsLoadingText
+        }
+        return nil
     }
 
     var tmiLoadingText: String {
@@ -1854,6 +1874,7 @@ final class AppViewModel: ObservableObject {
     func metadataTranslationSettingChanged(enabled: Bool) {
         metadataTranslationTask?.cancel()
         metadataTranslationTask = nil
+        metadataTranslationLoading = false
         metadataTranslation = nil
         guard enabled,
               let track = currentTrack,
@@ -2845,6 +2866,7 @@ final class AppViewModel: ObservableObject {
 
     private func requestMetadataTranslation(track: TrackSnapshot, base: LyricsResult, bypassCache: Bool) {
         metadataTranslationTask?.cancel()
+        metadataTranslationLoading = false
         guard track.hasUsableMetadata, !track.isSpotifyDjSegment else {
             metadataTranslation = nil
             return
@@ -2855,12 +2877,13 @@ final class AppViewModel: ObservableObject {
         let targetLang = snapshot.resolveTargetLanguage(sourceLang: sourceLang)
         guard snapshot.metadataTranslationEnabled,
               !AppSettings.isSameLanguage(sourceLang, targetLang),
-              snapshot.hasApiKey else {
+              snapshot.hasAnyTranslationProvider else {
             metadataTranslation = nil
             return
         }
 
         let trackKey = track.stableKey
+        metadataTranslationLoading = true
         metadataTranslationTask = Task { [weak self] in
             guard let self else { return }
             let response = await aiRepository.loadMetadataTranslation(
@@ -2871,10 +2894,11 @@ final class AppViewModel: ObservableObject {
             )
             if Task.isCancelled { return }
             appendLogs(response.logs)
-            guard currentTrack?.stableKey == trackKey,
-                  let translation = response.translation else {
+            guard currentTrack?.stableKey == trackKey else {
                 return
             }
+            metadataTranslationLoading = false
+            guard let translation = response.translation else { return }
 
             let currentSnapshot = settings.snapshot
             let currentSource = effectiveSelectedSourceLang(lines: baseLyricsResult.lines)
@@ -3028,6 +3052,7 @@ final class AppViewModel: ObservableObject {
         culturalAnnotationsLoading = false
         metadataTranslationTask?.cancel()
         metadataTranslationTask = nil
+        metadataTranslationLoading = false
         furiganaRefreshTask?.cancel()
         furiganaRefreshTask = nil
         lyricsLoadingProviderName = ""

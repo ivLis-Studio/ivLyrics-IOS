@@ -106,16 +106,27 @@ actor KeylessTranslationProviders {
     func translate(
         providerId: String,
         texts: [String],
-        targetLanguage: String
+        targetLanguage: String,
+        preserveLyricsStructure: Bool = true
     ) async throws -> TranslationResult {
         switch providerId {
         case Self.bingId:
-            let values = try await translateBatched(texts, targetLanguage: targetLanguage, maxCharacters: 2_800) { text, language in
+            let values = try await translateBatched(
+                texts,
+                targetLanguage: targetLanguage,
+                maxCharacters: 2_800,
+                preserveLyricsStructure: preserveLyricsStructure
+            ) { text, language in
                 try await self.translateBing(text, targetLanguage: language)
             }
             return TranslationResult(values: values, providerId: Self.bingId, providerLabel: Self.bingLabel)
         case Self.googleId:
-            let values = try await translateBatched(texts, targetLanguage: targetLanguage, maxCharacters: 3_500) { text, language in
+            let values = try await translateBatched(
+                texts,
+                targetLanguage: targetLanguage,
+                maxCharacters: 3_500,
+                preserveLyricsStructure: preserveLyricsStructure
+            ) { text, language in
                 try await self.translateGoogle(text, targetLanguage: language)
             }
             return TranslationResult(values: values, providerId: Self.googleId, providerLabel: Self.googleLabel)
@@ -128,6 +139,7 @@ actor KeylessTranslationProviders {
         _ source: [String],
         targetLanguage: String,
         maxCharacters: Int,
+        preserveLyricsStructure: Bool = true,
         translator: (String, String) async throws -> String
     ) async throws -> [String] {
         var output = Array(repeating: "", count: source.count)
@@ -145,6 +157,7 @@ actor KeylessTranslationProviders {
             let translated = try await translateAligned(
                 Array(source[start..<end]),
                 targetLanguage: targetLanguage,
+                preserveLyricsStructure: preserveLyricsStructure,
                 translator: translator
             )
             for (offset, value) in translated.enumerated() {
@@ -158,6 +171,7 @@ actor KeylessTranslationProviders {
     private func translateAligned(
         _ lines: [String],
         targetLanguage: String,
+        preserveLyricsStructure: Bool,
         translator: (String, String) async throws -> String
     ) async throws -> [String] {
         guard !lines.isEmpty else { return [] }
@@ -175,17 +189,30 @@ actor KeylessTranslationProviders {
             var output: [String] = []
             for index in lines.indices {
                 let source = lines[index]
-                let value = source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || Self.isProtectedLine(source)
+                let value = source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || (preserveLyricsStructure && Self.isProtectedLine(source))
                     ? source
                     : split[index]
-                output.append(try await repairVocalParts(source: source, translated: value, targetLanguage: targetLanguage, translator: translator))
+                output.append(preserveLyricsStructure
+                    ? try await repairVocalParts(source: source, translated: value, targetLanguage: targetLanguage, translator: translator)
+                    : value)
             }
             return output
         }
         if lines.count == 1 { return [translatedText] }
         let middle = (lines.count + 1) / 2
-        let first = try await translateAligned(Array(lines[..<middle]), targetLanguage: targetLanguage, translator: translator)
-        let second = try await translateAligned(Array(lines[middle...]), targetLanguage: targetLanguage, translator: translator)
+        let first = try await translateAligned(
+            Array(lines[..<middle]),
+            targetLanguage: targetLanguage,
+            preserveLyricsStructure: preserveLyricsStructure,
+            translator: translator
+        )
+        let second = try await translateAligned(
+            Array(lines[middle...]),
+            targetLanguage: targetLanguage,
+            preserveLyricsStructure: preserveLyricsStructure,
+            translator: translator
+        )
         return first + second
     }
 

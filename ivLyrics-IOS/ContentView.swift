@@ -1544,14 +1544,14 @@ private struct LyricsPageOverlay: View {
                     .contentShape(Rectangle())
                     .gesture(dismissDragGesture)
 
-                if model.culturalAnnotationsLoading {
-                    CulturalAnnotationLoadingPill()
+                if let loadingText = model.lyricsGenerationLoadingText {
+                    LyricsGenerationLoadingPill(text: loadingText)
                         .padding(.top, 8)
                         .padding(.horizontal, 24)
                 }
 
                 LyricsTimelineScrollView(
-                    topPadding: model.culturalAnnotationsLoading ? 10 : 16,
+                    topPadding: model.lyricsGenerationLoadingText == nil ? 16 : 10,
                     bottomPadding: safeAreaBottom + 28,
                     horizontalPadding: 24,
                     centerAnchorY: 0.42
@@ -2479,24 +2479,24 @@ private struct LandscapeLyricsPane: View {
                 .padding(.bottom, 10)
         }
         .overlay(alignment: .topTrailing) {
-            if model.culturalAnnotationsLoading {
-                CulturalAnnotationLoadingPill()
+            if let loadingText = model.lyricsGenerationLoadingText {
+                LyricsGenerationLoadingPill(text: loadingText)
                     .padding(.top, 8)
-                    .padding(.trailing, 12)
+                    .padding(.horizontal, 12)
             }
         }
     }
 }
 
-private struct CulturalAnnotationLoadingPill: View {
-    @EnvironmentObject private var model: AppViewModel
+private struct LyricsGenerationLoadingPill: View {
+    let text: String
 
     var body: some View {
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
                 .tint(.white)
-            Text(model.culturalAnnotationsLoadingText)
+            Text(text)
                 .font(.pretendard(12, weight: .semibold))
                 .lineLimit(1)
         }
@@ -2504,7 +2504,7 @@ private struct CulturalAnnotationLoadingPill: View {
         .padding(.horizontal, 12)
         .frame(height: 34)
         .background(.black.opacity(0.34), in: Capsule())
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .allowsHitTesting(false)
     }
 }
