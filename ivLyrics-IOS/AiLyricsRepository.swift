@@ -16,6 +16,8 @@ actor AiLyricsRepository {
     private let supplementTaskTranslation = "translation"
     private let tmiPromptVersion = ResearchDocument.outputVersion
     private let culturalAnnotationPromptVersion = "cultural-v4"
+    private let defaultResearchMaxTokens = 16_000
+    private let defaultGeminiResearchMaxTokens = 32_768
     private let diskCache = LyricsDiskCache(namespace: "ai_lyrics", maxEntries: 500)
     private let metadataDiskCache = RawResponseDiskCache(namespace: "ai_metadata_cache", maxEntries: 500)
     private let tmiDiskCache = RawResponseDiskCache(namespace: "ai_tmi_cache", maxEntries: 500)
@@ -28,6 +30,7 @@ actor AiLyricsRepository {
     private var metadataMemoryCache = BoundedLRUCache<String, MetadataTranslation>(capacity: 200)
     private var tmiMemoryCache = BoundedLRUCache<String, TmiInfo>(capacity: 100)
     private var culturalAnnotationMemoryCache = BoundedLRUCache<String, [CulturalAnnotation]>(capacity: 100)
+    private var researchModelLimitCache: [String: Int] = [:]
     private var lastPartialEmitUptime: TimeInterval = 0
     private let partialEmitMinInterval: TimeInterval = 0.6
     private let keylessTranslationProviders = KeylessTranslationProviders()
@@ -775,6 +778,7 @@ actor AiLyricsRepository {
                 }
                 log("ai research web search completed")
             } catch {
+                guard isResearchWebSearchFailure(error) else { throw error }
                 webSearchFallback = true
                 log("ai research web search failed; retrying without search: \(error.localizedDescription)")
                 await partialUpdate?(nil, true, true)
@@ -1076,30 +1080,52 @@ actor AiLyricsRepository {
         webSearch: Bool,
         onDelta: ((String) async -> Void)?
     ) async throws -> String {
+        let researchMaxTokens = await resolveResearchMaxTokens(settings: settings, apiKey: apiKey)
         switch settings.provider.id {
         case "gemini":
-            return try await callGeminiStream(prompt: prompt, settings: settings, apiKey: apiKey, webSearch: webSearch, onDelta: onDelta)
+            return try await callGeminiStream(
+                prompt: prompt, settings: settings, apiKey: apiKey,
+                webSearch: webSearch, maxTokens: researchMaxTokens, onDelta: onDelta
+            )
         case "claude":
-            return try await callClaudeStream(prompt: prompt, settings: settings, apiKey: apiKey, webSearch: webSearch, onDelta: onDelta)
+            return try await callClaudeStream(
+                prompt: prompt, settings: settings, apiKey: apiKey,
+                webSearch: webSearch, maxTokens: researchMaxTokens, onDelta: onDelta
+            )
         case "chatgpt" where webSearch:
             return try await callOpenAiResponsesStream(prompt: prompt, settings: settings, apiKey: apiKey, onDelta: onDelta)
         default:
             var enrichedPrompt = prompt
             if settings.provider.id == "groq", webSearch {
-                let dossier = try await collectGroqWebResearch(title: title, artist: artist, settings: settings, apiKey: apiKey)
+                let dossier: String
+                do {
+                    dossier = try await collectGroqWebResearch(title: title, artist: artist, settings: settings, apiKey: apiKey)
+                } catch {
+                    throw researchWebSearchError("[Groq] Web search failed: \(error.localizedDescription)", underlying: error)
+                }
                 enrichedPrompt = appendUntrustedResearch(prompt: prompt, provider: "Groq", dossier: dossier)
             } else if settings.provider.id == "paxsenix", webSearch {
-                let dossier = try await fetchPaxsenixWebResearch(title: title, artist: artist, apiKey: apiKey)
+                let dossier: String
+                do {
+                    dossier = try await fetchPaxsenixWebResearch(title: title, artist: artist, apiKey: apiKey)
+                } catch {
+                    throw researchWebSearchError("[Paxsenix] Web search failed: \(error.localizedDescription)", underlying: error)
+                }
                 enrichedPrompt = appendUntrustedResearch(prompt: prompt, provider: "Paxsenix", dossier: dossier)
             } else if settings.provider.id == "pollinations", webSearch {
-                let dossier = try await collectPollinationsWebResearch(
-                    title: title, artist: artist, settings: settings, apiKey: apiKey
-                )
+                let dossier: String
+                do {
+                    dossier = try await collectPollinationsWebResearch(
+                        title: title, artist: artist, settings: settings, apiKey: apiKey
+                    )
+                } catch {
+                    throw researchWebSearchError("[Pollinations] Web search failed: \(error.localizedDescription)", underlying: error)
+                }
                 enrichedPrompt = appendUntrustedResearch(prompt: prompt, provider: "Pollinations", dossier: dossier)
             }
             return try await callOpenAiCompatibleStream(
                 prompt: enrichedPrompt, settings: settings, apiKey: apiKey,
-                webSearch: webSearch, onDelta: onDelta
+                webSearch: webSearch, maxTokens: researchMaxTokens, onDelta: onDelta
             )
         }
     }
@@ -1148,8 +1174,22 @@ actor AiLyricsRepository {
         webSearch: Bool,
         onDelta: ((String) async -> Void)? = nil
     ) async throws -> String {
+        try await callGeminiStream(
+            prompt: prompt, settings: settings, apiKey: apiKey,
+            webSearch: webSearch, maxTokens: settings.maxTokens, onDelta: onDelta
+        )
+    }
+
+    private func callGeminiStream(
+        prompt: String,
+        settings: AppSettings.Snapshot,
+        apiKey: String,
+        webSearch: Bool,
+        maxTokens: Int,
+        onDelta: ((String) async -> Void)? = nil
+    ) async throws -> String {
         let endpoint = trimRight(settings.baseUrl, "/") + "/models/" + urlPath(settings.model) + ":streamGenerateContent?alt=sse&key=" + IvLyricsUtilities.urlEncode(apiKey)
-        var body = geminiBody(prompt: prompt, settings: settings)
+        var body = geminiBody(prompt: prompt, settings: settings, maxTokens: maxTokens)
         if webSearch { body["tools"] = [["google_search": [:]]] }
         return try await postJsonSse(endpoint, body: body, headers: ["Content-Type": "application/json"], onDelta: onDelta) { _, data in
             guard !data.trimmed.isEmpty, data.trimmed != "[DONE]" else { return "" }
@@ -1161,6 +1201,10 @@ actor AiLyricsRepository {
     }
 
     private func geminiBody(prompt: String, settings: AppSettings.Snapshot) -> [String: Any] {
+        geminiBody(prompt: prompt, settings: settings, maxTokens: settings.maxTokens)
+    }
+
+    private func geminiBody(prompt: String, settings: AppSettings.Snapshot, maxTokens: Int) -> [String: Any] {
         [
             "contents": [
                 [
@@ -1169,7 +1213,7 @@ actor AiLyricsRepository {
                 ]
             ],
             "generationConfig": [
-                "maxOutputTokens": settings.maxTokens,
+                "maxOutputTokens": maxTokens,
                 "temperature": settings.temperature,
                 "thinkingConfig": ["thinkingBudget": 0]
             ]
@@ -1202,8 +1246,22 @@ actor AiLyricsRepository {
         webSearch: Bool,
         onDelta: ((String) async -> Void)? = nil
     ) async throws -> String {
+        try await callClaudeStream(
+            prompt: prompt, settings: settings, apiKey: apiKey,
+            webSearch: webSearch, maxTokens: settings.maxTokens, onDelta: onDelta
+        )
+    }
+
+    private func callClaudeStream(
+        prompt: String,
+        settings: AppSettings.Snapshot,
+        apiKey: String,
+        webSearch: Bool,
+        maxTokens: Int,
+        onDelta: ((String) async -> Void)? = nil
+    ) async throws -> String {
         let endpoint = trimRight(settings.baseUrl, "/") + "/messages"
-        var body = claudeBody(prompt: prompt, settings: settings)
+        var body = claudeBody(prompt: prompt, settings: settings, maxTokens: maxTokens)
         if webSearch { body["tools"] = [claudeWebSearchTool(model: settings.model)] }
         body["stream"] = true
         return try await postJsonSse(endpoint, body: body, headers: claudeHeaders(apiKey: apiKey), onDelta: onDelta) { eventName, data in
@@ -1230,9 +1288,13 @@ actor AiLyricsRepository {
     }
 
     private func claudeBody(prompt: String, settings: AppSettings.Snapshot) -> [String: Any] {
+        claudeBody(prompt: prompt, settings: settings, maxTokens: settings.maxTokens)
+    }
+
+    private func claudeBody(prompt: String, settings: AppSettings.Snapshot, maxTokens: Int) -> [String: Any] {
         [
             "model": settings.model,
-            "max_tokens": settings.maxTokens,
+            "max_tokens": maxTokens,
             "temperature": settings.temperature,
             "messages": [["role": "user", "content": prompt]]
         ]
@@ -1273,8 +1335,25 @@ actor AiLyricsRepository {
         webSearch: Bool,
         onDelta: ((String) async -> Void)? = nil
     ) async throws -> String {
+        try await callOpenAiCompatibleStream(
+            prompt: prompt, settings: settings, apiKey: apiKey,
+            webSearch: webSearch, maxTokens: settings.maxTokens, onDelta: onDelta
+        )
+    }
+
+    private func callOpenAiCompatibleStream(
+        prompt: String,
+        settings: AppSettings.Snapshot,
+        apiKey: String,
+        webSearch: Bool,
+        maxTokens: Int,
+        onDelta: ((String) async -> Void)? = nil
+    ) async throws -> String {
         let endpoint = openAiEndpoint(settings)
         var body = openAiCompatibleBody(prompt: prompt, settings: settings)
+        body.removeValue(forKey: "max_tokens")
+        body.removeValue(forKey: "max_completion_tokens")
+        body[researchTokenField(settings.provider.id)] = maxTokens
         applyOpenAiResearchOptions(body: &body, providerID: settings.provider.id, webSearch: webSearch)
         if settings.provider.id == "groq",
            settings.model.range(of: #"^groq/compound(?:-mini)?$"#, options: [.regularExpression, .caseInsensitive]) != nil {
@@ -2505,6 +2584,120 @@ actor AiLyricsRepository {
 
     private func tokenField(_ providerId: String) -> String {
         providerId == "chatgpt" ? "max_completion_tokens" : "max_tokens"
+    }
+
+    private func researchTokenField(_ providerId: String) -> String {
+        providerId == "chatgpt" || providerId == "groq" ? "max_completion_tokens" : "max_tokens"
+    }
+
+    private func resolveResearchMaxTokens(settings: AppSettings.Snapshot, apiKey: String) async -> Int {
+        let providerID = settings.provider.id
+        let configured = max(1, settings.maxTokens)
+        let supportsAdvertisedLimit = ["gemini", "paxsenix", "claude", "groq", "openrouter"].contains(providerID)
+        guard supportsAdvertisedLimit else { return configured }
+
+        let fallback = max(configured, providerID == "gemini"
+            ? defaultGeminiResearchMaxTokens
+            : defaultResearchMaxTokens)
+        let cacheKey = providerID + "|" + trimRight(settings.baseUrl, "/") + "|" + settings.model
+        if let cached = researchModelLimitCache[cacheKey], cached > 0 { return cached }
+
+        var resolved = fallback
+        do {
+            var endpoint = trimRight(settings.baseUrl, "/") + "/models"
+            let headers: [String: String]
+            if providerID == "gemini" {
+                endpoint += "?key=" + IvLyricsUtilities.urlEncode(apiKey)
+                headers = ["Accept": "application/json"]
+            } else if providerID == "claude" {
+                headers = claudeHeaders(apiKey: apiKey)
+            } else {
+                headers = openAiCompatibleHeaders(settings: settings, apiKey: apiKey)
+            }
+            let raw = try await getText(endpoint, headers: headers)
+            let root = try jsonObject(raw)
+            let advertised = Self.advertisedResearchTokenLimit(
+                providerID: providerID, modelID: settings.model, root: root
+            )
+            if advertised > 0 { resolved = advertised }
+        } catch {
+            // Model metadata is optional. Missing fields, custom endpoints, and
+            // temporary lookup failures fall back to a safe long-form budget.
+        }
+        if researchModelLimitCache.count >= 64, let oldest = researchModelLimitCache.keys.first {
+            researchModelLimitCache.removeValue(forKey: oldest)
+        }
+        researchModelLimitCache[cacheKey] = resolved
+        return resolved
+    }
+
+    nonisolated static func advertisedResearchTokenLimit(
+        providerID: String,
+        modelID: String,
+        root: [String: Any]
+    ) -> Int {
+        let modelRows = (providerID == "gemini" ? root["models"] : root["data"]) as? [[String: Any]] ?? []
+        let selected = modelRows.first { row in
+            let rawID = String(describing: row["id"] ?? row["name"] ?? "")
+            return rawID.replacingOccurrences(of: "models/", with: "") == modelID
+        } ?? {
+            let rawID = String(describing: root["id"] ?? root["name"] ?? "")
+            return rawID.replacingOccurrences(of: "models/", with: "") == modelID ? root : nil
+        }()
+        guard let selected else { return 0 }
+
+        switch providerID {
+        case "gemini":
+            return positiveResearchTokenInt(selected["outputTokenLimit"])
+        case "paxsenix":
+            return positiveResearchTokenInt(selected["max_output_tokens"])
+        case "claude":
+            return positiveResearchTokenInt(selected["max_tokens"])
+        case "groq":
+            return positiveResearchTokenInt(selected["max_completion_tokens"])
+        case "openrouter":
+            let topProvider = selected["top_provider"] as? [String: Any]
+            let nested = positiveResearchTokenInt(topProvider?["max_completion_tokens"])
+            return nested > 0 ? nested : positiveResearchTokenInt(selected["max_completion_tokens"])
+        default:
+            return 0
+        }
+    }
+
+    nonisolated private static func positiveResearchTokenInt(_ value: Any?) -> Int {
+        if let value = value as? Int { return value > 0 ? value : 0 }
+        if let value = value as? NSNumber { return value.intValue > 0 ? value.intValue : 0 }
+        if let value = value as? String, let parsed = Int(value.trimmed), parsed > 0 { return parsed }
+        return 0
+    }
+
+    private func researchWebSearchError(_ message: String, underlying: Error) -> NSError {
+        NSError(
+            domain: "ivLyrics.ResearchWebSearch",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: message, NSUnderlyingErrorKey: underlying]
+        )
+    }
+
+    private func isResearchWebSearchFailure(_ error: Error) -> Bool {
+        var chain: [NSError] = []
+        var current: NSError? = error as NSError
+        while let item = current, chain.count < 8 {
+            chain.append(item)
+            current = item.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        let combined = chain.map(\.localizedDescription).joined(separator: "\n")
+        if combined.range(
+            of: #"(?:MAX[_\s-]*(?:OUTPUT[_\s-]*)?TOKENS?|max[_\s-]*(?:output[_\s-]*)?tokens?|finish[_\s-]*reason[^\n]*(?:length|token)|context[_\s-]*length)"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil {
+            return false
+        }
+        if chain.contains(where: { $0.domain == "ivLyrics.ResearchWebSearch" }) { return true }
+        return combined.range(
+            of: #"(?:\bweb[\s_-]*search\b[^\n]*(?:fail|error|unavailable|unsupported|disabled|timed?\s*out|empty)|\b(?:google_search|web_search)\b|\btools?\b[^\n]*(?:unsupported|not supported|unavailable|invalid|unknown))"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 
     private func trimRight(_ value: String, _ suffix: String) -> String {

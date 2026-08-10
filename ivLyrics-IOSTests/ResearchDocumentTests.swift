@@ -71,4 +71,60 @@ final class ResearchDocumentTests: XCTestCase {
             XCTAssertFalse(table["research.web_fallback_warning", default: ""].contains("Research"), "\(language) contains untranslated Research")
         }
     }
+
+    func testResearchPromptSendsOnlyPlainLyricText() throws {
+        let track = TrackSnapshot(title: "Song", artist: "Artist", album: "Album")
+        let lyrics = LyricsResult(
+            lines: [
+                LyricsLine(startTimeMs: 12_500, endTimeMs: 18_000, text: "first line"),
+                LyricsLine(startTimeMs: 18_420, endTimeMs: 24_000, text: "second line")
+            ],
+            providerLabel: "test", detail: "", karaoke: false
+        )
+        let prompt = ResearchDocument.buildPrompt(
+            track: track, lyrics: lyrics, language: AppSettings.languageInfo("ko")
+        )
+        let startMarker = "<research_input>"
+        let endMarker = "</research_input>"
+        let start = try XCTUnwrap(prompt.range(of: startMarker, options: .backwards)?.upperBound)
+        let end = try XCTUnwrap(prompt.range(of: endMarker, range: start..<prompt.endIndex)?.lowerBound)
+        let data = try XCTUnwrap(String(prompt[start..<end]).data(using: .utf8))
+        let input = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(input["lyrics"] as? String, "first line\nsecond line")
+        XCTAssertNil(input["synced_lyrics"])
+        XCTAssertFalse(prompt.contains("start_time_ms"))
+        XCTAssertTrue(prompt.contains("timing locally"))
+    }
+
+    func testAdvertisedResearchTokenLimitsHandleProviderShapesAndMissingFields() {
+        XCTAssertEqual(AiLyricsRepository.advertisedResearchTokenLimit(
+            providerID: "gemini", modelID: "gemini-test",
+            root: ["models": [["name": "models/gemini-test", "outputTokenLimit": 32_768]]]
+        ), 32_768)
+        XCTAssertEqual(AiLyricsRepository.advertisedResearchTokenLimit(
+            providerID: "paxsenix", modelID: "pax-test",
+            root: ["data": [["id": "pax-test", "max_output_tokens": "24000"]]]
+        ), 24_000)
+        XCTAssertEqual(AiLyricsRepository.advertisedResearchTokenLimit(
+            providerID: "claude", modelID: "claude-test",
+            root: ["data": [["id": "claude-test", "max_tokens": 64_000]]]
+        ), 64_000)
+        XCTAssertEqual(AiLyricsRepository.advertisedResearchTokenLimit(
+            providerID: "groq", modelID: "groq-test",
+            root: ["data": [["id": "groq-test", "max_completion_tokens": 20_000]]]
+        ), 20_000)
+        XCTAssertEqual(AiLyricsRepository.advertisedResearchTokenLimit(
+            providerID: "openrouter", modelID: "router-test",
+            root: ["data": [["id": "router-test", "top_provider": ["max_completion_tokens": 48_000]]]]
+        ), 48_000)
+        XCTAssertEqual(AiLyricsRepository.advertisedResearchTokenLimit(
+            providerID: "openrouter", modelID: "router-test",
+            root: ["data": [["id": "router-test"]]]
+        ), 0)
+        XCTAssertEqual(AiLyricsRepository.advertisedResearchTokenLimit(
+            providerID: "openrouter", modelID: "missing-model",
+            root: ["data": [["id": "router-test", "max_completion_tokens": 48_000]]]
+        ), 0)
+    }
 }
