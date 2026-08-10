@@ -70,6 +70,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var tmiInfo: AiLyricsRepository.TmiInfo?
     @Published private(set) var tmiLoading = false
     @Published private(set) var tmiError = ""
+    @Published private(set) var tmiWebSearchFallback = false
     @Published private(set) var youtubeInfo: YouTubeVideoInfo?
     @Published private(set) var manualCandidates: [ManualLrclibCandidate] = []
     @Published private(set) var searchingManualCandidates = false
@@ -1381,12 +1382,19 @@ final class AppViewModel: ObservableObject {
             return
         }
         let trackKey = snapshot.stableKey
+        let sameRequest = currentTmiRequestKey == trackKey
+        if sameRequest, tmiLoading, !bypassCache, tmiTask != nil {
+            tmiTrack = snapshot
+            tmiPresented = true
+            return
+        }
         let needsNewDialog = !tmiPresented || currentTmiRequestKey != trackKey
         currentTmiRequestKey = trackKey
         tmiTrack = snapshot
         tmiPresented = true
         tmiLoading = true
         tmiError = ""
+        tmiWebSearchFallback = false
         if needsNewDialog || bypassCache {
             tmiInfo = nil
         }
@@ -1401,13 +1409,28 @@ final class AppViewModel: ObservableObject {
         tmiTask?.cancel()
         tmiTask = Task { [weak self] in
             guard let self else { return }
-            let response = await aiRepository.loadTmi(track: snapshot, settings: snapshotSettings, bypassCache: bypassCache)
+            let lyrics = baseLyricsResult.lines.isEmpty ? lyricsResult : baseLyricsResult
+            let response = await aiRepository.loadTmi(
+                track: snapshot,
+                lyrics: lyrics,
+                settings: snapshotSettings,
+                bypassCache: bypassCache
+            ) { [weak self] info, webSearchFallback, reset in
+                await MainActor.run {
+                    guard let self, self.currentTmiRequestKey == trackKey else { return }
+                    self.tmiWebSearchFallback = webSearchFallback
+                    if reset { self.tmiInfo = nil }
+                    else if let info { self.tmiInfo = info }
+                    self.tmiLoading = true
+                }
+            }
             if Task.isCancelled { return }
             appendLogs(response.logs)
             guard response.trackKey == currentTmiRequestKey else { return }
             tmiLoading = false
             if let info = response.info {
                 tmiInfo = info
+                tmiWebSearchFallback = info.webSearchFallback == true
                 tmiError = ""
             } else {
                 tmiError = localizedTmiError(response.errorMessage)

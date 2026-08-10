@@ -2798,6 +2798,7 @@ private struct FirstLanguagePromptSheetView: View {
 private struct TmiSheetView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
+    @State private var researchTextScale: CGFloat = 1
 
     private var track: TrackSnapshot? {
         model.tmiTrack ?? model.currentTrack
@@ -2819,9 +2820,16 @@ private struct TmiSheetView: View {
                         .lineSpacing(2)
                         .padding(.top, 10)
 
-                    ScrollView {
-                        content
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    ScrollViewReader { proxy in
+                        VStack(alignment: .leading, spacing: 10) {
+                            if let research = model.tmiInfo?.research {
+                                researchNavigation(research, proxy: proxy)
+                            }
+                            ScrollView {
+                                content
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                            }
+                        }
                     }
                     .frame(height: tmiBodyHeight(geometry.size.height))
                     .padding(.top, 14)
@@ -2905,6 +2913,22 @@ private struct TmiSheetView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
+                researchTextScale = max(0.8, researchTextScale - 0.1)
+            } label: {
+                Text("A−").font(.pretendard(12, weight: .semibold)).frame(width: 34, height: 38)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(settings.t("research.font_decrease"))
+
+            Button {
+                researchTextScale = min(1.4, researchTextScale + 0.1)
+            } label: {
+                Text("A+").font(.pretendard(12, weight: .semibold)).frame(width: 34, height: 38)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(settings.t("research.font_increase"))
+
+            Button {
                 dismissDialog()
             } label: {
                 Text("×")
@@ -2919,18 +2943,34 @@ private struct TmiSheetView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.tmiLoading {
-            HStack(spacing: 12) {
-                ProgressView()
-                    .tint(.white)
-                Text(model.tmiLoadingText)
-                    .font(.pretendard(13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.86))
-                Spacer(minLength: 0)
+        if let info = model.tmiInfo, info.hasContent {
+            VStack(alignment: .leading, spacing: 12) {
+                if model.tmiWebSearchFallback || info.webSearchFallback == true { webSearchWarning }
+                tmiInfoContent(info)
+                if model.tmiLoading {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(.white)
+                        Text(settings.t("research.generating_more"))
+                            .font(.pretendard(12 * researchTextScale, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.64))
+                    }
+                    .padding(.top, 4)
+                }
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white.opacity(28.0 / 255.0), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else if model.tmiLoading {
+            VStack(alignment: .leading, spacing: 10) {
+                if model.tmiWebSearchFallback { webSearchWarning }
+                HStack(spacing: 12) {
+                    ProgressView().tint(.white)
+                    Text(model.tmiLoadingText)
+                        .font(.pretendard(13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.86))
+                    Spacer(minLength: 0)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.white.opacity(28.0 / 255.0), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
         } else if !model.tmiError.trimmed.isEmpty {
             VStack(alignment: .leading, spacing: 9) {
                 Label(settings.t("tmi.error_fetch"), systemImage: "exclamationmark.triangle")
@@ -2943,8 +2983,6 @@ private struct TmiSheetView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        } else if let info = model.tmiInfo, info.hasContent {
-            tmiInfoContent(info)
         } else {
             Text(settings.t("tmi.no_data"))
                 .font(.pretendard(13))
@@ -2954,6 +2992,16 @@ private struct TmiSheetView: View {
     }
 
     private func tmiInfoContent(_ info: AiLyricsRepository.TmiInfo) -> some View {
+        Group {
+            if let research = info.research {
+                researchContent(research)
+            } else {
+                legacyTmiContent(info)
+            }
+        }
+    }
+
+    private func legacyTmiContent(_ info: AiLyricsRepository.TmiInfo) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if !info.description.isEmpty {
                 Text(info.description)
@@ -2986,6 +3034,193 @@ private struct TmiSheetView: View {
             sourceGroup(title: settings.t("tmi.verified_sources"), sources: info.verifiedSources)
             sourceGroup(title: settings.t("tmi.related_sources"), sources: info.relatedSources)
             sourceGroup(title: settings.t("tmi.other_sources"), sources: info.otherSources)
+        }
+    }
+
+    private var webSearchWarning: some View {
+        Text(settings.t("research.web_fallback_warning"))
+            .font(.pretendard(11.5 * researchTextScale))
+            .foregroundStyle(Color(red: 244 / 255, green: 190 / 255, blue: 92 / 255))
+            .lineSpacing(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(11)
+            .background(Color(red: 244 / 255, green: 190 / 255, blue: 92 / 255).opacity(0.12), in: RoundedRectangle(cornerRadius: 11))
+    }
+
+    private func researchContent(_ research: ResearchDocument) -> some View {
+        LazyVStack(alignment: .leading, spacing: 12) {
+            if !research.hook.isEmpty {
+                Text(research.hook)
+                    .font(.pretendard(13 * researchTextScale, weight: .semibold))
+                    .foregroundStyle(Color(red: 82 / 255, green: 220 / 255, blue: 143 / 255))
+            }
+            if !research.thesis.isEmpty || !research.thesisExpanded.isEmpty {
+                researchCard {
+                    Text(settings.t("research.thesis"))
+                        .font(.pretendard(13 * researchTextScale, weight: .bold))
+                    if !research.thesis.isEmpty { researchParagraph(research.thesis) }
+                    if !research.thesisExpanded.isEmpty { researchParagraph(research.thesisExpanded) }
+                }
+                .id("research-thesis")
+            }
+            ForEach(research.mediaGallery ?? []) { media in
+                if let imageURL = URL(string: media.displayImageURL), !media.displayImageURL.isEmpty {
+                    researchCard {
+                        AsyncImage(url: imageURL) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            ZStack {
+                                Color.white.opacity(0.06)
+                                ProgressView().tint(.white)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 170)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        if !media.title.isEmpty { researchParagraph(media.title) }
+                        if let destination = URL(string: media.url.isEmpty ? media.sourceURL : media.url) {
+                            Link(settings.t("research.source_note"), destination: destination)
+                                .font(.pretendard(10.5 * researchTextScale, weight: .semibold))
+                                .foregroundStyle(Color(red: 82 / 255, green: 220 / 255, blue: 143 / 255))
+                        }
+                    }
+                }
+            }
+            ForEach(research.sections) { section in
+                researchCard {
+                    let sectionTitle = researchSectionTitle(section)
+                    Text(sectionTitle)
+                        .font(.pretendard(13 * researchTextScale, weight: .bold))
+                    if !section.headline.isEmpty && section.headline != sectionTitle {
+                        Text(section.headline)
+                            .font(.pretendard(16 * researchTextScale, weight: .semibold))
+                    }
+                    ForEach(Array(section.paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                        researchParagraph(paragraph)
+                    }
+                    ForEach(Array(section.details.enumerated()), id: \.offset) { _, detail in
+                        researchParagraph("• \(detail)")
+                    }
+                }
+                .id("research-\(section.id)")
+            }
+            if !research.funFacts.isEmpty {
+                Text(settings.t("research.fun_facts"))
+                    .font(.pretendard(14 * researchTextScale, weight: .bold))
+                    .padding(.top, 6)
+                    .id("research-fun_facts")
+                ForEach(research.funFacts) { fact in
+                    researchCard {
+                        if !fact.title.isEmpty { Text(fact.title).font(.pretendard(13 * researchTextScale, weight: .bold)) }
+                        if !fact.body.isEmpty { researchParagraph(fact.body) }
+                        if !fact.whyInteresting.isEmpty { researchParagraph(fact.whyInteresting) }
+                        sourceFootnote(fact.sourceURL)
+                    }
+                }
+            }
+            if !research.timeline.isEmpty {
+                Text(settings.t("research.timeline"))
+                    .font(.pretendard(14 * researchTextScale, weight: .bold))
+                    .padding(.top, 6)
+                    .id("research-timeline")
+                ForEach(research.timeline) { event in
+                    researchCard {
+                        researchParagraph((event.date.isEmpty ? "" : event.date + "  ") + event.event)
+                        if !event.whyItMatters.isEmpty { researchParagraph(event.whyItMatters) }
+                        sourceFootnote(event.sourceURL)
+                    }
+                }
+            }
+            if !research.pullQuote.isEmpty {
+                Text("“\(research.pullQuote)”")
+                    .font(.pretendard(17 * researchTextScale, weight: .semibold))
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color(red: 82 / 255, green: 220 / 255, blue: 143 / 255).opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+            }
+            if !research.sources.isEmpty {
+                Text(settings.t("research.sources"))
+                    .font(.pretendard(14 * researchTextScale, weight: .bold))
+                    .padding(.top, 6)
+                    .id("research-sources")
+                ForEach(research.sources) { source in
+                    if let url = URL(string: source.url) {
+                        Link(source.displayTitle, destination: url)
+                            .font(.pretendard(12.5 * researchTextScale, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }
+        }
+    }
+
+    private func researchNavigation(_ research: ResearchDocument, proxy: ScrollViewProxy) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                if !research.thesis.isEmpty || !research.thesisExpanded.isEmpty {
+                    researchNavButton(settings.t("research.thesis"), id: "research-thesis", proxy: proxy)
+                }
+                ForEach(research.sections) { section in
+                    researchNavButton(researchSectionTitle(section), id: "research-\(section.id)", proxy: proxy)
+                }
+                if !research.funFacts.isEmpty {
+                    researchNavButton(settings.t("research.fun_facts"), id: "research-fun_facts", proxy: proxy)
+                }
+                if !research.timeline.isEmpty {
+                    researchNavButton(settings.t("research.timeline"), id: "research-timeline", proxy: proxy)
+                }
+                if !research.sources.isEmpty {
+                    researchNavButton(settings.t("research.sources"), id: "research-sources", proxy: proxy)
+                }
+            }
+        }
+    }
+
+    private func researchNavButton(_ title: String, id: String, proxy: ScrollViewProxy) -> some View {
+        Button(title) {
+            withAnimation(.easeInOut(duration: 0.22)) { proxy.scrollTo(id, anchor: .top) }
+        }
+        .font(.pretendard(10.5, weight: .semibold))
+        .buttonStyle(.plain)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(.white.opacity(0.08), in: Capsule())
+    }
+
+    private func researchSectionTitle(_ section: ResearchDocument.Section) -> String {
+        let key = "research.section.\(section.id)"
+        let localized = settings.t(key)
+        if localized != key { return localized }
+        return section.headline.isEmpty ? settings.t("research.section.overview") : section.headline
+    }
+
+    private func researchCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) { content() }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(13)
+            .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 13))
+    }
+
+    private func researchParagraph(_ value: String) -> some View {
+        Text(value)
+            .font(.pretendard(13 * researchTextScale))
+            .foregroundStyle(.white.opacity(0.86))
+            .lineSpacing(3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func sourceFootnote(_ value: String) -> some View {
+        if let url = URL(string: value), !value.isEmpty {
+            Link(settings.t("research.source_note"), destination: url)
+                .font(.pretendard(10.5 * researchTextScale, weight: .semibold))
+                .foregroundStyle(Color(red: 82 / 255, green: 220 / 255, blue: 143 / 255))
         }
     }
 
