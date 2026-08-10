@@ -386,6 +386,7 @@ final class AppViewModel: ObservableObject {
         furiganaRefreshTask?.cancel()
         manualTask?.cancel()
         tmiTask?.cancel()
+        culturalAnnotationTask?.cancel()
         toastTask?.cancel()
         pollinationsAuthTask?.cancel()
         creatorPrivacyTask?.cancel()
@@ -393,6 +394,8 @@ final class AppViewModel: ObservableObject {
         creatorSupportTask?.cancel()
         spotifyPollTask?.cancel()
         spotifyMetadataHydrationTask?.cancel()
+        spotifyPlaybackRefreshBurstTask?.cancel()
+        youtubeBackgroundLoadTask?.cancel()
         updateTask?.cancel()
         if let audioRouteObserver {
             NotificationCenter.default.removeObserver(audioRouteObserver)
