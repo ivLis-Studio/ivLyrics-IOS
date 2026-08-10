@@ -196,7 +196,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         }
         let uptime = ProcessInfo.processInfo.systemUptime
         if active || startReason != nil {
-            if forceRender || state.positionMs != lastRenderedPositionMs || uptime - lastRenderUptime >= 1.0 {
+            let elapsed = uptime - lastRenderUptime
+            let positionFrameDue = state.positionMs != lastRenderedPositionMs
+                && elapsed >= state.preferredFrameInterval
+            if forceRender || positionFrameDue || elapsed >= 1.0 {
                 renderFrame()
             }
         } else if forceRender || !hasPrimedFrame || uptime - lastRenderUptime >= 1.0 {
@@ -451,13 +454,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private func renderFrame() {
         let size = state.renderSize
         guard size.width > 0, size.height > 0 else { return }
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { context in
-            drawFrame(in: CGRect(origin: .zero, size: size), context: context.cgContext)
-        }
-        guard let cgImage = image.cgImage,
-              let pixelBuffer = makePixelBuffer(width: Int(size.width), height: Int(size.height)) else { return }
-        draw(cgImage, into: pixelBuffer)
+        guard let pixelBuffer = makePixelBuffer(width: Int(size.width), height: Int(size.height)),
+              drawFrame(into: pixelBuffer) else { return }
         guard let sampleBuffer = makeSampleBuffer(pixelBuffer: pixelBuffer) else { return }
         if displayLayer.status == .failed {
             displayLayer.flush()
@@ -977,7 +975,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         return pixelBuffer
     }
 
-    private func draw(_ image: CGImage, into pixelBuffer: CVPixelBuffer) {
+    private func drawFrame(into pixelBuffer: CVPixelBuffer) -> Bool {
         CVPixelBufferLockBaseAddress(pixelBuffer, [])
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
         guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer),
@@ -989,18 +987,21 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                 bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
                 space: CGColorSpaceCreateDeviceRGB(),
                 bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-              ) else { return }
-        // `image` is already a rasterized CGImage. Drawing it into the BGRA bitmap
-        // context writes its rows in the order consumed by CVPixelBuffer. Applying
-        // UIKit's flipped drawing transform here reverses those rows a second time
-        // and makes the sample-buffer video appear upside-down on device.
-        context.draw(image, in: CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(pixelBuffer), height: CVPixelBufferGetHeight(pixelBuffer)))
+              ) else { return false }
+        let width = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
+        let height = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
+        context.translateBy(x: 0, y: height)
+        context.scaleBy(x: 1, y: -1)
+        UIGraphicsPushContext(context)
+        defer { UIGraphicsPopContext() }
+        drawFrame(in: CGRect(x: 0, y: 0, width: width, height: height), context: context)
+        return true
     }
 
     private func makeSampleBuffer(pixelBuffer: CVPixelBuffer) -> CMSampleBuffer? {
         guard let videoFormatDescription else { return nil }
         var timing = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: 15),
+            duration: CMTime(value: 1, timescale: state.usesTimedKaraoke ? 30 : 12),
             presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
             decodeTimeStamp: .invalid
         )
@@ -1124,6 +1125,22 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             guard lines.indices.contains(index) else { return nil }
             let value = lines[index].text.trimmed
             return value.isEmpty ? nil : value
+        }
+
+        var usesTimedKaraoke: Bool {
+            guard syncedLyricsKaraokeAnimationEnabled,
+                  !karaokeDataAsLineSynced,
+                  let line = activeLine?.line else { return false }
+            if line.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs }) {
+                return true
+            }
+            return line.vocalParts.contains { part in
+                part.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs })
+            }
+        }
+
+        var preferredFrameInterval: TimeInterval {
+            usesTimedKaraoke ? 1.0 / 30.0 : 1.0 / 12.0
         }
 
         func renderIdentity(for line: ActiveLine?) -> String {
