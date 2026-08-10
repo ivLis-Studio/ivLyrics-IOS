@@ -10,8 +10,19 @@
 		000000000000000000000240 /* SpotifyiOS in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000242 /* SpotifyiOS */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		000000000000000150100000 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000100000000;
+			remoteInfo = "ivLyrics-IOS";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* ivLyrics-IOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ivLyrics-IOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000121 /* ivLyrics-IOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ivLyrics-IOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -25,6 +36,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		000000000000000000000012 /* ivLyrics-IOSTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "ivLyrics-IOSTests";
+			sourceTree = "<group>";
+		};
 		000000000000000000000010 /* ivLyrics-IOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -36,6 +52,11 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		000000000000000130100000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 		000000000000000130000000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
@@ -49,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000010 /* ivLyrics-IOS */,
+				000000000000000000000012 /* ivLyrics-IOSTests */,
 				000000000000000000000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -57,6 +79,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000120 /* ivLyrics-IOS.app */,
+				000000000000000000000121 /* ivLyrics-IOSTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -64,6 +87,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		000000000000000101000000 /* ivLyrics-IOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000110100000 /* Build configuration list for PBXNativeTarget "ivLyrics-IOSTests" */;
+			buildPhases = (
+				000000000000000120100000 /* Sources */,
+				000000000000000130100000 /* Frameworks */,
+				000000000000000140100000 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				000000000000000160100000 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				000000000000000000000012 /* ivLyrics-IOSTests */,
+			);
+			name = "ivLyrics-IOSTests";
+			productName = "ivLyrics-IOSTests";
+			productReference = 000000000000000000000121 /* ivLyrics-IOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		000000000000000100000000 /* ivLyrics-IOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 000000000000000110000000 /* Build configuration list for PBXNativeTarget "ivLyrics-IOS" */;
@@ -98,6 +142,10 @@
 					000000000000000100000000 = {
 						CreatedOnToolsVersion = 26.3;
 					};
+					000000000000000101000000 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 000000000000000100000000;
+					};
 				};
 			};
 			buildConfigurationList = 000000000000000010000000 /* Build configuration list for PBXProject "ivLyrics-IOS" */;
@@ -118,11 +166,17 @@
 			projectRoot = "";
 			targets = (
 				000000000000000100000000 /* ivLyrics-IOS */,
+				000000000000000101000000 /* ivLyrics-IOSTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		000000000000000140100000 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
 		000000000000000140000000 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
@@ -131,6 +185,11 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		000000000000000120100000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 		000000000000000120000000 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
@@ -138,7 +197,49 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		000000000000000160100000 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000100000000 /* ivLyrics-IOS */;
+			targetProxy = 000000000000000150100000 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		000000000000000111100000 /* Debug configuration for PBXNativeTarget "ivLyrics-IOSTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = kr.ivlis.ivlyrics.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ivLyrics-IOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ivLyrics-IOS";
+			};
+			name = Debug;
+		};
+		000000000000000112100000 /* Release configuration for PBXNativeTarget "ivLyrics-IOSTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = kr.ivlis.ivlyrics.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ivLyrics-IOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ivLyrics-IOS";
+			};
+			name = Release;
+		};
 		000000000000000011000000 /* Debug configuration for PBXProject "ivLyrics-IOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -354,6 +455,14 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		000000000000000110100000 /* Build configuration list for PBXNativeTarget "ivLyrics-IOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000111100000 /* Debug configuration for PBXNativeTarget "ivLyrics-IOSTests" */,
+				000000000000000112100000 /* Release configuration for PBXNativeTarget "ivLyrics-IOSTests" */,
+			);
+			defaultConfigurationName = Release;
+		};
 		000000000000000010000000 /* Build configuration list for PBXProject "ivLyrics-IOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
