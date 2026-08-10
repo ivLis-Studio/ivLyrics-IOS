@@ -5413,18 +5413,7 @@ enum LyricsTimelineDisplayBuilder {
     }
 
     static func isInterludeMarkerText(_ text: String) -> Bool {
-        let normalized = text
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&NBSP;", with: " ")
-            .trimmed
-        if normalized.isEmpty { return true }
-        return normalized.unicodeScalars.allSatisfy { scalar in
-            CharacterSet.whitespacesAndNewlines.contains(scalar)
-                || scalar.value == 0x00A0
-                || (scalar.value >= 0x200B && scalar.value <= 0x200D)
-                || scalar.value == 0xFEFF
-                || (scalar.value >= 0x2669 && scalar.value <= 0x266C)
-        }
+        InstrumentalBreakMarker.isMarkerText(text)
     }
 
     private static func contains(_ info: InterludeInfo, _ positionMs: Int64) -> Bool {

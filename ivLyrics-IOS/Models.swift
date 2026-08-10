@@ -1,5 +1,96 @@
 import Foundation
 
+enum InstrumentalBreakMarker {
+    private static let htmlTagRegex = try? NSRegularExpression(
+        pattern: #"</?[a-z][^>]*>"#,
+        options: [.caseInsensitive]
+    )
+    private static let numericEntityRegex = try? NSRegularExpression(
+        pattern: #"&#(?:x([0-9a-f]+)|([0-9]+));?"#,
+        options: [.caseInsensitive]
+    )
+    private static let wrappers: [(Character, Character)] = [
+        ("<", ">"), ("＜", "＞"), ("〈", "〉"), ("《", "》"),
+        ("[", "]"), ("［", "］"), ("【", "】"),
+        ("(", ")"), ("（", "）"), ("{", "}"), ("｛", "｝")
+    ]
+
+    static func isMarkerText(_ text: String, allowEmpty: Bool = true) -> Bool {
+        let normalized = unwrap(decodeEntities(text))
+            .precomposedStringWithCompatibilityMapping
+            .trimmed
+        if normalized.isEmpty { return allowEmpty }
+        return normalized.unicodeScalars.allSatisfy(isMarkerScalar)
+    }
+
+    private static func decodeEntities(_ text: String) -> String {
+        var decoded = text
+        if decoded.contains("&") {
+            decoded = decoded
+                .replacingOccurrences(of: "&amp;", with: "&", options: [.caseInsensitive])
+                .replacingOccurrences(of: "&lt;", with: "<", options: [.caseInsensitive])
+                .replacingOccurrences(of: "&gt;", with: ">", options: [.caseInsensitive])
+                .replacingOccurrences(of: "&nbsp;", with: " ", options: [.caseInsensitive])
+                .replacingOccurrences(of: "&sung;", with: "♪", options: [.caseInsensitive])
+                .replacingOccurrences(of: "&flat;", with: "♭", options: [.caseInsensitive])
+                .replacingOccurrences(of: "&natur;", with: "♮", options: [.caseInsensitive])
+                .replacingOccurrences(of: "&sharp;", with: "♯", options: [.caseInsensitive])
+        }
+
+        if let numericEntityRegex {
+            let matches = numericEntityRegex.matches(
+                in: decoded,
+                range: NSRange(decoded.startIndex..<decoded.endIndex, in: decoded)
+            )
+            for match in matches.reversed() {
+                let hexRange = Range(match.range(at: 1), in: decoded)
+                let decimalRange = Range(match.range(at: 2), in: decoded)
+                let digits = hexRange.map { String(decoded[$0]) } ?? decimalRange.map { String(decoded[$0]) }
+                let radix = hexRange == nil ? 10 : 16
+                guard let digits,
+                      let value = UInt32(digits, radix: radix),
+                      let scalar = UnicodeScalar(value),
+                      let wholeRange = Range(match.range, in: decoded) else { continue }
+                decoded.replaceSubrange(wholeRange, with: String(scalar))
+            }
+        }
+
+        guard decoded.contains("<"), let htmlTagRegex else { return decoded }
+        return htmlTagRegex.stringByReplacingMatches(
+            in: decoded,
+            range: NSRange(decoded.startIndex..<decoded.endIndex, in: decoded),
+            withTemplate: ""
+        )
+    }
+
+    private static func unwrap(_ text: String) -> String {
+        var value = text.trimmed
+        for _ in 0..<3 {
+            guard value.count >= 2,
+                  let first = value.first,
+                  let last = value.last,
+                  wrappers.contains(where: { $0.0 == first && $0.1 == last }) else { break }
+            value = String(value.dropFirst().dropLast()).trimmed
+        }
+        return value
+    }
+
+    private static func isMarkerScalar(_ scalar: UnicodeScalar) -> Bool {
+        let value = scalar.value
+        return CharacterSet.whitespacesAndNewlines.contains(scalar)
+            || value == 0x00A0
+            || (value >= 0x200B && value <= 0x200F)
+            || (value >= 0x202A && value <= 0x202E)
+            || (value >= 0x2060 && value <= 0x2069)
+            || value == 0xFE0E
+            || value == 0xFE0F
+            || value == 0xFEFF
+            || (value >= 0x2669 && value <= 0x266F)
+            || (value >= 0x1D100 && value <= 0x1D1FF)
+            || (value >= 0x1F3B5 && value <= 0x1F3BC)
+    }
+}
+
 struct TrackSnapshot: Equatable, Hashable, Sendable {
     private static let isrcSeparatorsRegex = try? NSRegularExpression(pattern: #"[\s-]"#)
     private static let validIsrcRegex = try? NSRegularExpression(pattern: #"^[A-Z]{2}[A-Z0-9]{3}\d{7}$"#)
