@@ -87,6 +87,7 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
 
     func disconnectAndForget() {
         stop()
+        SecureStringStore.shared.remove(forKey: accessTokenKey)
         UserDefaults.standard.removeObject(forKey: accessTokenKey)
         UserDefaults.standard.removeObject(forKey: clientIdKey)
     }
@@ -212,6 +213,7 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
         let storedRedirectURI = defaults.string(forKey: redirectURIKey) ?? ""
         if (!storedClientId.isEmpty && storedClientId != clientId)
             || storedRedirectURI != SpotifyRedirectConfiguration.uri {
+            SecureStringStore.shared.remove(forKey: accessTokenKey)
             defaults.removeObject(forKey: accessTokenKey)
         }
         defaults.set(clientId, forKey: clientIdKey)
@@ -332,8 +334,17 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
     }
 
     private var storedAccessToken: String? {
-        get { UserDefaults.standard.string(forKey: accessTokenKey) }
-        set { UserDefaults.standard.set(newValue, forKey: accessTokenKey) }
+        get {
+            SecureStringStore.shared.migratedString(
+                forKey: accessTokenKey,
+                legacyDefaults: .standard
+            )
+        }
+        set {
+            if SecureStringStore.shared.set(newValue, forKey: accessTokenKey) {
+                UserDefaults.standard.removeObject(forKey: accessTokenKey)
+            }
+        }
     }
 }
 

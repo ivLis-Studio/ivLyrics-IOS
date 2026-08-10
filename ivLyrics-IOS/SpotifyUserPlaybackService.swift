@@ -144,6 +144,8 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     }
 
     private func clearTokens() {
+        SecureStringStore.shared.remove(forKey: "spotify_user_access_token")
+        SecureStringStore.shared.remove(forKey: "spotify_user_refresh_token")
         defaults.removeObject(forKey: "spotify_user_access_token")
         defaults.removeObject(forKey: "spotify_user_refresh_token")
         defaults.removeObject(forKey: "spotify_user_expires_at_ms")
@@ -170,6 +172,7 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
         guard let http = response as? HTTPURLResponse else { return nil }
         if http.statusCode == 204 { return nil }
         if http.statusCode == 401 {
+            SecureStringStore.shared.remove(forKey: "spotify_user_access_token")
             defaults.removeObject(forKey: "spotify_user_access_token")
             defaults.removeObject(forKey: "spotify_user_expires_at_ms")
             throw HTTPStatusError(statusCode: http.statusCode, message: String(data: data, encoding: .utf8) ?? "")
@@ -251,7 +254,10 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     }
 
     private func validAccessToken() -> String? {
-        let token = defaults.string(forKey: "spotify_user_access_token") ?? ""
+        let token = SecureStringStore.shared.migratedString(
+            forKey: "spotify_user_access_token",
+            legacyDefaults: defaults
+        ) ?? ""
         let expiresAt = Int64(defaults.double(forKey: "spotify_user_expires_at_ms"))
         guard !token.isEmpty, expiresAt > Int64(Date().timeIntervalSince1970 * 1000) + 30_000 else {
             return nil
@@ -260,7 +266,10 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     }
 
     private var refreshToken: String {
-        defaults.string(forKey: "spotify_user_refresh_token") ?? ""
+        SecureStringStore.shared.migratedString(
+            forKey: "spotify_user_refresh_token",
+            legacyDefaults: defaults
+        ) ?? ""
     }
 
     private func runAuthenticationSession(url: URL) async throws -> URL {
@@ -356,12 +365,17 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     private func saveTokenResponse(_ object: [String: Any], keepExistingRefreshToken: Bool = false) {
         let access = stringValue(object["access_token"])
         if !access.isEmpty {
-            defaults.set(access, forKey: "spotify_user_access_token")
+            if SecureStringStore.shared.set(access, forKey: "spotify_user_access_token") {
+                defaults.removeObject(forKey: "spotify_user_access_token")
+            }
         }
         let refresh = stringValue(object["refresh_token"])
         if !refresh.isEmpty {
-            defaults.set(refresh, forKey: "spotify_user_refresh_token")
+            if SecureStringStore.shared.set(refresh, forKey: "spotify_user_refresh_token") {
+                defaults.removeObject(forKey: "spotify_user_refresh_token")
+            }
         } else if !keepExistingRefreshToken {
+            SecureStringStore.shared.remove(forKey: "spotify_user_refresh_token")
             defaults.removeObject(forKey: "spotify_user_refresh_token")
         }
         let expires = max(60, int64Value(object["expires_in"], fallback: 3600))

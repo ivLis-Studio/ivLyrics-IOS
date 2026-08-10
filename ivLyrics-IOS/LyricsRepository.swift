@@ -69,7 +69,10 @@ actor LyricsRepository {
     private var syncDataServerCacheBypassAllUntilMs: Int64 = 0
 
     init() {
-        spotifyAccessToken = defaults.string(forKey: "spotify_token_cache_access_token") ?? ""
+        spotifyAccessToken = SecureStringStore.shared.migratedString(
+            forKey: "spotify_token_cache_access_token",
+            legacyDefaults: defaults
+        ) ?? ""
         spotifyTokenSourceKey = defaults.string(forKey: "spotify_token_cache_source_key") ?? ""
         spotifyTokenIssuedAtMs = Int64(defaults.double(forKey: "spotify_token_cache_issued_at_ms"))
         spotifyTokenExpiresAtMs = Int64(defaults.double(forKey: "spotify_token_cache_expires_at_ms"))
@@ -1793,7 +1796,9 @@ actor LyricsRepository {
     }
 
     private func persistSpotifyToken() {
-        defaults.set(spotifyAccessToken, forKey: "spotify_token_cache_access_token")
+        if SecureStringStore.shared.set(spotifyAccessToken, forKey: "spotify_token_cache_access_token") {
+            defaults.removeObject(forKey: "spotify_token_cache_access_token")
+        }
         defaults.set(spotifyTokenSourceKey, forKey: "spotify_token_cache_source_key")
         defaults.set(Double(spotifyTokenIssuedAtMs), forKey: "spotify_token_cache_issued_at_ms")
         defaults.set(Double(spotifyTokenExpiresAtMs), forKey: "spotify_token_cache_expires_at_ms")
@@ -1804,6 +1809,7 @@ actor LyricsRepository {
         spotifyTokenSourceKey = ""
         spotifyTokenIssuedAtMs = 0
         spotifyTokenExpiresAtMs = 0
+        SecureStringStore.shared.remove(forKey: "spotify_token_cache_access_token")
         defaults.removeObject(forKey: "spotify_token_cache_access_token")
         defaults.removeObject(forKey: "spotify_token_cache_source_key")
         defaults.removeObject(forKey: "spotify_token_cache_issued_at_ms")

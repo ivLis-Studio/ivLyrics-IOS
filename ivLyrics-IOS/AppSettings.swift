@@ -238,8 +238,8 @@ final class AppSettings: ObservableObject {
     @Published var culturalAnnotationsVinylFontSize: Int { didSet { set("cultural_annotations_vinyl_font_size", Self.clampCulturalFontSize(culturalAnnotationsVinylFontSize)) } }
     @Published var culturalAnnotationsVinylFontWeight: Int { didSet { set("cultural_annotations_vinyl_font_weight", Self.clampCulturalFontWeight(culturalAnnotationsVinylFontWeight)) } }
     @Published var culturalAnnotationsVinylOpacity: Int { didSet { set("cultural_annotations_vinyl_opacity", Self.clampCulturalOpacity(culturalAnnotationsVinylOpacity)) } }
-    @Published var apiKeys: String { didSet { set("api_keys", apiKeys); saveAIProviderProfileFromPublished() } }
-    @Published var pollinationsAccessToken: String { didSet { set("pollinations_access_token", pollinationsAccessToken) } }
+    @Published var apiKeys: String { didSet { setSecure("api_keys", apiKeys); saveAIProviderProfileFromPublished() } }
+    @Published var pollinationsAccessToken: String { didSet { setSecure("pollinations_access_token", pollinationsAccessToken) } }
     @Published var baseUrl: String { didSet { set("base_url", baseUrl); saveAIProviderProfileFromPublished() } }
     @Published var model: String { didSet { set("model", model); saveAIProviderProfileFromPublished() } }
     @Published var maxTokens: Int { didSet { set("max_tokens", max(256, maxTokens)); saveAIProviderProfileFromPublished() } }
@@ -278,7 +278,7 @@ final class AppSettings: ObservableObject {
     @Published var backgroundSolidColor: String { didSet { set("background_solid_color", Self.normalizeHexColor(backgroundSolidColor, fallback: "#1e3a8a")); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundVideoScale: Int { didSet { set("background_video_scale", Self.clampBackgroundVideoScale(backgroundVideoScale)); bumpBackgroundRevisionIfNeeded() } }
     @Published var spotifyClientId: String { didSet { set("spotify_client_id", spotifyClientId) } }
-    @Published var spotifyClientSecret: String { didSet { set("spotify_client_secret", spotifyClientSecret) } }
+    @Published var spotifyClientSecret: String { didSet { setSecure("spotify_client_secret", spotifyClientSecret) } }
     @Published private(set) var lyricsProviderOrder: [String] { didSet { saveLyricsProviderSettingsIfNeeded() } }
     @Published private(set) var lyricsProviderEnabled: [String: Bool] { didSet { saveLyricsProviderSettingsIfNeeded() } }
     @Published private(set) var lyricsProviderTypes: [String: [String: Bool]] { didSet { saveLyricsProviderSettingsIfNeeded() } }
@@ -330,7 +330,10 @@ final class AppSettings: ObservableObject {
         culturalAnnotationsVinylFontWeight = Self.clampCulturalFontWeight(defaults.object(forKey: "cultural_annotations_vinyl_font_weight") as? Int ?? 300)
         culturalAnnotationsVinylOpacity = Self.clampCulturalOpacity(defaults.object(forKey: "cultural_annotations_vinyl_opacity") as? Int ?? 60)
         apiKeys = selectedAIProviderProfile.apiKeys
-        pollinationsAccessToken = defaults.string(forKey: "pollinations_access_token") ?? ""
+        pollinationsAccessToken = SecureStringStore.shared.migratedString(
+            forKey: "pollinations_access_token",
+            legacyDefaults: defaults
+        ) ?? ""
         baseUrl = selectedAIProviderProfile.baseUrl
         model = selectedAIProviderProfile.model
         maxTokens = selectedAIProviderProfile.maxTokens
@@ -370,7 +373,10 @@ final class AppSettings: ObservableObject {
         backgroundSolidColor = Self.normalizeHexColor(defaults.string(forKey: "background_solid_color") ?? "#1e3a8a", fallback: "#1e3a8a")
         backgroundVideoScale = Self.clampBackgroundVideoScale(defaults.object(forKey: "background_video_scale") as? Int ?? 100)
         spotifyClientId = defaults.string(forKey: "spotify_client_id") ?? ""
-        spotifyClientSecret = defaults.string(forKey: "spotify_client_secret") ?? ""
+        spotifyClientSecret = SecureStringStore.shared.migratedString(
+            forKey: "spotify_client_secret",
+            legacyDefaults: defaults
+        ) ?? ""
         lyricsProviderOrder = Self.loadLyricsProviderOrder(defaults: defaults)
         lyricsProviderEnabled = Self.loadLyricsProviderEnabled(defaults: defaults)
         lyricsProviderTypes = Self.loadLyricsProviderTypes(defaults: defaults)
@@ -1030,8 +1036,10 @@ final class AppSettings: ObservableObject {
         if let data = try? JSONEncoder().encode(enabled), let raw = String(data: data, encoding: .utf8) {
             defaults.set(raw, forKey: "ai_provider_enabled_v1")
         }
-        if let data = try? JSONEncoder().encode(aiProviderProfiles), let raw = String(data: data, encoding: .utf8) {
-            defaults.set(raw, forKey: "ai_provider_profiles_v1")
+        if let data = try? JSONEncoder().encode(aiProviderProfiles),
+           let raw = String(data: data, encoding: .utf8),
+           SecureStringStore.shared.set(raw, forKey: "ai_provider_profiles_v1") {
+            defaults.removeObject(forKey: "ai_provider_profiles_v1")
         }
         cachedSnapshot = nil
     }
@@ -1062,6 +1070,13 @@ final class AppSettings: ObservableObject {
     private func set(_ key: String, _ value: String) {
         guard !isBootstrapping else { return }
         defaults.set(value, forKey: key)
+    }
+
+    private func setSecure(_ key: String, _ value: String) {
+        guard !isBootstrapping else { return }
+        if SecureStringStore.shared.set(value, forKey: key) {
+            defaults.removeObject(forKey: key)
+        }
     }
 
     private func set(_ key: String, _ value: Bool) {
@@ -1123,9 +1138,15 @@ final class AppSettings: ObservableObject {
         var migrated = normalizedAIProviderEnabled([:])
         migrated[KeylessTranslationProviders.bingId] = defaults.object(forKey: "bing_translate_enabled") as? Bool ?? true
         migrated[KeylessTranslationProviders.googleId] = defaults.object(forKey: "google_translate_enabled") as? Bool ?? true
-        let hasLegacyKey = !(defaults.string(forKey: "api_keys") ?? "").trimmed.isEmpty
+        let hasLegacyKey = !(SecureStringStore.shared.migratedString(
+            forKey: "api_keys",
+            legacyDefaults: defaults
+        ) ?? "").trimmed.isEmpty
         let hasPollinationsToken = selectedProvider.id == "pollinations"
-            && !(defaults.string(forKey: "pollinations_access_token") ?? "").trimmed.isEmpty
+            && !(SecureStringStore.shared.migratedString(
+                forKey: "pollinations_access_token",
+                legacyDefaults: defaults
+            ) ?? "").trimmed.isEmpty
         if hasLegacyKey || hasPollinationsToken {
             migrated[selectedProvider.id] = true
         }
@@ -1134,7 +1155,10 @@ final class AppSettings: ObservableObject {
 
     private static func loadAIProviderProfiles(defaults: UserDefaults, selectedProvider: Provider) -> [String: AIProviderProfile] {
         var profiles: [String: AIProviderProfile] = [:]
-        if let raw = defaults.string(forKey: "ai_provider_profiles_v1"),
+        if let raw = SecureStringStore.shared.migratedString(
+            forKey: "ai_provider_profiles_v1",
+            legacyDefaults: defaults
+        ),
            let data = raw.data(using: .utf8),
            let values = try? JSONDecoder().decode([String: AIProviderProfile].self, from: data) {
             profiles = values
@@ -1150,7 +1174,10 @@ final class AppSettings: ObservableObject {
                 )
             } else if provider.id == selectedProvider.id {
                 profiles[provider.id] = AIProviderProfile(
-                    apiKeys: defaults.string(forKey: "api_keys") ?? "",
+                    apiKeys: SecureStringStore.shared.migratedString(
+                        forKey: "api_keys",
+                        legacyDefaults: defaults
+                    ) ?? "",
                     baseUrl: defaults.string(forKey: "base_url")?.trimmed.isEmpty == false
                         ? defaults.string(forKey: "base_url")!
                         : provider.defaultBaseUrl,
