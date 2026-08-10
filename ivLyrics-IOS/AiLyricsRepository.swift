@@ -24,10 +24,10 @@ actor AiLyricsRepository {
         maxEntries: 500,
         formatVersion: 4
     )
-    private var memoryCache: [String: LyricsResult] = [:]
-    private var metadataMemoryCache: [String: MetadataTranslation] = [:]
-    private var tmiMemoryCache: [String: TmiInfo] = [:]
-    private var culturalAnnotationMemoryCache: [String: [CulturalAnnotation]] = [:]
+    private var memoryCache = BoundedLRUCache<String, LyricsResult>(capacity: 250)
+    private var metadataMemoryCache = BoundedLRUCache<String, MetadataTranslation>(capacity: 200)
+    private var tmiMemoryCache = BoundedLRUCache<String, TmiInfo>(capacity: 100)
+    private var culturalAnnotationMemoryCache = BoundedLRUCache<String, [CulturalAnnotation]>(capacity: 100)
     private var lastPartialEmitUptime: TimeInterval = 0
     private let partialEmitMinInterval: TimeInterval = 0.6
     private let keylessTranslationProviders = KeylessTranslationProviders()
@@ -207,15 +207,15 @@ actor AiLyricsRepository {
             + "|\(settings.cacheKey)"
             + "|text=\(IvLyricsUtilities.sha256(textPayload))"
         if !bypassCache {
-            if let cached = memoryCache[cacheKey] {
+            if let cached = memoryCache.value(forKey: cacheKey) {
                 let result = withBaseContributors(cached, baseResult: baseResult)
-                memoryCache[cacheKey] = result
+                memoryCache.insert(result, forKey: cacheKey)
                 log("ai lyrics cache hit: \(settings.provider.label)")
                 return SupplementResponse(result: result, logs: logs, pronunciationLoading: false, translationLoading: false, hadError: false)
             }
             if let cached = diskCache.get(cacheKey) {
                 let result = withBaseContributors(cached, baseResult: baseResult)
-                memoryCache[cacheKey] = result
+                memoryCache.insert(result, forKey: cacheKey)
                 log("ai lyrics disk cache hit: \(settings.provider.label)")
                 return SupplementResponse(result: result, logs: logs, pronunciationLoading: false, translationLoading: false, hadError: false)
             }
@@ -621,12 +621,12 @@ actor AiLyricsRepository {
             + "|providers=\(IvLyricsUtilities.sha256(settings.cacheKey))"
             + "|text=\(IvLyricsUtilities.sha256(title + "\n" + artist))"
         if !bypassCache {
-            if let cached = metadataMemoryCache[cacheKey] {
+            if let cached = metadataMemoryCache.value(forKey: cacheKey) {
                 log("metadata translation cache hit")
                 return MetadataTranslationResponse(translation: cached, logs: logs, hadError: false)
             }
             if let persisted = metadataTranslationFromDisk(cacheKey) {
-                metadataMemoryCache[cacheKey] = persisted
+                metadataMemoryCache.insert(persisted, forKey: cacheKey)
                 log("metadata translation disk cache hit")
                 return MetadataTranslationResponse(translation: persisted, logs: logs, hadError: false)
             }
@@ -680,7 +680,7 @@ actor AiLyricsRepository {
                         targetLang: targetLang
                     )
                 }
-                metadataMemoryCache[cacheKey] = translation
+                metadataMemoryCache.insert(translation, forKey: cacheKey)
                 putMetadataTranslationToDisk(cacheKey: cacheKey, translation: translation)
                 log("metadata translation response: title=\(!translation.title.isEmpty) / artist=\(!translation.artist.isEmpty)")
                 return MetadataTranslationResponse(translation: translation, logs: logs, hadError: false)
@@ -716,12 +716,12 @@ actor AiLyricsRepository {
             + "|text=\(IvLyricsUtilities.sha256(title + "\n" + artist))"
 
         if !bypassCache {
-            if let cached = tmiMemoryCache[cacheKey] {
+            if let cached = tmiMemoryCache.value(forKey: cacheKey) {
                 log("ai tmi cache hit: \(settings.provider.label)")
                 return TmiResponse(trackKey: trackKey, info: cached, errorMessage: "", logs: logs)
             }
             if let persisted = tmiFromDisk(cacheKey) {
-                tmiMemoryCache[cacheKey] = persisted
+                tmiMemoryCache.insert(persisted, forKey: cacheKey)
                 log("ai tmi disk cache hit: \(settings.provider.label)")
                 return TmiResponse(trackKey: trackKey, info: persisted, errorMessage: "", logs: logs)
             }
@@ -736,7 +736,7 @@ actor AiLyricsRepository {
         do {
             let raw = try await callProviderRaw(prompt: buildTmiPrompt(title: title, artist: artist, lang: targetLang), settings: settings)
             let info = try parseTmiInfo(raw: raw, targetLang: targetLang).withCacheKey(cacheKey)
-            tmiMemoryCache[cacheKey] = info
+            tmiMemoryCache.insert(info, forKey: cacheKey)
             putTmiToDisk(cacheKey: cacheKey, info: info)
             log("ai tmi response: description=\(!info.description.isEmpty) / trivia=\(info.trivia.count) / sources=\(info.allSources.count) / confidence=\(info.confidence)")
             return TmiResponse(trackKey: trackKey, info: info, errorMessage: "", logs: logs)
@@ -796,12 +796,12 @@ actor AiLyricsRepository {
             + "|text=\(IvLyricsUtilities.sha256(textPayload))"
 
         if !bypassCache {
-            if let cached = culturalAnnotationMemoryCache[requestKey] {
+            if let cached = culturalAnnotationMemoryCache.value(forKey: requestKey) {
                 logs.append("ai cultural annotations cache hit: \(settings.provider.label)")
                 return response(requestKey: requestKey, annotations: cached)
             }
             if let cached = culturalAnnotationsFromDisk(requestKey) {
-                culturalAnnotationMemoryCache[requestKey] = cached
+                culturalAnnotationMemoryCache.insert(cached, forKey: requestKey)
                 logs.append("ai cultural annotations disk cache hit: \(settings.provider.label)")
                 return response(requestKey: requestKey, annotations: cached)
             }
@@ -826,7 +826,7 @@ actor AiLyricsRepository {
                 settings: settings
             )
             let annotations = try parseCulturalAnnotations(raw: raw, lineTexts: lineTexts)
-            culturalAnnotationMemoryCache[requestKey] = annotations
+            culturalAnnotationMemoryCache.insert(annotations, forKey: requestKey)
             putCulturalAnnotationsToDisk(cacheKey: requestKey, annotations: annotations)
             logs.append("ai cultural annotations response: \(annotations.count)")
             return response(requestKey: requestKey, annotations: annotations)
@@ -851,10 +851,10 @@ actor AiLyricsRepository {
     func clearTrackCache(_ trackKey: String) {
         let key = trackKey.trimmed
         guard !key.isEmpty else { return }
-        memoryCache = memoryCache.filter { !$0.key.hasPrefix(key + "|") }
-        metadataMemoryCache = metadataMemoryCache.filter { !$0.key.hasPrefix("metadata|" + key + "|") }
-        tmiMemoryCache = tmiMemoryCache.filter { !$0.key.hasPrefix("tmi|" + key + "|") }
-        culturalAnnotationMemoryCache = culturalAnnotationMemoryCache.filter { !$0.key.hasPrefix("cultural|" + key + "|") }
+        memoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix(key + "|") }
+        metadataMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("metadata|" + key + "|") }
+        tmiMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("tmi|" + key + "|") }
+        culturalAnnotationMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("cultural|" + key + "|") }
         diskCache.removeByKeyPrefix(key + "|")
         metadataDiskCache.removeByKeyPrefix("metadata|" + key + "|")
         tmiDiskCache.removeByKeyPrefix("tmi|" + key + "|")
@@ -1342,11 +1342,11 @@ actor AiLyricsRepository {
     }
 
     private func cachedResult(_ key: String) -> LyricsResult? {
-        if let cached = memoryCache[key] {
+        if let cached = memoryCache.value(forKey: key) {
             return cached
         }
         if let cached = diskCache.get(key) {
-            memoryCache[key] = cached
+            memoryCache.insert(cached, forKey: key)
             return cached
         }
         return nil
@@ -1354,7 +1354,7 @@ actor AiLyricsRepository {
 
     private func cacheResult(_ key: String, result: LyricsResult) {
         guard !key.trimmed.isEmpty, !result.lines.isEmpty else { return }
-        memoryCache[key] = result
+        memoryCache.insert(result, forKey: key)
         diskCache.put(key, result: result)
     }
 

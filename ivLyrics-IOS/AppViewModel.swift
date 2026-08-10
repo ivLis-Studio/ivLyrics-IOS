@@ -268,8 +268,8 @@ final class AppViewModel: ObservableObject {
     private var cachedTimelineContext: LyricsTimelineContext?
     private var audioRouteObserver: NSObjectProtocol?
     private var spotifyMetadataHydrationTrackId = ""
-    private var spotifyArtworkURLsByTrackId: [String: URL] = [:]
-    private var spotifyMetadataHydrationRetryAfter: [String: Date] = [:]
+    private var spotifyArtworkURLsByTrackId = BoundedLRUCache<String, URL>(capacity: 200)
+    private var spotifyMetadataHydrationRetryAfter = BoundedLRUCache<String, Date>(capacity: 200)
     private var currentYouTubeBackgroundRequestKey = ""
     private var currentYouTubeBackgroundLoading = false
     private var currentTmiRequestKey = ""
@@ -2569,10 +2569,10 @@ final class AppViewModel: ObservableObject {
     private func hydrateSpotifyAppRemoteMetadataIfNeeded(_ playback: SpotifyPlaybackSnapshot) {
         let track = playback.track
         let trackId = track.trackId
-        let retryAfter = spotifyMetadataHydrationRetryAfter[trackId] ?? .distantPast
+        let retryAfter = spotifyMetadataHydrationRetryAfter.value(forKey: trackId) ?? .distantPast
         guard !trackId.isEmpty,
               settings.snapshot.hasSpotifyCredentials,
-              spotifyArtworkURLsByTrackId[trackId] == nil,
+              spotifyArtworkURLsByTrackId.value(forKey: trackId) == nil,
               retryAfter <= Date(),
               spotifyMetadataHydrationTrackId != trackId else {
             return
@@ -2587,11 +2587,11 @@ final class AppViewModel: ObservableObject {
             spotifyMetadataHydrationTrackId = ""
             appendLogs(hydration.logs)
             if let spotifyArtworkURL = hydration.spotifyArtworkURL {
-                spotifyArtworkURLsByTrackId[trackId] = spotifyArtworkURL
+                spotifyArtworkURLsByTrackId.insert(spotifyArtworkURL, forKey: trackId)
                 spotifyMetadataHydrationRetryAfter.removeValue(forKey: trackId)
                 appendLog("spotify artwork cached for playback: \(spotifyArtworkURL.absoluteString)")
             } else {
-                spotifyMetadataHydrationRetryAfter[trackId] = Date().addingTimeInterval(30)
+                spotifyMetadataHydrationRetryAfter.insert(Date().addingTimeInterval(30), forKey: trackId)
                 appendLog("spotify artwork hydration unavailable; retry scheduled")
             }
             guard currentTrack?.trackId == trackId else { return }
@@ -2627,9 +2627,9 @@ final class AppViewModel: ObservableObject {
         var incoming = playback.track
         let incomingTrackId = incoming.trackId
         if incoming.packageName == "spotify.web-api", let artworkURL = incoming.artworkURL, !incomingTrackId.isEmpty {
-            spotifyArtworkURLsByTrackId[incomingTrackId] = artworkURL
+            spotifyArtworkURLsByTrackId.insert(artworkURL, forKey: incomingTrackId)
             spotifyMetadataHydrationRetryAfter.removeValue(forKey: incomingTrackId)
-        } else if let spotifyArtworkURL = spotifyArtworkURLsByTrackId[incomingTrackId] {
+        } else if let spotifyArtworkURL = spotifyArtworkURLsByTrackId.value(forKey: incomingTrackId) {
             incoming.artworkURL = spotifyArtworkURL
         }
         let incomingKey = incoming.stableKey
@@ -3166,7 +3166,7 @@ final class AppViewModel: ObservableObject {
         }
         let artworkTrackId = IvLyricsUtilities.firstNonEmpty(safeSpotifyTrackId, latestTrack.trackId)
         if let artworkURL = metadata.artworkURL, !artworkTrackId.isEmpty {
-            spotifyArtworkURLsByTrackId[artworkTrackId] = artworkURL
+            spotifyArtworkURLsByTrackId.insert(artworkURL, forKey: artworkTrackId)
             spotifyMetadataHydrationRetryAfter.removeValue(forKey: artworkTrackId)
         }
         currentTrack = latestTrack

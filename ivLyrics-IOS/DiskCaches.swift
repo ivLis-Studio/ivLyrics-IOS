@@ -1,18 +1,50 @@
 import Foundation
 
-private func removeOldestCacheFileForSingleOverflow(_ files: [URL], maxEntries: Int) -> Bool {
-    guard files.count == maxEntries + 1 else { return false }
-    var oldestFile: URL?
-    var oldestDate = Date.distantFuture
-    for file in files {
-        let date = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-        if oldestFile == nil || date < oldestDate {
-            oldestFile = file
-            oldestDate = date
+nonisolated enum LyricsDiskCachePolicy {
+    static let maxAgeMs: Int64 = 365 * 24 * 60 * 60 * 1000
+    static let maxTotalBytes: Int64 = 10 * 1024 * 1024 * 1024
+    private static let pruneQueue = DispatchQueue(label: "ivlyrics.disk-cache.global-prune")
+
+    static var rootDirectory: URL {
+        let cacheRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        return cacheRoot.appendingPathComponent("lyrics_cache", isDirectory: true)
+    }
+
+    static func prune() {
+        pruneQueue.sync {
+            let resourceKeys: Set<URLResourceKey> = [
+                .isRegularFileKey,
+                .fileSizeKey,
+                .contentModificationDateKey
+            ]
+            guard let enumerator = FileManager.default.enumerator(
+                at: rootDirectory,
+                includingPropertiesForKeys: Array(resourceKeys),
+                options: [.skipsHiddenFiles]
+            ) else { return }
+
+            let cutoff = Date().addingTimeInterval(-Double(maxAgeMs) / 1000)
+            var entries: [(url: URL, size: Int64, modified: Date)] = []
+            for case let url as URL in enumerator {
+                guard let values = try? url.resourceValues(forKeys: resourceKeys), values.isRegularFile == true else { continue }
+                let modified = values.contentModificationDate ?? .distantPast
+                if modified < cutoff {
+                    try? FileManager.default.removeItem(at: url)
+                    continue
+                }
+                entries.append((url, Int64(values.fileSize ?? 0), modified))
+            }
+
+            var totalBytes = entries.reduce(Int64(0)) { $0 + max(0, $1.size) }
+            guard totalBytes > maxTotalBytes else { return }
+            for entry in entries.sorted(by: { $0.modified < $1.modified }) where totalBytes > maxTotalBytes {
+                if (try? FileManager.default.removeItem(at: entry.url)) != nil {
+                    totalBytes -= max(0, entry.size)
+                }
+            }
         }
     }
-    if let oldestFile { try? FileManager.default.removeItem(at: oldestFile) }
-    return true
 }
 
 nonisolated final class LyricsDiskCache: @unchecked Sendable {
@@ -25,18 +57,16 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
     }
 
     private let directory: URL
-    private let maxEntries: Int
     private let baseLyricsCache: Bool
-    private let maxAgeMs: Int64?
+    private let maxAgeMs: Int64
     private let queue = DispatchQueue(label: "ivlyrics.disk-cache")
 
     init(namespace: String, maxEntries: Int, maxAgeMs: Int64? = nil) {
-        let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let safeNamespace = Self.safeNamespace(namespace)
-        directory = root.appendingPathComponent("lyrics_cache/\(safeNamespace)", isDirectory: true)
-        self.maxEntries = max(16, maxEntries)
+        directory = LyricsDiskCachePolicy.rootDirectory.appendingPathComponent(safeNamespace, isDirectory: true)
+        _ = maxEntries
         baseLyricsCache = safeNamespace == "base_lyrics"
-        self.maxAgeMs = maxAgeMs.flatMap { $0 > 0 ? $0 : nil }
+        self.maxAgeMs = maxAgeMs.flatMap { $0 > 0 ? $0 : nil } ?? LyricsDiskCachePolicy.maxAgeMs
     }
 
     func get(_ key: String) -> LyricsResult? {
@@ -50,8 +80,7 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
                 if baseLyricsCache, (envelope.contributorSchemaVersion ?? 0) < 12 {
                     return nil
                 }
-                if let maxAgeMs,
-                   (envelope.savedAtMs <= 0 || Int64(Date().timeIntervalSince1970 * 1000) - envelope.savedAtMs > maxAgeMs) {
+                if envelope.savedAtMs <= 0 || Int64(Date().timeIntervalSince1970 * 1000) - envelope.savedAtMs > maxAgeMs {
                     try? FileManager.default.removeItem(at: file)
                     return nil
                 }
@@ -85,7 +114,7 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
                     try? FileManager.default.removeItem(at: file)
                 }
                 try FileManager.default.moveItem(at: temp, to: file)
-                prune()
+                LyricsDiskCachePolicy.prune()
             } catch {
             }
         }
@@ -141,25 +170,6 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
         return redacted
     }
 
-    private func prune() {
-        guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey]),
-              files.count > maxEntries else {
-            return
-        }
-        if removeOldestCacheFileForSingleOverflow(files, maxEntries: maxEntries) { return }
-        let sorted = files
-            .map { file in
-                (
-                    file: file,
-                    modificationDate: (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                )
-            }
-            .sorted { $0.modificationDate < $1.modificationDate }
-        for entry in sorted.prefix(files.count - maxEntries) {
-            try? FileManager.default.removeItem(at: entry.file)
-        }
-    }
-
     private static func safeNamespace(_ namespace: String) -> String {
         let value = namespace.trimmed.lowercased().regexReplacing("[^a-z0-9_-]", with: "_")
         return value.isEmpty ? "default" : value
@@ -175,17 +185,15 @@ nonisolated final class RawResponseDiskCache: @unchecked Sendable {
     }
 
     private let directory: URL
-    private let maxEntries: Int
-    private let maxAgeMs: Int64?
+    private let maxAgeMs: Int64
     private let formatVersion: Int
     private let queue = DispatchQueue(label: "ivlyrics.raw-cache")
 
     init(namespace: String, maxEntries: Int, maxAgeMs: Int64? = nil, formatVersion: Int = 1) {
-        let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let safeNamespace = namespace.trimmed.lowercased().regexReplacing("[^a-z0-9_-]", with: "_")
-        directory = root.appendingPathComponent("lyrics_cache/\(safeNamespace.isEmpty ? "raw" : safeNamespace)", isDirectory: true)
-        self.maxEntries = max(16, maxEntries)
-        self.maxAgeMs = maxAgeMs.flatMap { $0 > 0 ? $0 : nil }
+        directory = LyricsDiskCachePolicy.rootDirectory.appendingPathComponent(safeNamespace.isEmpty ? "raw" : safeNamespace, isDirectory: true)
+        _ = maxEntries
+        self.maxAgeMs = maxAgeMs.flatMap { $0 > 0 ? $0 : nil } ?? LyricsDiskCachePolicy.maxAgeMs
         self.formatVersion = max(1, formatVersion)
     }
 
@@ -196,8 +204,7 @@ nonisolated final class RawResponseDiskCache: @unchecked Sendable {
             do {
                 let envelope = try JSONDecoder().decode(Envelope.self, from: Data(contentsOf: file))
                 guard envelope.version == formatVersion, !envelope.body.isEmpty else { return "" }
-                if let maxAgeMs,
-                   (envelope.savedAtMs <= 0 || Int64(Date().timeIntervalSince1970 * 1000) - envelope.savedAtMs > maxAgeMs) {
+                if envelope.savedAtMs <= 0 || Int64(Date().timeIntervalSince1970 * 1000) - envelope.savedAtMs > maxAgeMs {
                     try? FileManager.default.removeItem(at: file)
                     return ""
                 }
@@ -217,7 +224,7 @@ nonisolated final class RawResponseDiskCache: @unchecked Sendable {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 let envelope = Envelope(version: formatVersion, cacheKey: key, savedAtMs: Int64(Date().timeIntervalSince1970 * 1000), body: body)
                 try JSONEncoder().encode(envelope).write(to: fileForKey(key), options: .atomic)
-                prune()
+                LyricsDiskCachePolicy.prune()
             } catch {
             }
         }
@@ -258,22 +265,4 @@ nonisolated final class RawResponseDiskCache: @unchecked Sendable {
         directory.appendingPathComponent("\(IvLyricsUtilities.sha256(key)).json")
     }
 
-    private func prune() {
-        guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey]),
-              files.count > maxEntries else {
-            return
-        }
-        if removeOldestCacheFileForSingleOverflow(files, maxEntries: maxEntries) { return }
-        let sorted = files
-            .map { file in
-                (
-                    file: file,
-                    modificationDate: (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                )
-            }
-            .sorted { $0.modificationDate < $1.modificationDate }
-        for entry in sorted.prefix(files.count - maxEntries) {
-            try? FileManager.default.removeItem(at: entry.file)
-        }
-    }
 }

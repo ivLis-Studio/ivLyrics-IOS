@@ -20,7 +20,7 @@ actor LyricsRepository {
     private let syncedFallbackMinArtistScore = 0.45
     private let spotifyTokenMaxAgeMs: Int64 = 50 * 60 * 1000
     private let spotifyTokenRefreshGraceMs: Int64 = 30_000
-    private static let lyricsCacheMaxAgeMs: Int64 = 7 * 24 * 60 * 60 * 1000
+    private static let lyricsCacheMaxAgeMs = LyricsDiskCachePolicy.maxAgeMs
     private let openDbFreshMs: Int64 = 60_000
     private let openDbUnavailableRetryMs: Int64 = 5 * 60 * 1000
     private let syncDataServerCacheBypassMs: Int64 = 30 * 1000
@@ -48,7 +48,7 @@ actor LyricsRepository {
         }
     }
 
-    private var cache: [String: MemoryLyricsCacheEntry] = [:]
+    private var cache = BoundedLRUCache<String, MemoryLyricsCacheEntry>(capacity: 350)
     private let diskCache = LyricsDiskCache(
         namespace: "base_lyrics",
         maxEntries: 350,
@@ -103,7 +103,7 @@ actor LyricsRepository {
     }
 
     private func getMemoryCachedLyrics(_ key: String) -> LyricsResult? {
-        guard let entry = cache[key] else { return nil }
+        guard let entry = cache.value(forKey: key) else { return nil }
         if nowMs() - entry.savedAtMs > Self.lyricsCacheMaxAgeMs {
             cache.removeValue(forKey: key)
             return nil
@@ -117,7 +117,7 @@ actor LyricsRepository {
 
     private func putMemoryCachedLyrics(_ key: String, result: LyricsResult) {
         guard !key.trimmed.isEmpty, !result.lines.isEmpty else { return }
-        cache[key] = MemoryLyricsCacheEntry(
+        cache.insert(MemoryLyricsCacheEntry(
             // The live response has already had creator privacy applied by the
             // API. Keep that response intact for this process so a public
             // creator does not immediately turn into "Anonymous" on the next
@@ -125,7 +125,7 @@ actor LyricsRepository {
             // are rehydrated from the network before their identity is trusted.
             result: result,
             savedAtMs: nowMs()
-        )
+        ), forKey: key)
     }
 
     private func markProviderLyricsNormalized(_ result: LyricsResult) -> LyricsResult {
