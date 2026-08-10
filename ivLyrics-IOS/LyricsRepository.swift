@@ -734,6 +734,8 @@ actor LyricsRepository {
             isrc: isrc,
             spotifyTrackId: spotifyTrackId,
             detail: ui(loadedFromSyncSource ? "repo.detail.sync_applied_direct" : "repo.detail.sync_applied_search", settings: settings),
+            currentProvider: "lrclib",
+            currentLrclibId: candidate.id,
             log: log
         )
         return variants.karaoke == nil && variants.synced == nil && variants.plain == nil ? nil : variants
@@ -747,10 +749,18 @@ actor LyricsRepository {
         isrc: String,
         spotifyTrackId: String,
         detail: String? = nil,
+        currentProvider: String = "",
+        currentLrclibId: Int64 = 0,
         log: (String) -> Void
     ) -> LyricsResult? {
         guard let syncData, let base, !base.lines.isEmpty else { return nil }
-        let applied = SyncDataApplier.applyWithDiagnostics(baseLyrics: base.lines, syncBody: syncData.syncBody, track: track)
+        let applied = SyncDataApplier.applyWithDiagnostics(
+            baseLyrics: base.lines,
+            syncBody: syncData.syncBody,
+            track: track,
+            currentProvider: currentProvider,
+            currentLrclibId: currentLrclibId
+        )
         applied.diagnostics.forEach { log("sync-data apply [\(providerName)]: \($0)") }
         guard !applied.lines.isEmpty else { return nil }
         log("sync-data applied [\(providerName)]: lines=\(applied.lines.count) / vocalParts=\(applied.lines.reduce(0) { $0 + $1.vocalParts.count })")
@@ -2490,10 +2500,11 @@ private struct SyncDataResult {
 
     var lrclibId: Int64 {
         guard let source else { return 0 }
-        if let number = source["lrclibId"] as? NSNumber {
+        let rawId = source["lrclibId"] ?? source["id"]
+        if let number = rawId as? NSNumber {
             return max(0, number.int64Value)
         }
-        if let string = source["lrclibId"] as? String, let value = Int64(string.trimmed) {
+        if let string = rawId as? String, let value = Int64(string.trimmed) {
             return max(0, value)
         }
         return 0

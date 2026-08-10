@@ -13,7 +13,13 @@ enum SyncDataApplier {
         }
     }
 
-    static func applyWithDiagnostics(baseLyrics: [LyricsLine], syncBody: [String: Any], track: TrackSnapshot?) -> ApplyResult {
+    static func applyWithDiagnostics(
+        baseLyrics: [LyricsLine],
+        syncBody: [String: Any],
+        track: TrackSnapshot?,
+        currentProvider: String = "",
+        currentLrclibId: Int64 = 0
+    ) -> ApplyResult {
         guard !baseLyrics.isEmpty else {
             return .empty("missing base lyrics or sync body")
         }
@@ -52,10 +58,19 @@ enum SyncDataApplier {
             let expectedFingerprint = stringValue(source["lyricsFingerprint"])
             if !expectedFingerprint.isEmpty {
                 let actual = IvLyricsUtilities.lyricsFingerprint(IvLyricsUtilities.joinLinesForFingerprint(baseLines))
-                guard expectedFingerprint == actual else {
-                    return .empty("source fingerprint mismatch: expected=\(expectedFingerprint) actual=\(actual)")
+                if expectedFingerprint != actual {
+                    guard canApplyLrclibFingerprintFallback(
+                        source: source,
+                        currentProvider: currentProvider,
+                        currentLrclibId: currentLrclibId,
+                        hasExactLineShape: hasSourceLineShape
+                    ) else {
+                        return .empty("source fingerprint mismatch: expected=\(expectedFingerprint) actual=\(actual)")
+                    }
+                    diagnostics.append("source fingerprint compatibility fallback: provider=lrclib / lrclibId=\(currentLrclibId) / exactLineShape=true")
+                } else {
+                    diagnostics.append("source fingerprint matched: \(actual)")
                 }
-                diagnostics.append("source fingerprint matched: \(actual)")
             }
         }
 
@@ -142,6 +157,27 @@ enum SyncDataApplier {
             diagnostics.append("skipped unusable sync lines=\(skippedLines)")
         }
         return ApplyResult(lines: result, diagnostics: diagnostics)
+    }
+
+    private static func canApplyLrclibFingerprintFallback(
+        source: [String: Any],
+        currentProvider: String,
+        currentLrclibId: Int64,
+        hasExactLineShape: Bool
+    ) -> Bool {
+        guard hasExactLineShape, currentLrclibId > 0 else { return false }
+        guard stringValue(source["provider"]).trimmed.lowercased() == "lrclib" else { return false }
+        guard currentProvider.trimmed.lowercased() == "lrclib" else { return false }
+        return sourceLrclibId(source) == currentLrclibId
+    }
+
+    private static func sourceLrclibId(_ source: [String: Any]) -> Int64 {
+        let value = source["lrclibId"] ?? source["id"]
+        if let value = value as? Int64 { return value }
+        if let value = value as? Int { return Int64(value) }
+        if let value = value as? NSNumber, !isJSONBoolean(value) { return value.int64Value }
+        if let value = value as? String { return Int64(value.trimmed) ?? 0 }
+        return 0
     }
 
     private static func buildLineSyllables(line: SyncLine, lineText: String, lineEndMs: Int64, lastCharMaxDuration: Double) -> TimedSyllables {

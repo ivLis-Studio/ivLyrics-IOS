@@ -446,6 +446,10 @@ enum LyricsTextShaping {
 }
 
 enum KaraokeSyllableTimingNormalizer {
+    private static let preWhitespaceMinDurationMs: Int64 = 40
+    private static let preWhitespaceNextDurationRatio = 0.35
+    private static let preWhitespaceMaxDurationMs: Int64 = 60
+
     struct FillTiming: Equatable {
         let startTimeMs: Int64
         let endTimeMs: Int64
@@ -461,11 +465,11 @@ enum KaraokeSyllableTimingNormalizer {
     private static func normalizedTimedChunksUnchecked(
         _ syllables: [LyricsLine.Syllable]
     ) -> [LyricsLine.Syllable] {
-        let expanded = expandTimedChunksUnchecked(syllables)
-        if LyricsTextShaping.requiresContinuousShaping(expanded.map(\.text).joined()) {
-            return mergeWordRuns(expanded)
+        let compensated = compensatePreWhitespaceTimings(expandTimedChunksUnchecked(syllables))
+        if LyricsTextShaping.requiresContinuousShaping(compensated.map(\.text).joined()) {
+            return mergeWordRuns(compensated)
         }
-        return expanded
+        return compensated
     }
 
     private static func expandTimedChunksUnchecked(
@@ -508,6 +512,43 @@ enum KaraokeSyllableTimingNormalizer {
             }
         }
         return result
+    }
+
+    private static func compensatePreWhitespaceTimings(
+        _ syllables: [LyricsLine.Syllable]
+    ) -> [LyricsLine.Syllable] {
+        guard syllables.count >= 2 else { return syllables }
+        var result = syllables
+        var changed = false
+        for index in 0..<(syllables.count - 1) {
+            let current = syllables[index]
+            let next = syllables[index + 1]
+            guard !isWhitespace(current.text), isWhitespace(next.text) else { continue }
+
+            let durationMs = max(0, current.endTimeMs - current.startTimeMs)
+            guard durationMs < preWhitespaceMinDurationMs else { continue }
+            let nextDurationMs = max(0, next.endTimeMs - next.startTimeMs)
+            let computedDurationMs = Int64(
+                (Double(nextDurationMs) * preWhitespaceNextDurationRatio).rounded()
+            )
+            let compensatedDurationMs = max(
+                preWhitespaceMinDurationMs,
+                min(preWhitespaceMaxDurationMs, computedDurationMs)
+            )
+            result[index] = LyricsLine.Syllable(
+                text: current.text,
+                startTimeMs: current.startTimeMs,
+                endTimeMs: current.startTimeMs + compensatedDurationMs
+            )
+            changed = true
+        }
+        return changed ? result : syllables
+    }
+
+    private static func isWhitespace(_ text: String) -> Bool {
+        !text.isEmpty && text.unicodeScalars.allSatisfy {
+            CharacterSet.whitespacesAndNewlines.contains($0)
+        }
     }
 
     /// Arabic contextual forms and bidi ordering require a continuous logical word.
