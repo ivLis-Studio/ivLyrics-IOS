@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.2.2",
+          "buildVersion": "38",
+          "date": "2026-08-10",
+          "localizedDescription": "v1.2.2는 가사 제공처의 연주곡 표기를 인식하고, 가사 동기화 보정 정확도를 개선합니다. AI 가사 조사에는 일반 텍스트 가사 사용과 모델 제한 처리가 적용되었습니다. 또한 배포 카탈로그 메타데이터와 출시용 프로젝트 구성이 정리되었습니다.\n\nv1.2.2 recognizes instrumental markers used by lyric providers and improves lyric synchronization correction accuracy. AI lyric research now uses plain-text lyrics and accounts for model limits. Distribution catalog metadata and release project configuration were also cleaned up.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.2.2/ivLyrics-IOS-v1.2.2-unsigned.ipa",
+          "size": 7135160,
+          "sha256": "c9dbb45e4e8cc156fd6e9969df4e6d00e10a2797303558b045f38841f7a7fdfb",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.2.1",
           "buildVersion": "37",
           "date": "2026-08-10",
