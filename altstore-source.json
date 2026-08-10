@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.2.1",
+          "buildVersion": "37",
+          "date": "2026-08-10",
+          "localizedDescription": "ivLyrics iOS 1.2.1은 편집형 리서치 경험을 추가하고, 가사 Picture in Picture 렌더링 및 캐시 관리를 개선합니다. 자격 증명을 Keychain으로 이전하고 작업 정리, 현지화, 릴리스 검증을 강화해 앱의 보안성과 안정성도 높였습니다.\n\nivLyrics iOS 1.2.1 adds an editorial research experience and improves lyrics Picture in Picture rendering and cache management. It also strengthens security, lifecycle handling, localization, and release validation for a more reliable app experience.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.2.1/ivLyrics-IOS-v1.2.1-unsigned.ipa",
+          "size": 7125018,
+          "sha256": "7347f8785ae8b8d23f1fafb856e5e073cbbf659213b388faea0cd2a897a04740",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.2.0",
           "buildVersion": "36",
           "date": "2026-08-09",
