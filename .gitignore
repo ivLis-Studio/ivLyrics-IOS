@@ -24,7 +24,3 @@ build/
 # Python release tooling
 __pycache__/
 *.pyc
-
-# Local test harnesses
-**/test/
-**/tests/

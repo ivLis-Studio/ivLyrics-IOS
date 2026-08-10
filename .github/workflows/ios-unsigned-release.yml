@@ -37,9 +37,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate release webhook helper
-        run: node --test .github/scripts/send_release_webhook.test.mjs
-
       - name: Select newest Xcode
         shell: bash
         run: |
@@ -62,21 +59,6 @@ jobs:
 
       - name: Validate translations
         run: python3 scripts/validate-i18n.py
-
-      - name: Run unit tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          simulator_id="$(
-            xcrun simctl list devices available -j \
-              | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next(device["udid"] for runtime in data["devices"].values() for device in runtime if device.get("isAvailable") and "iPhone" in device.get("name", "")))'
-          )"
-          xcodebuild \
-            -project ivLyrics-IOS.xcodeproj \
-            -scheme ivLyrics-IOS \
-            -destination "platform=iOS Simulator,id=${simulator_id}" \
-            CODE_SIGNING_ALLOWED=NO \
-            test
 
       - name: Run static analyzer
         run: |

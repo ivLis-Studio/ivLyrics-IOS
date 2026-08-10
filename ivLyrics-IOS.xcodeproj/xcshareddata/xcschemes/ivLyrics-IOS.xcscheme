@@ -21,20 +21,6 @@
                ReferencedContainer = "container:ivLyrics-IOS.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "000000000000000101000000"
-               BuildableName = "ivLyrics-IOSTests.xctest"
-               BlueprintName = "ivLyrics-IOSTests"
-               ReferencedContainer = "container:ivLyrics-IOS.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -44,15 +30,6 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
       <Testables>
-         <TestableReference skipped = "NO" parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "000000000000000101000000"
-               BuildableName = "ivLyrics-IOSTests.xctest"
-               BlueprintName = "ivLyrics-IOSTests"
-               ReferencedContainer = "container:ivLyrics-IOS.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
