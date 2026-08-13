@@ -560,6 +560,337 @@ enum LyricsTextShaping {
     }
 }
 
+enum LyricsWordSegmenter {
+    private static let japaneseParticles: Set<String> = [
+        "は", "が", "を", "に", "へ", "で", "と", "の", "も", "や", "か", "ね", "よ", "ぞ", "ぜ",
+        "から", "まで", "だけ", "しか", "ほど", "くらい", "ぐらい", "など", "こそ", "とも", "な"
+    ]
+    private static let japaneseSafeSuffixes: Set<String> = [
+        "た", "て", "ば", "ぬ", "って", "った", "いて", "いで", "んで",
+        "てる", "でる", "いてる", "えてる", "たい", "ない", "れば"
+    ]
+    private static let chineseProtected: Set<String> = [
+        "我们", "你们", "他们", "她们", "它们", "这个", "那个", "这些", "那些", "这里", "那里",
+        "这样", "那样", "这么", "那么", "真的", "的话", "为了", "除了", "只有", "就是", "没有",
+        "一下", "一起", "已经", "非常", "特别", "重新", "超级", "无法", "第一次", "经过", "难过",
+        "结果", "如果", "最后"
+    ]
+    private static let chinesePronouns = ["我们", "你们", "他们", "她们", "它们", "我", "你", "他", "她", "它"]
+    private static let chineseLeftAtoms: Set<String> = ["不", "没", "很", "也", "都"]
+    private static let chineseLocalizers: Set<String> = ["上", "下", "里", "中", "前", "后", "内", "外"]
+    private static var japaneseTokenizer: LyricsTokenizerAdapter? = TinyJapaneseTokenizerAdapter()
+
+    static func setJapaneseTokenizer(_ tokenizer: LyricsTokenizerAdapter?) {
+        japaneseTokenizer = tokenizer
+    }
+
+    static func displayRanges(in text: String, locale localeCode: String) -> [Range<Int>] {
+        guard !text.isEmpty else { return [] }
+        let characters = text.map(String.init)
+        var lexicalRanges: [Range<Int>] = []
+        var cursor = 0
+        for token in segment(text, locale: localeCode) {
+            let tokenCharacters = token.map(String.init)
+            guard !tokenCharacters.isEmpty,
+                  let start = find(tokenCharacters, in: characters, from: cursor) else {
+                return fallbackDisplayRanges(characters)
+            }
+            lexicalRanges.append(start..<(start + tokenCharacters.count))
+            cursor = start + tokenCharacters.count
+        }
+        guard !lexicalRanges.isEmpty else { return fallbackDisplayRanges(characters) }
+
+        var result: [Range<Int>] = []
+        cursor = 0
+        for range in lexicalRanges {
+            appendGapRanges(to: &result, characters: characters, range: cursor..<range.lowerBound)
+            result.append(range)
+            cursor = range.upperBound
+        }
+        appendGapRanges(to: &result, characters: characters, range: cursor..<characters.count)
+        return result
+    }
+
+    static func segment(_ text: String, locale localeCode: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        let resolvedLocale = normalizeLocale(localeCode, text: text)
+        let graphemes = text.map(String.init)
+        var output: [String] = []
+        var lexical = ""
+        var pendingPrefix = ""
+
+        func flushLexical() {
+            guard !lexical.isEmpty else { return }
+            var tokens = segmentLexicalRun(lexical, locale: resolvedLocale)
+            if !pendingPrefix.isEmpty, !tokens.isEmpty {
+                tokens[0] = pendingPrefix + tokens[0]
+                pendingPrefix = ""
+            }
+            output.append(contentsOf: tokens.filter { !$0.isEmpty })
+            lexical = ""
+        }
+
+        for index in graphemes.indices {
+            let grapheme = graphemes[index]
+            let previous = index > graphemes.startIndex ? graphemes[index - 1] : nil
+            let next = index + 1 < graphemes.endIndex ? graphemes[index + 1] : nil
+            if isLatinJoiner(grapheme, previous: previous, next: next) {
+                lexical += grapheme
+            } else if isWhitespace(grapheme) {
+                flushLexical()
+            } else if isOpeningPunctuation(grapheme) {
+                flushLexical()
+                pendingPrefix += grapheme
+            } else if isPunctuation(grapheme) {
+                flushLexical()
+                if output.isEmpty { pendingPrefix += grapheme } else { output[output.count - 1] += grapheme }
+            } else if isSymbol(grapheme) {
+                flushLexical()
+                output.append(pendingPrefix + grapheme)
+                pendingPrefix = ""
+            } else {
+                lexical += grapheme
+            }
+        }
+        flushLexical()
+        if !pendingPrefix.isEmpty {
+            if output.isEmpty { output.append(pendingPrefix) } else { output[output.count - 1] += pendingPrefix }
+        }
+        return output
+    }
+
+    private static func segmentLexicalRun(_ run: String, locale: String) -> [String] {
+        switch baseLanguage(locale) {
+        case "ja": return segmentJapaneseRun(run, locale: locale)
+        case "zh": return intlWords(run, locale: locale).flatMap(splitChineseToken)
+        default:
+            let words = intlWords(run, locale: locale)
+            return words.isEmpty ? [run] : words
+        }
+    }
+
+    private static func segmentJapaneseRun(_ run: String, locale: String) -> [String] {
+        var pieces: [(kind: String, text: String)] = []
+        var buffer = ""
+        var kind: String?
+        for grapheme in run.map(String.init) {
+            let nextKind = isKatakana(grapheme) ? "katakana" : isLatinNumber(grapheme) ? "latin" : "japanese"
+            if let kind, kind != nextKind {
+                pieces.append((kind, buffer))
+                buffer = ""
+            }
+            kind = nextKind
+            buffer += grapheme
+        }
+        if let kind, !buffer.isEmpty { pieces.append((kind, buffer)) }
+        return pieces.flatMap { piece in
+            if piece.kind == "latin" { return [piece.text] }
+            let tokens = tokenizeJapanese(piece.text, locale: locale)
+            return piece.kind == "japanese"
+                ? groupJapaneseTokens(tokens)
+                : tokens.map(\.surface)
+        }
+    }
+
+    private static func tokenizeJapanese(_ text: String, locale: String) -> [LyricsTokenizerToken] {
+        if let tokens = japaneseTokenizer?.tokenize(text, locale: locale), !tokens.isEmpty {
+            return tokens
+        }
+        return tokenRecords(intlWords(text, locale: locale), in: text)
+    }
+
+    private static func tokenRecords(_ surfaces: [String], in text: String) -> [LyricsTokenizerToken] {
+        let characters = text.map(String.init)
+        var cursor = 0
+        var output: [LyricsTokenizerToken] = []
+        for surface in surfaces where !surface.isEmpty {
+            let token = surface.map(String.init)
+            guard let start = find(token, in: characters, from: cursor) else { return [] }
+            let end = start + token.count
+            output.append(LyricsTokenizerToken(
+                surface: surface,
+                start: start,
+                end: end,
+                partOfSpeech: nil,
+                partOfSpeechDetail: nil,
+                lemma: nil,
+                conjugation: nil
+            ))
+            cursor = end
+        }
+        return output
+    }
+
+    private static func groupJapaneseTokens(_ tokens: [LyricsTokenizerToken]) -> [String] {
+        var output: [String] = []
+        for tokenRecord in tokens {
+            let token = tokenRecord.surface
+            guard let previous = output.last else {
+                output.append(token)
+                continue
+            }
+            let previousIsParticle = japaneseParticles.contains(previous)
+            let safeSuffix = japaneseSafeSuffixes.contains(token)
+            let contextualSou = token == "そう" && endsWithHiragana(previous)
+            let morphology = [tokenRecord.partOfSpeech, tokenRecord.partOfSpeechDetail]
+                .compactMap { $0 }
+                .joined(separator: " ")
+                .lowercased()
+            let morphologicalSuffix = ["auxiliary", "suffix", "conjunctive", "助動詞", "接続助詞", "接尾"]
+                .contains { morphology.contains($0) }
+            if !previousIsParticle, morphologicalSuffix || (isHiragana(token) && (safeSuffix || contextualSou)) {
+                output[output.count - 1] = previous + token
+            } else {
+                output.append(token)
+            }
+        }
+        return output
+    }
+
+    private static func splitChineseToken(_ token: String) -> [String] {
+        let characters = token.map(String.init)
+        guard characters.count > 1, !chineseProtected.contains(token) else { return token.isEmpty ? [] : [token] }
+        if Set(characters).count == 1, hasHan(characters[0]) { return characters }
+        for pronoun in chinesePronouns where token.hasPrefix(pronoun) && token != pronoun {
+            return [pronoun] + splitChineseToken(String(token.dropFirst(pronoun.count)))
+        }
+        if token.hasPrefix("一起"), token != "一起" {
+            return ["一起"] + splitChineseToken(String(token.dropFirst(2)))
+        }
+        let first = characters[0]
+        let last = characters[characters.count - 1]
+        if chineseLeftAtoms.contains(first) {
+            return [first] + splitChineseToken(characters.dropFirst().joined())
+        }
+        if characters.count > 2,
+           let index = characters[1..<(characters.count - 1)].firstIndex(where: { ["了", "着", "过"].contains($0) }) {
+            return splitChineseToken(characters[..<index].joined())
+                + [characters[index]]
+                + splitChineseToken(characters[(index + 1)...].joined())
+        }
+        if last == "了" { return splitChineseToken(characters.dropLast().joined()) + [last] }
+        for pronoun in chinesePronouns where token.hasSuffix(pronoun) && token != pronoun {
+            return splitChineseToken(String(token.dropLast(pronoun.count))) + [pronoun]
+        }
+        if last == "的" {
+            let stem = characters.dropLast().joined()
+            if chinesePronouns.contains(stem) { return [stem, last] }
+        }
+        if chineseLocalizers.contains(last), characters.count >= 3 {
+            return splitChineseToken(characters.dropLast().joined()) + [last]
+        }
+        return [token]
+    }
+
+    private static func intlWords(_ text: String, locale: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        let tokenizer = NLTokenizer(unit: .word)
+        tokenizer.string = text
+        tokenizer.setLanguage(NLLanguage(rawValue: baseLanguage(locale)))
+        var result: [String] = []
+        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
+            let token = String(text[range])
+            if isWordLike(token) { result.append(token) }
+            return true
+        }
+        return result
+    }
+
+    private static func normalizeLocale(_ localeCode: String, text: String) -> String {
+        let explicit = localeCode.trimmed.replacingOccurrences(of: "_", with: "-")
+        if !explicit.isEmpty, explicit.lowercased() != "auto" { return explicit }
+        if text.unicodeScalars.contains(where: { isHiraganaScalar($0) || isKatakanaScalar($0) }) { return "ja" }
+        if text.unicodeScalars.contains(where: { (0x0E00...0x0E7F).contains($0.value) }) { return "th" }
+        if text.unicodeScalars.contains(where: { (0x0E80...0x0EFF).contains($0.value) }) { return "lo" }
+        if text.unicodeScalars.contains(where: { (0x1780...0x17FF).contains($0.value) }) { return "km" }
+        if text.unicodeScalars.contains(where: { (0x1000...0x109F).contains($0.value) }) { return "my" }
+        if text.unicodeScalars.contains(where: isHanScalar) { return "zh" }
+        return Locale.current.language.languageCode?.identifier ?? "en"
+    }
+
+    private static func baseLanguage(_ localeCode: String) -> String {
+        localeCode.lowercased().replacingOccurrences(of: "_", with: "-").split(separator: "-").first.map(String.init) ?? "en"
+    }
+
+    private static func find(_ needle: [String], in haystack: [String], from cursor: Int) -> Int? {
+        guard !needle.isEmpty, needle.count <= haystack.count else { return nil }
+        let lastStart = haystack.count - needle.count
+        guard cursor <= lastStart else { return nil }
+        for start in cursor...lastStart where Array(haystack[start..<(start + needle.count)]) == needle { return start }
+        return nil
+    }
+
+    private static func appendGapRanges(to output: inout [Range<Int>], characters: [String], range: Range<Int>) {
+        var index = range.lowerBound
+        while index < range.upperBound {
+            if isWhitespace(characters[index]) {
+                var end = index + 1
+                while end < range.upperBound, isWhitespace(characters[end]) { end += 1 }
+                output.append(index..<end)
+                index = end
+            } else {
+                output.append(index..<(index + 1))
+                index += 1
+            }
+        }
+    }
+
+    private static func fallbackDisplayRanges(_ characters: [String]) -> [Range<Int>] {
+        characters.indices.map { $0..<($0 + 1) }
+    }
+
+    private static func isWhitespace(_ value: String) -> Bool {
+        !value.isEmpty && value.unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
+    }
+    private static func isWordLike(_ value: String) -> Bool {
+        value.unicodeScalars.contains { CharacterSet.alphanumerics.contains($0) }
+    }
+    private static func isHiragana(_ value: String) -> Bool {
+        !value.isEmpty && value.unicodeScalars.allSatisfy { isHiraganaScalar($0) || isCombiningMark($0) }
+    }
+    private static func isKatakana(_ value: String) -> Bool {
+        !value.isEmpty && value.unicodeScalars.allSatisfy {
+            isKatakanaScalar($0) || [0x30FC, 0x30FD, 0x30FE].contains($0.value) || isCombiningMark($0)
+        }
+    }
+    private static func isLatinNumber(_ value: String?) -> Bool {
+        guard let value, !value.isEmpty else { return false }
+        return value.unicodeScalars.allSatisfy { CharacterSet.decimalDigits.contains($0) || isLatinScalar($0) }
+    }
+    private static func isLatinJoiner(_ value: String, previous: String?, next: String?) -> Bool {
+        ["'", "’", "-", "‐"].contains(value) && isLatinNumber(previous) && isLatinNumber(next)
+    }
+    private static func isOpeningPunctuation(_ value: String) -> Bool {
+        guard let category = value.unicodeScalars.first?.properties.generalCategory else { return false }
+        return category == .openPunctuation || category == .initialPunctuation
+    }
+    private static func isPunctuation(_ value: String) -> Bool {
+        guard let category = value.unicodeScalars.first?.properties.generalCategory else { return false }
+        return [.connectorPunctuation, .dashPunctuation, .openPunctuation, .closePunctuation,
+                .initialPunctuation, .finalPunctuation, .otherPunctuation].contains(category)
+    }
+    private static func isSymbol(_ value: String) -> Bool {
+        guard let category = value.unicodeScalars.first?.properties.generalCategory else { return false }
+        return [.mathSymbol, .currencySymbol, .modifierSymbol, .otherSymbol].contains(category)
+    }
+    private static func hasHan(_ value: String) -> Bool { value.unicodeScalars.contains(where: isHanScalar) }
+    private static func endsWithHiragana(_ value: String) -> Bool { value.unicodeScalars.last.map(isHiraganaScalar) ?? false }
+    private static func isHiraganaScalar(_ scalar: Unicode.Scalar) -> Bool { (0x3040...0x309F).contains(scalar.value) }
+    private static func isKatakanaScalar(_ scalar: Unicode.Scalar) -> Bool {
+        (0x30A0...0x30FF).contains(scalar.value) || (0x31F0...0x31FF).contains(scalar.value) || (0xFF66...0xFF9D).contains(scalar.value)
+    }
+    private static func isHanScalar(_ scalar: Unicode.Scalar) -> Bool {
+        (0x3400...0x4DBF).contains(scalar.value) || (0x4E00...0x9FFF).contains(scalar.value)
+            || (0xF900...0xFAFF).contains(scalar.value) || (0x20000...0x2FA1F).contains(scalar.value)
+    }
+    private static func isLatinScalar(_ scalar: Unicode.Scalar) -> Bool {
+        (0x0041...0x007A).contains(scalar.value) || (0x00C0...0x024F).contains(scalar.value) || (0x1E00...0x1EFF).contains(scalar.value)
+    }
+    private static func isCombiningMark(_ scalar: Unicode.Scalar) -> Bool {
+        [.nonspacingMark, .spacingMark, .enclosingMark].contains(scalar.properties.generalCategory)
+    }
+}
+
 enum KaraokeSyllableTimingNormalizer {
     private static let preWhitespaceMinDurationMs: Int64 = 40
     private static let preWhitespaceNextDurationRatio = 0.35
@@ -581,7 +912,8 @@ enum KaraokeSyllableTimingNormalizer {
     /// NLTokenizer supplies language-aware word ranges, while punctuation and spaces
     /// are retained as independent display ranges so the rendered text never changes.
     static func groupedForWordDisplay(
-        _ syllables: [LyricsLine.Syllable]
+        _ syllables: [LyricsLine.Syllable],
+        locale: String
     ) -> [LyricsLine.Syllable] {
         let visibleSourceUnits = syllables.filter {
             !$0.text.isEmpty && !$0.text.unicodeScalars.allSatisfy {
@@ -613,54 +945,7 @@ enum KaraokeSyllableTimingNormalizer {
             sourceCursor = nextCursor
         }
 
-        let tokenizer = NLTokenizer(unit: .word)
-        tokenizer.string = text
-        var tokenRanges: [Range<Int>] = []
-        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
-            let start = text.distance(from: text.startIndex, to: range.lowerBound)
-            let end = text.distance(from: text.startIndex, to: range.upperBound)
-            if end > start {
-                tokenRanges.append(start..<end)
-            }
-            return true
-        }
-
-        var displayRanges: [Range<Int>] = []
-        var cursor = 0
-
-        func appendGap(_ range: Range<Int>) {
-            guard !range.isEmpty else { return }
-            var index = range.lowerBound
-            while index < range.upperBound {
-                let isWhitespace = characters[index].unicodeScalars.allSatisfy {
-                    CharacterSet.whitespacesAndNewlines.contains($0)
-                }
-                if isWhitespace {
-                    var end = index + 1
-                    while end < range.upperBound,
-                          characters[end].unicodeScalars.allSatisfy({
-                              CharacterSet.whitespacesAndNewlines.contains($0)
-                          }) {
-                        end += 1
-                    }
-                    displayRanges.append(index..<end)
-                    index = end
-                } else {
-                    displayRanges.append(index..<(index + 1))
-                    index += 1
-                }
-            }
-        }
-
-        for tokenRange in tokenRanges.sorted(by: { $0.lowerBound < $1.lowerBound }) {
-            let start = max(cursor, tokenRange.lowerBound)
-            let end = min(characters.count, tokenRange.upperBound)
-            guard end > start else { continue }
-            appendGap(cursor..<start)
-            displayRanges.append(start..<end)
-            cursor = end
-        }
-        appendGap(cursor..<characters.count)
+        let displayRanges = LyricsWordSegmenter.displayRanges(in: text, locale: locale)
 
         return displayRanges.compactMap { displayRange in
             let overlappingIndices = sourceRanges.indices.filter {

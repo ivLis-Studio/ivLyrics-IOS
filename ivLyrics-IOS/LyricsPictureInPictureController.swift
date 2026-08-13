@@ -134,6 +134,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         title: String,
         artist: String,
         statusText: String,
+        lyricsLocale: String,
         settings: AppSettings.Snapshot
     ) {
         let nextState = RenderState(
@@ -143,6 +144,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             title: title,
             artist: artist,
             statusText: statusText,
+            lyricsLocale: lyricsLocale,
             showArtwork: settings.pipShowArtwork,
             orientation: settings.pipOrientation,
             backgroundMode: settings.pipBackgroundMode,
@@ -749,6 +751,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             bounceEnabled: state.karaokeBounceEffectEnabled,
             typography: state.typography
         )
+        .environment(\.lyricsSegmentationLocale, state.lyricsLocale)
         .frame(width: rect.width, height: rect.height, alignment: state.swiftUIFrameAlignment)
 
         let renderer = ImageRenderer(content: content)
@@ -1029,6 +1032,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var title: String
         var artist: String
         var statusText: String
+        var lyricsLocale: String
         var showArtwork: Bool
         var orientation: String
         var backgroundMode: String
@@ -1050,6 +1054,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             title: "ivLyrics",
             artist: "",
             statusText: "",
+            lyricsLocale: "auto",
             showArtwork: true,
             orientation: AppSettings.pipOrientationSquare,
             backgroundMode: AppSettings.pipBackgroundCover,
@@ -1156,6 +1161,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             identity.append("|")
             identity.append(statusText)
             identity.append("|")
+            identity.append(lyricsLocale)
+            identity.append("|")
             identity.append(String(showArtwork))
             identity.append("|")
             identity.append(orientation)
@@ -1237,6 +1244,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                   state.title == other.state.title,
                   state.artist == other.state.artist,
                   state.statusText == other.state.statusText,
+                  state.lyricsLocale == other.state.lyricsLocale,
                   state.showArtwork == other.state.showArtwork,
                   state.orientation == other.state.orientation,
                   state.backgroundMode == other.state.backgroundMode,

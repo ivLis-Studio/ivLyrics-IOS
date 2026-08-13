@@ -3432,6 +3432,7 @@ final class AppViewModel: ObservableObject {
             title: titleText,
             artist: artistText,
             statusText: pipLyricsStatusText,
+            lyricsLocale: effectiveSelectedRuleSourceLang,
             settings: settings.snapshot
         )
     }

@@ -6,6 +6,17 @@ import WebKit
 import UIKit
 #endif
 
+private struct LyricsSegmentationLocaleKey: EnvironmentKey {
+    static let defaultValue = "auto"
+}
+
+extension EnvironmentValues {
+    var lyricsSegmentationLocale: String {
+        get { self[LyricsSegmentationLocaleKey.self] }
+        set { self[LyricsSegmentationLocaleKey.self] = newValue }
+    }
+}
+
 private struct AndroidSlidingMetadataText: View {
     private static let edgeHoldSeconds = 1.05
     private static let minimumMoveSeconds = 1.8
@@ -178,6 +189,7 @@ struct ContentView: View {
                 size: geometry.size,
                 safeAreaInsets: geometry.safeAreaInsets
             )
+            .environment(\.lyricsSegmentationLocale, model.effectiveSelectedRuleSourceLang)
             .statusBarHidden(isLandscape)
             .persistentSystemOverlays(isLandscape ? .hidden : .automatic)
             .contentShape(Rectangle())
@@ -5833,6 +5845,7 @@ struct LyricsLineView: View, Equatable {
 
 struct SyllableKaraokeText: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.lyricsSegmentationLocale) private var lyricsSegmentationLocale
     var text: String
     var rubyText: String = ""
     var syllables: [LyricsLine.Syllable]
@@ -6082,7 +6095,7 @@ struct SyllableKaraokeText: View {
         }
         if !timed.isEmpty {
             return isWordDisplayGranularity
-                ? KaraokeSyllableTimingNormalizer.groupedForWordDisplay(timed)
+                ? KaraokeSyllableTimingNormalizer.groupedForWordDisplay(timed, locale: lyricsSegmentationLocale)
                 : KaraokeSyllableTimingNormalizer.expandTimedChunks(timed)
         }
         guard syntheticTimingEnabled, endTimeMs > startTimeMs else { return [] }
@@ -6095,7 +6108,7 @@ struct SyllableKaraokeText: View {
             return LyricsLine.Syllable(text: character, startTimeMs: start, endTimeMs: max(start, end))
         }
         return isWordDisplayGranularity
-            ? KaraokeSyllableTimingNormalizer.groupedForWordDisplay(synthetic)
+            ? KaraokeSyllableTimingNormalizer.groupedForWordDisplay(synthetic, locale: lyricsSegmentationLocale)
             : KaraokeSyllableTimingNormalizer.expandTimedChunks(synthetic)
     }
 
