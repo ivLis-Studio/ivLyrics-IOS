@@ -65,6 +65,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var logs: [String] = []
     @Published private(set) var metadataTranslation: AiLyricsRepository.MetadataTranslation?
     @Published private(set) var metadataTranslationLoading = false
+    @Published private(set) var researchTokenConsentPresented = false
     @Published var tmiPresented = false
     @Published private(set) var tmiTrack: TrackSnapshot?
     @Published private(set) var tmiInfo: AiLyricsRepository.TmiInfo?
@@ -277,6 +278,7 @@ final class AppViewModel: ObservableObject {
     private var currentYouTubeBackgroundRequestKey = ""
     private var currentYouTubeBackgroundLoading = false
     private var currentTmiRequestKey = ""
+    private var pendingResearchBypassCache: Bool?
     private var currentFuriganaKey = ""
     private var currentFuriganaResult: LyricsResult?
     private var lastSeekCommandUptimeMs: Int64 = 0
@@ -290,6 +292,7 @@ final class AppViewModel: ObservableObject {
     private let keyLastAutoUpdateCheckMs = "last_auto_update_check_ms"
     private let keyInitialSetupDismissed = "initial_setup_dismissed"
     private let keySpotifyValidatedSourceKey = "spotify_validated_source_key"
+    private let keyResearchTokenConsentV1 = "research_token_consent_v1"
     private let autoUpdateCheckIntervalMs: Int64 = 24 * 60 * 60 * 1000
     private var lyricsLoadRequestID = UUID()
 
@@ -1384,6 +1387,14 @@ final class AppViewModel: ObservableObject {
             appendLog("ai tmi skipped: current track missing")
             return
         }
+        let snapshotSettings = settings.snapshot
+        if snapshotSettings.hasApiKey,
+           snapshotSettings.hasModel,
+           !defaults.bool(forKey: keyResearchTokenConsentV1) {
+            pendingResearchBypassCache = bypassCache
+            researchTokenConsentPresented = true
+            return
+        }
         let trackKey = snapshot.stableKey
         let sameRequest = currentTmiRequestKey == trackKey
         if sameRequest, tmiLoading, !bypassCache, tmiTask != nil {
@@ -1402,7 +1413,6 @@ final class AppViewModel: ObservableObject {
             tmiInfo = nil
         }
 
-        let snapshotSettings = settings.snapshot
         guard snapshotSettings.hasApiKey else {
             tmiLoading = false
             tmiError = settings.t("tmi.require_key")
@@ -1439,6 +1449,19 @@ final class AppViewModel: ObservableObject {
                 tmiError = localizedTmiError(response.errorMessage)
             }
         }
+    }
+
+    func acceptResearchTokenConsent() {
+        defaults.set(true, forKey: keyResearchTokenConsentV1)
+        let bypassCache = pendingResearchBypassCache ?? false
+        pendingResearchBypassCache = nil
+        researchTokenConsentPresented = false
+        showTmiForCurrentTrack(bypassCache: bypassCache)
+    }
+
+    func dismissResearchTokenConsent() {
+        pendingResearchBypassCache = nil
+        researchTokenConsentPresented = false
     }
 
     func regenerateTmiForCurrentTrack() {

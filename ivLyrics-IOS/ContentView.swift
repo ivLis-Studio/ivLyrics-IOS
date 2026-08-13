@@ -247,6 +247,9 @@ struct ContentView: View {
             .onChange(of: model.tmiPresented) { _, _ in
                 updateLandscapeAutoHide(isLandscape: isLandscape)
             }
+            .onChange(of: model.researchTokenConsentPresented) { _, _ in
+                updateLandscapeAutoHide(isLandscape: isLandscape)
+            }
             .onChange(of: showingLyricsMetaMenu) { _, _ in
                 if showingLyricsMetaMenu {
                     dismissLyricsMetaTip()
@@ -295,6 +298,7 @@ struct ContentView: View {
             .accessibilityHidden(
                 vinylModeVisible
                     || showingLyricsMetaMenu
+                    || model.researchTokenConsentPresented
                     || model.tmiPresented
                     || model.updateDialogPresented
                     || model.firstLanguagePrompt != nil
@@ -428,6 +432,11 @@ struct ContentView: View {
                 .id(prompt.id)
                 .transition(.opacity.combined(with: .scale(scale: 0.975)))
                 .zIndex(14)
+        }
+        if model.researchTokenConsentPresented {
+            ResearchTokenConsentSheetView()
+                .transition(.opacity.combined(with: .scale(scale: 0.975)))
+                .zIndex(15)
         }
         if !model.toastMessage.trimmed.isEmpty {
             ToastBanner(
@@ -2803,6 +2812,127 @@ private struct FirstLanguagePromptSheetView: View {
         }
         withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.16)) {
             model.applyFirstLanguagePromptChoice(choice, prompt: prompt)
+        }
+    }
+}
+
+private struct ResearchTokenConsentSheetView: View {
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var model: AppViewModel
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+
+    private let amber = Color(red: 251.0 / 255.0, green: 191.0 / 255.0, blue: 36.0 / 255.0)
+
+    var body: some View {
+        GeometryReader { geometry in
+            let cardWidth = min(440, max(300, geometry.size.width - 32))
+            let cardHeight = min(420, max(240, geometry.size.height - 32))
+            ZStack {
+                Color.black.opacity(0.56)
+                    .ignoresSafeArea()
+                    .onTapGesture { dismissDialog() }
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ZStack {
+                            Circle()
+                                .fill(amber.opacity(0.16))
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(amber)
+                        }
+                        .frame(width: 56, height: 56)
+                        .accessibilityHidden(true)
+
+                        Text(settings.t("tmi.title"))
+                            .font(.pretendard(11, weight: .semibold))
+                            .tracking(0.8)
+                            .foregroundStyle(amber)
+                            .padding(.top, 14)
+
+                        Text(settings.t("research.token_consent_title"))
+                            .font(.pretendard(20, weight: .bold))
+                            .foregroundStyle(Color(red: 248.0 / 255.0, green: 250.0 / 255.0, blue: 252.0 / 255.0))
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 7)
+
+                        Text(settings.t("research.token_consent_body"))
+                            .font(.pretendard(14.5))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(3)
+                            .padding(.top, 12)
+
+                        HStack(alignment: .top, spacing: 9) {
+                            Circle()
+                                .fill(amber)
+                                .frame(width: 6, height: 6)
+                                .padding(.top, 6)
+                                .accessibilityHidden(true)
+                            Text(settings.t("research.token_consent_note"))
+                                .font(.pretendard(12.5))
+                                .foregroundStyle(Color(red: 254.0 / 255.0, green: 243.0 / 255.0, blue: 199.0 / 255.0))
+                                .lineSpacing(2.5)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 11)
+                        .background(amber.opacity(0.11), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .stroke(amber.opacity(0.24), lineWidth: 1)
+                        }
+                        .padding(.top, 16)
+
+                        HStack(spacing: 8) {
+                            Button(settings.t("button.cancel")) {
+                                dismissDialog()
+                            }
+                            .font(.pretendard(13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 92)
+                            .frame(minHeight: 48)
+                            .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                            Button {
+                                withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.16)) {
+                                    model.acceptResearchTokenConsent()
+                                }
+                            } label: {
+                                Text(settings.t("research.token_consent_agree"))
+                                    .font(.pretendard(13, weight: .semibold))
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: .infinity, minHeight: 48)
+                            }
+                            .foregroundStyle(Color(red: 30.0 / 255.0, green: 24.0 / 255.0, blue: 10.0 / 255.0))
+                            .background(amber, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .padding(.top, 18)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 22)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(width: cardWidth, height: cardHeight)
+                .background(
+                    Color(red: 18.0 / 255.0, green: 20.0 / 255.0, blue: 30.0 / 255.0),
+                    in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(amber.opacity(0.18), lineWidth: 1)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+    }
+
+    private func dismissDialog() {
+        withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.16)) {
+            model.dismissResearchTokenConsent()
         }
     }
 }
