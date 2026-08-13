@@ -1393,7 +1393,8 @@ struct PictureInPictureKaraokeContent: View {
         let displayGranularity = AppSettings.normalizeKaraokeDisplayGranularity(
             karaokeDisplayGranularity
         )
-        let timedSyllables = displayGranularity == AppSettings.karaokeDisplayLine ? [] : syllables
+        let hasInlineStyles = syllables.contains { $0.inlineStyle == true }
+        let timedSyllables = displayGranularity == AppSettings.karaokeDisplayLine && !hasInlineStyles ? [] : syllables
         let hasTimedSyllables = timedSyllables.contains { $0.endTimeMs > $0.startTimeMs }
         let activeColor = LyricSpeakerPalette.activeColor(
             speaker: speaker,
@@ -1422,6 +1423,9 @@ struct PictureInPictureKaraokeContent: View {
             activeColor: activeColor,
             alignment: alignment,
             kind: kind,
+            speakerColors: speakerColors,
+            useCreatorSpeakerColors: useCreatorSpeakerColors,
+            speakerColorDistance: inactiveDistance,
             inactiveColor: inactiveColor,
             bounceEnabled: bounceEnabled,
             bounceTextSize: typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: fontSize),

@@ -389,17 +389,61 @@ struct LyricsLine: Identifiable, Codable, Equatable, Sendable {
         var startTimeMs: Int64
         var endTimeMs: Int64
         var sourceGranularity: String?
+        var inlineStyle: Bool?
+        var styleKind: String?
+        var styleSpeaker: String?
+        var styleSpeakerColor: String?
+        var styleSpeakerFallback: String?
 
         init(
             text: String,
             startTimeMs: Int64,
             endTimeMs: Int64,
-            sourceGranularity: String? = nil
+            sourceGranularity: String? = nil,
+            inlineStyle: Bool? = nil,
+            styleKind: String? = nil,
+            styleSpeaker: String? = nil,
+            styleSpeakerColor: String? = nil,
+            styleSpeakerFallback: String? = nil
         ) {
             self.text = text
             self.startTimeMs = max(0, startTimeMs)
             self.endTimeMs = max(max(0, startTimeMs), endTimeMs)
             self.sourceGranularity = sourceGranularity
+            self.inlineStyle = inlineStyle
+            self.styleKind = styleKind
+            self.styleSpeaker = styleSpeaker
+            self.styleSpeakerColor = styleSpeakerColor
+            self.styleSpeakerFallback = styleSpeakerFallback
+        }
+
+        func copying(
+            text: String? = nil,
+            startTimeMs: Int64? = nil,
+            endTimeMs: Int64? = nil,
+            sourceGranularity: String? = nil
+        ) -> Syllable {
+            Syllable(
+                text: text ?? self.text,
+                startTimeMs: startTimeMs ?? self.startTimeMs,
+                endTimeMs: endTimeMs ?? self.endTimeMs,
+                sourceGranularity: sourceGranularity ?? self.sourceGranularity,
+                inlineStyle: inlineStyle,
+                styleKind: styleKind,
+                styleSpeaker: styleSpeaker,
+                styleSpeakerColor: styleSpeakerColor,
+                styleSpeakerFallback: styleSpeakerFallback
+            )
+        }
+
+        var styleKey: String {
+            [
+                inlineStyle == true ? "1" : "0",
+                styleKind ?? "",
+                styleSpeaker ?? "",
+                styleSpeakerColor ?? "",
+                styleSpeakerFallback ?? ""
+            ].joined(separator: "|")
         }
     }
 
@@ -947,23 +991,43 @@ enum KaraokeSyllableTimingNormalizer {
 
         let displayRanges = LyricsWordSegmenter.displayRanges(in: text, locale: locale)
 
-        return displayRanges.compactMap { displayRange in
+        return displayRanges.flatMap { displayRange -> [LyricsLine.Syllable] in
             let overlappingIndices = sourceRanges.indices.filter {
                 sourceRanges[$0].upperBound > displayRange.lowerBound
                     && sourceRanges[$0].lowerBound < displayRange.upperBound
             }
-            guard let first = overlappingIndices.first else { return nil }
-            let startTimeMs = overlappingIndices.reduce(source[first].startTimeMs) {
+            guard let first = overlappingIndices.first else { return [] }
+            let wordStartTimeMs = overlappingIndices.reduce(source[first].startTimeMs) {
                 min($0, source[$1].startTimeMs)
             }
-            let endTimeMs = overlappingIndices.reduce(source[first].endTimeMs) {
+            let wordEndTimeMs = overlappingIndices.reduce(source[first].endTimeMs) {
                 max($0, source[$1].endTimeMs)
             }
-            return LyricsLine.Syllable(
-                text: characters[displayRange].joined(),
-                startTimeMs: startTimeMs,
-                endTimeMs: max(startTimeMs, endTimeMs)
-            )
+            var result: [LyricsLine.Syllable] = []
+            var runStart = first
+            var runEnd = first
+
+            func appendRun() {
+                let lower = max(displayRange.lowerBound, sourceRanges[runStart].lowerBound)
+                let upper = min(displayRange.upperBound, sourceRanges[runEnd].upperBound)
+                guard lower < upper else { return }
+                result.append(source[runStart].copying(
+                    text: characters[lower..<upper].joined(),
+                    startTimeMs: wordStartTimeMs,
+                    endTimeMs: max(wordStartTimeMs, wordEndTimeMs),
+                    sourceGranularity: "word"
+                ))
+            }
+
+            for index in overlappingIndices.dropFirst() {
+                if source[index].styleKey != source[runStart].styleKey {
+                    appendRun()
+                    runStart = index
+                }
+                runEnd = index
+            }
+            appendRun()
+            return result
         }
     }
 
@@ -977,12 +1041,7 @@ enum KaraokeSyllableTimingNormalizer {
 
             func flush() {
                 guard !run.isEmpty else { return }
-                result.append(LyricsLine.Syllable(
-                    text: run,
-                    startTimeMs: syllable.startTimeMs,
-                    endTimeMs: syllable.endTimeMs,
-                    sourceGranularity: "word"
-                ))
+                result.append(syllable.copying(text: run, sourceGranularity: "word"))
                 run = ""
             }
 
@@ -1044,7 +1103,7 @@ enum KaraokeSyllableTimingNormalizer {
             for (index, character) in syllable.text.enumerated() {
                 let start = boundary(Int64(index))
                 let end = boundary(Int64(index + 1))
-                result.append(LyricsLine.Syllable(
+                result.append(syllable.copying(
                     text: String(character),
                     startTimeMs: start,
                     endTimeMs: max(start, end)
@@ -1075,11 +1134,7 @@ enum KaraokeSyllableTimingNormalizer {
                 preWhitespaceMinDurationMs,
                 min(preWhitespaceMaxDurationMs, computedDurationMs)
             )
-            result[index] = LyricsLine.Syllable(
-                text: current.text,
-                startTimeMs: current.startTimeMs,
-                endTimeMs: current.startTimeMs + compensatedDurationMs
-            )
+            result[index] = current.copying(endTimeMs: current.startTimeMs + compensatedDurationMs)
             changed = true
         }
         return changed ? result : syllables
@@ -1102,15 +1157,17 @@ enum KaraokeSyllableTimingNormalizer {
         var word = ""
         var wordStartMs: Int64 = 0
         var wordEndMs: Int64 = 0
+        var styleSource: LyricsLine.Syllable?
 
         func flushWord() {
             guard !word.isEmpty else { return }
-            result.append(LyricsLine.Syllable(
-                text: word,
+            result.append((styleSource ?? LyricsLine.Syllable(
+                text: "",
                 startTimeMs: wordStartMs,
                 endTimeMs: wordEndMs
-            ))
+            )).copying(text: word, startTimeMs: wordStartMs, endTimeMs: wordEndMs))
             word = ""
+            styleSource = nil
         }
 
         for syllable in syllables where !syllable.text.isEmpty {
@@ -1122,9 +1179,13 @@ enum KaraokeSyllableTimingNormalizer {
                 result.append(syllable)
                 continue
             }
+            if let styleSource, styleSource.styleKey != syllable.styleKey {
+                flushWord()
+            }
             if word.isEmpty {
                 wordStartMs = syllable.startTimeMs
                 wordEndMs = syllable.endTimeMs
+                styleSource = syllable
             } else {
                 wordEndMs = max(wordEndMs, syllable.endTimeMs)
             }

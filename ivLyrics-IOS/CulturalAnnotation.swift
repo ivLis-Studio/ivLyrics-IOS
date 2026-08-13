@@ -71,11 +71,7 @@ struct CulturalAnnotation: Codable, Equatable, Hashable, Sendable, Identifiable 
                 value.insert(contentsOf: "[\(marker.number)]", at: index)
             }
             sourceOffset = endOffset
-            return LyricsLine.Syllable(
-                text: value,
-                startTimeMs: syllable.startTimeMs,
-                endTimeMs: syllable.endTimeMs
-            )
+            return syllable.copying(text: value)
         }
     }
 

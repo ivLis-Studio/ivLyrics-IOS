@@ -4103,6 +4103,8 @@ private struct MainLyricPreviewRowView: View {
                 activeColor: LyricSpeakerPalette.activeColor(speaker: row.speaker, settings: speakerColors),
                 alignment: .center,
                 kind: row.kind,
+                speakerColors: speakerColors,
+                useCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
                 bounceEnabled: settings.karaokeBounceEffectEnabled,
                 bounceTextSize: typography.scaledSize(slotId: row.slotId, baseSize: row.primary ? 17 : 14.5),
                 effectRowSeed: row.effectRowSeed,
@@ -5634,6 +5636,9 @@ struct LyricsLineView: View, Equatable {
                             activeColor: vocalPartActiveColor(part),
                             alignment: textAlignment,
                             kind: part.kind,
+                            speakerColors: speakerColors,
+                            useCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
+                            speakerColorDistance: displayDistance + (partActive ? 0 : 0.45),
                             inactiveColor: vocalPartInactiveColor(part, active: partActive),
                             bounceEnabled: settings.karaokeBounceEffectEnabled,
                             bounceTextSize: typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: active ? 25 : 21),
@@ -5661,6 +5666,9 @@ struct LyricsLineView: View, Equatable {
                 activeColor: lineActiveColor,
                 alignment: textAlignment,
                 kind: line.kind,
+                speakerColors: speakerColors,
+                useCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
+                speakerColorDistance: displayDistance,
                 inactiveColor: inactiveOriginalColor,
                 bounceEnabled: settings.karaokeBounceEffectEnabled,
                 bounceTextSize: typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: active ? 25 : 21)
@@ -5679,6 +5687,9 @@ struct LyricsLineView: View, Equatable {
                 activeColor: lineActiveColor,
                 alignment: textAlignment,
                 kind: line.kind,
+                speakerColors: speakerColors,
+                useCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
+                speakerColorDistance: displayDistance,
                 inactiveColor: inactiveOriginalColor,
                 bounceEnabled: settings.karaokeBounceEffectEnabled,
                 bounceTextSize: typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: active ? 25 : 21),
@@ -5698,6 +5709,9 @@ struct LyricsLineView: View, Equatable {
                 activeColor: lineActiveColor,
                 alignment: textAlignment,
                 kind: line.kind,
+                speakerColors: speakerColors,
+                useCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
+                speakerColorDistance: displayDistance,
                 inactiveColor: inactiveOriginalColor
             )
         }
@@ -5858,6 +5872,9 @@ struct SyllableKaraokeText: View {
     var activeColor: Color
     var alignment: TextAlignment
     var kind: String = "vocal"
+    var speakerColors: AppSettings.SpeakerColorSettings = .defaults
+    var useCreatorSpeakerColors: Bool = true
+    var speakerColorDistance: Double = 0
     var inactiveOpacity: Double = 0.46
     var inactiveColor: Color? = nil
     var bounceEnabled: Bool = false
@@ -5889,7 +5906,7 @@ struct SyllableKaraokeText: View {
                     .multilineTextAlignment(alignment)
                     .modifier(LyricGlyphEffectModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, segmentIndex: 0, rowSeed: effectRowSeed, color: activeColor))
                     .modifier(LyricLineMotionModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
-            } else if LyricsTextShaping.requiresContinuousShaping(text) {
+            } else if LyricsTextShaping.requiresContinuousShaping(text) && !hasInlineStyles {
                 Text(continuouslyShapedText(segments))
                     .multilineTextAlignment(alignment)
                     .lineLimit(singleLine ? 1 : nil)
@@ -5902,7 +5919,7 @@ struct SyllableKaraokeText: View {
                     ForEach(segments) { segment in
                         KaraokeSyllableSegmentView(
                             segment: segment,
-                            kind: displayKind,
+                            kind: segment.kind,
                             active: active,
                             nowMs: nowMs,
                             textSize: bounceTextSize,
@@ -5910,7 +5927,7 @@ struct SyllableKaraokeText: View {
                         )
                     }
                 }
-                .modifier(LyricLineMotionModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
+                .modifier(LyricLineMotionModifier(kind: hasInlineStyles ? "vocal" : displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
                 .accessibilityLabel(text)
             }
         }
@@ -5975,8 +5992,9 @@ struct SyllableKaraokeText: View {
                     startTimeMs: fillTiming.startTimeMs,
                     endTimeMs: fillTiming.endTimeMs
                 ),
-                baseColor: baseColor,
-                activeColor: activeColor,
+                baseColor: segmentBaseColor(for: syllable),
+                activeColor: segmentActiveColor(for: syllable),
+                kind: segmentKind(for: syllable),
                 bounceOffsetY: bounce.offsetY,
                 bounceScale: bounce.scale,
                 isWhitespace: syllable.text.unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
@@ -6006,6 +6024,7 @@ struct SyllableKaraokeText: View {
                 fill: 0,
                 baseColor: color,
                 activeColor: activeColor,
+                kind: normalizedKind,
                 bounceOffsetY: 0,
                 bounceScale: 1,
                 isWhitespace: value.unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
@@ -6086,7 +6105,12 @@ struct SyllableKaraokeText: View {
     }
 
     private var effectiveSyllables: [LyricsLine.Syllable] {
-        guard !isLineDisplayGranularity else { return [] }
+        if isLineDisplayGranularity {
+            guard hasInlineStyles else { return [] }
+            return syllables.filter { !$0.text.isEmpty }.map {
+                $0.copying(startTimeMs: 0, endTimeMs: 0)
+            }
+        }
         let timed: [LyricsLine.Syllable]
         if syllables.contains(where: { $0.text.isEmpty }) {
             timed = syllables.filter { !$0.text.isEmpty }
@@ -6125,6 +6149,45 @@ struct SyllableKaraokeText: View {
         return value.isEmpty ? "vocal" : value
     }
 
+    private var hasInlineStyles: Bool {
+        syllables.contains { $0.inlineStyle == true }
+    }
+
+    private func segmentKind(for syllable: LyricsLine.Syllable) -> String {
+        guard syllable.inlineStyle == true else { return normalizedKind }
+        let value = (syllable.styleKind ?? "").trimmed.lowercased()
+        return value.isEmpty ? normalizedKind : value
+    }
+
+    private func segmentActiveColor(for syllable: LyricsLine.Syllable) -> Color {
+        guard syllable.inlineStyle == true,
+              !(syllable.styleSpeaker ?? "").trimmed.isEmpty else {
+            return activeColor
+        }
+        return LyricSpeakerPalette.activeColor(
+            speaker: syllable.styleSpeaker ?? "",
+            speakerColor: syllable.styleSpeakerColor ?? "",
+            speakerFallback: syllable.styleSpeakerFallback ?? "",
+            settings: speakerColors,
+            useCreatorColors: useCreatorSpeakerColors
+        )
+    }
+
+    private func segmentBaseColor(for syllable: LyricsLine.Syllable) -> Color {
+        guard syllable.inlineStyle == true,
+              !(syllable.styleSpeaker ?? "").trimmed.isEmpty else {
+            return baseColor
+        }
+        return LyricSpeakerPalette.inactiveColor(
+            speaker: syllable.styleSpeaker ?? "",
+            speakerColor: syllable.styleSpeakerColor ?? "",
+            speakerFallback: syllable.styleSpeakerFallback ?? "",
+            settings: speakerColors,
+            useCreatorColors: useCreatorSpeakerColors,
+            distance: speakerColorDistance
+        )
+    }
+
     private var normalizedDisplayGranularity: String {
         AppSettings.normalizeKaraokeDisplayGranularity(displayGranularity)
     }
@@ -6138,10 +6201,13 @@ struct SyllableKaraokeText: View {
     }
 
     private func requiresContinuousEffect(_ displayKind: String) -> Bool {
-        active && [
+        let continuousKinds: Set<String> = [
             "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
             "wave", "sparkle", "echo", "whisper", "glow", "blur", "flicker"
-        ].contains(displayKind)
+        ]
+        return active && (continuousKinds.contains(displayKind) || syllables.contains {
+            $0.inlineStyle == true && continuousKinds.contains(($0.styleKind ?? "").trimmed.lowercased())
+        })
     }
 
     private func fillFraction(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat {
@@ -6253,6 +6319,7 @@ private struct KaraokeSyllableSegment: Identifiable {
     var fill: CGFloat
     var baseColor: Color
     var activeColor: Color
+    var kind: String
     var bounceOffsetY: CGFloat
     var bounceScale: CGFloat
     var isWhitespace: Bool
@@ -6789,12 +6856,28 @@ private struct KaraokeDebugPreview: View {
     private var longText: String {
         arabicPreviewEnabled ? "تايهة و توهتك في القصة ويايا" : "Someone to die for you and more"
     }
-    private let bounceSyllables = Array("ABCDEF").enumerated().map { index, character in
-        LyricsLine.Syllable(
-            text: String(character),
-            startTimeMs: Int64(index * 1_000),
-            endTimeMs: Int64((index + 1) * 1_000)
-        )
+    private var rangeStyledLine: LyricsLine {
+        let baseLine = LyricsLine(startTimeMs: 0, endTimeMs: 6_000, text: "ABCDEF")
+        return SyncDataApplier.applyWithDiagnostics(
+            baseLyrics: [baseLine],
+            syncBody: [
+                "version": 5,
+                "lines": [[
+                    "start": 0,
+                    "end": 5,
+                    "chars": [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+                    "granularity": "character",
+                    "kind": "vocal",
+                    "styleRanges": [[
+                        "start": 2,
+                        "end": 3,
+                        "kind": "wave",
+                        "speaker": "FEMALE 1"
+                    ]]
+                ]]
+            ],
+            track: nil
+        ).lines.first ?? baseLine
     }
 
     var body: some View {
@@ -6822,18 +6905,20 @@ private struct KaraokeDebugPreview: View {
             .font(.pretendard(38, weight: .bold))
             .frame(width: 320, alignment: arabicPreviewEnabled ? .trailing : .leading)
 
-            Text("Only C should bounce")
+            Text("C–D use range wave and speaker color")
                 .font(.pretendard(15, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.62))
             SyllableKaraokeText(
                 text: "ABCDEF",
-                syllables: bounceSyllables,
+                syllables: rangeStyledLine.syllables,
                 startTimeMs: 0,
                 endTimeMs: 6_000,
                 positionMs: 2_100,
                 active: true,
                 activeColor: Color(red: 0.48, green: 0.80, blue: 0.78),
                 alignment: .leading,
+                speakerColors: speakerColors,
+                useCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
                 bounceEnabled: true,
                 bounceTextSize: 52
             )
