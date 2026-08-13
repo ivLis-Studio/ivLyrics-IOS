@@ -153,6 +153,9 @@ final class AppViewModel: ObservableObject {
         if metadataTranslationLoading {
             return settings.t("loading.translation")
         }
+        if lyricsSupplementTranslationLoading && lyricsSupplementPronunciationLoading {
+            return aiLyricsLoadingText
+        }
         if lyricsSupplementTranslationLoading {
             return aiTranslationLoadingText
         }
@@ -1885,7 +1888,11 @@ final class AppViewModel: ObservableObject {
 
     func outputLanguageChanged() {
         showSavedToast(settings.t("toast.pronunciation_language_saved"))
-        regenerateCurrentAiSupplements(statusKey: "toast.pronunciation_language_saved")
+        regenerateCurrentAiSupplements(
+            statusKey: "toast.pronunciation_language_saved",
+            bypassSupplementCache: false,
+            refreshMetadataTranslation: false
+        )
     }
 
     func uiLanguageChanged() {
@@ -2704,14 +2711,20 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    private func regenerateCurrentAiSupplements(statusKey: String) {
+    private func regenerateCurrentAiSupplements(
+        statusKey: String,
+        bypassSupplementCache: Bool = true,
+        refreshMetadataTranslation: Bool = true
+    ) {
         appendLog(settings.t(statusKey))
         guard let track = currentTrack, !baseLyricsResult.lines.isEmpty else {
             appendLog(settings.t("status.no_lyrics_to_apply"))
             return
         }
         cancelLyricsLoadTask()
-        metadataTranslation = nil
+        if refreshMetadataTranslation {
+            metadataTranslation = nil
+        }
         status = .loading
         let base = baseLyricsResult
         let snapshot = settings.snapshot
@@ -2721,8 +2734,14 @@ final class AppViewModel: ObservableObject {
             guard isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
             self.lyricsResult = base
             self.resetCurrentFurigana()
-            self.requestMetadataTranslation(track: track, base: base, bypassCache: true)
-            let finalResult = await self.applyLyricsSupplements(track: track, base: base, bypassCache: true)
+            if refreshMetadataTranslation {
+                self.requestMetadataTranslation(track: track, base: base, bypassCache: true)
+            }
+            let finalResult = await self.applyLyricsSupplements(
+                track: track,
+                base: base,
+                bypassCache: bypassSupplementCache
+            )
             guard self.isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
             self.publishFinalSupplementResult(finalResult)
             self.status = .loaded

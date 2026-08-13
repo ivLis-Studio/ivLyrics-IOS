@@ -50,6 +50,15 @@ enum IvLyricsUtilities {
     private static let comparableWhitespaceRegex = try? NSRegularExpression(
         pattern: comparableWhitespacePattern
     )
+    private static let lyricsComparableApostropheRegex = try? NSRegularExpression(
+        pattern: "[\\u{0060}\\u{00B4}\\u{02B9}\\u{02BB}\\u{02BC}\\u{02BE}\\u{02BF}\\u{055A}\\u{07F4}\\u{07F5}\\u{2018}\\u{2019}\\u{201B}\\u{2032}\\u{275B}\\u{275C}\\u{FF07}]"
+    )
+    private static let lyricsComparableDiscardRegex = try? NSRegularExpression(
+        pattern: #"[\p{P}\p{S}\p{M}\p{Cf}]"#
+    )
+    private static let lyricsComparableWhitespaceRegex = try? NSRegularExpression(
+        pattern: #"[\s\p{Z}]+"#
+    )
 
     static func sha256(_ value: String) -> String {
         let digest = SHA256.hash(data: Data(value.utf8))
@@ -121,6 +130,47 @@ enum IvLyricsUtilities {
             with: " ",
             options: .regularExpression
         )
+    }
+
+    static func normalizeLyricsComparable(_ value: String?) -> String {
+        var normalized = (value ?? "")
+            .nfkc()
+            .lowercased()
+        if let lyricsComparableApostropheRegex {
+            normalized = replacingMatches(
+                in: normalized,
+                regex: lyricsComparableApostropheRegex,
+                with: "'"
+            )
+        }
+        if let lyricsComparableDiscardRegex {
+            normalized = replacingMatches(
+                in: normalized,
+                regex: lyricsComparableDiscardRegex,
+                with: ""
+            )
+        }
+        if let lyricsComparableWhitespaceRegex {
+            normalized = replacingMatches(
+                in: normalized,
+                regex: lyricsComparableWhitespaceRegex,
+                with: " "
+            )
+        }
+        return normalized.trimmed
+    }
+
+    static func lyricsTextsEquivalent(_ leftValue: String?, _ rightValue: String?) -> Bool {
+        let left = normalizeLyricsComparable(leftValue)
+        let right = normalizeLyricsComparable(rightValue)
+        guard !left.isEmpty, !right.isEmpty else { return false }
+        if left == right { return true }
+        guard let lyricsComparableWhitespaceRegex else {
+            return left.regexReplacing(#"[\s\p{Z}]+"#, with: "")
+                == right.regexReplacing(#"[\s\p{Z}]+"#, with: "")
+        }
+        return replacingMatches(in: left, regex: lyricsComparableWhitespaceRegex, with: "")
+            == replacingMatches(in: right, regex: lyricsComparableWhitespaceRegex, with: "")
     }
 
     private static func replacingMatches(

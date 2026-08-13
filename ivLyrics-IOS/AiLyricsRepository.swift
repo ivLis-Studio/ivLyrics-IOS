@@ -1787,9 +1787,12 @@ actor AiLyricsRepository {
     }
 
     private func withBaseContributors(_ result: LyricsResult, baseResult: LyricsResult) -> LyricsResult {
-        guard result.contributors != baseResult.contributors else { return result }
+        let lines = baseResult.lines.enumerated().map { index, baseLine in
+            let cachedLine = index < result.lines.count ? result.lines[index] : nil
+            return rebaseCachedSupplementLine(baseLine, cachedLine: cachedLine)
+        }
         return LyricsResult(
-            lines: result.lines,
+            lines: lines,
             providerLabel: result.providerLabel,
             detail: result.detail,
             karaoke: result.karaoke,
@@ -1798,6 +1801,74 @@ actor AiLyricsRepository {
             contributors: baseResult.contributors,
             providerId: baseResult.providerId,
             selectionPolicyKey: baseResult.selectionPolicyKey
+        )
+    }
+
+    private func rebaseCachedSupplementLine(
+        _ baseLine: LyricsLine,
+        cachedLine: LyricsLine?
+    ) -> LyricsLine {
+        guard let cachedLine else { return baseLine }
+        if baseLine.vocalParts.isEmpty {
+            let values = sanitizedSupplementValues(
+                sourceText: displayLineText(baseLine),
+                pronunciation: cachedLine.pronunciationText,
+                translation: cachedLine.translationText
+            )
+            return baseLine.withSupplements(
+                pronunciation: values.pronunciation,
+                translation: values.translation
+            )
+        }
+
+        var parts = baseLine.vocalParts
+        var pronunciationParts: [String] = []
+        var translationParts: [String] = []
+        var matchedCachedPart = false
+        for index in parts.indices where index < cachedLine.vocalParts.count {
+            let basePart = parts[index]
+            let cachedPart = cachedLine.vocalParts[index]
+            let values = sanitizedSupplementValues(
+                sourceText: displayPartText(basePart),
+                pronunciation: cachedPart.pronunciationText,
+                translation: cachedPart.translationText
+            )
+            parts[index] = basePart.withSupplements(
+                pronunciation: values.pronunciation,
+                translation: values.translation
+            )
+            pronunciationParts.append(values.pronunciation)
+            translationParts.append(values.translation)
+            matchedCachedPart = true
+        }
+
+        let lineValues = sanitizedSupplementValues(
+            sourceText: displayLineText(baseLine),
+            pronunciation: cachedLine.pronunciationText,
+            translation: cachedLine.translationText
+        )
+        var pronunciationText = matchedCachedPart
+            ? joinNonEmpty(pronunciationParts)
+            : lineValues.pronunciation
+        let translationText = matchedCachedPart
+            ? joinNonEmpty(translationParts)
+            : lineValues.translation
+        if IvLyricsUtilities.lyricsTextsEquivalent(pronunciationText, translationText) {
+            pronunciationText = ""
+        }
+        return LyricsLine(
+            startTimeMs: baseLine.startTimeMs,
+            endTimeMs: baseLine.endTimeMs,
+            text: baseLine.text,
+            syllables: baseLine.syllables,
+            speaker: baseLine.speaker,
+            speakerColor: baseLine.speakerColor,
+            speakerFallback: baseLine.speakerFallback,
+            kind: baseLine.kind,
+            vocalParts: parts,
+            pronunciationText: pronunciationText,
+            translationText: translationText,
+            furiganaText: baseLine.furiganaText
         )
     }
 
@@ -1833,10 +1904,11 @@ actor AiLyricsRepository {
         var byLine: [Int: [SupplementResult]] = [:]
         for index in requests.indices {
             let request = requests[index]
+            let value = sanitizedSupplementValue(valueAt(values, index), sourceText: request.text)
             byLine[request.lineIndex, default: []].append(SupplementResult(
                 request: request,
-                pronunciation: pronunciation ? valueAt(values, index) : "",
-                translation: pronunciation ? "" : valueAt(values, index)
+                pronunciation: pronunciation ? value : "",
+                translation: pronunciation ? "" : value
             ))
         }
         let merged = baseResult.lines.enumerated().map { index, line in
@@ -1887,10 +1959,15 @@ actor AiLyricsRepository {
         var byLine: [Int: [SupplementResult]] = [:]
         for index in requests.indices {
             let request = requests[index]
-            byLine[request.lineIndex, default: []].append(SupplementResult(
-                request: request,
+            let values = sanitizedSupplementValues(
+                sourceText: request.text,
                 pronunciation: valueAt(pronunciation, index),
                 translation: valueAt(translation, index)
+            )
+            byLine[request.lineIndex, default: []].append(SupplementResult(
+                request: request,
+                pronunciation: values.pronunciation,
+                translation: values.translation
             ))
         }
 
@@ -1956,6 +2033,30 @@ actor AiLyricsRepository {
             .map(\.trimmed)
             .filter { !$0.isEmpty }
             .joined(separator: " / ")
+    }
+
+    private func joinNonEmpty(_ values: [String]) -> String {
+        values.map(\.trimmed)
+            .filter { !$0.isEmpty }
+            .joined(separator: " / ")
+    }
+
+    private func sanitizedSupplementValue(_ value: String, sourceText: String) -> String {
+        let trimmed = value.trimmed
+        return IvLyricsUtilities.lyricsTextsEquivalent(trimmed, sourceText) ? "" : trimmed
+    }
+
+    private func sanitizedSupplementValues(
+        sourceText: String,
+        pronunciation: String,
+        translation: String
+    ) -> (pronunciation: String, translation: String) {
+        var nextPronunciation = sanitizedSupplementValue(pronunciation, sourceText: sourceText)
+        let nextTranslation = sanitizedSupplementValue(translation, sourceText: sourceText)
+        if IvLyricsUtilities.lyricsTextsEquivalent(nextPronunciation, nextTranslation) {
+            nextPronunciation = ""
+        }
+        return (nextPronunciation, nextTranslation)
     }
 
     private func buildSupplementRequests(_ lines: [LyricsLine]) -> [SupplementRequest] {
