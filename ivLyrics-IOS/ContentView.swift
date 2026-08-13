@@ -5254,7 +5254,10 @@ enum LyricsTimelineDisplayBuilder {
                 }
             }
             let end = max(line.endTimeMs, nextStart)
-            guard end - line.startTimeMs > interludeMinDurationMs else { continue }
+            let minimumDurationMs: Int64 = InstrumentalBreakMarker.isMusicNoteMarkerText(candidateText(line))
+                ? 0
+                : interludeMinDurationMs
+            guard end - line.startTimeMs > minimumDurationMs else { continue }
             result[index] = InterludeInfo(
                 startTimeMs: line.startTimeMs,
                 endTimeMs: end,

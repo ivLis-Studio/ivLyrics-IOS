@@ -23,6 +23,15 @@ enum InstrumentalBreakMarker {
         return normalized.unicodeScalars.allSatisfy(isMarkerScalar)
     }
 
+    static func isMusicNoteMarkerText(_ text: String) -> Bool {
+        let normalized = unwrap(decodeEntities(text))
+            .precomposedStringWithCompatibilityMapping
+            .trimmed
+        guard !normalized.isEmpty,
+              normalized.unicodeScalars.allSatisfy(isMarkerScalar) else { return false }
+        return normalized.unicodeScalars.contains(where: isMusicNoteScalar)
+    }
+
     private static func decodeEntities(_ text: String) -> String {
         var decoded = text
         if decoded.contains("&") {
@@ -86,6 +95,13 @@ enum InstrumentalBreakMarker {
             || value == 0xFE0F
             || value == 0xFEFF
             || (value >= 0x2669 && value <= 0x266F)
+            || (value >= 0x1D100 && value <= 0x1D1FF)
+            || (value >= 0x1F3B5 && value <= 0x1F3BC)
+    }
+
+    private static func isMusicNoteScalar(_ scalar: UnicodeScalar) -> Bool {
+        let value = scalar.value
+        return (value >= 0x2669 && value <= 0x266F)
             || (value >= 0x1D100 && value <= 0x1D1FF)
             || (value >= 0x1F3B5 && value <= 0x1F3BC)
     }
