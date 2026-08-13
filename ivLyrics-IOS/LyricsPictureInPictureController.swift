@@ -152,7 +152,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             solidColor: settings.backgroundSolidColor,
             syncedLyricsKaraokeAnimationEnabled: settings.syncedLyricsKaraokeAnimationEnabled,
             karaokeBounceEffectEnabled: settings.karaokeBounceEffectEnabled,
-            karaokeDataAsLineSynced: settings.karaokeDataAsLineSynced,
+            karaokeDisplayGranularity: settings.karaokeDisplayGranularity,
             useSyncCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
             typography: settings.typography,
             speakerColors: settings.speakerColors
@@ -744,7 +744,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             fontSize: fontSize,
             speakerColors: state.speakerColors,
             useCreatorSpeakerColors: state.useSyncCreatorSpeakerColors,
-            karaokeDataAsLineSynced: state.karaokeDataAsLineSynced,
+            karaokeDisplayGranularity: state.karaokeDisplayGranularity,
             syncedLyricsKaraokeAnimationEnabled: state.syncedLyricsKaraokeAnimationEnabled,
             bounceEnabled: state.karaokeBounceEffectEnabled,
             typography: state.typography
@@ -1038,7 +1038,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var solidColor: String
         var syncedLyricsKaraokeAnimationEnabled: Bool
         var karaokeBounceEffectEnabled: Bool
-        var karaokeDataAsLineSynced: Bool
+        var karaokeDisplayGranularity: String
         var useSyncCreatorSpeakerColors: Bool
         var typography: AppSettings.TypographySettings
         var speakerColors: AppSettings.SpeakerColorSettings
@@ -1059,7 +1059,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             solidColor: "#1e3a8a",
             syncedLyricsKaraokeAnimationEnabled: true,
             karaokeBounceEffectEnabled: true,
-            karaokeDataAsLineSynced: false,
+            karaokeDisplayGranularity: AppSettings.karaokeDisplayCharacter,
             useSyncCreatorSpeakerColors: true,
             typography: .defaults,
             speakerColors: .defaults
@@ -1129,7 +1129,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
 
         var usesTimedKaraoke: Bool {
             guard syncedLyricsKaraokeAnimationEnabled,
-                  !karaokeDataAsLineSynced,
+                  AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
+                    != AppSettings.karaokeDisplayLine,
                   let line = activeLine?.line else { return false }
             if line.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs }) {
                 return true
@@ -1173,7 +1174,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             identity.append("|")
             identity.append(String(karaokeBounceEffectEnabled))
             identity.append("|")
-            identity.append(String(karaokeDataAsLineSynced))
+            identity.append(AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity))
             identity.append("|")
             identity.append(String(useSyncCreatorSpeakerColors))
             identity.append("|")
@@ -1245,7 +1246,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                   state.solidColor == other.state.solidColor,
                   state.syncedLyricsKaraokeAnimationEnabled == other.state.syncedLyricsKaraokeAnimationEnabled,
                   state.karaokeBounceEffectEnabled == other.state.karaokeBounceEffectEnabled,
-                  state.karaokeDataAsLineSynced == other.state.karaokeDataAsLineSynced,
+                  state.karaokeDisplayGranularity == other.state.karaokeDisplayGranularity,
                   state.useSyncCreatorSpeakerColors == other.state.useSyncCreatorSpeakerColors,
                   state.typography == other.state.typography,
                   state.speakerColors == other.state.speakerColors else {
@@ -1298,7 +1299,7 @@ struct PictureInPictureKaraokeContent: View {
     var fontSize: CGFloat
     var speakerColors: AppSettings.SpeakerColorSettings
     var useCreatorSpeakerColors: Bool
-    var karaokeDataAsLineSynced: Bool
+    var karaokeDisplayGranularity: String
     var syncedLyricsKaraokeAnimationEnabled: Bool
     var bounceEnabled: Bool
     var typography: AppSettings.TypographySettings = .defaults
@@ -1381,7 +1382,10 @@ struct PictureInPictureKaraokeContent: View {
         inactiveDistance: Double,
         effectRowSeed: Int = 0
     ) -> some View {
-        let timedSyllables = karaokeDataAsLineSynced ? [] : syllables
+        let displayGranularity = AppSettings.normalizeKaraokeDisplayGranularity(
+            karaokeDisplayGranularity
+        )
+        let timedSyllables = displayGranularity == AppSettings.karaokeDisplayLine ? [] : syllables
         let hasTimedSyllables = timedSyllables.contains { $0.endTimeMs > $0.startTimeMs }
         let activeColor = LyricSpeakerPalette.activeColor(
             speaker: speaker,
@@ -1402,6 +1406,7 @@ struct PictureInPictureKaraokeContent: View {
             text: text,
             rubyText: rubyText,
             syllables: hasTimedSyllables ? timedSyllables : [],
+            displayGranularity: displayGranularity,
             startTimeMs: startTimeMs,
             endTimeMs: endTimeMs,
             positionMs: positionMs,

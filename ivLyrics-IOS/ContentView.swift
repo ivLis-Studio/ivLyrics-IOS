@@ -4083,6 +4083,7 @@ private struct MainLyricPreviewRowView: View {
                 text: row.text,
                 rubyText: settings.japaneseFuriganaEnabled ? row.rubyText : "",
                 syllables: shouldRenderTimedKaraoke ? row.syllables : [],
+                displayGranularity: settings.karaokeDisplayGranularity,
                 startTimeMs: row.syllables.first?.startTimeMs ?? 0,
                 endTimeMs: row.syllables.last?.endTimeMs ?? 0,
                 positionMs: positionMs,
@@ -5612,6 +5613,7 @@ struct LyricsLineView: View, Equatable {
                             text: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part),
                             rubyText: settings.japaneseFuriganaEnabled ? part.furiganaText : "",
                             syllables: shouldRenderTimedKaraoke ? part.syllables : [],
+                            displayGranularity: settings.karaokeDisplayGranularity,
                             culturalAnnotations: culturalAnnotations,
                             startTimeMs: part.startTimeMs,
                             endTimeMs: part.endTimeMs,
@@ -5638,6 +5640,7 @@ struct LyricsLineView: View, Equatable {
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: line.syllables,
+                displayGranularity: settings.karaokeDisplayGranularity,
                 culturalAnnotations: culturalAnnotations,
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
@@ -5655,6 +5658,7 @@ struct LyricsLineView: View, Equatable {
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: [],
+                displayGranularity: settings.karaokeDisplayGranularity,
                 culturalAnnotations: culturalAnnotations,
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
@@ -5673,6 +5677,7 @@ struct LyricsLineView: View, Equatable {
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
                 syllables: [],
+                displayGranularity: settings.karaokeDisplayGranularity,
                 culturalAnnotations: culturalAnnotations,
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
@@ -5831,6 +5836,7 @@ struct SyllableKaraokeText: View {
     var text: String
     var rubyText: String = ""
     var syllables: [LyricsLine.Syllable]
+    var displayGranularity: String = AppSettings.karaokeDisplayCharacter
     var culturalAnnotations: [CulturalAnnotation] = []
     var startTimeMs: Int64
     var endTimeMs: Int64
@@ -5912,7 +5918,14 @@ struct SyllableKaraokeText: View {
     private var karaokeSegments: [KaraokeSyllableSegment] {
         let annotations = rubyAnnotations
         let sourceSyllables = effectiveSyllables
-        let fillTimings = KaraokeSyllableTimingNormalizer.latinWordFillTimings(sourceSyllables)
+        let fillTimings = isWordDisplayGranularity
+            ? sourceSyllables.map {
+                KaraokeSyllableTimingNormalizer.FillTiming(
+                    startTimeMs: $0.startTimeMs,
+                    endTimeMs: $0.endTimeMs
+                )
+            }
+            : KaraokeSyllableTimingNormalizer.latinWordFillTimings(sourceSyllables)
         let displaySyllables = CulturalAnnotation.annotateSyllables(
             text: text,
             syllables: sourceSyllables,
@@ -6060,6 +6073,7 @@ struct SyllableKaraokeText: View {
     }
 
     private var effectiveSyllables: [LyricsLine.Syllable] {
+        guard !isLineDisplayGranularity else { return [] }
         let timed: [LyricsLine.Syllable]
         if syllables.contains(where: { $0.text.isEmpty }) {
             timed = syllables.filter { !$0.text.isEmpty }
@@ -6067,7 +6081,9 @@ struct SyllableKaraokeText: View {
             timed = syllables
         }
         if !timed.isEmpty {
-            return KaraokeSyllableTimingNormalizer.expandTimedChunks(timed)
+            return isWordDisplayGranularity
+                ? KaraokeSyllableTimingNormalizer.groupedForWordDisplay(timed)
+                : KaraokeSyllableTimingNormalizer.expandTimedChunks(timed)
         }
         guard syntheticTimingEnabled, endTimeMs > startTimeMs else { return [] }
         let characters = text.map(String.init)
@@ -6078,7 +6094,9 @@ struct SyllableKaraokeText: View {
             let end = startTimeMs + Int64((Double(duration) * Double(index + 1) / Double(characters.count)).rounded())
             return LyricsLine.Syllable(text: character, startTimeMs: start, endTimeMs: max(start, end))
         }
-        return KaraokeSyllableTimingNormalizer.expandTimedChunks(synthetic)
+        return isWordDisplayGranularity
+            ? KaraokeSyllableTimingNormalizer.groupedForWordDisplay(synthetic)
+            : KaraokeSyllableTimingNormalizer.expandTimedChunks(synthetic)
     }
 
     private var fallbackColor: Color {
@@ -6094,6 +6112,18 @@ struct SyllableKaraokeText: View {
         return value.isEmpty ? "vocal" : value
     }
 
+    private var normalizedDisplayGranularity: String {
+        AppSettings.normalizeKaraokeDisplayGranularity(displayGranularity)
+    }
+
+    private var isWordDisplayGranularity: Bool {
+        normalizedDisplayGranularity == AppSettings.karaokeDisplayWord
+    }
+
+    private var isLineDisplayGranularity: Bool {
+        normalizedDisplayGranularity == AppSettings.karaokeDisplayLine
+    }
+
     private func requiresContinuousEffect(_ displayKind: String) -> Bool {
         active && [
             "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
@@ -6103,6 +6133,9 @@ struct SyllableKaraokeText: View {
 
     private func fillFraction(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat {
         guard active else { return 0 }
+        if isWordDisplayGranularity {
+            return positionMs >= startTimeMs ? 1 : 0
+        }
         if positionMs >= endTimeMs {
             return 1
         }
@@ -6825,7 +6858,7 @@ private struct KaraokeDebugPreview: View {
                 fontSize: 32,
                 speakerColors: speakerColors,
                 useCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
-                karaokeDataAsLineSynced: false,
+                karaokeDisplayGranularity: AppSettings.karaokeDisplayCharacter,
                 syncedLyricsKaraokeAnimationEnabled: true,
                 bounceEnabled: true
             )
@@ -7910,7 +7943,34 @@ struct SettingsView: View {
                 settingsToggleCard(settings.t("setting.interlude_labels"), description: settings.t("setting.interlude_labels_desc"), binding: settingsSavedBinding(\.interludeLabelsEnabled))
                 settingsToggleCard(settings.t("setting.synced_karaoke_animation"), description: settings.t("setting.synced_karaoke_animation_desc"), binding: settingsSavedBinding(\.syncedLyricsKaraokeAnimationEnabled))
                 settingsToggleCard(settings.t("setting.karaoke_bounce_effect"), description: settings.t("setting.karaoke_bounce_effect_desc"), binding: settingsSavedBinding(\.karaokeBounceEffectEnabled))
-                settingsToggleCard(settings.t("setting.karaoke_data_as_line_synced"), description: settings.t("setting.karaoke_data_as_line_synced_desc"), binding: settingsSavedBinding(\.karaokeDataAsLineSynced))
+                settingsCard(
+                    settings.t("setting.karaoke_display_granularity"),
+                    description: settings.t("setting.karaoke_display_granularity_desc")
+                ) {
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: {
+                                AppSettings.normalizeKaraokeDisplayGranularity(
+                                    settings.karaokeDisplayGranularity
+                                )
+                            },
+                            set: { value in
+                                settings.karaokeDisplayGranularity = value
+                                model.showSavedToast(settings.t("toast.settings_saved"))
+                            }
+                        )
+                    ) {
+                        Text(settings.t("karaoke.display.character"))
+                            .tag(AppSettings.karaokeDisplayCharacter)
+                        Text(settings.t("karaoke.display.word"))
+                            .tag(AppSettings.karaokeDisplayWord)
+                        Text(settings.t("karaoke.display.line"))
+                            .tag(AppSettings.karaokeDisplayLine)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
             }
         }
     }

@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 enum InstrumentalBreakMarker {
     private static let htmlTagRegex = try? NSRegularExpression(
@@ -387,11 +388,18 @@ struct LyricsLine: Identifiable, Codable, Equatable, Sendable {
         var text: String
         var startTimeMs: Int64
         var endTimeMs: Int64
+        var sourceGranularity: String?
 
-        init(text: String, startTimeMs: Int64, endTimeMs: Int64) {
+        init(
+            text: String,
+            startTimeMs: Int64,
+            endTimeMs: Int64,
+            sourceGranularity: String? = nil
+        ) {
             self.text = text
             self.startTimeMs = max(0, startTimeMs)
             self.endTimeMs = max(max(0, startTimeMs), endTimeMs)
+            self.sourceGranularity = sourceGranularity
         }
     }
 
@@ -567,6 +575,146 @@ enum KaraokeSyllableTimingNormalizer {
         _ = regressionChecks
 #endif
         return normalizedTimedChunksUnchecked(syllables)
+    }
+
+    /// Native counterpart of `Intl.Segmenter({ granularity: "word" })` used by PC.
+    /// NLTokenizer supplies language-aware word ranges, while punctuation and spaces
+    /// are retained as independent display ranges so the rendered text never changes.
+    static func groupedForWordDisplay(
+        _ syllables: [LyricsLine.Syllable]
+    ) -> [LyricsLine.Syllable] {
+        let visibleSourceUnits = syllables.filter {
+            !$0.text.isEmpty && !$0.text.unicodeScalars.allSatisfy {
+                CharacterSet.whitespacesAndNewlines.contains($0)
+            }
+        }
+        let preservesSourceUnits = visibleSourceUnits.contains {
+            $0.sourceGranularity?.trimmed.lowercased() == "word"
+        } || (
+            visibleSourceUnits.count > 1
+                && visibleSourceUnits.contains { $0.text.count > 1 }
+        )
+        if preservesSourceUnits {
+            return groupedPreservingSourceWordUnits(syllables)
+        }
+        let source = expandTimedChunks(syllables).filter { !$0.text.isEmpty }
+        guard !source.isEmpty else { return [] }
+
+        let text = source.map(\.text).joined()
+        let characters = text.map(String.init)
+        guard !characters.isEmpty else { return [] }
+
+        var sourceRanges: [Range<Int>] = []
+        sourceRanges.reserveCapacity(source.count)
+        var sourceCursor = 0
+        for syllable in source {
+            let nextCursor = sourceCursor + syllable.text.count
+            sourceRanges.append(sourceCursor..<nextCursor)
+            sourceCursor = nextCursor
+        }
+
+        let tokenizer = NLTokenizer(unit: .word)
+        tokenizer.string = text
+        var tokenRanges: [Range<Int>] = []
+        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
+            let start = text.distance(from: text.startIndex, to: range.lowerBound)
+            let end = text.distance(from: text.startIndex, to: range.upperBound)
+            if end > start {
+                tokenRanges.append(start..<end)
+            }
+            return true
+        }
+
+        var displayRanges: [Range<Int>] = []
+        var cursor = 0
+
+        func appendGap(_ range: Range<Int>) {
+            guard !range.isEmpty else { return }
+            var index = range.lowerBound
+            while index < range.upperBound {
+                let isWhitespace = characters[index].unicodeScalars.allSatisfy {
+                    CharacterSet.whitespacesAndNewlines.contains($0)
+                }
+                if isWhitespace {
+                    var end = index + 1
+                    while end < range.upperBound,
+                          characters[end].unicodeScalars.allSatisfy({
+                              CharacterSet.whitespacesAndNewlines.contains($0)
+                          }) {
+                        end += 1
+                    }
+                    displayRanges.append(index..<end)
+                    index = end
+                } else {
+                    displayRanges.append(index..<(index + 1))
+                    index += 1
+                }
+            }
+        }
+
+        for tokenRange in tokenRanges.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+            let start = max(cursor, tokenRange.lowerBound)
+            let end = min(characters.count, tokenRange.upperBound)
+            guard end > start else { continue }
+            appendGap(cursor..<start)
+            displayRanges.append(start..<end)
+            cursor = end
+        }
+        appendGap(cursor..<characters.count)
+
+        return displayRanges.compactMap { displayRange in
+            let overlappingIndices = sourceRanges.indices.filter {
+                sourceRanges[$0].upperBound > displayRange.lowerBound
+                    && sourceRanges[$0].lowerBound < displayRange.upperBound
+            }
+            guard let first = overlappingIndices.first else { return nil }
+            let startTimeMs = overlappingIndices.reduce(source[first].startTimeMs) {
+                min($0, source[$1].startTimeMs)
+            }
+            let endTimeMs = overlappingIndices.reduce(source[first].endTimeMs) {
+                max($0, source[$1].endTimeMs)
+            }
+            return LyricsLine.Syllable(
+                text: characters[displayRange].joined(),
+                startTimeMs: startTimeMs,
+                endTimeMs: max(startTimeMs, endTimeMs)
+            )
+        }
+    }
+
+    private static func groupedPreservingSourceWordUnits(
+        _ syllables: [LyricsLine.Syllable]
+    ) -> [LyricsLine.Syllable] {
+        var result: [LyricsLine.Syllable] = []
+        for syllable in syllables where !syllable.text.isEmpty {
+            var run = ""
+            var whitespaceRun: Bool?
+
+            func flush() {
+                guard !run.isEmpty else { return }
+                result.append(LyricsLine.Syllable(
+                    text: run,
+                    startTimeMs: syllable.startTimeMs,
+                    endTimeMs: syllable.endTimeMs,
+                    sourceGranularity: "word"
+                ))
+                run = ""
+            }
+
+            for character in syllable.text {
+                let value = String(character)
+                let isWhitespace = value.unicodeScalars.allSatisfy {
+                    CharacterSet.whitespacesAndNewlines.contains($0)
+                }
+                if let whitespaceRun, whitespaceRun != isWhitespace {
+                    flush()
+                }
+                whitespaceRun = isWhitespace
+                run.append(character)
+            }
+            flush()
+        }
+        return result.isEmpty ? syllables : result
     }
 
     private static func normalizedTimedChunksUnchecked(

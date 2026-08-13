@@ -177,7 +177,6 @@ actor LyricsRepository {
         guard !result.lines.isEmpty,
               !result.karaoke,
               let provider = AppSettings.lyricsProviderById(result.providerId),
-              provider.supportsIvLyricsSync,
               settings.enabledLyricsProviderOrder.contains(provider.id) else {
             return false
         }
@@ -205,8 +204,8 @@ actor LyricsRepository {
               !TrackSnapshot.normalizeIsrc(resolvedIsrc).isEmpty else {
             return false
         }
-        guard let provider = AppSettings.lyricsProviderById(result.providerId) else { return true }
-        return !provider.supportsIvLyricsSync || !result.karaoke
+        guard AppSettings.lyricsProviderById(result.providerId) != nil else { return true }
+        return !result.karaoke
     }
 
     private func preferredIvLyricsSyncProviderId(
@@ -214,15 +213,26 @@ actor LyricsRepository {
         availableProviderIds: Set<String>
     ) -> String {
         guard settings.preferSyncDataProvider, !availableProviderIds.isEmpty else { return "" }
-        return settings.enabledLyricsProviderOrder.first { providerId in
-            guard let provider = AppSettings.lyricsProviderById(providerId) else { return false }
-            return provider.supportsIvLyricsSync
-                && availableProviderIds.contains(providerId)
+        return prioritizedIvLyricsSyncProviderIds(
+            settings: settings,
+            availableProviderIds: availableProviderIds
+        ).first ?? ""
+    }
+
+    private func prioritizedIvLyricsSyncProviderIds(
+        settings: AppSettings.Snapshot,
+        availableProviderIds: Set<String>
+    ) -> [String] {
+        let eligible = settings.enabledLyricsProviderOrder.filter { providerId in
+            guard AppSettings.lyricsProviderById(providerId) != nil else { return false }
+            return availableProviderIds.contains(providerId)
                 && settings.isLyricsTypeEnabled(
                     providerId: providerId,
                     type: AppSettings.lyricsTypeKaraoke
                 )
-        } ?? ""
+        }
+        guard eligible.contains("lrclib") else { return eligible }
+        return ["lrclib"] + eligible.filter { $0 != "lrclib" }
     }
 
     func loadLyrics(
@@ -341,7 +351,7 @@ actor LyricsRepository {
 
         if let cached = cachedBase, !cached.contributors.isEmpty {
             let supportsContributorRefresh = !isrc.isEmpty
-                && AppSettings.lyricsProviderById(cached.providerId)?.supportsIvLyricsSync == true
+                && AppSettings.lyricsProviderById(cached.providerId) != nil
             if supportsContributorRefresh,
                let currentSyncData = await fetchSyncData(
                     isrc: isrc,
@@ -447,11 +457,10 @@ actor LyricsRepository {
         }
         var providerOrder = settings.enabledLyricsProviderOrder
         if settings.preferSyncDataProvider, !syncDataProviders.isEmpty {
-            let preferred = providerOrder.filter {
-                syncDataProviders.contains($0)
-                    && AppSettings.lyricsProviderById($0)?.supportsIvLyricsSync == true
-                    && settings.isLyricsTypeEnabled(providerId: $0, type: AppSettings.lyricsTypeKaraoke)
-            }
+            let preferred = prioritizedIvLyricsSyncProviderIds(
+                settings: settings,
+                availableProviderIds: syncDataProviders
+            )
             let preferredSet = Set(preferred)
             providerOrder = preferred + providerOrder.filter { !preferredSet.contains($0) }
         }
@@ -566,7 +575,7 @@ actor LyricsRepository {
             var result = Set<String>()
             for (rawProvider, rawItems) in providerMap {
                 let provider = rawProvider.trimmed.lowercased()
-                guard AppSettings.lyricsProviderById(provider)?.supportsIvLyricsSync == true else { continue }
+                guard AppSettings.lyricsProviderById(provider) != nil else { continue }
                 let items = rawItems as? [String] ?? []
                 if items.contains(where: { TrackSnapshot.normalizeIsrc($0) == normalizedIsrc }) {
                     result.insert(provider)
@@ -585,7 +594,7 @@ actor LyricsRepository {
         switch type {
         case AppSettings.lyricsTypeKaraoke:
             return provider.supportsNativeKaraoke
-                || (provider.supportsIvLyricsSync && syncDataAvailable)
+                || syncDataAvailable
         case AppSettings.lyricsTypeSynced:
             return provider.supportsSynced
         case AppSettings.lyricsTypePlain:
@@ -614,7 +623,7 @@ actor LyricsRepository {
             }
             outcome.logs.forEach(log)
             let detail = "Lyrics via Lyrically API (\(PaxsenixLyricsProvider.projectURL))."
-            return ProviderVariants(
+            let variants = ProviderVariants(
                 providerId: providerId,
                 karaoke: outcome.karaoke.map {
                     lyricsResult(lines: $0, providerName: "Lyrically (Paxsenix)", type: AppSettings.lyricsTypeKaraoke, detail: detail, karaoke: true, isrc: isrc, spotifyTrackId: spotifyTrackId)
@@ -626,6 +635,17 @@ actor LyricsRepository {
                     lyricsResult(lines: $0, providerName: "Lyrically (Paxsenix)", type: AppSettings.lyricsTypePlain, detail: detail, karaoke: false, isrc: isrc, spotifyTrackId: spotifyTrackId)
                 }
             )
+            return await applyingRegisteredSyncData(
+                to: variants,
+                providerId: providerId,
+                syncDataAvailable: syncDataAvailable,
+                track: track,
+                spotifyMatch: spotifyMatch,
+                isrc: isrc,
+                spotifyTrackId: spotifyTrackId,
+                settings: settings,
+                log: log
+            )
 
         case "lyricsplus":
             guard let outcome = try await LyricsPlusProvider.fetch(track: track, isrc: isrc) else {
@@ -634,7 +654,7 @@ actor LyricsRepository {
             }
             outcome.logs.forEach(log)
             let detail = "Lyrics from LyricsPlus (\(LyricsPlusProvider.projectURL))."
-            return ProviderVariants(
+            let variants = ProviderVariants(
                 providerId: providerId,
                 karaoke: outcome.karaoke.map {
                     lyricsResult(lines: $0, providerName: "LyricsPlus", type: AppSettings.lyricsTypeKaraoke, detail: detail, karaoke: true, isrc: isrc, spotifyTrackId: spotifyTrackId)
@@ -646,22 +666,43 @@ actor LyricsRepository {
                     lyricsResult(lines: $0, providerName: "LyricsPlus", type: AppSettings.lyricsTypePlain, detail: detail, karaoke: false, isrc: isrc, spotifyTrackId: spotifyTrackId)
                 }
             )
+            return await applyingRegisteredSyncData(
+                to: variants,
+                providerId: providerId,
+                syncDataAvailable: syncDataAvailable,
+                track: track,
+                spotifyMatch: spotifyMatch,
+                isrc: isrc,
+                spotifyTrackId: spotifyTrackId,
+                settings: settings,
+                log: log
+            )
 
         case "unison":
             let outcome = try await UnisonLyricsProvider.fetch(track: track, isrc: isrc, spotifyTrackId: spotifyTrackId)
             outcome.logs.forEach(log)
             guard let base = outcome.result, !base.lines.isEmpty else { return nil }
             let isSynced = base.lines.contains(where: \.isTimed)
-            return ProviderVariants(
+            let variants = ProviderVariants(
                 providerId: providerId,
                 karaoke: base.karaoke ? base : nil,
                 synced: isSynced ? demotedResult(base, type: AppSettings.lyricsTypeSynced) : nil,
                 plain: demotedResult(base, type: AppSettings.lyricsTypePlain)
             )
+            return await applyingRegisteredSyncData(
+                to: variants,
+                providerId: providerId,
+                syncDataAvailable: syncDataAvailable,
+                track: track,
+                spotifyMatch: spotifyMatch,
+                isrc: isrc,
+                spotifyTrackId: spotifyTrackId,
+                settings: settings,
+                log: log
+            )
 
         case "lrclib":
-            let syncData = AppSettings.lyricsProviderById(providerId)?.supportsIvLyricsSync == true
-                && syncDataAvailable
+            let syncData = syncDataAvailable
                 && settings.isLyricsTypeEnabled(providerId: providerId, type: AppSettings.lyricsTypeKaraoke)
                 ? await fetchSyncData(isrc: isrc, providerId: providerId, track: track, spotifyMatch: spotifyMatch, log: log)
                 : nil
@@ -677,6 +718,48 @@ actor LyricsRepository {
         default:
             return nil
         }
+    }
+
+    private func applyingRegisteredSyncData(
+        to variants: ProviderVariants,
+        providerId: String,
+        syncDataAvailable: Bool,
+        track: TrackSnapshot,
+        spotifyMatch: SpotifyTrackMatch?,
+        isrc: String,
+        spotifyTrackId: String,
+        settings: AppSettings.Snapshot,
+        log: @escaping (String) -> Void
+    ) async -> ProviderVariants {
+        guard syncDataAvailable,
+              settings.isLyricsTypeEnabled(providerId: providerId, type: AppSettings.lyricsTypeKaraoke),
+              let provider = AppSettings.lyricsProviderById(providerId) else {
+            return variants
+        }
+        let syncData = await fetchSyncData(
+            isrc: isrc,
+            providerId: providerId,
+            track: track,
+            spotifyMatch: spotifyMatch,
+            log: log
+        )
+        let base = variants.synced ?? variants.plain ?? variants.karaoke
+        guard let applied = applySyncData(
+            syncData,
+            base: base,
+            providerName: provider.name,
+            track: track,
+            isrc: isrc,
+            spotifyTrackId: spotifyTrackId,
+            detail: ui("repo.detail.sync_applied_search", settings: settings),
+            currentProvider: providerId,
+            log: log
+        ) else {
+            return variants
+        }
+        var result = variants
+        result.karaoke = applied
+        return result
     }
 
     private func loadLrclibVariants(

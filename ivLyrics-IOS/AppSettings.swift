@@ -46,6 +46,9 @@ final class AppSettings: ObservableObject {
     static let lyricsTypeKaraoke = "karaoke"
     static let lyricsTypeSynced = "synced"
     static let lyricsTypePlain = "plain"
+    static let karaokeDisplayCharacter = "character"
+    static let karaokeDisplayWord = "word"
+    static let karaokeDisplayLine = "line"
     static let vinylTonearmStyleS = "s"
     static let vinylTonearmStyleStraight = "straight"
     static let vinylTonearmStyleJ = "j"
@@ -64,6 +67,7 @@ final class AppSettings: ObservableObject {
         "cultural_annotations_vinyl_font_weight", "cultural_annotations_vinyl_opacity", "model", "max_tokens",
         "temperature", "preview_mode", "preview_items", "auto_instrumental_break", "interlude_labels_enabled",
         "synced_lyrics_karaoke_animation", "karaoke_bounce_effect", "karaoke_data_as_line_synced",
+        "karaoke_display_granularity_v1",
         "use_sync_creator_speaker_colors", "lyrics_text_alignment", "keep_screen_on",
         "landscape_auto_hide_controls", "landscape_center_no_lyrics", "pip_show_artwork", "pip_orientation",
         "pip_background_mode", "pip_lyrics_text_alignment", "pip_lyrics_size_percent",
@@ -83,7 +87,6 @@ final class AppSettings: ObservableObject {
             name: "LRCLIB",
             author: "default",
             supportsNativeKaraoke: false,
-            supportsIvLyricsSync: true,
             supportsSynced: true,
             supportsPlain: true
         ),
@@ -93,7 +96,6 @@ final class AppSettings: ObservableObject {
             author: "default",
             projectURL: PaxsenixLyricsProvider.projectURL,
             supportsNativeKaraoke: true,
-            supportsIvLyricsSync: false,
             supportsSynced: true,
             supportsPlain: true
         ),
@@ -103,7 +105,6 @@ final class AppSettings: ObservableObject {
             author: "default",
             projectURL: LyricsPlusProvider.projectURL,
             supportsNativeKaraoke: true,
-            supportsIvLyricsSync: false,
             supportsSynced: true,
             supportsPlain: true
         ),
@@ -114,7 +115,6 @@ final class AppSettings: ObservableObject {
             projectURL: "https://github.com/better-lyrics/unison",
             defaultEnabled: false,
             supportsNativeKaraoke: true,
-            supportsIvLyricsSync: false,
             supportsSynced: true,
             supportsPlain: true
         )
@@ -250,7 +250,16 @@ final class AppSettings: ObservableObject {
     @Published var interludeLabelsEnabled: Bool { didSet { set("interlude_labels_enabled", interludeLabelsEnabled) } }
     @Published var syncedLyricsKaraokeAnimationEnabled: Bool { didSet { set("synced_lyrics_karaoke_animation", syncedLyricsKaraokeAnimationEnabled) } }
     @Published var karaokeBounceEffectEnabled: Bool { didSet { set("karaoke_bounce_effect", karaokeBounceEffectEnabled) } }
-    @Published var karaokeDataAsLineSynced: Bool { didSet { set("karaoke_data_as_line_synced", karaokeDataAsLineSynced) } }
+    @Published var karaokeDisplayGranularity: String {
+        didSet {
+            let normalized = Self.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
+            set("karaoke_display_granularity_v1", normalized)
+            set("karaoke_data_as_line_synced", normalized == Self.karaokeDisplayLine)
+        }
+    }
+    var karaokeDataAsLineSynced: Bool {
+        Self.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity) == Self.karaokeDisplayLine
+    }
     @Published var useSyncCreatorSpeakerColors: Bool { didSet { set("use_sync_creator_speaker_colors", useSyncCreatorSpeakerColors) } }
     @Published var lyricsTextAlignment: String { didSet { set("lyrics_text_alignment", lyricsTextAlignment) } }
     @Published var keepScreenOn: Bool { didSet { set("keep_screen_on", keepScreenOn) } }
@@ -345,7 +354,12 @@ final class AppSettings: ObservableObject {
         interludeLabelsEnabled = defaults.object(forKey: "interlude_labels_enabled") as? Bool ?? true
         syncedLyricsKaraokeAnimationEnabled = defaults.object(forKey: "synced_lyrics_karaoke_animation") as? Bool ?? true
         karaokeBounceEffectEnabled = defaults.object(forKey: "karaoke_bounce_effect") as? Bool ?? true
-        karaokeDataAsLineSynced = defaults.object(forKey: "karaoke_data_as_line_synced") as? Bool ?? false
+        karaokeDisplayGranularity = Self.normalizeKaraokeDisplayGranularity(
+            defaults.string(forKey: "karaoke_display_granularity_v1")
+                ?? ((defaults.object(forKey: "karaoke_data_as_line_synced") as? Bool ?? false)
+                    ? Self.karaokeDisplayLine
+                    : Self.karaokeDisplayCharacter)
+        )
         useSyncCreatorSpeakerColors = defaults.object(forKey: "use_sync_creator_speaker_colors") as? Bool ?? true
         lyricsTextAlignment = Self.normalizeLyricsAlignment(defaults.string(forKey: "lyrics_text_alignment") ?? "left")
         keepScreenOn = defaults.object(forKey: "keep_screen_on") as? Bool ?? false
@@ -449,7 +463,7 @@ final class AppSettings: ObservableObject {
         interludeLabelsEnabled = loaded.interludeLabelsEnabled
         syncedLyricsKaraokeAnimationEnabled = loaded.syncedLyricsKaraokeAnimationEnabled
         karaokeBounceEffectEnabled = loaded.karaokeBounceEffectEnabled
-        karaokeDataAsLineSynced = loaded.karaokeDataAsLineSynced
+        karaokeDisplayGranularity = loaded.karaokeDisplayGranularity
         useSyncCreatorSpeakerColors = loaded.useSyncCreatorSpeakerColors
         lyricsTextAlignment = loaded.lyricsTextAlignment
         keepScreenOn = loaded.keepScreenOn
@@ -532,7 +546,7 @@ final class AppSettings: ObservableObject {
             interludeLabelsEnabled: interludeLabelsEnabled,
             syncedLyricsKaraokeAnimationEnabled: syncedLyricsKaraokeAnimationEnabled,
             karaokeBounceEffectEnabled: karaokeBounceEffectEnabled,
-            karaokeDataAsLineSynced: karaokeDataAsLineSynced,
+            karaokeDisplayGranularity: Self.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity),
             useSyncCreatorSpeakerColors: useSyncCreatorSpeakerColors,
             lyricsTextAlignment: lyricsTextAlignment,
             keepScreenOn: keepScreenOn,
@@ -1421,6 +1435,17 @@ final class AppSettings: ObservableObject {
         return "left"
     }
 
+    static func normalizeKaraokeDisplayGranularity(_ granularity: String?) -> String {
+        switch (granularity ?? "").trimmed.lowercased() {
+        case karaokeDisplayWord:
+            return karaokeDisplayWord
+        case karaokeDisplayLine:
+            return karaokeDisplayLine
+        default:
+            return karaokeDisplayCharacter
+        }
+    }
+
     static func normalizePipOrientation(_ orientation: String?) -> String {
         let value = (orientation ?? "").trimmed.lowercased()
         if value == pipOrientationPortrait { return pipOrientationPortrait }
@@ -1707,7 +1732,10 @@ final class AppSettings: ObservableObject {
         var interludeLabelsEnabled: Bool
         var syncedLyricsKaraokeAnimationEnabled: Bool
         var karaokeBounceEffectEnabled: Bool
-        var karaokeDataAsLineSynced: Bool
+        var karaokeDisplayGranularity: String
+        var karaokeDataAsLineSynced: Bool {
+            AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity) == AppSettings.karaokeDisplayLine
+        }
         var useSyncCreatorSpeakerColors: Bool
         var lyricsTextAlignment: String
         var keepScreenOn: Bool
@@ -2087,7 +2115,6 @@ final class AppSettings: ObservableObject {
         var projectURL: String? = nil
         var defaultEnabled: Bool = true
         var supportsNativeKaraoke: Bool
-        var supportsIvLyricsSync: Bool
         var supportsSynced: Bool
         var supportsPlain: Bool
     }

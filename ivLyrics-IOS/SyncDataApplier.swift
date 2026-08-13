@@ -225,14 +225,24 @@ enum SyncDataApplier {
         var startTimeMs: Int64 = 0
         for syllable in source {
             if !text.isEmpty, syllable.startTimeMs != startTimeMs {
-                grouped.append(LyricsLine.Syllable(text: text, startTimeMs: startTimeMs, endTimeMs: syllable.startTimeMs))
+                grouped.append(LyricsLine.Syllable(
+                    text: text,
+                    startTimeMs: startTimeMs,
+                    endTimeMs: syllable.startTimeMs,
+                    sourceGranularity: "word"
+                ))
                 text = ""
             }
             if text.isEmpty { startTimeMs = syllable.startTimeMs }
             text += syllable.text
         }
         if !text.isEmpty {
-            grouped.append(LyricsLine.Syllable(text: text, startTimeMs: startTimeMs, endTimeMs: max(startTimeMs, endTimeMs)))
+            grouped.append(LyricsLine.Syllable(
+                text: text,
+                startTimeMs: startTimeMs,
+                endTimeMs: max(startTimeMs, endTimeMs),
+                sourceGranularity: "word"
+            ))
         }
         return grouped
     }
