@@ -6036,7 +6036,7 @@ struct SyllableKaraokeText: View {
                     .multilineTextAlignment(alignment)
                     .modifier(LyricGlyphEffectModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, segmentIndex: 0, rowSeed: effectRowSeed, color: activeColor))
                     .modifier(LyricLineMotionModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
-            } else if LyricsTextShaping.requiresContinuousShaping(text) && !hasInlineStyles {
+            } else if LyricsTextShaping.requiresContinuousShaping(text) {
                 Text(continuouslyShapedText(segments))
                     .multilineTextAlignment(alignment)
                     .lineLimit(singleLine ? 1 : nil)
@@ -6057,7 +6057,7 @@ struct SyllableKaraokeText: View {
                         )
                     }
                 }
-                .modifier(LyricLineMotionModifier(kind: hasInlineStyles ? "vocal" : displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
+                .modifier(LyricLineMotionModifier(kind: hasInlineEffects ? "vocal" : displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
                 .accessibilityLabel(text)
             }
         }
@@ -6283,6 +6283,17 @@ struct SyllableKaraokeText: View {
         syllables.contains { $0.inlineStyle == true }
     }
 
+    private var hasInlineEffects: Bool {
+        let effectKinds: Set<String> = [
+            "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
+            "wave", "sparkle", "echo", "whisper", "glow", "blur", "flicker"
+        ]
+        return syllables.contains {
+            $0.inlineStyle == true
+                && effectKinds.contains(($0.styleKind ?? "").trimmed.lowercased())
+        }
+    }
+
     private func segmentKind(for syllable: LyricsLine.Syllable) -> String {
         guard syllable.inlineStyle == true else { return normalizedKind }
         let value = (syllable.styleKind ?? "").trimmed.lowercased()
@@ -6335,9 +6346,10 @@ struct SyllableKaraokeText: View {
             "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
             "wave", "sparkle", "echo", "whisper", "glow", "blur", "flicker"
         ]
-        return active && (continuousKinds.contains(displayKind) || syllables.contains {
+        let canRenderInlineEffects = !LyricsTextShaping.requiresContinuousShaping(text)
+        return active && (continuousKinds.contains(displayKind) || (canRenderInlineEffects && syllables.contains {
             $0.inlineStyle == true && continuousKinds.contains(($0.styleKind ?? "").trimmed.lowercased())
-        })
+        }))
     }
 
     private func fillFraction(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat {

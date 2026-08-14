@@ -3,6 +3,11 @@ import Foundation
 enum SyncDataApplier {
     private static let durationOffsetMinDiffMs: Int64 = 500
     private static let durationFrontOffsetRatio = 0.3
+    private static let maxStyleRangesPerLine = 256
+    private static let validStyleKinds: Set<String> = [
+        "vocal", "effect", "adlib", "pulse", "wave", "sparkle", "echo", "whisper",
+        "bounce", "sway", "glow", "glitch", "flicker", "float", "blur", "pop"
+    ]
 
     struct ApplyResult: Sendable {
         var lines: [LyricsLine]
@@ -207,8 +212,7 @@ enum SyncDataApplier {
                 startTimeMs: charStartMs,
                 endTimeMs: charEndMs,
                 absoluteIndex: line.start + charIndex,
-                styleRanges: line.styleRanges,
-                fallbackKind: line.kind
+                styleRanges: line.styleRanges
             ))
         }
         return TimedSyllables(
@@ -261,23 +265,41 @@ enum SyncDataApplier {
         startTimeMs: Int64,
         endTimeMs: Int64,
         absoluteIndex: Int,
-        styleRanges: [StyleRange],
-        fallbackKind: String
+        styleRanges: [StyleRange]
     ) -> LyricsLine.Syllable {
         guard !styleRanges.isEmpty else {
             return LyricsLine.Syllable(text: text, startTimeMs: startTimeMs, endTimeMs: endTimeMs)
         }
-        let style = styleRanges.first { $0.start <= absoluteIndex && $0.end >= absoluteIndex }
+        guard let style = findStyleRange(styleRanges, absoluteIndex: absoluteIndex) else {
+            return LyricsLine.Syllable(text: text, startTimeMs: startTimeMs, endTimeMs: endTimeMs)
+        }
         return LyricsLine.Syllable(
             text: text,
             startTimeMs: startTimeMs,
             endTimeMs: endTimeMs,
             inlineStyle: true,
-            styleKind: IvLyricsUtilities.firstNonEmpty(style?.kind ?? "", fallbackKind, "vocal"),
-            styleSpeaker: style?.speaker ?? "",
-            styleSpeakerColor: style?.speakerColor ?? "",
-            styleSpeakerFallback: style?.speakerFallback ?? ""
+            styleKind: style.kind,
+            styleSpeaker: style.speaker,
+            styleSpeakerColor: style.speakerColor,
+            styleSpeakerFallback: style.speakerFallback
         )
+    }
+
+    private static func findStyleRange(_ ranges: [StyleRange], absoluteIndex: Int) -> StyleRange? {
+        var low = 0
+        var high = ranges.count - 1
+        while low <= high {
+            let middle = (low + high) / 2
+            let range = ranges[middle]
+            if absoluteIndex < range.start {
+                high = middle - 1
+            } else if absoluteIndex > range.end {
+                low = middle + 1
+            } else {
+                return range
+            }
+        }
+        return nil
     }
 
     private static func buildVocalParts(line: SyncLine, fullChars: [String], fallbackEndMs: Int64, lastCharMaxDuration: Double) -> [LyricsLine.VocalPart] {
@@ -294,13 +316,10 @@ enum SyncDataApplier {
                 let joinMode = rangeIndex - 1 < part.join.count ? part.join[rangeIndex - 1] : 1
                 if joinMode == 1 || joinMode == 2 {
                     let previousTime = syllables.last?.endTimeMs ?? secondsToMs(part.chars[min(max(0, partCharIndex), part.chars.count - 1)])
-                    syllables.append(styledSyllable(
+                    syllables.append(LyricsLine.Syllable(
                         text: " ",
                         startTimeMs: previousTime,
-                        endTimeMs: previousTime,
-                        absoluteIndex: max(line.start, range.start - 1),
-                        styleRanges: line.styleRanges,
-                        fallbackKind: part.kind
+                        endTimeMs: previousTime
                     ))
                 }
             }
@@ -325,8 +344,7 @@ enum SyncDataApplier {
                     startTimeMs: charStartMs,
                     endTimeMs: charEndMs,
                     absoluteIndex: sourceIndex,
-                    styleRanges: line.styleRanges,
-                    fallbackKind: part.kind
+                    styleRanges: line.styleRanges
                 ))
                 partCharIndex += 1
             }
@@ -362,7 +380,7 @@ enum SyncDataApplier {
                 speakerColor: speakerMetadataValue(rawLine, wireKey: "speaker-color", legacyKey: "speakerColor"),
                 speakerFallback: speakerMetadataValue(rawLine, wireKey: "speaker-fallback", legacyKey: "speakerFallback"),
                 kind: IvLyricsUtilities.firstNonEmpty(stringValue(rawLine["kind"]), "vocal"),
-                styleRanges: readStyleRanges(rawLine["styleRanges"]),
+                styleRanges: readStyleRanges(rawLine["styleRanges"], lineStart: start, lineEnd: end),
                 parts: parallel.parts,
                 hiddenRanges: parallel.hiddenRanges
             )
@@ -404,26 +422,75 @@ enum SyncDataApplier {
         return normalized == "line" || normalized == "word" ? normalized : "character"
     }
 
-    private static func readStyleRanges(_ raw: Any?) -> [StyleRange] {
+    private static func readStyleRanges(_ raw: Any?, lineStart: Int, lineEnd: Int) -> [StyleRange] {
         guard let values = raw as? [Any] else { return [] }
-        return values.compactMap { rawValue -> StyleRange? in
-            guard let value = rawValue as? [String: Any] else { return nil }
+        var result: [StyleRange] = []
+        var previousEnd = lineStart - 1
+        for rawValue in values {
+            if result.count >= maxStyleRangesPerLine { break }
+            guard let value = rawValue as? [String: Any] else { continue }
             let start = intValue(value["start"], fallback: -1)
             let end = intValue(value["end"], fallback: -1)
-            let kind = stringValue(value["kind"]).trimmed.lowercased()
-            let speaker = stringValue(value["speaker"]).trimmed.uppercased()
-            guard start >= 0, end >= start, !kind.isEmpty || !speaker.isEmpty else { return nil }
-            return StyleRange(
+            let rawKind = stringValue(value["kind"]).trimmed.lowercased()
+            let kind = validStyleKinds.contains(rawKind) ? rawKind : ""
+            var speaker = normalizeStyleSpeaker(stringValue(value["speaker"]))
+            let speakerColor = normalizeStyleSpeakerColor(
+                speakerMetadataValue(value, wireKey: "speaker-color", legacyKey: "speakerColor")
+            )
+            let speakerFallback = normalizeStyleSpeakerFallback(
+                speakerMetadataValue(value, wireKey: "speaker-fallback", legacyKey: "speakerFallback")
+            )
+            if isCustomStyleSpeaker(speaker), speakerColor.isEmpty { speaker = "" }
+            guard start >= lineStart,
+                  end <= lineEnd,
+                  end >= start,
+                  start > previousEnd,
+                  !kind.isEmpty || !speaker.isEmpty else { continue }
+            result.append(StyleRange(
                 start: start,
                 end: end,
                 kind: kind,
                 speaker: speaker,
-                speakerColor: speakerMetadataValue(value, wireKey: "speaker-color", legacyKey: "speakerColor"),
-                speakerFallback: speakerMetadataValue(value, wireKey: "speaker-fallback", legacyKey: "speakerFallback")
-            )
-        }.sorted {
-            $0.start == $1.start ? $0.end < $1.end : $0.start < $1.start
+                speakerColor: speaker.isEmpty ? "" : speakerColor,
+                speakerFallback: speaker.isEmpty ? "" : speakerFallback
+            ))
+            previousEnd = end
         }
+        return result
+    }
+
+    private static func normalizeStyleSpeaker(_ value: String) -> String {
+        let speaker = value
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .uppercased()
+        if speaker == "NORMAL" || speaker == "CUSTOM" { return speaker }
+        let components = speaker.split(separator: " ").map(String.init)
+        guard components.count == 2, ["MALE", "FEMALE", "DUET"].contains(components[0]) else { return "" }
+        if components[1] == "CUSTOM" { return speaker }
+        return Int(components[1]).map { (1...5).contains($0) } == true ? speaker : ""
+    }
+
+    private static func isCustomStyleSpeaker(_ speaker: String) -> Bool {
+        speaker == "CUSTOM" || speaker.hasSuffix(" CUSTOM")
+    }
+
+    private static func normalizeStyleSpeakerColor(_ value: String) -> String {
+        let color = value.trimmed.lowercased()
+        guard color.count == 7, color.first == "#" else { return "" }
+        return color.dropFirst().allSatisfy { $0.isHexDigit } ? color : ""
+    }
+
+    private static func normalizeStyleSpeakerFallback(_ value: String) -> String {
+        let fallback = value
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .uppercased()
+        return ["MALE 1", "FEMALE 1", "DUET 1"].contains(fallback) ? fallback : ""
     }
 
     private static func readCompactTiming(_ object: [String: Any], expectedLength: Int, granularity: String) -> [Double] {
