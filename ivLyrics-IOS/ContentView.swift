@@ -5683,6 +5683,7 @@ struct LyricsLineView: View, Equatable {
     var body: some View {
         let orderedVocalParts = LyricsTimelineDisplayBuilder.orderedVocalParts(line.vocalParts)
         let displayVocalParts = LyricsTimelineDisplayBuilder.displayableVocalParts(orderedVocalParts)
+        let linePronunciationText = distinctPronunciation(line.pronunciationText, original: originalText)
         let useVocalPartSupplements = LyricsTimelineDisplayBuilder.shouldUseVocalPartSupplements(
             orderedParts: orderedVocalParts
         )
@@ -5692,8 +5693,8 @@ struct LyricsLineView: View, Equatable {
                 useVocalPartSupplements: useVocalPartSupplements
             )
                 .font(typography.font(slotId: AppSettings.typoLyricsOriginal, baseSize: 25))
-            if !useVocalPartSupplements, !line.pronunciationText.trimmed.isEmpty {
-                Text(line.pronunciationText)
+            if !useVocalPartSupplements, !linePronunciationText.isEmpty {
+                Text(linePronunciationText)
                     .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: 14))
                     .foregroundStyle(active ? lineActiveColor.opacity(212.0 / 255.0) : lineSupplementInactiveColor)
                     .multilineTextAlignment(textAlignment)
@@ -5859,8 +5860,12 @@ struct LyricsLineView: View, Equatable {
     private func vocalPartSupplements(_ part: LyricsLine.VocalPart, active: Bool) -> some View {
         let speakerColor = vocalPartActiveColor(part)
         let inactiveColor = vocalPartSupplementInactiveColor(part, active: active)
-        if !part.pronunciationText.trimmed.isEmpty {
-            Text(part.pronunciationText)
+        let pronunciationText = distinctPronunciation(
+            part.pronunciationText,
+            original: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part)
+        )
+        if !pronunciationText.isEmpty {
+            Text(pronunciationText)
                 .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: active ? 14 : 12.5))
                 .foregroundStyle(active ? speakerColor.opacity(212.0 / 255.0) : inactiveColor)
                 .multilineTextAlignment(textAlignment)
@@ -5875,6 +5880,15 @@ struct LyricsLineView: View, Equatable {
         } else if translationLoading {
             supplementReserveText(LyricsTimelineDisplayBuilder.supplementPlaceholderText(part), slotId: AppSettings.typoLyricsTranslation, baseSize: active ? 14 : 12.5)
         }
+    }
+
+    private func distinctPronunciation(_ value: String, original: String) -> String {
+        let pronunciation = value.trimmed
+        guard !pronunciation.isEmpty,
+              !IvLyricsUtilities.lyricsTextsEquivalent(pronunciation, original) else {
+            return ""
+        }
+        return pronunciation
     }
 
     private func supplementReserveText(_ text: String, slotId: String, baseSize: CGFloat) -> some View {

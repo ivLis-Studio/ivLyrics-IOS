@@ -1218,7 +1218,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var progress: CGFloat
 
         var supplementLines: [String] {
-            let pronunciation = line.pronunciationText.trimmed
+            let rawPronunciation = line.pronunciationText.trimmed
+            let pronunciation = IvLyricsUtilities.lyricsTextsEquivalent(rawPronunciation, line.text)
+                ? ""
+                : rawPronunciation
             let translation = line.translationText.trimmed
             if pronunciation.isEmpty {
                 return translation.isEmpty ? [] : [translation]
