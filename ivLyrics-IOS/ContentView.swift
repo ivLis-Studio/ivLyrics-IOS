@@ -6105,7 +6105,9 @@ struct SyllableKaraokeText: View {
             syllables: sourceSyllables,
             annotations: culturalAnnotations
         )
-        let bounceActiveIndex = bounceEnabled && !accessibilityReduceMotion && active && !displaySyllables.isEmpty
+        let bounceWindowActive = positionMs >= startTimeMs
+            && positionMs < endTimeMs + 280
+        let bounceActiveIndex = bounceEnabled && !accessibilityReduceMotion && bounceWindowActive && !displaySyllables.isEmpty
             ? activeSegmentIndex(in: displaySyllables, fillTimings: fillTimings)
             : nil
         var timedSegments: [KaraokeSyllableSegment] = []
@@ -6367,7 +6369,12 @@ struct SyllableKaraokeText: View {
     }
 
     private func fillFraction(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat {
-        guard active else { return 0 }
+        // Retain the completed paint while the parent line moves and fades away.
+        // Previously `active == false` reset every segment to its inactive color
+        // in one frame at the line boundary.
+        if endTimeMs > startTimeMs, positionMs >= endTimeMs {
+            return 1
+        }
         if isWordDisplayGranularity {
             return positionMs >= startTimeMs ? 1 : 0
         }
@@ -6386,13 +6393,16 @@ struct SyllableKaraokeText: View {
         activeIndex: Int?
     ) -> KaraokeBounceMetrics {
         guard bounceEnabled,
-              active,
               fillTiming.endTimeMs > fillTiming.startTimeMs,
               let activeIndex else {
             return .idle
         }
-        let distance = abs(CGFloat(index - activeIndex))
-        guard distance <= 3, let rawStrength = bounceStrength(startTimeMs: fillTiming.startTimeMs) else {
+        let distance = isWordDisplayGranularity ? 0 : abs(CGFloat(index - activeIndex))
+        guard distance <= 3,
+              let rawStrength = bounceStrength(
+                startTimeMs: fillTiming.startTimeMs,
+                endTimeMs: fillTiming.endTimeMs
+              ) else {
             return .idle
         }
         let attenuation = max(0.22, 1 - distance * 0.23)
@@ -6441,18 +6451,26 @@ struct SyllableKaraokeText: View {
         return nextIndex ?? fallbackIndex
     }
 
-    private func bounceStrength(startTimeMs: Int64) -> CGFloat? {
-        let rise: CGFloat = 220
-        let release: CGFloat = 640
-        let elapsed = CGFloat(positionMs - startTimeMs)
-        if elapsed < 0 || elapsed > rise + release {
+    private func bounceStrength(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat? {
+        let duration = CGFloat(max(1, endTimeMs - startTimeMs))
+        let rise = min(180, max(60, duration * 0.38))
+        let release = min(280, max(180, duration * 0.45))
+        let peakTimeMs = min(CGFloat(endTimeMs), CGFloat(startTimeMs) + rise)
+        let currentTimeMs = CGFloat(positionMs)
+        if currentTimeMs < CGFloat(startTimeMs) || currentTimeMs >= CGFloat(endTimeMs) + release {
             return nil
         }
-        if elapsed <= rise {
-            return easeOutCubic(elapsed / rise)
+        if currentTimeMs <= peakTimeMs {
+            return easeOutCubic(
+                (currentTimeMs - CGFloat(startTimeMs))
+                    / max(1, peakTimeMs - CGFloat(startTimeMs))
+            )
         }
-        let progress = min(1, (elapsed - rise) / release)
-        return pow(1 - progress, 1.38)
+        if currentTimeMs <= CGFloat(endTimeMs) {
+            return 1
+        }
+        let progress = min(1, (currentTimeMs - CGFloat(endTimeMs)) / release)
+        return pow(1 - progress, 1.25)
     }
 
     private func easeOutCubic(_ value: CGFloat) -> CGFloat {
