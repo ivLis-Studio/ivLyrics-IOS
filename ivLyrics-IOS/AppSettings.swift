@@ -6,6 +6,9 @@ final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
     static let outputLangSameUI = "same_ui"
+    static let pronunciationNotationTranslation = "translation"
+    static let pronunciationNotationLatin = "latin"
+    static let pronunciationNotationIPA = "ipa"
     static let defaultSourceLang = "default"
     private static let firstLanguagePromptedKey = "first_language_prompted_v1"
     static let previewOriginal = "original"
@@ -57,7 +60,7 @@ final class AppSettings: ObservableObject {
     static let vinylTonearmFinishSilver = "silver"
     static let vinylTonearmFinishBlack = "black"
     private static let cloudSettingKeys: Set<String> = [
-        "provider", "ui_lang", "output_lang", "target_lang", "pronunciation_lang", "language_rules_v2",
+        "provider", "ui_lang", "output_lang", "target_lang", "pronunciation_lang", "pronunciation_notation_v1", "language_rules_v2",
         "translation_enabled", "pronunciation_enabled", "bing_translate_enabled", "google_translate_enabled",
         "ai_provider_order_v1", "ai_provider_enabled_v1",
         "metadata_translation_enabled",
@@ -223,6 +226,9 @@ final class AppSettings: ObservableObject {
     @Published var providerId: String { didSet { saveProviderIfNeeded() } }
     @Published var uiLang: String { didSet { set("ui_lang", uiLang) } }
     @Published var outputLang: String { didSet { saveOutputLanguageFromPublished() } }
+    @Published var pronunciationNotation: String {
+        didSet { set("pronunciation_notation_v1", Self.normalizePronunciationNotation(pronunciationNotation)) }
+    }
     @Published var translationEnabled: Bool { didSet { saveDefaultLanguageRuleFromPublished() } }
     @Published var pronunciationEnabled: Bool { didSet { saveDefaultLanguageRuleFromPublished() } }
     @Published var bingTranslateEnabled: Bool { didSet { set("bing_translate_enabled", bingTranslateEnabled); syncLegacyKeylessProvider(KeylessTranslationProviders.bingId, enabled: bingTranslateEnabled) } }
@@ -323,6 +329,9 @@ final class AppSettings: ObservableObject {
         providerId = provider.id
         uiLang = Self.normalizedUiLanguage(defaults.string(forKey: "ui_lang") ?? Self.autoTargetLanguage())
         outputLang = loadedOutputLang
+        pronunciationNotation = Self.normalizePronunciationNotation(
+            defaults.string(forKey: "pronunciation_notation_v1")
+        )
         translationEnabled = ruleConfig.defaultRule.translationEnabled
         pronunciationEnabled = ruleConfig.defaultRule.pronunciationEnabled
         bingTranslateEnabled = loadedAIProviderEnabled[KeylessTranslationProviders.bingId] ?? true
@@ -434,6 +443,7 @@ final class AppSettings: ObservableObject {
         providerId = loaded.providerId
         uiLang = loaded.uiLang
         outputLang = loaded.outputLang
+        pronunciationNotation = loaded.pronunciationNotation
         translationEnabled = loaded.translationEnabled
         pronunciationEnabled = loaded.pronunciationEnabled
         bingTranslateEnabled = loaded.bingTranslateEnabled
@@ -513,6 +523,7 @@ final class AppSettings: ObservableObject {
         let snapshot = Snapshot(
             uiLang: uiLang,
             outputLang: outputLang,
+            pronunciationNotation: Self.normalizePronunciationNotation(pronunciationNotation),
             provider: Self.providerById(providerId),
             defaultRule: ruleConfig.defaultRule,
             languageRules: ruleConfig.languageRules,
@@ -1346,6 +1357,17 @@ final class AppSettings: ObservableObject {
         return normalizeLanguageCode(normalized)
     }
 
+    static func normalizePronunciationNotation(_ notation: String?) -> String {
+        switch (notation ?? "").trimmed.lowercased() {
+        case pronunciationNotationLatin:
+            return pronunciationNotationLatin
+        case pronunciationNotationIPA:
+            return pronunciationNotationIPA
+        default:
+            return pronunciationNotationTranslation
+        }
+    }
+
     static func normalizedUiLanguage(_ lang: String?) -> String {
         let normalized = normalizeLanguageCode(lang)
         if languages.contains(where: { $0.code.lowercased() == normalized.lowercased() }) {
@@ -1699,6 +1721,7 @@ final class AppSettings: ObservableObject {
     struct Snapshot: Sendable {
         var uiLang: String
         var outputLang: String
+        var pronunciationNotation: String
         var provider: Provider
         var defaultRule: LanguageRule
         var languageRules: [String: LanguageRule]
@@ -1898,7 +1921,7 @@ final class AppSettings: ObservableObject {
         }
 
         var cacheKey: String {
-            var key = "\(provider.id)|output=\(outputLang)|resolvedOutput=\(pronunciationLanguage)|translationTarget=\(defaultRule.targetLang)|bingTranslate=\(bingTranslateEnabled)|googleTranslate=\(googleTranslateEnabled)|default=\(defaultRule.cacheKey)|furigana=\(japaneseFuriganaEnabled)|model=\(model)|url=\(baseUrl)|tok=\(maxTokens)|temp=\(temperature)"
+            var key = "\(provider.id)|output=\(outputLang)|resolvedOutput=\(pronunciationLanguage)|pronunciationNotation=\(pronunciationNotation)|translationTarget=\(defaultRule.targetLang)|bingTranslate=\(bingTranslateEnabled)|googleTranslate=\(googleTranslateEnabled)|default=\(defaultRule.cacheKey)|furigana=\(japaneseFuriganaEnabled)|model=\(model)|url=\(baseUrl)|tok=\(maxTokens)|temp=\(temperature)"
             for providerId in AppSettings.normalizedAIProviderOrder(aiProviderOrder) {
                 key += "|provider=\(providerId):enabled=\(isAIProviderEnabled(providerId))"
                 if let profile = aiProviderProfiles[providerId] {

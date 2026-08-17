@@ -11,7 +11,7 @@ actor AiLyricsRepository {
         pattern: supplementOutputPrefixPattern
     )
 
-    private let supplementPromptVersion = "v4-id-aligned-ai-only"
+    private let supplementPromptVersion = "v5-pronunciation-notation"
     private let supplementTaskPronunciation = "pronunciation"
     private let supplementTaskTranslation = "translation"
     private let tmiPromptVersion = ResearchDocument.outputVersion
@@ -422,8 +422,13 @@ actor AiLyricsRepository {
         do {
             let values: [String]
             if pronunciation {
-                let prompt = buildPhoneticPrompt(requests: requests, lang: pronunciationLang)
-                log("ai pronunciation stream request: lines=\(requests.count) / pronunciation=\(pronunciationLang)")
+                let prompt = buildPhoneticPrompt(
+                    requests: requests,
+                    lang: pronunciationLang,
+                    sourceLang: sourceLang,
+                    pronunciationNotation: settings.pronunciationNotation
+                )
+                log("ai pronunciation stream request: lines=\(requests.count) / pronunciation=\(pronunciationLang) / notation=\(settings.pronunciationNotation)")
                 var resolvedValues: [String]?
                 var lastError: Error?
                 for providerSettings in settings.readyAIProviderSnapshots {
@@ -1598,20 +1603,59 @@ actor AiLyricsRepository {
         """
     }
 
-    private func buildPhoneticPrompt(requests: [SupplementRequest], lang: String) -> String {
+    private func buildPhoneticPrompt(
+        requests: [SupplementRequest],
+        lang: String,
+        sourceLang: String,
+        pronunciationNotation: String
+    ) -> String {
         let langInfo = AppSettings.languageInfo(lang)
+        let notation = AppSettings.normalizePronunciationNotation(pronunciationNotation)
         let lineCount = requests.count
-        let scriptInstruction = phoneticScriptInstruction(lang)
-        let outputScript = pronunciationOutputScript(lang, langInfo: langInfo)
+        let scriptInstruction = phoneticScriptInstruction(
+            lang,
+            langInfo: langInfo,
+            notation: notation,
+            sourceLang: sourceLang
+        )
+        let outputScript = pronunciationOutputScript(lang, langInfo: langInfo, notation: notation)
+        let audience = notation == AppSettings.pronunciationNotationIPA
+            ? "the original sung language"
+            : "\(langInfo.name) speakers"
+        let sourceScriptPolicy = notation == AppSettings.pronunciationNotationIPA
+            ? "- Never copy source orthography for pronounceable words; transcribe every sung sound into IPA\n"
+            : "- Never use the input language's original script unless it is also \(outputScript)\n"
+        let alignmentExample: String
+        if notation == AppSettings.pronunciationNotationIPA {
+            alignmentExample = """
+            Correct IPA output:
+            L0001\tiki te iɾɯ koto to wa
+            L0002\tkaɰaɾi tsɯzɯkeɾɯ koto da
+
+            """
+        } else if notation == AppSettings.pronunciationNotationLatin {
+            alignmentExample = """
+            Correct Latin output:
+            L0001\tikite iru koto to wa
+            L0002\tkawari tsuzukeru koto da
+
+            """
+        } else {
+            alignmentExample = """
+            Correct output for Korean pronunciation:
+            L0001\t이키테이루 코토토와
+            L0002\t카와리 츠즈케루 코토다
+
+            """
+        }
         return """
-        You are a pronunciation converter. Convert these \(lineCount) indexed rows of lyrics into how they SOUND (pronunciation) for \(langInfo.name) speakers.
+        You are a pronunciation converter. Convert these \(lineCount) indexed rows of lyrics into how they SOUND (pronunciation) for \(audience).
         \(scriptInstruction)
 
         CRITICAL RULES:
         - This is a PRONUNCIATION task, NOT a translation task
         - Output how each line SOUNDS when spoken aloud, written ONLY in \(outputScript)
-        - Never use the input language's original script unless it is also \(outputScript)
-        - Do NOT translate the meaning of the lyrics
+        \(sourceScriptPolicy)- Do NOT translate the meaning of the lyrics
         - Do NOT output the original lyrics unchanged
         - Input rows are ID-tagged as L0001, L0002, etc. Treat each ID as an immutable timing anchor
         - Output EXACTLY \(lineCount) rows, one output row for every input row
@@ -1637,10 +1681,7 @@ actor AiLyricsRepository {
         L0001\t生きていることとは
         L0002\t変わり続けることだ
 
-        Correct output for Korean pronunciation:
-        L0001\t이키테이루 코토토와
-        L0002\t카와리 츠즈케루 코토다
-
+        \(alignmentExample)
         Wrong output:
         L0001\t이키테이루 코토토와 카와리 츠즈케루 코토다
         L0002\t
@@ -1892,6 +1933,7 @@ actor AiLyricsRepository {
             + "|tok=\(settings.maxTokens)"
             + "|temp=\(settings.temperature)"
             + "|output=\(outputLang)"
+            + "|pronunciationNotation=\(settings.pronunciationNotation)"
             + "|text=\(IvLyricsUtilities.sha256(textPayload))"
     }
 
@@ -2301,7 +2343,19 @@ actor AiLyricsRepository {
         return cleaned.isEmpty ? fallback.trimmed : cleaned
     }
 
-    private func phoneticScriptInstruction(_ lang: String) -> String {
+    private func phoneticScriptInstruction(
+        _ lang: String,
+        langInfo: AppSettings.Language,
+        notation: String,
+        sourceLang: String
+    ) -> String {
+        if notation == AppSettings.pronunciationNotationLatin {
+            return "Use only Latin letters, including language-appropriate Latin diacritics, spaces, apostrophes, and hyphens. Write a readable romanization of the sung sounds. Never output Han characters, kana, Hangul, Cyrillic, Arabic, Devanagari, Bengali, Thai, or any other non-Latin script."
+        }
+        if notation == AppSettings.pronunciationNotationIPA {
+            let sourceHint = sourceLang.trimmed.isEmpty ? "auto" : sourceLang.trimmed
+            return "Use broad, readable Unicode IPA for the sung sounds. Source-language hint: \(sourceHint). Infer the language from the full lyrics when the hint is auto or uncertain. Use IPA stress, length, tone, and combining marks only when they materially affect pronunciation. Do not use ordinary romanization or source orthography, and do not wrap output rows in slashes or square brackets."
+        }
         switch AppSettings.normalizeLanguageCode(lang) {
         case "ko":
             return "Use Korean Hangul syllables only. Example: こんにちは -> 콘니치와, ありがとう -> 아리가토, hello -> 헬로. Never output Japanese kana, Chinese characters, or Latin romanization for Korean pronunciation."
@@ -2314,31 +2368,31 @@ actor AiLyricsRepository {
         case "zh-TW":
             return "Use Traditional Chinese characters only for a Chinese pronunciation guide. Do not output Latin pinyin unless the input itself is a non-pronounceable marker."
         case "hi":
-            return "Use Devanagari script only for Hindi pronunciation. \(AppSettings.languageInfo(lang).phoneticDescription)"
+            return "Use Devanagari script only for Hindi pronunciation. \(langInfo.phoneticDescription)"
         case "es":
             return "Use Spanish spelling conventions only for pronunciation guides. Write sounds naturally for Spanish speakers using the Latin alphabet; do not translate meanings."
         case "fr":
             return "Use French spelling conventions only for pronunciation guides. Write sounds naturally for French speakers using the Latin alphabet; do not translate meanings."
         case "ar":
-            return "Use Arabic script only for Arabic pronunciation. \(AppSettings.languageInfo(lang).phoneticDescription)"
+            return "Use Arabic script only for Arabic pronunciation. \(langInfo.phoneticDescription)"
         case "fa":
-            return "Use Persian script only for Persian pronunciation. \(AppSettings.languageInfo(lang).phoneticDescription)"
+            return "Use Persian script only for Persian pronunciation. \(langInfo.phoneticDescription)"
         case "de":
             return "Use German spelling conventions only for pronunciation guides. Write sounds naturally for German speakers using the Latin alphabet; do not translate meanings."
         case "cs":
             return "Use Czech spelling conventions only for pronunciation guides. Write sounds naturally for Czech speakers using the Latin alphabet and Czech diacritics; do not translate meanings."
         case "ru":
-            return "Use Cyrillic script only for Russian pronunciation. \(AppSettings.languageInfo(lang).phoneticDescription)"
+            return "Use Cyrillic script only for Russian pronunciation. \(langInfo.phoneticDescription)"
         case "sv":
             return "Use Swedish spelling conventions only for pronunciation guides. Write sounds naturally for Swedish speakers using the Latin alphabet; do not translate meanings."
         case "pt":
             return "Use Portuguese spelling conventions only for pronunciation guides. Write sounds naturally for Portuguese speakers using the Latin alphabet; do not translate meanings."
         case "bn":
-            return "Use Bengali script only for Bengali pronunciation. \(AppSettings.languageInfo(lang).phoneticDescription)"
+            return "Use Bengali script only for Bengali pronunciation. \(langInfo.phoneticDescription)"
         case "it":
             return "Use Italian spelling conventions only for pronunciation guides. Write sounds naturally for Italian speakers using the Latin alphabet; do not translate meanings."
         case "th":
-            return "Use Thai script only for Thai pronunciation. \(AppSettings.languageInfo(lang).phoneticDescription)"
+            return "Use Thai script only for Thai pronunciation. \(langInfo.phoneticDescription)"
         case "vi":
             return "Use Vietnamese Quốc Ngữ spelling only for pronunciation guides. Use Vietnamese diacritics where they help pronunciation; do not translate meanings."
         case "id":
@@ -2348,11 +2402,21 @@ actor AiLyricsRepository {
         case "tr":
             return "Use Turkish spelling conventions only for pronunciation guides. Write sounds naturally for Turkish speakers using the Latin alphabet and Turkish diacritics; do not translate meanings."
         default:
-            return "Write pronunciation in \(AppSettings.languageInfo(lang).nativeName) spelling. \(AppSettings.languageInfo(lang).phoneticDescription)"
+            return "Write pronunciation in \(langInfo.nativeName) spelling. \(langInfo.phoneticDescription)"
         }
     }
 
-    private func pronunciationOutputScript(_ lang: String, langInfo: AppSettings.Language) -> String {
+    private func pronunciationOutputScript(
+        _ lang: String,
+        langInfo: AppSettings.Language,
+        notation: String
+    ) -> String {
+        if notation == AppSettings.pronunciationNotationLatin {
+            return "the Latin alphabet (romanization)"
+        }
+        if notation == AppSettings.pronunciationNotationIPA {
+            return "Unicode International Phonetic Alphabet (IPA)"
+        }
         switch AppSettings.normalizeLanguageCode(lang) {
         case "ko": return "Korean Hangul"
         case "en": return "Latin alphabet"

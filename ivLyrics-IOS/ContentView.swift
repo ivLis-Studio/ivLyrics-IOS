@@ -8147,6 +8147,19 @@ struct SettingsView: View {
                     .settingsMenuSurface()
                 }
 
+                settingsCard(settings.t("setting.pronunciation_notation"), description: settings.t("setting.pronunciation_notation_desc")) {
+                    Picker("", selection: pronunciationNotationBinding) {
+                        Text(settings.t("pronunciation.notation.translation"))
+                            .tag(AppSettings.pronunciationNotationTranslation)
+                        Text(settings.t("pronunciation.notation.latin"))
+                            .tag(AppSettings.pronunciationNotationLatin)
+                        Text(settings.t("pronunciation.notation.ipa"))
+                            .tag(AppSettings.pronunciationNotationIPA)
+                    }
+                    .labelsHidden()
+                    .settingsMenuSurface()
+                }
+
                 settingsToggleCard(
                     settings.t("setting.metadata_translation"),
                     description: settings.t("setting.metadata_translation_desc"),
@@ -9416,6 +9429,18 @@ struct SettingsView: View {
                 guard settings.outputLang != normalized else { return }
                 settings.outputLang = normalized
                 model.outputLanguageChanged()
+            }
+        )
+    }
+
+    private var pronunciationNotationBinding: Binding<String> {
+        Binding(
+            get: { settings.pronunciationNotation },
+            set: { value in
+                let normalized = AppSettings.normalizePronunciationNotation(value)
+                guard settings.pronunciationNotation != normalized else { return }
+                settings.pronunciationNotation = normalized
+                model.pronunciationNotationChanged()
             }
         )
     }

@@ -1918,6 +1918,15 @@ final class AppViewModel: ObservableObject {
         )
     }
 
+    func pronunciationNotationChanged() {
+        showSavedToast(settings.t("toast.settings_saved"))
+        regenerateCurrentAiSupplements(
+            statusKey: "toast.settings_saved",
+            bypassSupplementCache: false,
+            refreshMetadataTranslation: false
+        )
+    }
+
     func uiLanguageChanged() {
         refreshLocalizedStatusStrings()
         showSavedToast(settings.t("toast.ui_language_saved"))
