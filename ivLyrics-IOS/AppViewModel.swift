@@ -207,6 +207,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var resolvingSpotifyMetadata = false
     @Published private(set) var spotifyUserConnected = false
     @Published private(set) var spotifyWebAPIConnected = false
+    @Published private(set) var spotifyWebAPIAuthorizationStored = false
     @Published private(set) var spotifyLivePolling = false
     @Published private(set) var spotifyDeviceName = ""
     @Published private(set) var spotifyAppRemoteConnected = false
@@ -460,6 +461,7 @@ final class AppViewModel: ObservableObject {
             connected: spotifyUserPlaybackService.connected
         )
         spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+        spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
         creatorAccountConnected = creatorAccountClient.currentSession() != nil
         creatorPrivacyState = creatorAccountConnected ? .notLoaded : .signedOut
         spotifyAppRemotePlaybackService.onPlaybackSnapshot = { [weak self] playback in
@@ -479,6 +481,7 @@ final class AppViewModel: ObservableObject {
         }
         spotifyUserPlaybackService.onAuthorizationRecoveryNeeded = { [weak self] in
             guard let self else { return }
+            spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
             guard settings.spotifyWebAPIEnabled else {
                 appendLog("spotify queue auth: recovery ignored because Web API is disabled")
                 return
@@ -955,6 +958,7 @@ final class AppViewModel: ObservableObject {
         spotifyPollTask = nil
         spotifyWebAPIAuthorizationCoordinator.resetForUserInitiatedConnection()
         spotifyUserPlaybackService.prepare(clientId: clientId)
+        spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
         spotifyUserConnected = SpotifyWebAPIFeaturePolicy.canUseUserToken(
             enabled: settings.spotifyWebAPIEnabled,
             connected: spotifyUserPlaybackService.connected
@@ -1192,6 +1196,7 @@ final class AppViewModel: ObservableObject {
         spotifyUserPlaybackService.disconnect()
         spotifyUserConnected = false
         spotifyWebAPIConnected = false
+        spotifyWebAPIAuthorizationStored = false
         spotifyDeviceName = ""
         appendLog("spotify live: disconnected")
     }
@@ -2832,9 +2837,11 @@ final class AppViewModel: ObservableObject {
         do {
             let token = try await spotifyUserPlaybackService.metadataAccessToken(clientId: clientId) ?? ""
             spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+            spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
             return token
         } catch {
             spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+            spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
             appendLog("spotify metadata: user token unavailable; optional Client Secret fallback will be used")
             return ""
         }
@@ -3109,7 +3116,10 @@ final class AppViewModel: ObservableObject {
             do {
                 try await Task.sleep(nanoseconds: Self.spotifyQueuePrefetchDelayNs)
                 guard !Task.isCancelled, currentTrack?.stableKey == sourceKey else { return }
-                guard let nextTrack = await spotifyUserPlaybackService.nextQueuedTrack(clientId: clientId),
+                guard let nextTrack = await spotifyUserPlaybackService.nextQueuedTrack(
+                    clientId: clientId,
+                    excludingSourceKey: sourceKey
+                ),
                       !Task.isCancelled,
                       currentTrack?.stableKey == sourceKey,
                       nextTrack.stableKey != sourceKey,
@@ -3346,6 +3356,7 @@ final class AppViewModel: ObservableObject {
                 connected: spotifyUserPlaybackService.connected
             )
         spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+        spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
 
         if didRequestAuthorization {
             if succeeded {
@@ -3384,6 +3395,7 @@ final class AppViewModel: ObservableObject {
                 connected: spotifyUserPlaybackService.connected
             )
         spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+        spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
         if completion == .fallbackUnavailable {
             finishSpotifyWebAPIFallbackUnavailable(
                 message: "Spotify Web API authorization validation is temporarily unavailable",
@@ -3401,6 +3413,7 @@ final class AppViewModel: ObservableObject {
             connected: spotifyUserPlaybackService.connected
         )
         spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+        spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
         if !preserveLiveModeForRetry {
             spotifyLivePolling = false
         }

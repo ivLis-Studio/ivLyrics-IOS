@@ -137,6 +137,13 @@ actor LyricsRepository {
         ), forKey: key)
     }
 
+    private func storeLyricsCache(_ key: String, result: LyricsResult) throws {
+        try Task.checkCancellation()
+        putMemoryCachedLyrics(key, result: result)
+        try Task.checkCancellation()
+        diskCache.put(key, result: result)
+    }
+
     private func markProviderLyricsNormalized(_ result: LyricsResult) -> LyricsResult {
         PaxsenixLyricsProvider.markEntitiesDecoded(in: result)
     }
@@ -251,6 +258,7 @@ actor LyricsRepository {
         onProviderLoading: ((String) async -> Void)? = nil,
         onSpotifyMetadataResolved: ((ResolvedSpotifyMetadata) async -> Void)? = nil
     ) async throws -> LoadedLyrics {
+        try Task.checkCancellation()
         guard track.hasUsableMetadata else {
             return LoadedLyrics(trackKey: "", result: .empty(ui("repo.metadata_waiting", settings: settings)), artworkURL: nil, logs: [], resolvedIsrc: "", resolvedSpotifyTrackId: "")
         }
@@ -264,7 +272,7 @@ actor LyricsRepository {
         let cacheKey = lyricsCacheKey(trackKey: key, settings: settings)
         var publishedSpotifyMetadataKeys = Set<String>()
         func publishResolvedMetadata(isrc: String, spotifyTrackId: String, artworkURL: URL?) async {
-            guard let onSpotifyMetadataResolved else { return }
+            guard !Task.isCancelled, let onSpotifyMetadataResolved else { return }
             let normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc)
             let safeSpotifyTrackId = spotifyTrackId.trimmed
             guard !normalizedIsrc.isEmpty || !safeSpotifyTrackId.isEmpty || artworkURL != nil else { return }
@@ -301,10 +309,12 @@ actor LyricsRepository {
                         resolvedSpotifyTrackId: cached.spotifyTrackId
                     )
                 )
+                try Task.checkCancellation()
                 logs.removeAll(keepingCapacity: true)
             }
         }
         if cachedBase == nil, let diskCached = reusableDiskCachedLyrics(cacheKey) {
+            try Task.checkCancellation()
             putMemoryCachedLyrics(cacheKey, result: diskCached)
             let cachedIsrc = IvLyricsUtilities.firstNonEmpty(diskCached.isrc, track.isrc)
             if !shouldRevalidateCachedResult(diskCached, settings: settings, resolvedIsrc: cachedIsrc) {
@@ -324,6 +334,7 @@ actor LyricsRepository {
                         resolvedSpotifyTrackId: diskCached.spotifyTrackId
                     )
                 )
+                try Task.checkCancellation()
                 logs.removeAll(keepingCapacity: true)
             }
         }
@@ -353,6 +364,7 @@ actor LyricsRepository {
                 await publishResolvedMetadata(isrc: match.isrc, spotifyTrackId: match.spotifyId, artworkURL: match.artworkURL)
             }
         }
+        try Task.checkCancellation()
         let isrc = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.isrc, track.isrc, cachedBase?.isrc)
         let spotifyTrackId = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.spotifyId, track.trackId, cachedBase?.spotifyTrackId)
         let hasSpotifyIsrc = spotifyMatch?.isrc.isEmpty == false
@@ -361,40 +373,49 @@ actor LyricsRepository {
         log(isrc.isEmpty ? "isrc: unavailable after Spotify lookup" : "isrc: \(isrc) (\(isrcSource))")
         if !isrc.isEmpty {
             await publishResolvedMetadata(isrc: isrc, spotifyTrackId: spotifyTrackId, artworkURL: spotifyMatch?.artworkURL)
+            try Task.checkCancellation()
         }
 
         if let cached = cachedBase, !cached.contributors.isEmpty {
             let supportsContributorRefresh = !isrc.isEmpty
                 && AppSettings.lyricsProviderById(cached.providerId) != nil
-            if supportsContributorRefresh,
-               let currentSyncData = await fetchSyncData(
+            let currentSyncData: SyncDataResult?
+            if supportsContributorRefresh {
+                currentSyncData = await fetchSyncData(
                     isrc: isrc,
                     providerId: cached.providerId,
                     track: track,
                     spotifyMatch: spotifyMatch,
                     log: log,
                     forceContributorRefresh: true
-                ) {
+                )
+                try Task.checkCancellation()
+            } else {
+                currentSyncData = nil
+            }
+            if let currentSyncData {
                 var hydrated = cached
                 hydrated.contributors = currentSyncData.contributors
                 hydrated.syncType = currentSyncData.syncType
                 hydrated.syncPoints = currentSyncData.syncPoints
                 cachedBase = hydrated
-                putMemoryCachedLyrics(cacheKey, result: hydrated)
-                diskCache.put(cacheKey, result: hydrated)
+                try storeLyricsCache(cacheKey, result: hydrated)
                 log("sync-data contributors refreshed for cached lyrics: count=\(currentSyncData.contributors.count)")
             } else {
                 let privacySafe = privacySafeContributorFallback(cached)
                 cachedBase = privacySafe
-                putMemoryCachedLyrics(cacheKey, result: privacySafe)
-                diskCache.put(cacheKey, result: privacySafe)
+                try storeLyricsCache(cacheKey, result: privacySafe)
                 log("sync-data contributor refresh failed; privacy-safe anonymous fallback used")
             }
         }
 
-        let syncDataProviders = isrc.isEmpty
-            ? Set<String>()
-            : await availableSyncDataProviderIds(isrc: isrc, log: log)
+        let syncDataProviders: Set<String>
+        if isrc.isEmpty {
+            syncDataProviders = []
+        } else {
+            syncDataProviders = await availableSyncDataProviderIds(isrc: isrc, log: log)
+            try Task.checkCancellation()
+        }
         if let cachedBase {
             let preferredSyncProvider = preferredIvLyricsSyncProviderId(
                 settings: settings,
@@ -413,6 +434,7 @@ actor LyricsRepository {
                         spotifyMatch: spotifyMatch,
                         log: log
                     )
+                    try Task.checkCancellation()
                     if let applied = applySyncData(
                         syncData,
                         base: cachedBase,
@@ -428,8 +450,7 @@ actor LyricsRepository {
                                 selectionPolicyKey: settings.lyricsProviderPolicySignature
                             )
                         )
-                        putMemoryCachedLyrics(cacheKey, result: selected)
-                        diskCache.put(cacheKey, result: selected)
+                        try storeLyricsCache(cacheKey, result: selected)
                         return LoadedLyrics(trackKey: key, result: selected, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
                     }
                     log("cached provider sync-data apply failed; cached lyrics kept")
@@ -445,6 +466,7 @@ actor LyricsRepository {
                     spotifyMatch: spotifyMatch,
                     log: log
                 )
+                try Task.checkCancellation()
                 if let applied = applySyncData(
                     syncData,
                     base: cachedBase,
@@ -460,8 +482,7 @@ actor LyricsRepository {
                             selectionPolicyKey: settings.lyricsProviderPolicySignature
                         )
                     )
-                    putMemoryCachedLyrics(cacheKey, result: selected)
-                    diskCache.put(cacheKey, result: selected)
+                    try storeLyricsCache(cacheKey, result: selected)
                     return LoadedLyrics(trackKey: key, result: selected, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
                 }
                 log("cached provider sync-data unavailable; cached lyrics kept")
@@ -484,11 +505,13 @@ actor LyricsRepository {
 
         var attempts: [String: ProviderVariants] = [:]
         var attempted = Set<String>()
-        func loadOnce(_ providerId: String) async -> ProviderVariants? {
+        func loadOnce(_ providerId: String) async throws -> ProviderVariants? {
+            try Task.checkCancellation()
             if attempted.contains(providerId) { return attempts[providerId] }
             attempted.insert(providerId)
             if let providerName = AppSettings.lyricsProviderById(providerId)?.name {
                 await onProviderLoading?(providerName)
+                try Task.checkCancellation()
             }
             do {
                 if let variants = try await loadProviderVariants(
@@ -501,10 +524,14 @@ actor LyricsRepository {
                     settings: settings,
                     log: log
                 ) {
+                    try Task.checkCancellation()
                     attempts[providerId] = variants
                     return variants
                 }
             } catch {
+                if isCancellationError(error) || Task.isCancelled {
+                    throw CancellationError()
+                }
                 log("provider \(providerId) error: \(error.localizedDescription)")
             }
             return nil
@@ -522,7 +549,7 @@ actor LyricsRepository {
                             type: type,
                             syncDataAvailable: syncDataProviders.contains(providerId)
                           ) else { continue }
-                    if let result = await loadOnce(providerId)?.result(for: type), !result.lines.isEmpty {
+                    if let result = try await loadOnce(providerId)?.result(for: type), !result.lines.isEmpty {
                         selected = result
                         selectedProvider = providerId
                         selectedType = type
@@ -546,7 +573,7 @@ actor LyricsRepository {
                         )
                 }
                 guard !allowedTypes.isEmpty else { continue }
-                guard let variants = await loadOnce(providerId) else { continue }
+                guard let variants = try await loadOnce(providerId) else { continue }
                 for type in allowedTypes {
                     if let result = variants.result(for: type), !result.lines.isEmpty {
                         selected = result
@@ -560,6 +587,7 @@ actor LyricsRepository {
         }
 
         if let selected {
+            try Task.checkCancellation()
             let selectedWithPolicy = markProviderLyricsNormalized(
                 selected.withSelection(
                     providerId: selectedProvider,
@@ -567,8 +595,7 @@ actor LyricsRepository {
                 )
             )
             log("provider selected: \(selectedProvider) / type=\(selectedType) / lines=\(selected.lines.count)")
-            putMemoryCachedLyrics(cacheKey, result: selectedWithPolicy)
-            diskCache.put(cacheKey, result: selectedWithPolicy)
+            try storeLyricsCache(cacheKey, result: selectedWithPolicy)
             return LoadedLyrics(trackKey: key, result: selectedWithPolicy, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
         }
         if let cachedBase {
@@ -599,6 +626,9 @@ actor LyricsRepository {
             }
             return result
         } catch {
+            if isCancellationError(error) {
+                return []
+            }
             markOpenDbUnavailable()
             log("sync-data opendb provider lookup error: \(error.localizedDescription)")
             return []
@@ -1481,12 +1511,16 @@ actor LyricsRepository {
                 log: log,
                 fromCache: false
             )
+            guard !Task.isCancelled else { return nil }
             if !cacheKey.isEmpty,
                let persistentResponse = redactedSyncDataResponseForPersistence(response) {
                 syncDataResponseCache.put(cacheKey, body: persistentResponse)
             }
             return result
         } catch {
+            if isCancellationError(error) {
+                return nil
+            }
             log("sync-data error: \(error.localizedDescription)")
             return nil
         }

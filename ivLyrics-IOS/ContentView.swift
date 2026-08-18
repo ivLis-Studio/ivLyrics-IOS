@@ -9059,7 +9059,7 @@ struct SettingsView: View {
                     model.validateSpotifyApiCredentials(reloadOnChange: true)
                 }
                 .disabled(model.spotifyCredentialsValidationInFlight)
-                if model.spotifyWebAPIConnected {
+                if model.spotifyWebAPIAuthorizationStored {
                     settingsCard(
                         settings.t("spotify.disconnect_oauth"),
                         description: settings.t("spotify.disconnect_oauth_desc")
