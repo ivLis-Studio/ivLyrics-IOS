@@ -123,6 +123,12 @@ enum SpotifyQueueHTTPResponsePolicy {
     }
 }
 
+enum SpotifyQueueLookupResult {
+    case track(TrackSnapshot)
+    case retry(afterSeconds: TimeInterval)
+    case unavailable
+}
+
 enum SpotifyStoredAuthorizationValidationResult: Equatable {
     case reusable
     case requiresInteractiveAuthorization
@@ -333,20 +339,20 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
         return try await accessToken(clientId: clientId)
     }
 
-    func nextQueuedTrack(clientId: String, excludingSourceKey: String = "") async -> TrackSnapshot? {
-        guard !queueUnavailableForAuthorization else { return nil }
+    func nextQueuedTrack(clientId: String, excludingSourceKey: String = "") async -> SpotifyQueueLookupResult {
+        guard !queueUnavailableForAuthorization else { return .unavailable }
         prepare(clientId: clientId)
         let token: String
         do {
             guard let resolvedToken = try await accessToken(clientId: clientId), !resolvedToken.isEmpty else {
                 diagnostic("spotify queue prefetch stopped: Web API authorization unavailable")
-                return nil
+                return .unavailable
             }
             token = resolvedToken
         } catch {
-            guard !Self.isCancellation(error) else { return nil }
+            guard !Self.isCancellation(error) else { return .unavailable }
             diagnostic("spotify queue prefetch stopped: access token refresh failed")
-            return nil
+            return .retry(afterSeconds: 30)
         }
         var request = URLRequest(url: URL(string: queueEndpoint)!)
         request.timeoutInterval = 10
@@ -359,51 +365,62 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
             data = response.0
             guard let resolvedHTTP = response.1 as? HTTPURLResponse else {
                 diagnostic("spotify queue prefetch stopped: invalid HTTP response")
-                return nil
+                return .retry(afterSeconds: 30)
             }
             http = resolvedHTTP
         } catch {
-            guard !Self.isCancellation(error) else { return nil }
+            guard !Self.isCancellation(error) else { return .unavailable }
             diagnostic("spotify queue prefetch stopped: queue network request failed")
-            return nil
+            return .retry(afterSeconds: 15)
         }
         switch SpotifyQueueHTTPResponsePolicy.action(for: http.statusCode) {
         case .parseBody:
             queueUnavailableForAuthorization = false
             switch SpotifyQueueResponseParser.parse(data, excludingSourceKey: excludingSourceKey) {
             case .track(let track):
-                return track
+                return .track(track)
             case .emptyQueue:
-                diagnostic("spotify queue prefetch stopped: queue is empty")
-                return nil
+                diagnostic("spotify queue prefetch waiting: queue is empty")
+                return .retry(afterSeconds: 15)
             case .unsupportedItem:
-                diagnostic("spotify queue prefetch stopped: queue has no distinct usable track")
-                return nil
+                diagnostic("spotify queue prefetch waiting: queue has no distinct usable track")
+                return .retry(afterSeconds: 20)
             case .malformedResponse:
-                diagnostic("spotify queue prefetch stopped: queue response parsing failed")
-                return nil
+                diagnostic("spotify queue prefetch waiting: queue response parsing failed")
+                return .retry(afterSeconds: 30)
             }
         case .invalidateAccessToken:
             invalidateAccessToken()
             connected = false
             onAuthorizationRecoveryNeeded?()
             diagnostic("spotify queue prefetch stopped: queue authorization expired (HTTP 401)")
-            return nil
+            return .unavailable
         case .disableForAuthorization:
             queueUnavailableForAuthorization = true
             diagnostic("spotify queue prefetch stopped: queue access forbidden for this authorization (HTTP 403)")
-            return nil
+            return .unavailable
         case .noContent:
-            diagnostic("spotify queue prefetch stopped: queue unavailable (HTTP 204)")
-            return nil
+            diagnostic("spotify queue prefetch waiting: queue unavailable (HTTP 204)")
+            return .retry(afterSeconds: 15)
         case .ignore:
             if http.statusCode == 429 {
-                diagnostic("spotify queue prefetch stopped: queue rate limited (HTTP 429)")
+                let retryAfter = Self.retryAfterSeconds(http) ?? 30
+                diagnostic("spotify queue prefetch waiting: queue rate limited (HTTP 429), retrying in \(Int(retryAfter))s")
+                return .retry(afterSeconds: retryAfter)
             } else {
-                diagnostic("spotify queue prefetch stopped: queue request failed (HTTP \(http.statusCode))")
+                diagnostic("spotify queue prefetch waiting: queue request failed (HTTP \(http.statusCode))")
+                return .retry(afterSeconds: 30)
             }
+        }
+    }
+
+    private static func retryAfterSeconds(_ response: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?.trimmed,
+              let seconds = TimeInterval(raw),
+              seconds.isFinite else {
             return nil
         }
+        return min(300, max(1, seconds))
     }
 
     func validateStoredAuthorization(clientId: String) async -> SpotifyStoredAuthorizationValidationResult {
