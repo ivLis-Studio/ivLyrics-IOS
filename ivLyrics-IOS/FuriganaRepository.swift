@@ -264,7 +264,9 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
             spotifyTrackId: baseResult.spotifyTrackId,
             contributors: baseResult.contributors,
             providerId: baseResult.providerId,
-            selectionPolicyKey: baseResult.selectionPolicyKey
+            selectionPolicyKey: baseResult.selectionPolicyKey,
+            syncType: baseResult.syncType,
+            syncPoints: baseResult.syncPoints
         )
     }
 

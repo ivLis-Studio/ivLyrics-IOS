@@ -1841,7 +1841,9 @@ actor AiLyricsRepository {
             spotifyTrackId: result.spotifyTrackId,
             contributors: baseResult.contributors,
             providerId: baseResult.providerId,
-            selectionPolicyKey: baseResult.selectionPolicyKey
+            selectionPolicyKey: baseResult.selectionPolicyKey,
+            syncType: baseResult.syncType,
+            syncPoints: baseResult.syncPoints
         )
     }
 
@@ -1965,7 +1967,9 @@ actor AiLyricsRepository {
             spotifyTrackId: baseResult.spotifyTrackId,
             contributors: baseResult.contributors,
             providerId: baseResult.providerId,
-            selectionPolicyKey: baseResult.selectionPolicyKey
+            selectionPolicyKey: baseResult.selectionPolicyKey,
+            syncType: baseResult.syncType,
+            syncPoints: baseResult.syncPoints
         )
     }
 
@@ -2031,7 +2035,9 @@ actor AiLyricsRepository {
             spotifyTrackId: baseResult.spotifyTrackId,
             contributors: baseResult.contributors,
             providerId: baseResult.providerId,
-            selectionPolicyKey: baseResult.selectionPolicyKey
+            selectionPolicyKey: baseResult.selectionPolicyKey,
+            syncType: baseResult.syncType,
+            syncPoints: baseResult.syncPoints
         )
     }
 

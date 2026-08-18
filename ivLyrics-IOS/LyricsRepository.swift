@@ -13,7 +13,7 @@ actor LyricsRepository {
     private let spotifyTrackBase = "https://api.spotify.com/v1/tracks/"
     private let spotifyEnglishAcceptLanguage = "en-US,en;q=0.9"
     private let lrclibProviderId = "lrclib"
-    private let syncDataCacheSchema = "sync-data-api-v1"
+    private let syncDataCacheSchema = "sync-data-api-v2"
     private let durationToleranceSeconds = 15.0
     private let syncedFallbackScoreWindow = 0.50
     private let syncedFallbackMinTitleScore = 0.78
@@ -153,7 +153,9 @@ actor LyricsRepository {
                 userHash: "",
                 profileAvailable: false,
                 anonymous: true,
-                isPrivate: contributor.isPrivate
+                isPrivate: contributor.isPrivate,
+                syncType: contributor.syncType,
+                syncPoints: contributor.syncPoints
             )
         }
         return redacted
@@ -363,6 +365,8 @@ actor LyricsRepository {
                 ) {
                 var hydrated = cached
                 hydrated.contributors = currentSyncData.contributors
+                hydrated.syncType = currentSyncData.syncType
+                hydrated.syncPoints = currentSyncData.syncPoints
                 cachedBase = hydrated
                 putMemoryCachedLyrics(cacheKey, result: hydrated)
                 diskCache.put(cacheKey, result: hydrated)
@@ -854,7 +858,9 @@ actor LyricsRepository {
             karaoke: true,
             isrc: isrc,
             spotifyTrackId: spotifyTrackId,
-            contributors: syncData.contributors
+            contributors: syncData.contributors,
+            syncType: syncData.syncType,
+            syncPoints: syncData.syncPoints
         )
     }
 
@@ -887,7 +893,9 @@ actor LyricsRepository {
             spotifyTrackId: result.spotifyTrackId,
             contributors: result.contributors,
             providerId: result.providerId,
-            selectionPolicyKey: result.selectionPolicyKey
+            selectionPolicyKey: result.selectionPolicyKey,
+            syncType: result.syncType,
+            syncPoints: result.syncPoints
         )
     }
 
@@ -1650,13 +1658,25 @@ actor LyricsRepository {
         }
         if let syncData = data["syncData"] as? [String: Any] {
             let body = syncBodyWithDurationFallback(syncBody: syncData, wrapper: data)
-            let result = SyncDataResult(syncBody: body, provider: responseProvider, contributors: parseSyncContributors(data: data, syncData: syncData))
+            let result = SyncDataResult(
+                syncBody: body,
+                provider: responseProvider,
+                contributors: parseSyncContributors(data: data, syncData: syncData),
+                syncType: stringValue(data["syncType"], fallback: "unknown"),
+                syncPoints: max(0, (data["syncPoints"] as? NSNumber)?.intValue ?? Int(stringValue(data["syncPoints"])) ?? 0)
+            )
             log("\(prefix): provider=\(result.provider) / lines=\(result.lineCharCounts.count) / lrclibId=\(result.lrclibId) / contributors=\(result.contributors.count)\(syncDurationSuffix(result.syncBody))")
             return result
         }
         if data["lines"] is [[String: Any]] {
             let body = syncBodyWithDurationFallback(syncBody: data, wrapper: data)
-            let result = SyncDataResult(syncBody: body, provider: responseProvider, contributors: parseSyncContributors(data: data, syncData: data))
+            let result = SyncDataResult(
+                syncBody: body,
+                provider: responseProvider,
+                contributors: parseSyncContributors(data: data, syncData: data),
+                syncType: stringValue(data["syncType"], fallback: "unknown"),
+                syncPoints: max(0, (data["syncPoints"] as? NSNumber)?.intValue ?? Int(stringValue(data["syncPoints"])) ?? 0)
+            )
             log("\(prefix): legacy body / provider=\(result.provider) / lines=\(result.lineCharCounts.count) / lrclibId=\(result.lrclibId) / contributors=\(result.contributors.count)\(syncDurationSuffix(result.syncBody))")
             return result
         }
@@ -2330,7 +2350,9 @@ actor LyricsRepository {
             "identifier": NSNull(),
             "anonymous": true,
             "isPrivate": isPrivate,
-            "identityRedacted": true
+            "identityRedacted": true,
+            "syncType": stringValue(object["syncType"], fallback: "unknown"),
+            "syncPoints": max(0, (object["syncPoints"] as? NSNumber)?.intValue ?? Int(stringValue(object["syncPoints"])) ?? 0)
         ]
     }
 
@@ -2352,6 +2374,8 @@ actor LyricsRepository {
             var profileAvailable = false
             var anonymous = false
             var isPrivate = false
+            var syncType = "unknown"
+            var syncPoints = 0
             var decoration: LyricsResult.SyncContributor.Decoration?
             if let string = raw as? String {
                 name = string.trimmed
@@ -2373,6 +2397,8 @@ actor LyricsRepository {
                 if object.keys.contains("linked"), !boolValue(object["linked"], fallback: false) {
                     profileAvailable = false
                 }
+                syncType = stringValue(object["syncType"], fallback: "unknown")
+                syncPoints = max(0, (object["syncPoints"] as? NSNumber)?.intValue ?? Int(stringValue(object["syncPoints"])) ?? 0)
                 if let value = object["decoration"] as? [String: Any] {
                     decoration = LyricsResult.SyncContributor.Decoration(
                         mode: stringValue(value["mode"]),
@@ -2410,7 +2436,9 @@ actor LyricsRepository {
                 profileAvailable: profileAvailable,
                 anonymous: anonymous,
                 isPrivate: isPrivate,
-                decoration: decoration
+                decoration: decoration,
+                syncType: syncType,
+                syncPoints: syncPoints
             ))
         }
         return result
@@ -2570,6 +2598,8 @@ private struct SyncDataResult {
     var syncBody: [String: Any]
     var provider: String
     var contributors: [LyricsResult.SyncContributor]
+    var syncType: String = "unknown"
+    var syncPoints: Int = 0
 
     var source: [String: Any]? {
         syncBody["source"] as? [String: Any]

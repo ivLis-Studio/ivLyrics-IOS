@@ -1839,7 +1839,9 @@ final class AppViewModel: ObservableObject {
             spotifyTrackId: result.spotifyTrackId,
             contributors: result.contributors,
             providerId: result.providerId,
-            selectionPolicyKey: result.selectionPolicyKey
+            selectionPolicyKey: result.selectionPolicyKey,
+            syncType: result.syncType,
+            syncPoints: result.syncPoints
         )
     }
 
@@ -3074,7 +3076,9 @@ final class AppViewModel: ObservableObject {
             spotifyTrackId: target.spotifyTrackId,
             contributors: target.contributors,
             providerId: target.providerId,
-            selectionPolicyKey: target.selectionPolicyKey
+            selectionPolicyKey: target.selectionPolicyKey,
+            syncType: target.syncType,
+            syncPoints: target.syncPoints
         )
     }
 
@@ -3283,7 +3287,9 @@ final class AppViewModel: ObservableObject {
             spotifyTrackId: safeSpotifyTrackId,
             contributors: source.contributors,
             providerId: source.providerId,
-            selectionPolicyKey: source.selectionPolicyKey
+            selectionPolicyKey: source.selectionPolicyKey,
+            syncType: source.syncType,
+            syncPoints: source.syncPoints
         )
     }
 

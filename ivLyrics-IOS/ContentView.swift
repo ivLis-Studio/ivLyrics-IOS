@@ -4491,30 +4491,32 @@ private struct LyricsContributorCredit: View {
 
     @ViewBuilder
     private func contributorNameView(_ contributor: LyricsResult.SyncContributor) -> some View {
-        if interactive,
-           !contributor.identityHidden,
-           contributor.profileAvailable,
-           !contributor.userHash.trimmed.isEmpty {
-            Button {
-                Task {
-                    await model.openSyncContributorProfile(contributor)
+        HStack(spacing: 4) {
+            if interactive,
+               !contributor.identityHidden,
+               contributor.profileAvailable,
+               !contributor.userHash.trimmed.isEmpty {
+                Button {
+                    Task {
+                        await model.openSyncContributorProfile(contributor)
+                    }
+                } label: {
+                    CreatorContributorNameText(
+                        name: contributorDisplayName(contributor),
+                        presentation: model.creatorSupportPresentation(for: contributor),
+                        fallbackOpacity: linkedNameOpacity,
+                        supporterOpacity: subdued ? 0.45 : 1
+                    )
                 }
-            } label: {
+                .buttonStyle(.plain)
+            } else {
                 CreatorContributorNameText(
                     name: contributorDisplayName(contributor),
                     presentation: model.creatorSupportPresentation(for: contributor),
-                    fallbackOpacity: linkedNameOpacity,
+                    fallbackOpacity: nameOpacity,
                     supporterOpacity: subdued ? 0.45 : 1
                 )
             }
-            .buttonStyle(.plain)
-        } else {
-            CreatorContributorNameText(
-                name: contributorDisplayName(contributor),
-                presentation: model.creatorSupportPresentation(for: contributor),
-                fallbackOpacity: nameOpacity,
-                supporterOpacity: subdued ? 0.45 : 1
-            )
         }
     }
 

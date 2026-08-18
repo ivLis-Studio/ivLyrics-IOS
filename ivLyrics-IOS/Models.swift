@@ -1459,6 +1459,8 @@ struct LyricsResult: Codable, Equatable, Sendable {
     var contributors: [SyncContributor]
     var providerId: String
     var selectionPolicyKey: String
+    var syncType: String
+    var syncPoints: Int
 
     init(
         lines: [LyricsLine],
@@ -1469,7 +1471,9 @@ struct LyricsResult: Codable, Equatable, Sendable {
         spotifyTrackId: String = "",
         contributors: [SyncContributor] = [],
         providerId: String = "",
-        selectionPolicyKey: String = ""
+        selectionPolicyKey: String = "",
+        syncType: String = "unknown",
+        syncPoints: Int = 0
     ) {
         self.lines = lines
         self.providerLabel = providerLabel
@@ -1480,6 +1484,8 @@ struct LyricsResult: Codable, Equatable, Sendable {
         self.contributors = contributors
         self.providerId = providerId.trimmed.lowercased()
         self.selectionPolicyKey = selectionPolicyKey.trimmed
+        self.syncType = Self.normalizedSyncType(syncType)
+        self.syncPoints = max(0, syncPoints)
     }
 
     func withSelection(providerId: String, selectionPolicyKey: String) -> LyricsResult {
@@ -1492,7 +1498,9 @@ struct LyricsResult: Codable, Equatable, Sendable {
             spotifyTrackId: spotifyTrackId,
             contributors: contributors,
             providerId: providerId,
-            selectionPolicyKey: selectionPolicyKey
+            selectionPolicyKey: selectionPolicyKey,
+            syncType: syncType,
+            syncPoints: syncPoints
         )
     }
 
@@ -1502,7 +1510,7 @@ struct LyricsResult: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case lines, providerLabel, detail, karaoke, isrc, spotifyTrackId, contributors
-        case providerId, selectionPolicyKey
+        case providerId, selectionPolicyKey, syncType, syncPoints
     }
 
     init(from decoder: Decoder) throws {
@@ -1516,7 +1524,9 @@ struct LyricsResult: Codable, Equatable, Sendable {
             spotifyTrackId: try container.decodeIfPresent(String.self, forKey: .spotifyTrackId) ?? "",
             contributors: try container.decodeIfPresent([SyncContributor].self, forKey: .contributors) ?? [],
             providerId: try container.decodeIfPresent(String.self, forKey: .providerId) ?? "",
-            selectionPolicyKey: try container.decodeIfPresent(String.self, forKey: .selectionPolicyKey) ?? ""
+            selectionPolicyKey: try container.decodeIfPresent(String.self, forKey: .selectionPolicyKey) ?? "",
+            syncType: try container.decodeIfPresent(String.self, forKey: .syncType) ?? "unknown",
+            syncPoints: try container.decodeIfPresent(Int.self, forKey: .syncPoints) ?? 0
         )
     }
 
@@ -1531,6 +1541,8 @@ struct LyricsResult: Codable, Equatable, Sendable {
         try container.encode(contributors, forKey: .contributors)
         try container.encode(providerId, forKey: .providerId)
         try container.encode(selectionPolicyKey, forKey: .selectionPolicyKey)
+        try container.encode(syncType, forKey: .syncType)
+        try container.encode(syncPoints, forKey: .syncPoints)
     }
 
     struct SyncContributor: Codable, Equatable, Hashable, Sendable {
@@ -1548,6 +1560,8 @@ struct LyricsResult: Codable, Equatable, Sendable {
         var anonymous: Bool
         var isPrivate: Bool
         var decoration: Decoration?
+        var syncType: String
+        var syncPoints: Int
 
         var identityHidden: Bool {
             anonymous || isPrivate
@@ -1559,7 +1573,9 @@ struct LyricsResult: Codable, Equatable, Sendable {
             profileAvailable: Bool = false,
             anonymous: Bool = false,
             isPrivate: Bool = false,
-            decoration: Decoration? = nil
+            decoration: Decoration? = nil,
+            syncType: String = "unknown",
+            syncPoints: Int = 0
         ) {
             let safeName = name.trimmed
             let safeHash = userHash.trimmed
@@ -1570,10 +1586,12 @@ struct LyricsResult: Codable, Equatable, Sendable {
             self.anonymous = shouldHideIdentity
             self.isPrivate = isPrivate
             self.decoration = shouldHideIdentity ? nil : decoration
+            self.syncType = LyricsResult.normalizedSyncType(syncType)
+            self.syncPoints = max(0, syncPoints)
         }
 
         private enum CodingKeys: String, CodingKey {
-            case name, userHash, profileAvailable, anonymous, isPrivate, decoration
+            case name, userHash, profileAvailable, anonymous, isPrivate, decoration, syncType, syncPoints
         }
 
         init(from decoder: Decoder) throws {
@@ -1584,7 +1602,9 @@ struct LyricsResult: Codable, Equatable, Sendable {
                 profileAvailable: try container.decodeIfPresent(Bool.self, forKey: .profileAvailable) ?? false,
                 anonymous: try container.decodeIfPresent(Bool.self, forKey: .anonymous) ?? false,
                 isPrivate: try container.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? false,
-                decoration: try container.decodeIfPresent(Decoration.self, forKey: .decoration)
+                decoration: try container.decodeIfPresent(Decoration.self, forKey: .decoration),
+                syncType: try container.decodeIfPresent(String.self, forKey: .syncType) ?? "unknown",
+                syncPoints: try container.decodeIfPresent(Int.self, forKey: .syncPoints) ?? 0
             )
         }
 
@@ -1596,7 +1616,16 @@ struct LyricsResult: Codable, Equatable, Sendable {
             try container.encode(anonymous, forKey: .anonymous)
             try container.encode(isPrivate, forKey: .isPrivate)
             try container.encodeIfPresent(decoration, forKey: .decoration)
+            try container.encode(syncType, forKey: .syncType)
+            try container.encode(syncPoints, forKey: .syncPoints)
         }
+    }
+
+    private static func normalizedSyncType(_ value: String) -> String {
+        let normalized = value.trimmed.lowercased()
+        return ["line", "word", "character", "mixed"].contains(normalized)
+            ? normalized
+            : "unknown"
     }
 }
 
