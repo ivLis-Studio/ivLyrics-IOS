@@ -95,11 +95,12 @@ rm -f "$IPA_PATH" "$CHECKSUM_PATH"
 COPYFILE_DISABLE=1 ditto -c -k --norsrc --noextattr --noqtn --noacl \
     --keepParent "${PACKAGE_DIR}/Payload" "$IPA_PATH"
 unzip -tq "$IPA_PATH"
-if ! unzip -Z1 "$IPA_PATH" | grep -Eq '^Payload/[^/]+[.]app/Info[.]plist$'; then
+IPA_ENTRIES="$(unzip -Z1 "$IPA_PATH")"
+if ! grep -Eq '^Payload/[^/]+[.]app/Info[.]plist$' <<< "$IPA_ENTRIES"; then
     echo "IPA payload layout is invalid." >&2
     exit 1
 fi
-if unzip -Z1 "$IPA_PATH" | grep -Eq '(^|/)(__MACOSX|[.][_][^/]*)($|/)'; then
+if grep -Eq '(^|/)(__MACOSX|[.][_][^/]*)($|/)' <<< "$IPA_ENTRIES"; then
     echo "IPA contains macOS metadata files." >&2
     exit 1
 fi
