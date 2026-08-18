@@ -1,3 +1,4 @@
+import AuthenticationServices
 import Combine
 import Foundation
 
@@ -32,6 +33,132 @@ enum FirstLanguagePromptChoice {
     case pronunciation
     case translation
     case both
+}
+
+struct SpotifyWebAPIAuthorizationCoordinator {
+    enum RequestAction: Equatable {
+        case authorize
+        case validateExistingAuthorization
+        case waitForInFlightAuthorization
+        case suppressedAfterFailure
+    }
+
+    enum CompletionAction: Equatable {
+        case keepAppRemote
+        case startWebAPIPolling
+        case fallbackUnavailable
+    }
+
+    private(set) var authorizationInFlight = false
+    private(set) var authorizationSuppressed = false
+    private(set) var recoveryDeferredUntilActive = false
+    private var pollingFallbackRequested = false
+
+    mutating func request(
+        storedAuthorizationAvailable: Bool,
+        requiresPollingFallback: Bool
+    ) -> RequestAction {
+        if authorizationInFlight {
+            pollingFallbackRequested = pollingFallbackRequested || requiresPollingFallback
+            return .waitForInFlightAuthorization
+        }
+        if storedAuthorizationAvailable {
+            authorizationInFlight = true
+            pollingFallbackRequested = requiresPollingFallback
+            return .validateExistingAuthorization
+        }
+        guard !authorizationSuppressed else { return .suppressedAfterFailure }
+        authorizationInFlight = true
+        pollingFallbackRequested = requiresPollingFallback
+        return .authorize
+    }
+
+    mutating func complete(
+        succeeded: Bool,
+        appRemoteConnected: Bool
+    ) -> CompletionAction {
+        authorizationInFlight = false
+        authorizationSuppressed = !succeeded
+        let requiresPollingFallback = pollingFallbackRequested
+        pollingFallbackRequested = false
+        if succeeded {
+            return requiresPollingFallback && !appRemoteConnected
+                ? .startWebAPIPolling
+                : .keepAppRemote
+        }
+        return requiresPollingFallback && !appRemoteConnected
+            ? .fallbackUnavailable
+            : .keepAppRemote
+    }
+
+    mutating func resetForUserInitiatedConnection() {
+        guard !authorizationInFlight else { return }
+        authorizationSuppressed = false
+        recoveryDeferredUntilActive = false
+        pollingFallbackRequested = false
+    }
+
+    mutating func deferRecoveryUntilActive() {
+        authorizationInFlight = false
+        authorizationSuppressed = false
+        recoveryDeferredUntilActive = true
+        pollingFallbackRequested = false
+    }
+
+    mutating func consumeDeferredRecovery() -> Bool {
+        let deferred = recoveryDeferredUntilActive
+        recoveryDeferredUntilActive = false
+        return deferred
+    }
+
+    mutating func retryAfterInvalidStoredAuthorization() -> Bool {
+        let requiresPollingFallback = pollingFallbackRequested
+        authorizationInFlight = false
+        authorizationSuppressed = false
+        pollingFallbackRequested = false
+        return requiresPollingFallback
+    }
+
+    mutating func completeTemporaryValidationFailure(
+        appRemoteConnected: Bool
+    ) -> CompletionAction {
+        authorizationInFlight = false
+        authorizationSuppressed = false
+        let requiresPollingFallback = pollingFallbackRequested
+        pollingFallbackRequested = false
+        return requiresPollingFallback && !appRemoteConnected
+            ? .fallbackUnavailable
+            : .keepAppRemote
+    }
+
+    mutating func cancel() {
+        authorizationInFlight = false
+        authorizationSuppressed = false
+        recoveryDeferredUntilActive = false
+        pollingFallbackRequested = false
+    }
+}
+
+enum SpotifyWebAPIFeaturePolicy {
+    static func allowsAuthorization(enabled: Bool) -> Bool {
+        enabled
+    }
+
+    static func canUseUserToken(enabled: Bool, connected: Bool) -> Bool {
+        enabled && connected
+    }
+
+    static func shouldPrefetchQueue(enabled: Bool, connected: Bool) -> Bool {
+        enabled && connected
+    }
+
+    static func shouldContinueQueuePrefetch(
+        enabled: Bool,
+        isCancelled: Bool,
+        sourceMatches: Bool
+    ) -> Bool {
+        enabled && !isCancelled && sourceMatches
+    }
 }
 
 @MainActor
@@ -78,6 +205,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var manualLrclibStatus = ""
     @Published private(set) var resolvingSpotifyMetadata = false
     @Published private(set) var spotifyUserConnected = false
+    @Published private(set) var spotifyWebAPIConnected = false
     @Published private(set) var spotifyLivePolling = false
     @Published private(set) var spotifyDeviceName = ""
     @Published private(set) var spotifyAppRemoteConnected = false
@@ -267,12 +395,14 @@ final class AppViewModel: ObservableObject {
     private var pipActiveCancellable: AnyCancellable?
     private var spotifyMetadataHydrationTask: Task<Void, Never>?
     private var spotifyPlaybackRefreshBurstTask: Task<Void, Never>?
+    private var spotifyWebAPIAuthorizationTask: Task<Void, Never>?
     private var youtubeBackgroundLoadTask: Task<Void, Never>?
     private var updateTask: Task<Void, Never>?
     private var timer: Timer?
     private var cachedTimelineContext: LyricsTimelineContext?
     private var audioRouteObserver: NSObjectProtocol?
     private var spotifyMetadataHydrationTrackId = ""
+    private var spotifyWebAPIAuthorizationCoordinator = SpotifyWebAPIAuthorizationCoordinator()
     private var spotifyArtworkURLsByTrackId = BoundedLRUCache<String, URL>(capacity: 200)
     private var spotifyMetadataHydrationRetryAfter = BoundedLRUCache<String, Date>(capacity: 200)
     private var currentYouTubeBackgroundRequestKey = ""
@@ -322,7 +452,11 @@ final class AppViewModel: ObservableObject {
         inputDuration = defaults.string(forKey: "manual_track_duration") ?? ""
         inputSpotifyId = defaults.string(forKey: "manual_track_spotify_id") ?? ""
         inputIsrc = defaults.string(forKey: "manual_track_isrc") ?? ""
-        spotifyUserConnected = spotifyUserPlaybackService.connected
+        spotifyUserConnected = SpotifyWebAPIFeaturePolicy.canUseUserToken(
+            enabled: settings.spotifyWebAPIEnabled,
+            connected: spotifyUserPlaybackService.connected
+        )
+        spotifyWebAPIConnected = spotifyUserPlaybackService.connected
         creatorAccountConnected = creatorAccountClient.currentSession() != nil
         creatorPrivacyState = creatorAccountConnected ? .notLoaded : .signedOut
         spotifyAppRemotePlaybackService.onPlaybackSnapshot = { [weak self] playback in
@@ -337,13 +471,59 @@ final class AppViewModel: ObservableObject {
         spotifyAppRemotePlaybackService.onLog = { [weak self] message in
             self?.appendLog(message)
         }
+        spotifyUserPlaybackService.onDiagnostic = { [weak self] message in
+            self?.appendLog(message)
+        }
+        spotifyUserPlaybackService.onAuthorizationRecoveryNeeded = { [weak self] in
+            guard let self else { return }
+            guard settings.spotifyWebAPIEnabled else {
+                appendLog("spotify queue auth: recovery ignored because Web API is disabled")
+                return
+            }
+            let clientId = settings.spotifyClientId.trimmed
+            guard !clientId.isEmpty else { return }
+            guard UIApplication.shared.applicationState == .active else {
+                spotifyWebAPIAuthorizationCoordinator.deferRecoveryUntilActive()
+                appendLog("spotify queue auth: recovery deferred until app becomes active")
+                return
+            }
+            ensureSpotifyWebAPIAuthorization(
+                clientId: clientId,
+                requiresPollingFallback: !spotifyAppRemotePlaybackService.connected && spotifyLivePolling
+            )
+        }
         spotifyAppRemotePlaybackService.onConnectionChanged = { [weak self] connected in
             guard let self else { return }
             spotifyAppRemoteConnected = connected
+            if connected {
+                let clientId = settings.spotifyClientId.trimmed
+                if settings.spotifyWebAPIEnabled, !clientId.isEmpty {
+                    ensureSpotifyWebAPIAuthorization(
+                        clientId: clientId,
+                        requiresPollingFallback: false
+                    )
+                }
+                return
+            }
             guard !connected,
                   UIApplication.shared.applicationState != .active,
                   pictureInPictureController.isEngaged,
                   spotifyLivePolling else { return }
+            guard settings.spotifyWebAPIEnabled else {
+                spotifyPollTask?.cancel()
+                spotifyPollTask = nil
+                appendLog("spotify live: App Remote dropped in background; Web API fallback is disabled")
+                return
+            }
+            if spotifyWebAPIAuthorizationCoordinator.authorizationInFlight {
+                let clientId = settings.spotifyClientId.trimmed
+                if !clientId.isEmpty {
+                    ensureSpotifyWebAPIAuthorization(
+                        clientId: clientId,
+                        requiresPollingFallback: true
+                    )
+                }
+            }
             guard spotifyUserPlaybackService.connected else {
                 spotifyPollTask?.cancel()
                 spotifyPollTask = nil
@@ -757,8 +937,13 @@ final class AppViewModel: ObservableObject {
         }
         spotifyPollTask?.cancel()
         spotifyPollTask = nil
+        spotifyWebAPIAuthorizationCoordinator.resetForUserInitiatedConnection()
         spotifyUserPlaybackService.prepare(clientId: clientId)
-        spotifyUserConnected = spotifyUserPlaybackService.connected
+        spotifyUserConnected = SpotifyWebAPIFeaturePolicy.canUseUserToken(
+            enabled: settings.spotifyWebAPIEnabled,
+            connected: spotifyUserPlaybackService.connected
+        )
+        spotifyWebAPIConnected = spotifyUserPlaybackService.connected
         spotifyLivePolling = true
         spotifyAppRemoteConnected = false
         appendLog("spotify live: App Remote connection starting")
@@ -769,7 +954,46 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func setSpotifyWebAPIEnabled(_ enabled: Bool) {
+        guard settings.spotifyWebAPIEnabled != enabled else { return }
+        settings.spotifyWebAPIEnabled = enabled
+        if enabled {
+            spotifyWebAPIAuthorizationCoordinator.resetForUserInitiatedConnection()
+            appendLog("spotify Web API: enabled by user")
+            guard spotifyLivePolling else { return }
+            let clientId = settings.spotifyClientId.trimmed
+            guard !clientId.isEmpty else { return }
+            if spotifyAppRemotePlaybackService.connected {
+                ensureSpotifyWebAPIAuthorization(
+                    clientId: clientId,
+                    requiresPollingFallback: false
+                )
+            } else {
+                startSpotifyWebApiLive(clientId: clientId)
+            }
+            return
+        }
+
+        cancelSpotifyWebAPIActivity()
+        spotifyUserConnected = spotifyAppRemotePlaybackService.connected
+        spotifyLivePolling = spotifyAppRemotePlaybackService.connected
+        appendLog("spotify Web API: disabled by user; App Remote remains available")
+    }
+
+    private func cancelSpotifyWebAPIActivity() {
+        spotifyPollTask?.cancel()
+        spotifyPollTask = nil
+        spotifyWebAPIAuthorizationTask?.cancel()
+        spotifyWebAPIAuthorizationTask = nil
+        spotifyUserPlaybackService.cancelPendingAuthorization()
+        spotifyWebAPIAuthorizationCoordinator.cancel()
+    }
+
     func startSpotifyLivePolling() {
+        guard settings.spotifyWebAPIEnabled else {
+            appendLog("spotify live: Web API polling skipped because the feature is disabled")
+            return
+        }
         guard spotifyUserPlaybackService.connected else {
             connectSpotifyUserAndStartPolling()
             return
@@ -792,10 +1016,11 @@ final class AppViewModel: ObservableObject {
 
     func resumeSpotifyLiveIfAuthorized() {
 #if targetEnvironment(simulator)
-        let hasReusableAuthorization = spotifyUserPlaybackService.connected
+        let hasReusableAuthorization = settings.spotifyWebAPIEnabled
+            && spotifyUserPlaybackService.connected
 #else
         let hasReusableAuthorization = spotifyAppRemotePlaybackService.hasStoredAuthorization
-            || spotifyUserPlaybackService.connected
+            || (settings.spotifyWebAPIEnabled && spotifyUserPlaybackService.connected)
 #endif
         guard !spotifyLivePolling,
               !settings.spotifyClientId.trimmed.isEmpty,
@@ -805,6 +1030,19 @@ final class AppViewModel: ObservableObject {
     }
 
     func appDidBecomeActive() {
+        let deferredAuthorizationRecovery = spotifyWebAPIAuthorizationCoordinator
+            .consumeDeferredRecovery()
+        if settings.spotifyWebAPIEnabled,
+           deferredAuthorizationRecovery,
+           spotifyAppRemotePlaybackService.connected {
+            let clientId = settings.spotifyClientId.trimmed
+            if !clientId.isEmpty {
+                ensureSpotifyWebAPIAuthorization(
+                    clientId: clientId,
+                    requiresPollingFallback: false
+                )
+            }
+        }
         if spotifyLivePolling,
            spotifyPollTask != nil,
            !spotifyAppRemotePlaybackService.connected {
@@ -822,7 +1060,8 @@ final class AppViewModel: ObservableObject {
         spotifyAppRemotePlaybackService.start(clientId: clientId) { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if self.spotifyUserPlaybackService.connected {
+                if self.settings.spotifyWebAPIEnabled,
+                   self.spotifyUserPlaybackService.connected {
                     self.startSpotifyLivePolling()
                 } else {
                     self.startSpotifyWebApiLive(clientId: clientId)
@@ -846,7 +1085,11 @@ final class AppViewModel: ObservableObject {
             } else {
                 suspendSpotifyAppRemoteInBackground()
             }
-            guard spotifyAppRemotePlaybackService.connected || spotifyUserPlaybackService.connected else {
+            guard spotifyAppRemotePlaybackService.connected
+                    || SpotifyWebAPIFeaturePolicy.canUseUserToken(
+                        enabled: settings.spotifyWebAPIEnabled,
+                        connected: spotifyUserPlaybackService.connected
+                    ) else {
                 appendLog("spotify live: PIP active but Web API not connected; track updates paused")
                 return
             }
@@ -864,7 +1107,11 @@ final class AppViewModel: ObservableObject {
               spotifyLivePolling else { return }
         if active {
             guard spotifyPollTask == nil else { return }
-            guard spotifyAppRemotePlaybackService.connected || spotifyUserPlaybackService.connected else {
+            guard spotifyAppRemotePlaybackService.connected
+                    || SpotifyWebAPIFeaturePolicy.canUseUserToken(
+                        enabled: settings.spotifyWebAPIEnabled,
+                        connected: spotifyUserPlaybackService.connected
+                    ) else {
                 appendLog("spotify live: PIP active but Web API not connected; track updates paused")
                 return
             }
@@ -895,6 +1142,10 @@ final class AppViewModel: ObservableObject {
         spotifyMetadataHydrationTask = nil
         spotifyPlaybackRefreshBurstTask?.cancel()
         spotifyPlaybackRefreshBurstTask = nil
+        spotifyWebAPIAuthorizationTask?.cancel()
+        spotifyWebAPIAuthorizationTask = nil
+        spotifyUserPlaybackService.cancelPendingAuthorization()
+        spotifyWebAPIAuthorizationCoordinator.cancel()
         spotifyMetadataHydrationTrackId = ""
         spotifyLivePolling = false
         spotifyAppRemoteConnected = false
@@ -909,6 +1160,7 @@ final class AppViewModel: ObservableObject {
         spotifyAppRemotePlaybackService.disconnectAndForget()
         spotifyUserPlaybackService.disconnect()
         spotifyUserConnected = false
+        spotifyWebAPIConnected = false
         spotifyDeviceName = ""
         appendLog("spotify live: disconnected")
     }
@@ -1275,21 +1527,37 @@ final class AppViewModel: ObservableObject {
             spotifyAppRemotePlaybackService.refreshPlayerState()
             return
         }
+        guard SpotifyWebAPIFeaturePolicy.canUseUserToken(
+            enabled: settings.spotifyWebAPIEnabled,
+            connected: spotifyUserPlaybackService.connected
+        ) else {
+            appendLog("spotify live: Web API playback refresh skipped because the feature is disabled or disconnected")
+            return
+        }
         let clientId = settings.spotifyClientId.trimmed
         guard requireSpotifyLiveClientId(logMessage: "spotify live: Spotify Client ID is required") else {
             return
         }
         do {
             guard let playback = try await spotifyUserPlaybackService.currentPlayback(clientId: clientId) else {
-                spotifyUserConnected = spotifyUserPlaybackService.connected
+                spotifyUserConnected = SpotifyWebAPIFeaturePolicy.canUseUserToken(
+                    enabled: settings.spotifyWebAPIEnabled,
+                    connected: spotifyUserPlaybackService.connected
+                )
+                spotifyWebAPIConnected = spotifyUserPlaybackService.connected
                 appendLog("spotify live: no currently playing track")
                 return
             }
             spotifyUserConnected = true
+            spotifyWebAPIConnected = true
             spotifyDeviceName = playback.deviceName
             applySpotifyPlayback(playback, loadLyricsIfNeeded: loadLyricsIfNeeded)
         } catch {
-            spotifyUserConnected = spotifyUserPlaybackService.connected
+            spotifyUserConnected = SpotifyWebAPIFeaturePolicy.canUseUserToken(
+                enabled: settings.spotifyWebAPIEnabled,
+                connected: spotifyUserPlaybackService.connected
+            )
+            spotifyWebAPIConnected = spotifyUserPlaybackService.connected
             appendLog("spotify live refresh failed: \(error.localizedDescription)")
             if !spotifyUserPlaybackService.connected {
                 if pictureInPictureController.isEngaged,
@@ -1587,7 +1855,9 @@ final class AppViewModel: ObservableObject {
             scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: false)
             return
         }
-        guard spotifyLivePolling else { return }
+        guard settings.spotifyWebAPIEnabled,
+              spotifyLivePolling,
+              spotifyUserPlaybackService.connected else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             let clientId = self.settings.spotifyClientId
@@ -1648,7 +1918,9 @@ final class AppViewModel: ObservableObject {
             scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: false)
             return
         }
-        guard spotifyLivePolling else { return }
+        guard settings.spotifyWebAPIEnabled,
+              spotifyLivePolling,
+              spotifyUserPlaybackService.connected else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             let clientId = self.settings.spotifyClientId
@@ -1677,7 +1949,9 @@ final class AppViewModel: ObservableObject {
             scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: false)
             return
         }
-        guard spotifyLivePolling else { return }
+        guard settings.spotifyWebAPIEnabled,
+              spotifyLivePolling,
+              spotifyUserPlaybackService.connected else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             let clientId = self.settings.spotifyClientId
@@ -1693,8 +1967,10 @@ final class AppViewModel: ObservableObject {
             scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: true)
             return
         }
-        guard spotifyLivePolling else {
-            appendLog("spotify live: next track requires live polling")
+        guard settings.spotifyWebAPIEnabled,
+              spotifyLivePolling,
+              spotifyUserPlaybackService.connected else {
+            appendLog("spotify live: next track requires App Remote or enabled Web API")
             return
         }
         Task { @MainActor [weak self] in
@@ -1712,8 +1988,10 @@ final class AppViewModel: ObservableObject {
             scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: true)
             return
         }
-        guard spotifyLivePolling else {
-            appendLog("spotify live: previous track requires live polling")
+        guard settings.spotifyWebAPIEnabled,
+              spotifyLivePolling,
+              spotifyUserPlaybackService.connected else {
+            appendLog("spotify live: previous track requires App Remote or enabled Web API")
             return
         }
         Task { @MainActor [weak self] in
@@ -2784,29 +3062,191 @@ final class AppViewModel: ObservableObject {
     }
 
     private func startSpotifyWebApiLive(clientId: String) {
-        guard !spotifyUserPlaybackService.authorizing else {
-            appendLog("spotify live: OAuth authorization already in progress")
+        guard SpotifyWebAPIFeaturePolicy.allowsAuthorization(
+            enabled: settings.spotifyWebAPIEnabled
+        ) else {
+            finishSpotifyWebAPIFallbackUnavailable(
+                message: "Spotify App Remote is unavailable and Web API is disabled"
+            )
             return
         }
         appendLog("spotify live: falling back to Web API polling")
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                if !spotifyUserPlaybackService.connected {
-                    appendLog("spotify live: OAuth authorization starting")
-                    try await spotifyUserPlaybackService.authorize(clientId: clientId)
-                    appendLog("spotify live: OAuth authorization complete")
+        ensureSpotifyWebAPIAuthorization(
+            clientId: clientId,
+            requiresPollingFallback: true
+        )
+    }
+
+    private func ensureSpotifyWebAPIAuthorization(
+        clientId: String,
+        requiresPollingFallback: Bool
+    ) {
+        guard SpotifyWebAPIFeaturePolicy.allowsAuthorization(
+            enabled: settings.spotifyWebAPIEnabled
+        ) else {
+            appendLog("spotify Web API: authorization skipped because the feature is disabled")
+            if requiresPollingFallback, !spotifyAppRemotePlaybackService.connected {
+                finishSpotifyWebAPIFallbackUnavailable(
+                    message: "Spotify App Remote is unavailable and Web API is disabled"
+                )
+            }
+            return
+        }
+        let action = spotifyWebAPIAuthorizationCoordinator.request(
+            storedAuthorizationAvailable: spotifyUserPlaybackService.hasStoredAuthorization,
+            requiresPollingFallback: requiresPollingFallback
+        )
+        switch action {
+        case .validateExistingAuthorization:
+            spotifyWebAPIAuthorizationTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                let validation = await spotifyUserPlaybackService.validateStoredAuthorization(
+                    clientId: clientId
+                )
+                guard !Task.isCancelled else { return }
+                spotifyWebAPIAuthorizationTask = nil
+                switch validation {
+                case .reusable:
+                    finishSpotifyWebAPIAuthorization(
+                        succeeded: true,
+                        error: nil,
+                        didRequestAuthorization: false
+                    )
+                case .requiresInteractiveAuthorization:
+                    let retryRequiresPollingFallback = spotifyWebAPIAuthorizationCoordinator
+                        .retryAfterInvalidStoredAuthorization()
+                    ensureSpotifyWebAPIAuthorization(
+                        clientId: clientId,
+                        requiresPollingFallback: retryRequiresPollingFallback
+                    )
+                case .temporarilyUnavailable:
+                    finishSpotifyWebAPITemporaryValidationFailure()
                 }
-                spotifyUserConnected = spotifyUserPlaybackService.connected
-                startSpotifyLivePolling()
-            } catch {
-                spotifyUserConnected = spotifyUserPlaybackService.connected
-                spotifyLivePolling = false
-                spotifyAppRemoteConnected = false
-                status = .failed(error.localizedDescription)
-                appendLog("spotify live auth failed: \(error.localizedDescription)")
+            }
+        case .waitForInFlightAuthorization:
+            if requiresPollingFallback {
+                appendLog("spotify live: Web API fallback waiting for active authorization")
+            }
+        case .suppressedAfterFailure:
+            if requiresPollingFallback && !spotifyAppRemotePlaybackService.connected {
+                finishSpotifyWebAPIFallbackUnavailable(
+                    message: "Spotify Web API authorization was cancelled or failed"
+                )
+            }
+        case .authorize:
+            guard UIApplication.shared.applicationState == .active else {
+                spotifyWebAPIAuthorizationCoordinator.deferRecoveryUntilActive()
+                appendLog("spotify queue auth: authorization deferred until app becomes active")
+                return
+            }
+            appendLog(
+                requiresPollingFallback
+                    ? "spotify live: Web API authorization starting for playback fallback"
+                    : "spotify queue auth: Web API authorization starting for queue prefetch"
+            )
+            spotifyWebAPIAuthorizationTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    try await spotifyUserPlaybackService.authorize(clientId: clientId)
+                    guard !Task.isCancelled else { return }
+                    spotifyWebAPIAuthorizationTask = nil
+                    finishSpotifyWebAPIAuthorization(
+                        succeeded: spotifyUserPlaybackService.connected,
+                        error: nil,
+                        didRequestAuthorization: true
+                    )
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    spotifyWebAPIAuthorizationTask = nil
+                    finishSpotifyWebAPIAuthorization(
+                        succeeded: false,
+                        error: error,
+                        didRequestAuthorization: true
+                    )
+                }
             }
         }
+    }
+
+    private func finishSpotifyWebAPIAuthorization(
+        succeeded: Bool,
+        error: Error?,
+        didRequestAuthorization: Bool
+    ) {
+        let completion = spotifyWebAPIAuthorizationCoordinator.complete(
+            succeeded: succeeded,
+            appRemoteConnected: spotifyAppRemotePlaybackService.connected
+        )
+        spotifyUserConnected = spotifyAppRemotePlaybackService.connected
+            || SpotifyWebAPIFeaturePolicy.canUseUserToken(
+                enabled: settings.spotifyWebAPIEnabled,
+                connected: spotifyUserPlaybackService.connected
+            )
+        spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+
+        if didRequestAuthorization {
+            if succeeded {
+                appendLog("spotify queue auth: Web API authorization ready; App Remote remains primary")
+            } else if let error, Self.isSpotifyWebAPIAuthorizationCancellation(error) {
+                appendLog("spotify queue auth: Web API authorization cancelled; App Remote playback remains available")
+            } else if let error {
+                let nsError = error as NSError
+                appendLog("spotify queue auth: Web API authorization failed (\(nsError.domain):\(nsError.code)); App Remote playback remains available")
+            } else {
+                appendLog("spotify queue auth: Web API authorization did not produce a reusable token")
+            }
+        }
+
+        switch completion {
+        case .keepAppRemote:
+            break
+        case .startWebAPIPolling:
+            startSpotifyLivePolling()
+        case .fallbackUnavailable:
+            finishSpotifyWebAPIFallbackUnavailable(
+                message: error?.localizedDescription ?? "Spotify Web API authorization failed"
+            )
+        }
+    }
+
+    private func finishSpotifyWebAPITemporaryValidationFailure() {
+        let completion = spotifyWebAPIAuthorizationCoordinator.completeTemporaryValidationFailure(
+            appRemoteConnected: spotifyAppRemotePlaybackService.connected
+        )
+        spotifyUserConnected = spotifyAppRemotePlaybackService.connected
+            || SpotifyWebAPIFeaturePolicy.canUseUserToken(
+                enabled: settings.spotifyWebAPIEnabled,
+                connected: spotifyUserPlaybackService.connected
+            )
+        spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+        if completion == .fallbackUnavailable {
+            finishSpotifyWebAPIFallbackUnavailable(
+                message: "Spotify Web API authorization validation is temporarily unavailable",
+                preserveLiveModeForRetry: true
+            )
+        }
+    }
+
+    private func finishSpotifyWebAPIFallbackUnavailable(
+        message: String,
+        preserveLiveModeForRetry: Bool = false
+    ) {
+        spotifyUserConnected = SpotifyWebAPIFeaturePolicy.canUseUserToken(
+            enabled: settings.spotifyWebAPIEnabled,
+            connected: spotifyUserPlaybackService.connected
+        )
+        spotifyWebAPIConnected = spotifyUserPlaybackService.connected
+        if !preserveLiveModeForRetry {
+            spotifyLivePolling = false
+        }
+        spotifyAppRemoteConnected = false
+        status = .failed(message)
+        appendLog("spotify live auth failed: Web API authorization unavailable")
+    }
+
+    private static func isSpotifyWebAPIAuthorizationCancellation(_ error: Error) -> Bool {
+        guard let sessionError = error as? ASWebAuthenticationSessionError else { return false }
+        return sessionError.code == .canceledLogin
     }
 
     private func sendSpotifyPlaybackCommand(
