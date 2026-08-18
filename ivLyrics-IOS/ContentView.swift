@@ -4673,17 +4673,13 @@ struct LyricsTimelineView: View {
                         switch item {
                         case .line(let index, let line, _):
                             let lineActive = itemActive || (activeItemID == nil && index == model.activeLineIndex)
-                            let originalText = model.displayText(for: line)
+                            let renderInput = model.timelineLineRenderInput(for: line, at: index)
                             LyricsLineView(
                                 lineIndex: index,
                                 line: line,
-                                originalText: originalText,
+                                originalText: renderInput.displayText,
                                 culturalAnnotations: settings.culturalAnnotationsEnabled
-                                    ? CulturalAnnotation.forLine(
-                                        model.culturalAnnotations,
-                                        lineIndex: index,
-                                        text: originalText
-                                    )
+                                    ? renderInput.culturalAnnotations
                                     : [],
                                 active: lineActive,
                                 displayDistance: displayDistance,
