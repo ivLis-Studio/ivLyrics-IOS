@@ -577,9 +577,21 @@ struct VinylPlayerModeView: View {
                       current.stableKey == next.stableKey else { return }
                 preparedTrack = current
             }
-            let asset = await VinylArtworkAccent.asset(for: preparedTrack)
-            guard trackTransitionToken == token,
-                  model.currentTrack?.stableKey == preparedTrack.stableKey else { return }
+            var preparedAsset: VinylArtworkAccent.Asset?
+            while preparedAsset == nil {
+                let requestedArtworkURL = preparedTrack.artworkURL
+                let asset = await VinylArtworkAccent.asset(for: preparedTrack)
+                guard trackTransitionToken == token,
+                      let current = model.currentTrack,
+                      current.stableKey == next.stableKey else { return }
+                guard current.artworkURL == requestedArtworkURL else {
+                    preparedTrack = current
+                    continue
+                }
+                preparedTrack = current
+                preparedAsset = asset
+            }
+            guard let asset = preparedAsset else { return }
             accentColors[preparedTrack.stableKey] = asset.color
             if let image = asset.image {
                 artworkImages[preparedTrack.stableKey] = image
@@ -649,6 +661,8 @@ struct VinylPlayerModeView: View {
     private func refreshCurrentTrackAsset() {
         guard let current = model.currentTrack else { return }
         if incomingTrack?.stableKey == current.stableKey {
+            incomingTrack = current
+            loadAccent(for: current)
             return
         } else if displayedTrack?.stableKey == current.stableKey {
             displayedTrack = current
@@ -1629,7 +1643,7 @@ private enum VinylArtworkAccent {
         let request = URLRequest(
             url: url,
             cachePolicy: .returnCacheDataElseLoad,
-            timeoutInterval: 0.32
+            timeoutInterval: 10
         )
         guard let (data, _) = try? await URLSession.shared.data(for: request),
               !Task.isCancelled,

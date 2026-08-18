@@ -1677,6 +1677,7 @@ struct SpotifyPlaybackSnapshot: Equatable, Sendable {
     var fetchedAt: Date
     var deviceName: String
     var spotifyDJContext: Bool
+    var spotifyContextKnown: Bool
 
     init(
         track: TrackSnapshot,
@@ -1684,7 +1685,8 @@ struct SpotifyPlaybackSnapshot: Equatable, Sendable {
         playing: Bool,
         fetchedAt: Date,
         deviceName: String,
-        spotifyDJContext: Bool = false
+        spotifyDJContext: Bool = false,
+        spotifyContextKnown: Bool = false
     ) {
         self.track = track
         self.progressMs = max(0, progressMs)
@@ -1692,6 +1694,7 @@ struct SpotifyPlaybackSnapshot: Equatable, Sendable {
         self.fetchedAt = fetchedAt
         self.deviceName = deviceName
         self.spotifyDJContext = spotifyDJContext
+        self.spotifyContextKnown = spotifyContextKnown
     }
 
     static func detectsSpotifyDJContext(title: String, uri: String) -> Bool {
@@ -1806,7 +1809,8 @@ struct SpotifyPlaybackInteractionGuard {
             playing: playing,
             fetchedAt: snapshot.fetchedAt,
             deviceName: snapshot.deviceName,
-            spotifyDJContext: snapshot.spotifyDJContext
+            spotifyDJContext: snapshot.spotifyDJContext,
+            spotifyContextKnown: snapshot.spotifyContextKnown
         )
     }
 }
