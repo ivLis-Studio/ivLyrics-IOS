@@ -871,7 +871,7 @@ struct ContentView: View {
 
 private struct PortraitPlayerProgressSection: View {
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     var metadataControlsSpacing: CGFloat
 
@@ -1154,7 +1154,7 @@ struct PlayerBackgroundView: View {
 
 private struct YouTubeBackdropSection: View {
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     var info: YouTubeVideoInfo
     var background: AppSettings.BackgroundSettings
@@ -2269,7 +2269,7 @@ private struct LandscapeArtworkView: View {
 private struct LandscapeTransportControls: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
 
     var body: some View {
@@ -3399,7 +3399,7 @@ private struct TmiSheetView: View {
 struct TransportPanel: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
 
     var body: some View {
@@ -3623,7 +3623,7 @@ struct MainLyricPreviewPanel: View {
 
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     var chromeless = false
     var typographyOverride: AppSettings.TypographySettings? = nil
@@ -4263,7 +4263,7 @@ private struct MainLyricPreviewRowView: View {
 
 private struct MainLyricPreviewInterludeIcon: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
             let nowMs = timeline.date.timeIntervalSinceReferenceDate * 1_000
             HStack(spacing: 4) {
                 ForEach(0..<4, id: \.self) { index in
@@ -4607,7 +4607,7 @@ private struct EnumeratedRandomAccessCollection<Base: RandomAccessCollection>: R
 struct LyricsTimelineView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var animatedCenterIndex: Double?
@@ -4635,7 +4635,23 @@ struct LyricsTimelineView: View {
             }
             return false
         } ?? 0)
-        let visualCenterIndex = animatedCenterIndex ?? Double(activeDisplayIndex)
+        let anticipatedItemID = settings.syncedLyricsKaraokeAnimationEnabled && !accessibilityReduceMotion
+            ? LyricsTimelineDisplayBuilder.previewItem(
+                context: timelineContext,
+                positionMs: position + 300,
+                trackDurationMs: model.lyricsDurationMs,
+                autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
+            )?.id
+            : nil
+        let anticipatedDisplayIndex = anticipatedItemID.flatMap { id in
+            items.firstIndex { $0.id == id }
+        }
+        // PC starts moving up to one row 300 ms before the next line. Never
+        // skip an intermediate row when several short lines share that window.
+        let targetDisplayIndex = anticipatedDisplayIndex.flatMap { index in
+            index == activeDisplayIndex + 1 ? index : nil
+        } ?? activeDisplayIndex
+        let visualCenterIndex = animatedCenterIndex ?? Double(targetDisplayIndex)
         LazyVStack(spacing: 12) {
             if model.lyricsResult.lines.isEmpty {
                 if model.status == .loading {
@@ -4672,7 +4688,15 @@ struct LyricsTimelineView: View {
                     Group {
                         switch item {
                         case .line(let index, let line, _):
-                            let lineActive = itemActive || (activeItemID == nil && index == model.activeLineIndex)
+                            let visualState = LyricsTimelineDisplayBuilder.playbackVisualState(
+                                context: timelineContext,
+                                lineIndex: index,
+                                positionMs: position,
+                                trackDurationMs: model.lyricsDurationMs,
+                                autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
+                            )
+                            let lineActive = visualState.highlighted
+                                || (activeItemID == nil && index == model.activeLineIndex)
                             let originalText = model.displayText(for: line)
                             LyricsLineView(
                                 lineIndex: index,
@@ -4686,9 +4710,11 @@ struct LyricsTimelineView: View {
                                     )
                                     : [],
                                 active: lineActive,
+                                animationActive: visualState.animating,
+                                completedColorOpacity: visualState.completedColorOpacity,
                                 displayDistance: displayDistance,
                                 progress: lineActive ? model.progress(for: line) : 0,
-                                positionMs: lineActive ? position : 0,
+                                positionMs: visualState.renderPositionMs,
                                 alignment: settings.lyricsTextAlignment,
                                 pronunciationLoading: model.lyricsSupplementPronunciationLoading,
                                 translationLoading: model.lyricsSupplementTranslationLoading,
@@ -4712,15 +4738,24 @@ struct LyricsTimelineView: View {
             }
         }
         .onAppear {
-            animatedCenterIndex = Double(activeDisplayIndex)
+            animatedCenterIndex = Double(targetDisplayIndex)
         }
-        .onChange(of: activeDisplayIndex) { _, nextIndex in
+        .onChange(of: targetDisplayIndex) { _, nextIndex in
             let next = Double(nextIndex)
             guard let current = animatedCenterIndex, abs(next - current) <= 3.2 else {
                 animatedCenterIndex = next
                 return
             }
-            withAnimation(accessibilityReduceMotion ? nil : LyricsMotion.centering) {
+            withAnimation(
+                accessibilityReduceMotion
+                    ? nil
+                    : LyricsMotion.centering(
+                        duration: LyricsMotion.centeringDuration(
+                            items: items,
+                            targetIndex: nextIndex
+                        )
+                    )
+            ) {
                 animatedCenterIndex = next
             }
         }
@@ -4789,7 +4824,7 @@ private struct LyricsProviderAttribution: View {
 private struct LyricsTimelineScrollView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var autoScrollPaused = false
@@ -4897,13 +4932,44 @@ private struct LyricsTimelineScrollView: View {
     }
 
     private var activeTargetID: String? {
-        LyricsTimelineDisplayBuilder.scrollTargetID(
+        let currentTargetID = LyricsTimelineDisplayBuilder.scrollTargetID(
             context: model.timelineContext,
             positionMs: model.adjustedPositionMs,
             trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled,
             vocalPartAnchorsEnabled: !settings.karaokeDataAsLineSynced
         )
+        guard !accessibilityReduceMotion,
+              settings.syncedLyricsKaraokeAnimationEnabled,
+              let currentItem = LyricsTimelineDisplayBuilder.previewItem(
+                context: model.timelineContext,
+                positionMs: model.adjustedPositionMs,
+                trackDurationMs: model.lyricsDurationMs,
+                autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
+              ),
+              let advancedItem = LyricsTimelineDisplayBuilder.previewItem(
+                context: model.timelineContext,
+                positionMs: model.adjustedPositionMs + 300,
+                trackDurationMs: model.lyricsDurationMs,
+                autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
+              ),
+              currentItem.id != advancedItem.id else {
+            return currentTargetID
+        }
+        let items = LyricsTimelineDisplayBuilder.items(
+            context: model.timelineContext,
+            positionMs: model.adjustedPositionMs,
+            trackDurationMs: model.lyricsDurationMs,
+            autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
+        )
+        guard let currentIndex = items.firstIndex(where: { $0.id == currentItem.id }),
+              let advancedIndex = items.firstIndex(where: { $0.id == advancedItem.id }),
+              advancedIndex == currentIndex + 1 else {
+            return currentTargetID
+        }
+        // Pre-center at most one row so very short lyrics cannot skip an
+        // intermediate line inside the look-ahead window.
+        return advancedItem.id
     }
 
     private func topEdgeInset(for height: CGFloat) -> CGFloat {
@@ -4938,7 +5004,16 @@ private struct LyricsTimelineScrollView: View {
             )
         }
         if animated && !accessibilityReduceMotion {
-            withAnimation(LyricsMotion.centering, action)
+            let items = LyricsTimelineDisplayBuilder.items(
+                context: model.timelineContext,
+                positionMs: model.adjustedPositionMs,
+                trackDurationMs: model.lyricsDurationMs,
+                autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
+            )
+            let duration = items.firstIndex(where: { $0.id == targetID }).map {
+                LyricsMotion.centeringDuration(items: items, targetIndex: $0)
+            } ?? LyricsMotion.defaultCenteringDuration
+            withAnimation(LyricsMotion.centering(duration: duration), action)
         } else {
             action()
         }
@@ -4946,8 +5021,37 @@ private struct LyricsTimelineScrollView: View {
 }
 
 private enum LyricsMotion {
-    // Android approaches the target with a 230 ms exponential time constant.
-    static let centering = Animation.timingCurve(0.20, 0.70, 0.42, 0.96, duration: 0.82)
+    static let defaultCenteringDuration = 0.30
+    private static let defaultCenteringBudget = 0.412
+    private static let minimumCenteringBudget = 0.08
+    private static let settleReserveSeconds = 0.024
+
+    // Keep the mobile hand-off on the same symmetric S-curve and adaptive
+    // short-line duration as PC.
+    static func centering(duration: Double = defaultCenteringDuration) -> Animation {
+        .timingCurve(0.42, 0, 0.58, 1, duration: duration)
+    }
+
+    static func centeringDuration(
+        items: [LyricsTimelineDisplayItem],
+        targetIndex: Int
+    ) -> Double {
+        guard items.indices.contains(targetIndex) else {
+            return defaultCenteringDuration
+        }
+        let targetStart = items[targetIndex].startTimeMs
+        guard let nextStart = items.dropFirst(targetIndex + 1)
+            .map(\.startTimeMs)
+            .first(where: { $0 > targetStart }) else {
+            return defaultCenteringDuration
+        }
+        let available = max(
+            minimumCenteringBudget,
+            Double(nextStart - targetStart) / 1_000 - settleReserveSeconds
+        )
+        let timingScale = min(1, available / defaultCenteringBudget)
+        return max(0.001, defaultCenteringDuration * timingScale)
+    }
 }
 
 private struct LyricsTimelineEdgeFadeMask: View {
@@ -4990,6 +5094,15 @@ enum LyricsTimelineDisplayItem: Identifiable {
             return id
         case .interlude(let info):
             return "interlude-\(info.kind)-\(info.startTimeMs)-\(info.endTimeMs)"
+        }
+    }
+
+    var startTimeMs: Int64 {
+        switch self {
+        case .line(_, let line, _):
+            return line.startTimeMs
+        case .interlude(let info):
+            return info.startTimeMs
         }
     }
 }
@@ -5073,11 +5186,28 @@ struct LyricsTimelineContext {
     }
 }
 
+struct LyricsLinePlaybackVisualState {
+    static let inactive = LyricsLinePlaybackVisualState(
+        highlighted: false,
+        animating: false,
+        completedColorOpacity: 0,
+        renderPositionMs: 0
+    )
+
+    var highlighted: Bool
+    var animating: Bool
+    var completedColorOpacity: CGFloat
+    var renderPositionMs: Int64
+}
+
 enum LyricsTimelineDisplayBuilder {
     private static let interludeMinDurationMs: Int64 = 500
     private static let trailingInterludeDelayMs: Int64 = 3_500
     private static let vocalPartCenterThreshold = 4
     private static let displayWhitespace = CharacterSet.whitespacesAndNewlines
+    private static let karaokeReleaseWindowMs: Int64 = 820
+    private static let karaokeCompletionPositionOffsetMs: Int64 = 900
+    private static let completedColorFadeMs: Int64 = 520
 
     static func lineID(index: Int, line: LyricsLine) -> String {
         "line-\(index)-\(line.id)"
@@ -5263,10 +5393,10 @@ enum LyricsTimelineDisplayBuilder {
         for index in lines.indices {
             let line = lines[index]
             guard line.isTimed, !context.isMarker[index] else { continue }
-            if positionMs >= line.startTimeMs, positionMs < line.endTimeMs {
-                return .line(index: index, line: line, id: context.lineIDs[index])
-            }
             if positionMs >= line.startTimeMs {
+                // Anchor to the latest start. A previous line can remain
+                // highlighted while its timed content finishes, but it must not
+                // block the following line from becoming the center row.
                 fallbackIndex = index
             }
         }
@@ -5286,6 +5416,60 @@ enum LyricsTimelineDisplayBuilder {
 
         guard fallbackIndex >= 0 else { return nil }
         return .line(index: fallbackIndex, line: lines[fallbackIndex], id: context.lineIDs[fallbackIndex])
+    }
+
+    static func playbackVisualState(
+        context: LyricsTimelineContext,
+        lineIndex: Int,
+        positionMs: Int64,
+        trackDurationMs: Int64,
+        autoInstrumentalBreakEnabled: Bool
+    ) -> LyricsLinePlaybackVisualState {
+        guard context.lines.indices.contains(lineIndex),
+              !context.isMarker[lineIndex] else {
+            return .inactive
+        }
+        let line = context.lines[lineIndex]
+        guard line.isTimed, positionMs >= line.startTimeMs else {
+            return .inactive
+        }
+        let cachedEnd = context.lastLyricEndTimes?[lineIndex] ?? lastLyricEndTime(line)
+        let contentEndTimeMs = max(line.endTimeMs, cachedEnd, line.startTimeMs)
+        let nextStartTimeMs = nextRenderableLineStartAfter(context: context, index: lineIndex)
+        var holdEndTimeMs = nextStartTimeMs > line.startTimeMs
+            ? max(contentEndTimeMs, nextStartTimeMs)
+            : contentEndTimeMs
+        if let trailing = trailingInterludeInfo(
+            context: context,
+            line: line,
+            index: lineIndex,
+            count: context.lines.count,
+            positionMs: positionMs,
+            trackDurationMs: trackDurationMs,
+            autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled
+        ), contains(trailing, positionMs) {
+            holdEndTimeMs = min(holdEndTimeMs, trailing.startTimeMs)
+        }
+        let highlighted = positionMs < holdEndTimeMs
+        let animating = positionMs < contentEndTimeMs + karaokeReleaseWindowMs
+        let completedColorOpacity: CGFloat
+        if highlighted {
+            completedColorOpacity = 1
+        } else {
+            completedColorOpacity = 1 - min(
+                1,
+                max(0, CGFloat(positionMs - holdEndTimeMs) / CGFloat(completedColorFadeMs))
+            )
+        }
+        let renderPositionMs = animating
+            ? positionMs
+            : contentEndTimeMs + karaokeCompletionPositionOffsetMs
+        return LyricsLinePlaybackVisualState(
+            highlighted: highlighted,
+            animating: animating,
+            completedColorOpacity: completedColorOpacity,
+            renderPositionMs: renderPositionMs
+        )
     }
 
     static func scrollTargetID(
@@ -5609,7 +5793,7 @@ struct LyricsInterludeView: View {
     }
 
     private var interludeBars: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !active)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !active)) { timeline in
             let nowMs = timeline.date.timeIntervalSinceReferenceDate * 1_000
             HStack(spacing: 3.8) {
                 ForEach(0..<4, id: \.self) { index in
@@ -5655,6 +5839,8 @@ struct LyricsLineView: View, Equatable {
     var originalText: String
     var culturalAnnotations: [CulturalAnnotation] = []
     var active: Bool
+    var animationActive: Bool
+    var completedColorOpacity: CGFloat
     var displayDistance: Double
     var progress: Double
     var positionMs: Int64
@@ -5672,6 +5858,8 @@ struct LyricsLineView: View, Equatable {
             && lhs.originalText == rhs.originalText
             && lhs.culturalAnnotations == rhs.culturalAnnotations
             && lhs.active == rhs.active
+            && lhs.animationActive == rhs.animationActive
+            && lhs.completedColorOpacity == rhs.completedColorOpacity
             && lhs.displayDistance == rhs.displayDistance
             && lhs.progress == rhs.progress
             && lhs.positionMs == rhs.positionMs
@@ -5696,18 +5884,24 @@ struct LyricsLineView: View, Equatable {
             )
                 .font(typography.font(slotId: AppSettings.typoLyricsOriginal, baseSize: 25))
             if !useVocalPartSupplements, !linePronunciationText.isEmpty {
-                Text(linePronunciationText)
-                    .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: 14))
-                    .foregroundStyle(active ? lineActiveColor.opacity(212.0 / 255.0) : lineSupplementInactiveColor)
-                    .multilineTextAlignment(textAlignment)
+                fadingSupplementText(
+                    linePronunciationText,
+                    slotId: AppSettings.typoLyricsPronunciation,
+                    baseSize: 14,
+                    activeColor: lineActiveColor.opacity(212.0 / 255.0),
+                    inactiveColor: lineSupplementInactiveColor
+                )
             } else if !useVocalPartSupplements, pronunciationLoading {
                 supplementReserveText(LyricsTimelineDisplayBuilder.supplementPlaceholderText(line), slotId: AppSettings.typoLyricsPronunciation, baseSize: 14)
             }
             if !useVocalPartSupplements, !line.translationText.trimmed.isEmpty {
-                Text(line.translationText)
-                    .font(typography.font(slotId: AppSettings.typoLyricsTranslation, baseSize: 14))
-                    .foregroundStyle(active ? lineActiveColor.opacity(184.0 / 255.0) : lineSupplementInactiveColor)
-                    .multilineTextAlignment(textAlignment)
+                fadingSupplementText(
+                    line.translationText,
+                    slotId: AppSettings.typoLyricsTranslation,
+                    baseSize: 14,
+                    activeColor: lineActiveColor.opacity(184.0 / 255.0),
+                    inactiveColor: lineSupplementInactiveColor
+                )
             } else if !useVocalPartSupplements, translationLoading {
                 supplementReserveText(LyricsTimelineDisplayBuilder.supplementPlaceholderText(line), slotId: AppSettings.typoLyricsTranslation, baseSize: 14)
             }
@@ -5755,6 +5949,9 @@ struct LyricsLineView: View, Equatable {
                 ForEach(displayVocalParts.indices, id: \.self) { index in
                     let part = displayVocalParts[index]
                     let partActive = active && positionMs >= part.startTimeMs
+                    let partAnimating = animationActive
+                        && positionMs >= part.startTimeMs
+                        && positionMs < max(part.endTimeMs, part.startTimeMs) + 820
                     VStack(alignment: stackAlignment, spacing: 2) {
                         SyllableKaraokeText(
                             text: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part),
@@ -5765,7 +5962,8 @@ struct LyricsLineView: View, Equatable {
                             startTimeMs: part.startTimeMs,
                             endTimeMs: part.endTimeMs,
                             positionMs: positionMs,
-                            active: partActive,
+                            active: partAnimating,
+                            completedColorOpacity: completedColorOpacity,
                             activeColor: vocalPartActiveColor(part),
                             alignment: textAlignment,
                             kind: part.kind,
@@ -5795,7 +5993,8 @@ struct LyricsLineView: View, Equatable {
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
-                active: active,
+                active: animationActive,
+                completedColorOpacity: completedColorOpacity,
                 activeColor: lineActiveColor,
                 alignment: textAlignment,
                 kind: line.kind,
@@ -5816,7 +6015,8 @@ struct LyricsLineView: View, Equatable {
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
-                active: active,
+                active: animationActive,
+                completedColorOpacity: completedColorOpacity,
                 activeColor: lineActiveColor,
                 alignment: textAlignment,
                 kind: line.kind,
@@ -5838,7 +6038,8 @@ struct LyricsLineView: View, Equatable {
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
-                active: active,
+                active: animationActive,
+                completedColorOpacity: completedColorOpacity,
                 activeColor: lineActiveColor,
                 alignment: textAlignment,
                 kind: line.kind,
@@ -5867,18 +6068,24 @@ struct LyricsLineView: View, Equatable {
             original: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part)
         )
         if !pronunciationText.isEmpty {
-            Text(pronunciationText)
-                .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: active ? 14 : 12.5))
-                .foregroundStyle(active ? speakerColor.opacity(212.0 / 255.0) : inactiveColor)
-                .multilineTextAlignment(textAlignment)
+            fadingSupplementText(
+                pronunciationText,
+                slotId: AppSettings.typoLyricsPronunciation,
+                baseSize: active ? 14 : 12.5,
+                activeColor: speakerColor.opacity(212.0 / 255.0),
+                inactiveColor: inactiveColor
+            )
         } else if pronunciationLoading {
             supplementReserveText(LyricsTimelineDisplayBuilder.supplementPlaceholderText(part), slotId: AppSettings.typoLyricsPronunciation, baseSize: active ? 14 : 12.5)
         }
         if !part.translationText.trimmed.isEmpty {
-            Text(part.translationText)
-                .font(typography.font(slotId: AppSettings.typoLyricsTranslation, baseSize: active ? 14 : 12.5))
-                .foregroundStyle(active ? speakerColor.opacity(184.0 / 255.0) : inactiveColor)
-                .multilineTextAlignment(textAlignment)
+            fadingSupplementText(
+                part.translationText,
+                slotId: AppSettings.typoLyricsTranslation,
+                baseSize: active ? 14 : 12.5,
+                activeColor: speakerColor.opacity(184.0 / 255.0),
+                inactiveColor: inactiveColor
+            )
         } else if translationLoading {
             supplementReserveText(LyricsTimelineDisplayBuilder.supplementPlaceholderText(part), slotId: AppSettings.typoLyricsTranslation, baseSize: active ? 14 : 12.5)
         }
@@ -5891,6 +6098,26 @@ struct LyricsLineView: View, Equatable {
             return ""
         }
         return pronunciation
+    }
+
+    private func fadingSupplementText(
+        _ text: String,
+        slotId: String,
+        baseSize: CGFloat,
+        activeColor: Color,
+        inactiveColor: Color
+    ) -> some View {
+        let font = typography.font(slotId: slotId, baseSize: baseSize)
+        return Text(text)
+            .font(font)
+            .foregroundStyle(inactiveColor)
+            .overlay {
+                Text(text)
+                    .font(font)
+                    .foregroundStyle(activeColor)
+                    .opacity(completedColorOpacity)
+            }
+            .multilineTextAlignment(textAlignment)
     }
 
     private func supplementReserveText(_ text: String, slotId: String, baseSize: CGFloat) -> some View {
@@ -6015,6 +6242,7 @@ struct SyllableKaraokeText: View {
     var endTimeMs: Int64
     var positionMs: Int64
     var active: Bool
+    var completedColorOpacity: CGFloat = 1
     var activeColor: Color
     var alignment: TextAlignment
     var kind: String = "vocal"
@@ -6031,7 +6259,7 @@ struct SyllableKaraokeText: View {
 
     var body: some View {
         let displayKind = normalizedKind
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: accessibilityReduceMotion || !requiresContinuousEffect(displayKind))) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: accessibilityReduceMotion || !requiresContinuousEffect(displayKind))) { timeline in
             karaokeBody(
                 nowMs: accessibilityReduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate * 1_000,
                 displayKind: displayKind
@@ -6053,7 +6281,11 @@ struct SyllableKaraokeText: View {
                     .modifier(LyricGlyphEffectModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, segmentIndex: 0, rowSeed: effectRowSeed, color: activeColor))
                     .modifier(LyricLineMotionModifier(kind: displayKind, active: active, nowMs: nowMs, textSize: bounceTextSize, rowSeed: effectRowSeed))
             } else if LyricsTextShaping.requiresContinuousShaping(text) {
-                Text(continuouslyShapedText(segments))
+                Text(continuouslyShapedText(segments, activeLayer: false))
+                    .overlay {
+                        Text(continuouslyShapedText(segments, activeLayer: true))
+                            .opacity(completedColorOpacity)
+                    }
                     .multilineTextAlignment(alignment)
                     .lineLimit(singleLine ? 1 : nil)
                     .fixedSize(horizontal: singleLine, vertical: false)
@@ -6080,12 +6312,15 @@ struct SyllableKaraokeText: View {
     }
 
     private func continuouslyShapedText(
-        _ segments: [KaraokeSyllableSegment]
+        _ segments: [KaraokeSyllableSegment],
+        activeLayer: Bool
     ) -> AttributedString {
         var result = AttributedString()
         for segment in segments {
             var run = AttributedString(segment.text)
-            run.foregroundColor = segment.fill > 0 ? segment.activeColor : segment.baseColor
+            run.foregroundColor = activeLayer && segment.fill > 0
+                ? segment.activeColor
+                : segment.baseColor
             result.append(run)
         }
         return result
@@ -6108,7 +6343,7 @@ struct SyllableKaraokeText: View {
             annotations: culturalAnnotations
         )
         let bounceWindowActive = positionMs >= startTimeMs
-            && positionMs < endTimeMs + 280
+            && positionMs < endTimeMs + (isWordDisplayGranularity ? 280 : 820)
         let bounceActiveIndex = bounceEnabled && !accessibilityReduceMotion && bounceWindowActive && !displaySyllables.isEmpty
             ? activeSegmentIndex(in: displaySyllables, fillTimings: fillTimings)
             : nil
@@ -6145,6 +6380,7 @@ struct SyllableKaraokeText: View {
                 kind: segmentKind(for: syllable),
                 bounceOffsetY: bounce.offsetY,
                 bounceScale: bounce.scale,
+                completedColorOpacity: completedColorOpacity,
                 isWhitespace: syllable.text.unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
             ))
         }
@@ -6175,6 +6411,7 @@ struct SyllableKaraokeText: View {
                 kind: normalizedKind,
                 bounceOffsetY: 0,
                 bounceScale: 1,
+                completedColorOpacity: completedColorOpacity,
                 isWhitespace: value.unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
             ))
             nextID += 1
@@ -6412,8 +6649,8 @@ struct SyllableKaraokeText: View {
         guard strength >= 0.025 else {
             return .idle
         }
-        let offsetY = ((-bounceTextSize * 0.23 * strength) * 2).rounded() / 2
-        let scale = ((1 + 0.055 * strength) * 100).rounded() / 100
+        let offsetY = ((-6 * strength) * 4).rounded() / 4
+        let scale = ((1 + 0.055 * strength) * 200).rounded() / 200
         return KaraokeBounceMetrics(offsetY: offsetY, scale: scale)
     }
 
@@ -6455,29 +6692,46 @@ struct SyllableKaraokeText: View {
 
     private func bounceStrength(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat? {
         let duration = CGFloat(max(1, endTimeMs - startTimeMs))
-        let rise = min(180, max(60, duration * 0.38))
-        let release = min(280, max(180, duration * 0.45))
-        let peakTimeMs = min(CGFloat(endTimeMs), CGFloat(startTimeMs) + rise)
         let currentTimeMs = CGFloat(positionMs)
-        if currentTimeMs < CGFloat(startTimeMs) || currentTimeMs >= CGFloat(endTimeMs) + release {
-            return nil
-        }
-        if currentTimeMs <= peakTimeMs {
-            return easeOutCubic(
-                (currentTimeMs - CGFloat(startTimeMs))
-                    / max(1, peakTimeMs - CGFloat(startTimeMs))
+        if isWordDisplayGranularity {
+            let rise = min(180, max(60, duration * 0.38))
+            let release = min(280, max(180, duration * 0.45))
+            let peakTimeMs = min(CGFloat(endTimeMs), CGFloat(startTimeMs) + rise)
+            guard currentTimeMs >= CGFloat(startTimeMs),
+                  currentTimeMs < CGFloat(endTimeMs) + release else {
+                return nil
+            }
+            if currentTimeMs <= peakTimeMs {
+                return easeOutSine(
+                    (currentTimeMs - CGFloat(startTimeMs))
+                        / max(1, peakTimeMs - CGFloat(startTimeMs))
+                )
+            }
+            if currentTimeMs <= CGFloat(endTimeMs) {
+                // Allow the next word to rise before the current word settles.
+                return 1
+            }
+            return easeSoftRelease(
+                (currentTimeMs - CGFloat(endTimeMs)) / max(1, release)
             )
         }
-        if currentTimeMs <= CGFloat(endTimeMs) {
-            return 1
+
+        let rise = min(280, max(180, duration * 0.9))
+        let release = min(820, max(420, duration * 2.4))
+        let elapsed = currentTimeMs - CGFloat(startTimeMs)
+        guard elapsed >= 0, elapsed <= rise + release else { return nil }
+        if elapsed <= rise {
+            return easeOutSine(elapsed / max(1, rise))
         }
-        let progress = min(1, (currentTimeMs - CGFloat(endTimeMs)) / release)
-        return pow(1 - progress, 1.25)
+        return easeSoftRelease((elapsed - rise) / max(1, release))
     }
 
-    private func easeOutCubic(_ value: CGFloat) -> CGFloat {
-        let t = min(1, max(0, value))
-        return 1 - pow(1 - t, 3)
+    private func easeOutSine(_ value: CGFloat) -> CGFloat {
+        sin(min(1, max(0, value)) * .pi / 2)
+    }
+
+    private func easeSoftRelease(_ value: CGFloat) -> CGFloat {
+        0.5 + 0.5 * cos(min(1, max(0, value)) * .pi)
     }
 }
 
@@ -6498,6 +6752,7 @@ private struct KaraokeSyllableSegment: Identifiable {
     var kind: String
     var bounceOffsetY: CGFloat
     var bounceScale: CGFloat
+    var completedColorOpacity: CGFloat
     var isWhitespace: Bool
 }
 
@@ -6520,7 +6775,14 @@ private struct KaraokeSyllableSegmentView: View {
                 Text(segment.rubyText)
                     .font(.system(size: max(9, textSize * 0.42), weight: .semibold))
                     .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 0.85 : 1)
-                    .foregroundStyle((segment.fill > 0 ? segment.activeColor : segment.baseColor).opacity(0.84))
+                    .foregroundStyle(segment.baseColor.opacity(0.84))
+                    .overlay {
+                        if segment.fill > 0 {
+                            Text(segment.rubyText)
+                                .font(.system(size: max(9, textSize * 0.42), weight: .semibold))
+                                .foregroundStyle(segment.activeColor.opacity(0.84 * segment.completedColorOpacity))
+                        }
+                    }
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
@@ -6530,6 +6792,7 @@ private struct KaraokeSyllableSegmentView: View {
                     if segment.fill > 0 {
                         Text(segment.text)
                             .foregroundStyle(segment.activeColor)
+                            .opacity(segment.completedColorOpacity)
                             .mask(KaraokeFillMask(fill: segment.fill))
                             .allowsHitTesting(false)
                     }
@@ -7108,6 +7371,8 @@ private struct KaraokeDebugPreview: View {
                 line: multiVocalLine,
                 originalText: multiVocalLine.text,
                 active: true,
+                animationActive: true,
+                completedColorOpacity: 1,
                 displayDistance: 0,
                 progress: 0.52,
                 positionMs: 2_100,
@@ -7472,7 +7737,7 @@ enum LyricSpeakerPalette {
 struct LogsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 30 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     @Binding var visible: Bool
 

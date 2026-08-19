@@ -171,8 +171,11 @@ final class AppViewModel: ObservableObject {
         420_000_000,
         1_100_000_000
     ]
-    private static let playbackClockInterval: TimeInterval = 1.0 / 30.0
-    private static let playbackClockTolerance: TimeInterval = 0.005
+    // Drive lyric fill, bounce, and line hand-offs at the display cadence.
+    // Thirty hertz made short syllables visibly step even when SwiftUI could
+    // render the surrounding transition at 60 fps.
+    private static let playbackClockInterval: TimeInterval = 1.0 / 60.0
+    private static let playbackClockTolerance: TimeInterval = 0.002
 
     @Published var inputTitle: String
     @Published var inputArtist: String
