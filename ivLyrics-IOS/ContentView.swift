@@ -7815,7 +7815,7 @@ struct InitialSetupView: View {
                 .foregroundStyle(.green)
             Text(settings.t("spotify.live.title"))
                 .font(.pretendard(21, weight: .bold))
-            Text(settings.t("spotify.live.desc_ios"))
+            Text(settings.t("spotify.live.desc_option"))
                 .font(.pretendard(14))
                 .foregroundStyle(.white.opacity(0.74))
                 .multilineTextAlignment(.center)
@@ -7829,6 +7829,7 @@ struct InitialSetupView: View {
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.58))
             }
+            spotifyWebAPIOptInSetupCard
         }
         .padding(16)
         .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -7838,7 +7839,7 @@ struct InitialSetupView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(settings.t("spotify.api.title"))
                 .font(.pretendard(21, weight: .bold))
-            Text(settings.t("spotify.api.desc_ios"))
+            Text(settings.t("spotify.api.desc_option"))
                 .font(.pretendard(14))
                 .foregroundStyle(.white.opacity(0.74))
             TextField(settings.t("field.spotify_client_id"), text: $settings.spotifyClientId)
@@ -7849,6 +7850,10 @@ struct InitialSetupView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textFieldStyle(PlayerTextFieldStyle())
+            Text(settings.t("field.spotify_client_secret_role"))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.58))
+                .fixedSize(horizontal: false, vertical: true)
             LabeledContent(settings.t("field.redirect_uri")) {
                 Text(SpotifyRedirectConfiguration.uri)
                     .font(.caption.monospaced())
@@ -7877,6 +7882,56 @@ struct InitialSetupView: View {
             return settings.t("spotify.status_checking")
         }
         return model.onboardingStep >= 2 ? settings.t("button.save_start") : settings.t("button.next")
+    }
+
+    private var spotifyWebAPIOptInSetupCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(settings.t("setting.spotify_web_api"))
+                        .font(.pretendard(14, weight: .semibold))
+                    Text(settings.t("setting.spotify_web_api_desc"))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Toggle("", isOn: spotifyWebAPIEnabledBinding)
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityLabel(settings.t("setting.spotify_web_api"))
+            }
+            Text(spotifyWebAPIStatusText)
+                .font(.caption)
+                .foregroundStyle(spotifyWebAPIStatusTint)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var spotifyWebAPIEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.spotifyWebAPIEnabled },
+            set: { model.setSpotifyWebAPIEnabled($0) }
+        )
+    }
+
+    private var spotifyWebAPIStatusText: String {
+        guard settings.spotifyWebAPIEnabled else {
+            return settings.t("setting.spotify_web_api_status_off")
+        }
+        return model.spotifyWebAPIConnected
+            ? settings.t("setting.spotify_web_api_status_connected")
+            : settings.t("setting.spotify_web_api_status_pending")
+    }
+
+    private var spotifyWebAPIStatusTint: Color {
+        guard settings.spotifyWebAPIEnabled else { return .white.opacity(0.5) }
+        return model.spotifyWebAPIConnected ? .green : .white.opacity(0.68)
     }
 
     private func handleNext() {
@@ -8991,14 +9046,20 @@ struct SettingsView: View {
                 }
             }
 
-            settingsSection(settings.t("section.spotify_api")) {
+            settingsSection(
+                settings.t("section.spotify_api"),
+                description: settings.t("section.spotify_api_option_desc")
+            ) {
                 settingsCard(settings.t("section.spotify_api")) {
                     SpotifySetupInstructionsPanel()
                 }
                 settingsCard(settings.t("field.spotify_client_id")) {
                     settingsTextField(settings.t("field.spotify_client_id"), text: $settings.spotifyClientId)
                 }
-                settingsCard(settings.t("field.spotify_client_secret")) {
+                settingsCard(
+                    settings.t("field.spotify_client_secret"),
+                    description: settings.t("field.spotify_client_secret_role")
+                ) {
                     SecureField(settings.t("field.spotify_client_secret"), text: $settings.spotifyClientSecret)
                         .textFieldStyle(PlayerTextFieldStyle())
                 }
@@ -9008,6 +9069,7 @@ struct SettingsView: View {
                         .textSelection(.enabled)
                         .foregroundStyle(.white.opacity(0.72))
                 }
+                spotifyWebAPIOptInCard
                 settingsCard(settings.t("field.live_source")) {
                     Text(model.spotifyAppRemoteConnected ? settings.t("spotify.source.app_remote") : (model.spotifyLivePolling ? settings.t("spotify.source.web_api") : settings.t("spotify.source.off")))
                         .foregroundStyle(.white.opacity(0.72))
@@ -9024,10 +9086,16 @@ struct SettingsView: View {
                     model.validateSpotifyApiCredentials(reloadOnChange: true)
                 }
                 .disabled(model.spotifyCredentialsValidationInFlight)
-                settingsActionButton(settings.t("spotify.disconnect_oauth"), role: .destructive) {
-                    model.disconnectSpotifyUser()
+                if model.spotifyWebAPIAuthorizationStored {
+                    settingsCard(
+                        settings.t("spotify.disconnect_oauth"),
+                        description: settings.t("spotify.disconnect_oauth_desc")
+                    ) {
+                        settingsActionButton(settings.t("spotify.disconnect_oauth"), role: .destructive) {
+                            model.disconnectSpotifyUser()
+                        }
+                    }
                 }
-                .disabled(!model.spotifyUserConnected)
             }
 
             settingsSection(settings.t("lyrics.tab.sync"), description: settings.t("lyrics.global_sync.help")) {
@@ -9261,6 +9329,69 @@ struct SettingsView: View {
         }
         .padding(16)
         .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var spotifyWebAPIOptInCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(settings.t("setting.spotify_web_api"))
+                        .font(.pretendard(15, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text(settings.t("setting.spotify_web_api_desc"))
+                        .font(.pretendard(13))
+                        .foregroundStyle(.white.opacity(0.60))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Toggle("", isOn: spotifyWebAPIEnabledBinding)
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityLabel(settings.t("setting.spotify_web_api"))
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Circle()
+                    .fill(spotifyWebAPIStatusColor)
+                    .frame(width: 7, height: 7)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+                    .accessibilityHidden(true)
+                Text(spotifyWebAPIStatusText)
+                    .font(.pretendard(13))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var spotifyWebAPIEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.spotifyWebAPIEnabled },
+            set: { value in
+                model.setSpotifyWebAPIEnabled(value)
+                model.showSavedToast(settings.t("toast.settings_saved"))
+            }
+        )
+    }
+
+    private var spotifyWebAPIStatusText: String {
+        guard settings.spotifyWebAPIEnabled else {
+            return settings.t("setting.spotify_web_api_status_off")
+        }
+        return model.spotifyWebAPIConnected
+            ? settings.t("setting.spotify_web_api_status_connected")
+            : settings.t("setting.spotify_web_api_status_pending")
+    }
+
+    private var spotifyWebAPIStatusColor: Color {
+        guard settings.spotifyWebAPIEnabled else { return .white.opacity(0.34) }
+        return model.spotifyWebAPIConnected
+            ? Color(red: 0.18, green: 0.83, blue: 0.44)
+            : Color(red: 0.98, green: 0.76, blue: 0.30)
     }
 
     private func settingsActionButton(_ title: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {

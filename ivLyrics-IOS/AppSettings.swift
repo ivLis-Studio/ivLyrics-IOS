@@ -294,6 +294,7 @@ final class AppSettings: ObservableObject {
     @Published var backgroundVideoScale: Int { didSet { set("background_video_scale", Self.clampBackgroundVideoScale(backgroundVideoScale)); bumpBackgroundRevisionIfNeeded() } }
     @Published var spotifyClientId: String { didSet { set("spotify_client_id", spotifyClientId) } }
     @Published var spotifyClientSecret: String { didSet { setSecure("spotify_client_secret", spotifyClientSecret) } }
+    @Published var spotifyWebAPIEnabled: Bool { didSet { set("spotify_web_api_enabled", spotifyWebAPIEnabled) } }
     @Published private(set) var lyricsProviderOrder: [String] { didSet { saveLyricsProviderSettingsIfNeeded() } }
     @Published private(set) var lyricsProviderEnabled: [String: Bool] { didSet { saveLyricsProviderSettingsIfNeeded() } }
     @Published private(set) var lyricsProviderTypes: [String: [String: Bool]] { didSet { saveLyricsProviderSettingsIfNeeded() } }
@@ -402,6 +403,7 @@ final class AppSettings: ObservableObject {
             forKey: "spotify_client_secret",
             legacyDefaults: defaults
         ) ?? ""
+        spotifyWebAPIEnabled = defaults.object(forKey: "spotify_web_api_enabled") as? Bool ?? false
         lyricsProviderOrder = Self.loadLyricsProviderOrder(defaults: defaults)
         lyricsProviderEnabled = Self.loadLyricsProviderEnabled(defaults: defaults)
         lyricsProviderTypes = Self.loadLyricsProviderTypes(defaults: defaults)
@@ -583,6 +585,7 @@ final class AppSettings: ObservableObject {
             speakerColors: speakerColorSettings(),
             spotifyClientId: spotifyClientId,
             spotifyClientSecret: spotifyClientSecret,
+            spotifyWebAPIEnabled: spotifyWebAPIEnabled,
             lyricsProviderOrder: lyricsProviderOrder,
             lyricsProviderEnabled: lyricsProviderEnabled,
             lyricsProviderTypes: lyricsProviderTypes,
@@ -1804,6 +1807,7 @@ final class AppSettings: ObservableObject {
         var speakerColors: SpeakerColorSettings
         var spotifyClientId: String
         var spotifyClientSecret: String
+        var spotifyWebAPIEnabled: Bool
         var lyricsProviderOrder: [String]
         var lyricsProviderEnabled: [String: Bool]
         var lyricsProviderTypes: [String: [String: Bool]]
