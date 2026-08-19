@@ -423,6 +423,7 @@ final class AppViewModel: ObservableObject {
     private var spotifyDJLyricsTimeline = SpotifyDJLyricsTimeline()
     private var spotifyDJLyricsOffsetMs: Int64 = 0
     private var currentSpotifyDJContext = false
+    private var currentSpotifyContextKnown = false
     private var automaticUpdateCheckStarted = false
     private let defaults = UserDefaults.standard
     private let keyLastAutoUpdateCheckMs = "last_auto_update_check_ms"
@@ -1951,6 +1952,11 @@ final class AppViewModel: ObservableObject {
         track = track.withPlayback(positionMs: position, playing: track.playing)
         currentTrack = track
         nowPositionMs = position
+        spotifyDJLyricsTimeline.registerExplicitSeek(
+            trackKey: track.stableKey,
+            playerPositionMs: position,
+            uptime: ProcessInfo.processInfo.systemUptime
+        )
         guard shouldSendSeekCommand(target: position) else { return }
         if spotifyAppRemotePlaybackService.connected || spotifyLivePolling {
             spotifyPlaybackInteractionGuard.registerSeek(
@@ -1979,32 +1985,7 @@ final class AppViewModel: ObservableObject {
     func skip(by deltaMs: Int64) {
         guard var track = currentTrack else { return }
         let target = max(0, min(track.durationMs > 0 ? track.durationMs : Int64.max, track.positionNow() + deltaMs))
-        track = track.withPlayback(positionMs: target, playing: track.playing)
-        currentTrack = track
-        nowPositionMs = target
-        guard shouldSendSeekCommand(target: target) else { return }
-        if spotifyAppRemotePlaybackService.connected || spotifyLivePolling {
-            spotifyPlaybackInteractionGuard.registerSeek(
-                trackKey: track.stableKey,
-                positionMs: target,
-                uptime: ProcessInfo.processInfo.systemUptime
-            )
-        }
-        if spotifyAppRemotePlaybackService.connected {
-            spotifyAppRemotePlaybackService.seek(positionMs: target)
-            scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: false)
-            return
-        }
-        guard settings.spotifyWebAPIEnabled,
-              spotifyLivePolling,
-              spotifyUserPlaybackService.connected else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let clientId = self.settings.spotifyClientId
-            await self.sendSpotifyPlaybackCommand {
-                try await self.spotifyUserPlaybackService.seek(positionMs: target, clientId: clientId)
-            }
-        }
+        seekPlayer(to: target, track: &track)
     }
 
     func skipToNextTrack() {
@@ -3026,7 +3007,8 @@ final class AppViewModel: ObservableObject {
                     playing: playback.playing,
                     fetchedAt: Date(),
                     deviceName: playback.deviceName,
-                    spotifyDJContext: playback.spotifyDJContext
+                    spotifyDJContext: playback.spotifyDJContext,
+                    spotifyContextKnown: playback.spotifyContextKnown
                 ),
                 loadLyricsIfNeeded: false
             )
@@ -3063,10 +3045,12 @@ final class AppViewModel: ObservableObject {
         inputIsrc = incoming.isrc
         inputDuration = formatDurationInput(incoming.durationMs)
         currentSpotifyDJContext = playback.spotifyDJContext
+        currentSpotifyContextKnown = playback.spotifyContextKnown
         updateSpotifyDJLyricsTimeline(
             track: incoming,
             playerPositionMs: playback.progressMs,
             spotifyDJContext: playback.spotifyDJContext,
+            spotifyContextKnown: playback.spotifyContextKnown,
             uptime: uptime
         )
         currentTrack = incoming
@@ -4103,6 +4087,7 @@ final class AppViewModel: ObservableObject {
                         track: track,
                         playerPositionMs: position,
                         spotifyDJContext: self.currentSpotifyDJContext,
+                        spotifyContextKnown: self.currentSpotifyContextKnown,
                         uptime: uptime
                     )
                 }
@@ -4122,6 +4107,7 @@ final class AppViewModel: ObservableObject {
         track: TrackSnapshot,
         playerPositionMs: Int64,
         spotifyDJContext: Bool,
+        spotifyContextKnown: Bool,
         uptime: TimeInterval
     ) {
         let previousOffsetMs = spotifyDJLyricsOffsetMs
@@ -4131,6 +4117,7 @@ final class AppViewModel: ObservableObject {
             playing: track.playing,
             spotifyDJContext: spotifyDJContext,
             spotifyDJSegment: Self.isSpotifyDJSegment(track),
+            spotifyContextKnown: spotifyContextKnown,
             uptime: uptime
         )
         spotifyDJLyricsOffsetMs = max(0, lyricsPositionMs - playerPositionMs)
@@ -4143,6 +4130,7 @@ final class AppViewModel: ObservableObject {
         spotifyDJLyricsTimeline.reset()
         spotifyDJLyricsOffsetMs = 0
         currentSpotifyDJContext = false
+        currentSpotifyContextKnown = false
     }
 
     private static func isSpotifyDJSegment(_ track: TrackSnapshot) -> Bool {
