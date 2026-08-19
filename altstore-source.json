@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.6",
+          "buildVersion": "45",
+          "date": "2026-08-19",
+          "localizedDescription": "ivLyrics iOS 1.3.6은 가라오케 가사의 움직임을 데스크톱 앱과 일치하도록 개선했습니다. 또한 iOS 앱 버전 및 빌드 정보를 1.3.6(빌드 45)으로 준비하고, AltStore 소스의 이전 1.3.5 배포 메타데이터를 실제 IPA 정보에 맞게 정정했습니다.\n\nivLyrics iOS 1.3.6 improves karaoke lyric motion to align with the desktop app. It also prepares the app version and build metadata for 1.3.6 (build 45), and corrects the AltStore source metadata for the earlier 1.3.5 distribution to match the actual IPA.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.6/ivLyrics-IOS-v1.3.6-unsigned.ipa",
+          "size": 7328598,
+          "sha256": "3b184294b0bcf961b8c69d1dcb7ef30a900615fb551a1c87b8c8d2217a8c688e",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.5",
           "buildVersion": "44",
           "date": "2026-08-18",
