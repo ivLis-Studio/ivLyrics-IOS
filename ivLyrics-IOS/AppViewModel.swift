@@ -35,6 +35,11 @@ enum FirstLanguagePromptChoice {
     case both
 }
 
+struct TimelineLineRenderInput {
+    let displayText: String
+    let culturalAnnotations: [CulturalAnnotation]
+}
+
 struct SpotifyWebAPIAuthorizationCoordinator {
     enum RequestAction: Equatable {
         case authorize
@@ -184,10 +189,16 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var lyricsResult = LyricsResult.empty("") {
         didSet {
             cachedTimelineContext = nil
+            cachedTimelineLineRenderInputs = nil
+            cachedCurrentLyricsLanguageDetection = nil
             refreshCreatorSupportPresentations(for: lyricsResult)
         }
     }
-    @Published private(set) var baseLyricsResult = LyricsResult.empty("")
+    @Published private(set) var baseLyricsResult = LyricsResult.empty("") {
+        didSet {
+            cachedCurrentLyricsLanguageDetection = nil
+        }
+    }
     @Published private(set) var creatorSupportPresentations: [String: CreatorSupportPresentation] = [:]
     @Published private(set) var lyricsSupplementLayoutRevision = 0
     @Published private(set) var status: AppStatus = .idle
@@ -235,7 +246,11 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var cloudSettingsUpdatedAt: Int64 = 0
     @Published private(set) var cloudMonthlyRequiredAlertPresented = false
     @Published private(set) var aiLyricsGenerating = false
-    @Published private(set) var culturalAnnotations: [CulturalAnnotation] = []
+    @Published private(set) var culturalAnnotations: [CulturalAnnotation] = [] {
+        didSet {
+            cachedTimelineLineRenderInputs = nil
+        }
+    }
     @Published private(set) var culturalAnnotationsLoading = false
     @Published private(set) var lyricsLoadingProviderName = ""
     @Published private(set) var lyricsSupplementPronunciationLoading = false
@@ -404,6 +419,8 @@ final class AppViewModel: ObservableObject {
     private var updateTask: Task<Void, Never>?
     private var timer: Timer?
     private var cachedTimelineContext: LyricsTimelineContext?
+    private var cachedTimelineLineRenderInputs: [TimelineLineRenderInput]?
+    private var cachedCurrentLyricsLanguageDetection: (payload: String, sourceLang: String)?
     private var audioRouteObserver: NSObjectProtocol?
     private var spotifyMetadataHydrationTrackId = ""
     private var spotifyQueuePrefetchSourceKey = ""
@@ -435,7 +452,7 @@ final class AppViewModel: ObservableObject {
     var timelineContext: LyricsTimelineContext {
         let cacheLyricEndTimes = settings.autoInstrumentalBreakEnabled
         if let cachedTimelineContext,
-           cachedTimelineContext.cachesLyricEndTimes == cacheLyricEndTimes {
+           cachedTimelineContext.precomputesAutomaticInterludes == cacheLyricEndTimes {
             return cachedTimelineContext
         }
         let context = LyricsTimelineContext(
@@ -444,6 +461,37 @@ final class AppViewModel: ObservableObject {
         )
         cachedTimelineContext = context
         return context
+    }
+
+    func timelineLineRenderInput(for line: LyricsLine, at index: Int) -> TimelineLineRenderInput {
+        let inputs = timelineLineRenderInputs()
+        guard inputs.indices.contains(index) else {
+            return makeTimelineLineRenderInput(for: line, at: index)
+        }
+        return inputs[index]
+    }
+
+    private func timelineLineRenderInputs() -> [TimelineLineRenderInput] {
+        if let cachedTimelineLineRenderInputs {
+            return cachedTimelineLineRenderInputs
+        }
+        let inputs = lyricsResult.lines.enumerated().map { index, line in
+            makeTimelineLineRenderInput(for: line, at: index)
+        }
+        cachedTimelineLineRenderInputs = inputs
+        return inputs
+    }
+
+    private func makeTimelineLineRenderInput(for line: LyricsLine, at index: Int) -> TimelineLineRenderInput {
+        let text = displayText(for: line)
+        return TimelineLineRenderInput(
+            displayText: text,
+            culturalAnnotations: CulturalAnnotation.forLine(
+                culturalAnnotations,
+                lineIndex: index,
+                text: text
+            )
+        )
     }
 
     init(settings: AppSettings) {
@@ -780,12 +828,13 @@ final class AppViewModel: ObservableObject {
     }
 
     var effectiveDetectedLyricsSourceLang: String {
-        let lines = baseLyricsResult.lines.isEmpty ? lyricsResult.lines : baseLyricsResult.lines
-        return detectedSourceLang(lines: lines)
+        currentLyricsLanguageDetection().sourceLang
     }
 
     var effectiveSelectedRuleSourceLang: String {
-        effectiveSelectedSourceLang(lines: baseLyricsResult.lines.isEmpty ? lyricsResult.lines : baseLyricsResult.lines)
+        selectedRuleSourceLang.caseInsensitiveCompare("auto") == .orderedSame
+            ? currentLyricsLanguageDetection().sourceLang
+            : AppSettings.normalizeSourceLanguageKey(selectedRuleSourceLang)
     }
 
     var activeLineIndex: Int {
@@ -3875,6 +3924,18 @@ final class AppViewModel: ObservableObject {
         let payload = supplementDetectionPayload(lines: lines)
         let normalized = AppSettings.normalizeLanguageCode(AiLyricsRepository.detectLanguage(payload))
         return normalized.isEmpty ? "en" : normalized
+    }
+
+    private func currentLyricsLanguageDetection() -> (payload: String, sourceLang: String) {
+        if let cachedCurrentLyricsLanguageDetection {
+            return cachedCurrentLyricsLanguageDetection
+        }
+        let lines = baseLyricsResult.lines.isEmpty ? lyricsResult.lines : baseLyricsResult.lines
+        let payload = supplementDetectionPayload(lines: lines)
+        let normalized = AppSettings.normalizeLanguageCode(AiLyricsRepository.detectLanguage(payload))
+        let detection = (payload: payload, sourceLang: normalized.isEmpty ? "en" : normalized)
+        cachedCurrentLyricsLanguageDetection = detection
+        return detection
     }
 
     private func supplementDetectionPayload(lines: [LyricsLine]) -> String {

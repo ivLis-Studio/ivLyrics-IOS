@@ -4627,11 +4627,12 @@ struct LyricsTimelineView: View {
             trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
         )?.id
+        let fallbackActiveLineIndex = activeItemID == nil ? model.activeLineIndex : nil
         let activeDisplayIndex = activeItemID.flatMap { id in
             items.firstIndex { $0.id == id }
         } ?? max(0, items.firstIndex { item in
             if case .line(let index, _, _) = item {
-                return index == model.activeLineIndex
+                return index == fallbackActiveLineIndex
             }
             return false
         } ?? 0)
@@ -4672,18 +4673,14 @@ struct LyricsTimelineView: View {
                     Group {
                         switch item {
                         case .line(let index, let line, _):
-                            let lineActive = itemActive || (activeItemID == nil && index == model.activeLineIndex)
-                            let originalText = model.displayText(for: line)
+                            let lineActive = itemActive || index == fallbackActiveLineIndex
+                            let renderInput = model.timelineLineRenderInput(for: line, at: index)
                             LyricsLineView(
                                 lineIndex: index,
                                 line: line,
-                                originalText: originalText,
+                                originalText: renderInput.displayText,
                                 culturalAnnotations: settings.culturalAnnotationsEnabled
-                                    ? CulturalAnnotation.forLine(
-                                        model.culturalAnnotations,
-                                        lineIndex: index,
-                                        text: originalText
-                                    )
+                                    ? renderInput.culturalAnnotations
                                     : [],
                                 active: lineActive,
                                 displayDistance: displayDistance,
@@ -5001,6 +4998,12 @@ struct InterludeInfo {
     var automatic: Bool
 }
 
+fileprivate struct AutomaticInterludeSeed {
+    let startTimeMs: Int64
+    let fixedEndTimeMs: Int64?
+    let kind: String
+}
+
 struct LyricsTimelineContext {
     let lines: [LyricsLine]
     let lineIDs: [String]
@@ -5009,14 +5012,15 @@ struct LyricsTimelineContext {
     let firstUntimedLineIndex: Int?
     let firstRenderableLineIndex: Int?
     let nonMarkerLineCount: Int
-    let lastLyricEndTimes: [Int64]?
+    let precomputesAutomaticInterludes: Bool
     let markerInterludeInfos: [InterludeInfo?]
+    fileprivate let automaticInterludeSeeds: [AutomaticInterludeSeed?]
+    fileprivate let automaticInterludeIndices: [Int]
     let baseItems: [LyricsTimelineDisplayItem]
-
-    var cachesLyricEndTimes: Bool { lastLyricEndTimes != nil }
 
     init(lines: [LyricsLine], cacheLyricEndTimes: Bool = true) {
         self.lines = lines
+        precomputesAutomaticInterludes = cacheLyricEndTimes
         let lineIDs = lines.enumerated().map {
             LyricsTimelineDisplayBuilder.lineID(index: $0.offset, line: $0.element)
         }
@@ -5051,7 +5055,7 @@ struct LyricsTimelineContext {
         self.firstUntimedLineIndex = firstUntimedLineIndex
         self.firstRenderableLineIndex = firstRenderableLineIndex
         self.nonMarkerLineCount = nonMarkerLineCount
-        lastLyricEndTimes = cacheLyricEndTimes
+        let lastLyricEndTimes = cacheLyricEndTimes
             ? lines.map(LyricsTimelineDisplayBuilder.lastLyricEndTime)
             : nil
         let markerInterludeInfos = LyricsTimelineDisplayBuilder.markerInterludeInfos(
@@ -5060,6 +5064,14 @@ struct LyricsTimelineContext {
             markerIndices: markerIndices
         )
         self.markerInterludeInfos = markerInterludeInfos
+        let automaticInterludes = LyricsTimelineDisplayBuilder.automaticInterludeSeeds(
+            lines: lines,
+            isMarker: isMarker,
+            markerInterludeInfos: markerInterludeInfos,
+            lastLyricEndTimes: lastLyricEndTimes
+        )
+        automaticInterludeSeeds = automaticInterludes.seeds
+        automaticInterludeIndices = automaticInterludes.indices
         var baseItems: [LyricsTimelineDisplayItem] = []
         let capacity = nonMarkerLineCount
         baseItems.reserveCapacity(capacity == Int.max ? capacity : capacity + 1)
@@ -5205,9 +5217,7 @@ enum LyricsTimelineDisplayBuilder {
 
             if let trailing = trailingInterludeInfo(
                 context: context,
-                line: line,
                 index: index,
-                count: count,
                 positionMs: positionMs,
                 trackDurationMs: trackDurationMs,
                 autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled
@@ -5415,6 +5425,56 @@ enum LyricsTimelineDisplayBuilder {
         return result
     }
 
+    fileprivate static func automaticInterludeSeeds(
+        lines: [LyricsLine],
+        isMarker: [Bool],
+        markerInterludeInfos: [InterludeInfo?],
+        lastLyricEndTimes: [Int64]?
+    ) -> (seeds: [AutomaticInterludeSeed?], indices: [Int]) {
+        var seeds = Array<AutomaticInterludeSeed?>(repeating: nil, count: lines.count)
+        guard let lastLyricEndTimes else { return (seeds, []) }
+
+        var indices: [Int] = []
+        var nextRenderableLineStartMs: Int64 = 0
+        var hasRenderableMarkerBeforeNextLine = false
+        for index in lines.indices.reversed() {
+            let line = lines[index]
+            guard line.isTimed else { continue }
+            if isMarker[index] {
+                if markerInterludeInfos[index] != nil {
+                    hasRenderableMarkerBeforeNextLine = true
+                }
+                continue
+            }
+
+            let candidateEndTimeMs = nextRenderableLineStartMs
+            let markerBlocksAutomaticInterlude = hasRenderableMarkerBeforeNextLine
+            nextRenderableLineStartMs = line.startTimeMs
+            hasRenderableMarkerBeforeNextLine = false
+            guard !markerBlocksAutomaticInterlude else { continue }
+            let lyricEnd = lastLyricEndTimes[index]
+            guard lyricEnd >= 0 else { continue }
+            let start = lyricEnd + trailingInterludeDelayMs
+            if candidateEndTimeMs > start {
+                guard candidateEndTimeMs - start > interludeMinDurationMs else { continue }
+                seeds[index] = AutomaticInterludeSeed(
+                    startTimeMs: start,
+                    fixedEndTimeMs: candidateEndTimeMs,
+                    kind: "break"
+                )
+                indices.append(index)
+            } else if index == lines.index(before: lines.endIndex) {
+                seeds[index] = AutomaticInterludeSeed(
+                    startTimeMs: start,
+                    fixedEndTimeMs: nil,
+                    kind: "postlude"
+                )
+                indices.append(index)
+            }
+        }
+        return (seeds, Array(indices.reversed()))
+    }
+
     private static func hasActiveInterlude(
         context: LyricsTimelineContext,
         positionMs: Int64,
@@ -5427,14 +5487,10 @@ enum LyricsTimelineDisplayBuilder {
             }
         }
         guard autoInstrumentalBreakEnabled else { return false }
-        let lines = context.lines
-        let count = lines.count
-        for index in lines.indices {
+        for index in context.automaticInterludeIndices {
             if trailingInterludeInfo(
                 context: context,
-                line: lines[index],
                 index: index,
-                count: count,
                 positionMs: positionMs,
                 trackDurationMs: trackDurationMs,
                 autoInstrumentalBreakEnabled: true
@@ -5447,26 +5503,24 @@ enum LyricsTimelineDisplayBuilder {
 
     private static func trailingInterludeInfo(
         context: LyricsTimelineContext,
-        line: LyricsLine,
         index: Int,
-        count: Int,
         positionMs: Int64,
         trackDurationMs: Int64,
         autoInstrumentalBreakEnabled: Bool
     ) -> InterludeInfo? {
         guard autoInstrumentalBreakEnabled,
-              line.isTimed,
-              !context.isMarker[index],
-              !hasRenderableInterludeMarkerBeforeNextRenderableLine(context: context, index: index, count: count) else {
+              context.automaticInterludeSeeds.indices.contains(index),
+              let seed = context.automaticInterludeSeeds[index] else {
             return nil
         }
-        let lyricEnd = context.lastLyricEndTimes?[index] ?? lastLyricEndTime(line)
-        guard lyricEnd >= 0 else { return nil }
-        let start = lyricEnd + trailingInterludeDelayMs
-        let nextStart = nextRenderableLineStartAfter(context: context, index: index)
-        let end = nextStart > start ? nextStart : (index >= max(0, count - 1) ? trackDurationMs : 0)
-        guard end - start > interludeMinDurationMs else { return nil }
-        let info = InterludeInfo(startTimeMs: start, endTimeMs: end, kind: nextStart > 0 ? "break" : "postlude", automatic: true)
+        let end = seed.fixedEndTimeMs ?? trackDurationMs
+        guard end - seed.startTimeMs > interludeMinDurationMs else { return nil }
+        let info = InterludeInfo(
+            startTimeMs: seed.startTimeMs,
+            endTimeMs: end,
+            kind: seed.kind,
+            automatic: true
+        )
         return contains(info, positionMs) ? info : nil
     }
 
@@ -5486,19 +5540,14 @@ enum LyricsTimelineDisplayBuilder {
         autoInstrumentalBreakEnabled: Bool
     ) -> InterludeInfo? {
         guard autoInstrumentalBreakEnabled else { return nil }
-        let lines = context.lines
-        let count = lines.count
-        for index in lines.indices {
-            let line = lines[index]
-            guard line.isTimed, !context.isMarker[index] else { continue }
-            let lyricEnd = context.lastLyricEndTimes?[index] ?? lastLyricEndTime(line)
-            guard lyricEnd >= 0 else { continue }
-            let start = lyricEnd + trailingInterludeDelayMs
-            let nextStart = nextRenderableLineStartAfter(context: context, index: index)
-            let end = nextStart > start ? nextStart : (index >= max(0, count - 1) ? trackDurationMs : 0)
-            guard end - start > interludeMinDurationMs else { continue }
-            let info = InterludeInfo(startTimeMs: start, endTimeMs: end, kind: nextStart > 0 ? "break" : "postlude", automatic: true)
-            if contains(info, positionMs) {
+        for index in context.automaticInterludeIndices {
+            if let info = trailingInterludeInfo(
+                context: context,
+                index: index,
+                positionMs: positionMs,
+                trackDurationMs: trackDurationMs,
+                autoInstrumentalBreakEnabled: true
+            ) {
                 return info
             }
         }
@@ -5507,28 +5556,6 @@ enum LyricsTimelineDisplayBuilder {
 
     private static func firstRenderableLineIndex(context: LyricsTimelineContext) -> Int? {
         context.firstRenderableLineIndex
-    }
-
-    private static func nextRenderableLineStartAfter(context: LyricsTimelineContext, index: Int) -> Int64 {
-        for nextIndex in (index + 1)..<context.lines.count {
-            let candidate = context.lines[nextIndex]
-            guard candidate.isTimed else { continue }
-            if context.isMarker[nextIndex] { continue }
-            return candidate.startTimeMs
-        }
-        return 0
-    }
-
-    private static func hasRenderableInterludeMarkerBeforeNextRenderableLine(context: LyricsTimelineContext, index: Int, count: Int) -> Bool {
-        for nextIndex in (index + 1)..<context.lines.count {
-            let candidate = context.lines[nextIndex]
-            guard candidate.isTimed else { continue }
-            if !context.isMarker[nextIndex] { return false }
-            if markerInterludeInfo(context: context, line: candidate, index: nextIndex, count: count) != nil {
-                return true
-            }
-        }
-        return false
     }
 
     fileprivate static func lastLyricEndTime(_ line: LyricsLine) -> Int64 {
