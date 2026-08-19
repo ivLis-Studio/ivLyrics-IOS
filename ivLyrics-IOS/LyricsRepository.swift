@@ -1,5 +1,11 @@
 import Foundation
 
+enum SpotifyMetadataTokenRecoveryPolicy {
+    static func shouldRecover(statusCode: Int) -> Bool {
+        statusCode == 401
+    }
+}
+
 actor LyricsRepository {
     private let lrclibBase = "https://lrclib.net/api"
     private let syncDataBase = "https://lyrics.api.ivl.is/lyrics/sync-data"
@@ -131,6 +137,13 @@ actor LyricsRepository {
         ), forKey: key)
     }
 
+    private func storeLyricsCache(_ key: String, result: LyricsResult) throws {
+        try Task.checkCancellation()
+        putMemoryCachedLyrics(key, result: result)
+        try Task.checkCancellation()
+        diskCache.put(key, result: result)
+    }
+
     private func markProviderLyricsNormalized(_ result: LyricsResult) -> LyricsResult {
         PaxsenixLyricsProvider.markEntitiesDecoded(in: result)
     }
@@ -240,10 +253,12 @@ actor LyricsRepository {
     func loadLyrics(
         track: TrackSnapshot,
         settings: AppSettings.Snapshot,
+        spotifyUserAccessToken: String = "",
         onCachedLyricsLoaded: ((LoadedLyrics) async -> Void)? = nil,
         onProviderLoading: ((String) async -> Void)? = nil,
         onSpotifyMetadataResolved: ((ResolvedSpotifyMetadata) async -> Void)? = nil
     ) async throws -> LoadedLyrics {
+        try Task.checkCancellation()
         guard track.hasUsableMetadata else {
             return LoadedLyrics(trackKey: "", result: .empty(ui("repo.metadata_waiting", settings: settings)), artworkURL: nil, logs: [], resolvedIsrc: "", resolvedSpotifyTrackId: "")
         }
@@ -257,7 +272,7 @@ actor LyricsRepository {
         let cacheKey = lyricsCacheKey(trackKey: key, settings: settings)
         var publishedSpotifyMetadataKeys = Set<String>()
         func publishResolvedMetadata(isrc: String, spotifyTrackId: String, artworkURL: URL?) async {
-            guard let onSpotifyMetadataResolved else { return }
+            guard !Task.isCancelled, let onSpotifyMetadataResolved else { return }
             let normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc)
             let safeSpotifyTrackId = spotifyTrackId.trimmed
             guard !normalizedIsrc.isEmpty || !safeSpotifyTrackId.isEmpty || artworkURL != nil else { return }
@@ -294,10 +309,12 @@ actor LyricsRepository {
                         resolvedSpotifyTrackId: cached.spotifyTrackId
                     )
                 )
+                try Task.checkCancellation()
                 logs.removeAll(keepingCapacity: true)
             }
         }
         if cachedBase == nil, let diskCached = reusableDiskCachedLyrics(cacheKey) {
+            try Task.checkCancellation()
             putMemoryCachedLyrics(cacheKey, result: diskCached)
             let cachedIsrc = IvLyricsUtilities.firstNonEmpty(diskCached.isrc, track.isrc)
             if !shouldRevalidateCachedResult(diskCached, settings: settings, resolvedIsrc: cachedIsrc) {
@@ -317,6 +334,7 @@ actor LyricsRepository {
                         resolvedSpotifyTrackId: diskCached.spotifyTrackId
                     )
                 )
+                try Task.checkCancellation()
                 logs.removeAll(keepingCapacity: true)
             }
         }
@@ -337,10 +355,16 @@ actor LyricsRepository {
             )
             spotifyMatch = nil
         } else {
-            spotifyMatch = await fetchSpotifyIsrc(track: track, settings: settings, log: log) { match in
+            spotifyMatch = await fetchSpotifyIsrc(
+                track: track,
+                settings: settings,
+                userAccessToken: spotifyUserAccessToken,
+                log: log
+            ) { match in
                 await publishResolvedMetadata(isrc: match.isrc, spotifyTrackId: match.spotifyId, artworkURL: match.artworkURL)
             }
         }
+        try Task.checkCancellation()
         let isrc = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.isrc, track.isrc, cachedBase?.isrc)
         let spotifyTrackId = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.spotifyId, track.trackId, cachedBase?.spotifyTrackId)
         let hasSpotifyIsrc = spotifyMatch?.isrc.isEmpty == false
@@ -349,40 +373,49 @@ actor LyricsRepository {
         log(isrc.isEmpty ? "isrc: unavailable after Spotify lookup" : "isrc: \(isrc) (\(isrcSource))")
         if !isrc.isEmpty {
             await publishResolvedMetadata(isrc: isrc, spotifyTrackId: spotifyTrackId, artworkURL: spotifyMatch?.artworkURL)
+            try Task.checkCancellation()
         }
 
         if let cached = cachedBase, !cached.contributors.isEmpty {
             let supportsContributorRefresh = !isrc.isEmpty
                 && AppSettings.lyricsProviderById(cached.providerId) != nil
-            if supportsContributorRefresh,
-               let currentSyncData = await fetchSyncData(
+            let currentSyncData: SyncDataResult?
+            if supportsContributorRefresh {
+                currentSyncData = await fetchSyncData(
                     isrc: isrc,
                     providerId: cached.providerId,
                     track: track,
                     spotifyMatch: spotifyMatch,
                     log: log,
                     forceContributorRefresh: true
-                ) {
+                )
+                try Task.checkCancellation()
+            } else {
+                currentSyncData = nil
+            }
+            if let currentSyncData {
                 var hydrated = cached
                 hydrated.contributors = currentSyncData.contributors
                 hydrated.syncType = currentSyncData.syncType
                 hydrated.syncPoints = currentSyncData.syncPoints
                 cachedBase = hydrated
-                putMemoryCachedLyrics(cacheKey, result: hydrated)
-                diskCache.put(cacheKey, result: hydrated)
+                try storeLyricsCache(cacheKey, result: hydrated)
                 log("sync-data contributors refreshed for cached lyrics: count=\(currentSyncData.contributors.count)")
             } else {
                 let privacySafe = privacySafeContributorFallback(cached)
                 cachedBase = privacySafe
-                putMemoryCachedLyrics(cacheKey, result: privacySafe)
-                diskCache.put(cacheKey, result: privacySafe)
+                try storeLyricsCache(cacheKey, result: privacySafe)
                 log("sync-data contributor refresh failed; privacy-safe anonymous fallback used")
             }
         }
 
-        let syncDataProviders = isrc.isEmpty
-            ? Set<String>()
-            : await availableSyncDataProviderIds(isrc: isrc, log: log)
+        let syncDataProviders: Set<String>
+        if isrc.isEmpty {
+            syncDataProviders = []
+        } else {
+            syncDataProviders = await availableSyncDataProviderIds(isrc: isrc, log: log)
+            try Task.checkCancellation()
+        }
         if let cachedBase {
             let preferredSyncProvider = preferredIvLyricsSyncProviderId(
                 settings: settings,
@@ -401,6 +434,7 @@ actor LyricsRepository {
                         spotifyMatch: spotifyMatch,
                         log: log
                     )
+                    try Task.checkCancellation()
                     if let applied = applySyncData(
                         syncData,
                         base: cachedBase,
@@ -416,8 +450,7 @@ actor LyricsRepository {
                                 selectionPolicyKey: settings.lyricsProviderPolicySignature
                             )
                         )
-                        putMemoryCachedLyrics(cacheKey, result: selected)
-                        diskCache.put(cacheKey, result: selected)
+                        try storeLyricsCache(cacheKey, result: selected)
                         return LoadedLyrics(trackKey: key, result: selected, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
                     }
                     log("cached provider sync-data apply failed; cached lyrics kept")
@@ -433,6 +466,7 @@ actor LyricsRepository {
                     spotifyMatch: spotifyMatch,
                     log: log
                 )
+                try Task.checkCancellation()
                 if let applied = applySyncData(
                     syncData,
                     base: cachedBase,
@@ -448,8 +482,7 @@ actor LyricsRepository {
                             selectionPolicyKey: settings.lyricsProviderPolicySignature
                         )
                     )
-                    putMemoryCachedLyrics(cacheKey, result: selected)
-                    diskCache.put(cacheKey, result: selected)
+                    try storeLyricsCache(cacheKey, result: selected)
                     return LoadedLyrics(trackKey: key, result: selected, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
                 }
                 log("cached provider sync-data unavailable; cached lyrics kept")
@@ -472,11 +505,13 @@ actor LyricsRepository {
 
         var attempts: [String: ProviderVariants] = [:]
         var attempted = Set<String>()
-        func loadOnce(_ providerId: String) async -> ProviderVariants? {
+        func loadOnce(_ providerId: String) async throws -> ProviderVariants? {
+            try Task.checkCancellation()
             if attempted.contains(providerId) { return attempts[providerId] }
             attempted.insert(providerId)
             if let providerName = AppSettings.lyricsProviderById(providerId)?.name {
                 await onProviderLoading?(providerName)
+                try Task.checkCancellation()
             }
             do {
                 if let variants = try await loadProviderVariants(
@@ -489,10 +524,14 @@ actor LyricsRepository {
                     settings: settings,
                     log: log
                 ) {
+                    try Task.checkCancellation()
                     attempts[providerId] = variants
                     return variants
                 }
             } catch {
+                if isCancellationError(error) || Task.isCancelled {
+                    throw CancellationError()
+                }
                 log("provider \(providerId) error: \(error.localizedDescription)")
             }
             return nil
@@ -510,7 +549,7 @@ actor LyricsRepository {
                             type: type,
                             syncDataAvailable: syncDataProviders.contains(providerId)
                           ) else { continue }
-                    if let result = await loadOnce(providerId)?.result(for: type), !result.lines.isEmpty {
+                    if let result = try await loadOnce(providerId)?.result(for: type), !result.lines.isEmpty {
                         selected = result
                         selectedProvider = providerId
                         selectedType = type
@@ -534,7 +573,7 @@ actor LyricsRepository {
                         )
                 }
                 guard !allowedTypes.isEmpty else { continue }
-                guard let variants = await loadOnce(providerId) else { continue }
+                guard let variants = try await loadOnce(providerId) else { continue }
                 for type in allowedTypes {
                     if let result = variants.result(for: type), !result.lines.isEmpty {
                         selected = result
@@ -548,6 +587,7 @@ actor LyricsRepository {
         }
 
         if let selected {
+            try Task.checkCancellation()
             let selectedWithPolicy = markProviderLyricsNormalized(
                 selected.withSelection(
                     providerId: selectedProvider,
@@ -555,8 +595,7 @@ actor LyricsRepository {
                 )
             )
             log("provider selected: \(selectedProvider) / type=\(selectedType) / lines=\(selected.lines.count)")
-            putMemoryCachedLyrics(cacheKey, result: selectedWithPolicy)
-            diskCache.put(cacheKey, result: selectedWithPolicy)
+            try storeLyricsCache(cacheKey, result: selectedWithPolicy)
             return LoadedLyrics(trackKey: key, result: selectedWithPolicy, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
         }
         if let cachedBase {
@@ -587,6 +626,9 @@ actor LyricsRepository {
             }
             return result
         } catch {
+            if isCancellationError(error) {
+                return []
+            }
             markOpenDbUnavailable()
             log("sync-data opendb provider lookup error: \(error.localizedDescription)")
             return []
@@ -982,24 +1024,54 @@ actor LyricsRepository {
         AppI18n.t(settings.uiLang, key)
     }
 
-    func resolveSpotifyTrack(_ rawTrackId: String, settings: AppSettings.Snapshot) async throws -> SpotifyResolvedTrack? {
+    func resolveSpotifyTrack(
+        _ rawTrackId: String,
+        settings: AppSettings.Snapshot,
+        spotifyUserAccessToken: String = ""
+    ) async throws -> SpotifyResolvedTrack? {
         let trackId = TrackSnapshot.extractSpotifyTrackId(rawTrackId)
         guard !trackId.isEmpty else { return nil }
         var logs: [String] = []
         func log(_ message: String) { logs.append(message) }
-        let token = try await getSpotifyAccessToken(forceRefresh: false, settings: settings, log: log)
+        var token = try await spotifyMetadataAccessToken(
+            userAccessToken: spotifyUserAccessToken,
+            settings: settings,
+            log: log
+        )
         guard !token.isEmpty else {
             log("spotify manual metadata: Spotify API credentials unavailable")
             return SpotifyResolvedTrack(spotifyId: trackId, title: "", artist: "", album: "", isrc: "", durationMs: 0, artworkURL: nil, logs: logs)
         }
-        guard let match = try await fetchSpotifyTrackById(
-            token: token,
-            trackId: trackId,
-            label: "manual metadata",
-            headers: ["Authorization": "Bearer \(token)"],
-            requireIsrc: false,
-            log: log
-        ) else {
+        let match: SpotifyTrackMatch?
+        do {
+            match = try await fetchSpotifyTrackById(
+                token: token,
+                trackId: trackId,
+                label: "manual metadata",
+                headers: ["Authorization": "Bearer \(token)"],
+                requireIsrc: false,
+                log: log
+            )
+        } catch let error as HTTPStatusError where isSpotifyTokenFailure(error) {
+            token = try await recoverSpotifyMetadataAccessToken(
+                rejectedToken: token,
+                userAccessToken: spotifyUserAccessToken,
+                settings: settings,
+                log: log
+            )
+            guard !token.isEmpty else {
+                return SpotifyResolvedTrack(spotifyId: trackId, title: "", artist: "", album: "", isrc: "", durationMs: 0, artworkURL: nil, logs: logs)
+            }
+            match = try await fetchSpotifyTrackById(
+                token: token,
+                trackId: trackId,
+                label: "manual metadata after fallback",
+                headers: ["Authorization": "Bearer \(token)"],
+                requireIsrc: false,
+                log: log
+            )
+        }
+        guard let match else {
             return nil
         }
         return SpotifyResolvedTrack(
@@ -1105,7 +1177,11 @@ actor LyricsRepository {
         return best
     }
 
-    func hydrateSpotifyTrackMetadata(track: TrackSnapshot, settings: AppSettings.Snapshot) async -> SpotifyTrackHydration {
+    func hydrateSpotifyTrackMetadata(
+        track: TrackSnapshot,
+        settings: AppSettings.Snapshot,
+        spotifyUserAccessToken: String = ""
+    ) async -> SpotifyTrackHydration {
         var logs: [String] = []
         func log(_ message: String) {
             logs.append(message)
@@ -1116,7 +1192,11 @@ actor LyricsRepository {
             return SpotifyTrackHydration(track: track, spotifyArtworkURL: nil, logs: logs)
         }
         do {
-            var token = try await getSpotifyAccessToken(forceRefresh: false, settings: settings, log: log)
+            var token = try await spotifyMetadataAccessToken(
+                userAccessToken: spotifyUserAccessToken,
+                settings: settings,
+                log: log
+            )
             guard !token.isEmpty else {
                 log("spotify live metadata: token unavailable")
                 return SpotifyTrackHydration(track: track, spotifyArtworkURL: nil, logs: logs)
@@ -1133,8 +1213,12 @@ actor LyricsRepository {
                 )
             } catch let error as HTTPStatusError where isSpotifyTokenFailure(error) {
                 log("spotify token: rejected by live metadata request (\(error.localizedDescription)), refreshing")
-                invalidateSpotifyToken()
-                token = try await getSpotifyAccessToken(forceRefresh: true, settings: settings, log: log)
+                token = try await recoverSpotifyMetadataAccessToken(
+                    rejectedToken: token,
+                    userAccessToken: spotifyUserAccessToken,
+                    settings: settings,
+                    log: log
+                )
                 guard !token.isEmpty else {
                     log("spotify live metadata: token refresh failed")
                     return SpotifyTrackHydration(track: track, spotifyArtworkURL: nil, logs: logs)
@@ -1427,12 +1511,16 @@ actor LyricsRepository {
                 log: log,
                 fromCache: false
             )
+            guard !Task.isCancelled else { return nil }
             if !cacheKey.isEmpty,
                let persistentResponse = redactedSyncDataResponseForPersistence(response) {
                 syncDataResponseCache.put(cacheKey, body: persistentResponse)
             }
             return result
         } catch {
+            if isCancellationError(error) {
+                return nil
+            }
             log("sync-data error: \(error.localizedDescription)")
             return nil
         }
@@ -1702,6 +1790,7 @@ actor LyricsRepository {
     private func fetchSpotifyIsrc(
         track: TrackSnapshot,
         settings: AppSettings.Snapshot,
+        userAccessToken: String,
         log: (String) -> Void,
         onResolved: ((SpotifyTrackMatch) async -> Void)? = nil
     ) async -> SpotifyTrackMatch? {
@@ -1710,7 +1799,11 @@ actor LyricsRepository {
             return nil
         }
         do {
-            var token = try await getSpotifyAccessToken(forceRefresh: false, settings: settings, log: log)
+            var token = try await spotifyMetadataAccessToken(
+                userAccessToken: userAccessToken,
+                settings: settings,
+                log: log
+            )
             guard !token.isEmpty else {
                 log("spotify token: unavailable; configure Spotify API client id/secret in settings")
                 return nil
@@ -1729,8 +1822,12 @@ actor LyricsRepository {
                     }
                 } catch let error as HTTPStatusError where isSpotifyTokenFailure(error) {
                     log("spotify token: rejected by direct track request (\(error.localizedDescription)), refreshing")
-                    invalidateSpotifyToken()
-                    token = try await getSpotifyAccessToken(forceRefresh: true, settings: settings, log: log)
+                    token = try await recoverSpotifyMetadataAccessToken(
+                        rejectedToken: token,
+                        userAccessToken: userAccessToken,
+                        settings: settings,
+                        log: log
+                    )
                     if !token.isEmpty,
                        var direct = try await fetchSpotifyTrackById(token: token, trackId: track.trackId, log: log),
                        !direct.isrc.isEmpty {
@@ -1750,8 +1847,12 @@ actor LyricsRepository {
                 matches = try await searchSpotifyCandidates(track: track, token: token, log: log)
             } catch let error as HTTPStatusError where isSpotifyTokenFailure(error) {
                 log("spotify token: rejected by Spotify API (\(error.localizedDescription)), refreshing")
-                invalidateSpotifyToken()
-                token = try await getSpotifyAccessToken(forceRefresh: true, settings: settings, log: log)
+                token = try await recoverSpotifyMetadataAccessToken(
+                    rejectedToken: token,
+                    userAccessToken: userAccessToken,
+                    settings: settings,
+                    log: log
+                )
                 guard !token.isEmpty else {
                     log("spotify token: refresh failed")
                     return nil
@@ -1882,6 +1983,34 @@ actor LyricsRepository {
         }
     }
 
+    private func spotifyMetadataAccessToken(
+        userAccessToken: String,
+        settings: AppSettings.Snapshot,
+        log: (String) -> Void
+    ) async throws -> String {
+        let userToken = userAccessToken.trimmed
+        if !userToken.isEmpty {
+            log("spotify token: user OAuth token reused for metadata")
+            return userToken
+        }
+        return try await getSpotifyAccessToken(forceRefresh: false, settings: settings, log: log)
+    }
+
+    private func recoverSpotifyMetadataAccessToken(
+        rejectedToken: String,
+        userAccessToken: String,
+        settings: AppSettings.Snapshot,
+        log: (String) -> Void
+    ) async throws -> String {
+        let userToken = userAccessToken.trimmed
+        if !userToken.isEmpty, rejectedToken == userToken {
+            log("spotify token: user OAuth token rejected; trying optional Client Secret fallback")
+            return try await getSpotifyAccessToken(forceRefresh: false, settings: settings, log: log)
+        }
+        invalidateSpotifyToken()
+        return try await getSpotifyAccessToken(forceRefresh: true, settings: settings, log: log)
+    }
+
     private func requestSpotifyClientCredentialsToken(credentials: SpotifyCredentials, log: (String) -> Void) async throws -> SpotifyTokenResponse {
         log("spotify token: requesting with Spotify API credentials")
         let basic = Data("\(credentials.clientId):\(credentials.clientSecret)".utf8).base64EncodedString()
@@ -1930,7 +2059,7 @@ actor LyricsRepository {
     }
 
     private func isSpotifyTokenFailure(_ error: HTTPStatusError) -> Bool {
-        error.statusCode == 401 || error.statusCode == 403
+        SpotifyMetadataTokenRecoveryPolicy.shouldRecover(statusCode: error.statusCode)
     }
 
     private func scoreCandidate(track: TrackSnapshot, candidate: LrclibCandidate, hasSyncData: Bool) -> Double {
