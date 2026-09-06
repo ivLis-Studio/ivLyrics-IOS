@@ -188,11 +188,31 @@ resultCache.removeAll()
 check(resultCache.keys.isEmpty, "Memory pressure can release all retained results")
 resultCache.insert(4, forKey: "track-c|old")
 check(resultCache.value(forKey: "track-c|old") == 4, "Disk rehydration works after memory purge")
+var retryPolicy = SpotifyPlaybackRetryPolicy()
+retryPolicy.receivedFailure(now: 100, retryAfter: 45)
+near(retryPolicy.remainingDelay(now: 103), 42, "429 retains Retry-After deadline")
+retryPolicy.requestImmediateRefresh()
+near(retryPolicy.remainingDelay(now: 110), 35, "User command cannot bypass server rate limit")
+near(retryPolicy.remainingDelay(now: 145), 0, "429 expires without repeated extension")
+retryPolicy.receivedPlayback(hasTrack: true, now: 145)
+near(retryPolicy.remainingDelay(now: 145), 0, "Successful playback restores normal polling")
+for attempt in 0..<6 { retryPolicy.receivedFailure(now: 200 + Double(attempt) * 30) }
+near(retryPolicy.remainingDelay(now: 350), 30, "Transient failures back off to bounded 30 seconds")
+retryPolicy.requestImmediateRefresh()
+near(retryPolicy.remainingDelay(now: 350), 0, "Foreground can recover immediately from network failure")
+for _ in 0..<6 { retryPolicy.receivedPlayback(hasTrack: false, now: 400) }
+near(retryPolicy.remainingDelay(now: 400), 15, "Empty playback backs off to 15 seconds")
+retryPolicy.receivedPlayback(hasTrack: true, now: 415)
+near(retryPolicy.remainingDelay(now: 415), 0, "Playback resumption clears empty-result backoff")
+near(SpotifyPlaybackRetryPolicy.retryAfterSeconds("600")!, 600, "Long server retry intervals are honored")
+check(SpotifyPlaybackRetryPolicy.retryAfterSeconds("invalid") == nil, "Malformed retry header uses caller fallback")
+check(SpotifyPlaybackRetryPolicy.retryAfterSeconds("nan") == nil, "Non-finite retry header is rejected")
+near(SpotifyPlaybackRetryPolicy.retryAfterSeconds("Thu, 01 Jan 1970 00:01:00 GMT", now: Date(timeIntervalSince1970: 0))!, 60, "HTTP-date retry headers are supported")
 print("PLAYBACK_REGRESSIONS_PASSED assertions=\(assertions)")
 '''
 with tempfile.TemporaryDirectory(prefix="ivlyrics-ios-regression-") as path:
     work = Path(path)
     (work / "main.swift").write_text(fixtures + settings_probe + cache + checks)
-    sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", ROOT / "ivLyrics-IOS/BoundedLRUCache.swift", work / "main.swift"]
+    sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", ROOT / "ivLyrics-IOS/BoundedLRUCache.swift", ROOT / "ivLyrics-IOS/SpotifyPlaybackRetryPolicy.swift", work / "main.swift"]
     subprocess.run(["xcrun", "swiftc", *map(str, sources), "-o", str(work / "regression")], check=True)
     subprocess.run([str(work / "regression")], check=True)

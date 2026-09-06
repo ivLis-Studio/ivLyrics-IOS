@@ -1053,7 +1053,8 @@ final class AppViewModel: ObservableObject {
             guard let self else { return }
             while !Task.isCancelled {
                 await refreshSpotifyPlayback(loadLyricsIfNeeded: true)
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                let delay = spotifyAppRemotePlaybackService.connected ? 3 : spotifyUserPlaybackService.playbackPollingDelay
+                try? await Task.sleep(nanoseconds: UInt64(min(3_600, delay) * 1_000_000_000))
             }
         }
     }
@@ -1074,6 +1075,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func appDidBecomeActive() {
+        spotifyUserPlaybackService.requestImmediatePlaybackRefresh()
         updatePlaybackClockMode(foregroundActive: true)
         let deferredAuthorizationRecovery = spotifyWebAPIAuthorizationCoordinator
             .consumeDeferredRecovery()
@@ -1616,6 +1618,7 @@ final class AppViewModel: ObservableObject {
             spotifyDeviceName = playback.deviceName
             applySpotifyPlayback(playback, loadLyricsIfNeeded: loadLyricsIfNeeded)
         } catch {
+            if error is SpotifyPlaybackPollDeferred { return }
             spotifyUserConnected = SpotifyWebAPIFeaturePolicy.canUseUserToken(
                 enabled: settings.spotifyWebAPIEnabled,
                 connected: spotifyUserPlaybackService.connected
@@ -3511,6 +3514,7 @@ final class AppViewModel: ObservableObject {
 
     private func scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: Bool) {
         guard spotifyAppRemotePlaybackService.connected || spotifyLivePolling else { return }
+        spotifyUserPlaybackService.requestImmediatePlaybackRefresh()
         spotifyPlaybackRefreshBurstTask?.cancel()
         spotifyPlaybackRefreshBurstTask = Task { @MainActor [weak self] in
             for delay in Self.spotifyPlaybackRefreshBurstDelays {

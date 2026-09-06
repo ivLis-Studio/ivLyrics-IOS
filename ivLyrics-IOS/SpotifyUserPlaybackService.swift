@@ -197,6 +197,15 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     private var authorizationTask: Task<Void, Error>?
     private var authorizationClientId = ""
     private var queueUnavailableForAuthorization = false
+    private var playbackRetryPolicy = SpotifyPlaybackRetryPolicy()
+
+    var playbackPollingDelay: TimeInterval {
+        max(3, playbackRetryPolicy.remainingDelay(now: ProcessInfo.processInfo.systemUptime))
+    }
+
+    func requestImmediatePlaybackRefresh() {
+        playbackRetryPolicy.requestImmediateRefresh()
+    }
 
     override init() {
         super.init()
@@ -288,6 +297,7 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     }
 
     func disconnect() {
+        playbackRetryPolicy = SpotifyPlaybackRetryPolicy()
         authorizationTask?.cancel()
         authenticationSession?.cancel()
         clearTokens()
@@ -327,11 +337,29 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
 
     func currentPlayback(clientId: String) async throws -> SpotifyPlaybackSnapshot? {
         prepare(clientId: clientId)
-        guard let token = try await accessToken(clientId: clientId) else { return nil }
-        if let playback = try await requestPlaybackSnapshot(endpoint: playbackStateEndpoint, token: token) {
-            return playback
+        guard playbackRetryPolicy.remainingDelay(now: ProcessInfo.processInfo.systemUptime) <= 0 else {
+            throw SpotifyPlaybackPollDeferred()
         }
-        return try await requestPlaybackSnapshot(endpoint: currentlyPlayingEndpoint, token: token)
+        do {
+            guard let token = try await accessToken(clientId: clientId) else { return nil }
+            let primary = try await requestPlaybackSnapshot(endpoint: playbackStateEndpoint, token: token)
+            let playback: SpotifyPlaybackSnapshot?
+            if let primary {
+                playback = primary
+            } else {
+                playback = try await requestPlaybackSnapshot(endpoint: currentlyPlayingEndpoint, token: token)
+            }
+            playbackRetryPolicy.receivedPlayback(hasTrack: playback != nil, now: ProcessInfo.processInfo.systemUptime)
+            return playback
+        } catch {
+            if !Self.isCancellation(error) {
+                playbackRetryPolicy.receivedFailure(
+                    now: ProcessInfo.processInfo.systemUptime,
+                    retryAfter: (error as? SpotifyPlaybackRateLimitError)?.retryAfterSeconds
+                )
+            }
+            throw error
+        }
     }
 
     func metadataAccessToken(clientId: String) async throws -> String? {
@@ -501,6 +529,10 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { return nil }
         if http.statusCode == 204 { return nil }
+        if http.statusCode == 429 {
+            throw SpotifyPlaybackRateLimitError(retryAfterSeconds:
+                SpotifyPlaybackRetryPolicy.retryAfterSeconds(http.value(forHTTPHeaderField: "Retry-After")) ?? 30)
+        }
         if http.statusCode == 401 {
             invalidateAccessToken()
             throw HTTPStatusError(statusCode: http.statusCode, message: String(data: data, encoding: .utf8) ?? "")
