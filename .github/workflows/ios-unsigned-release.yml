@@ -66,7 +66,9 @@ jobs:
         run: python3 scripts/validate-i18n.py
 
       - name: Validate playback, motion and provider regressions
-        run: python3 scripts/test-playback-regressions.py
+        run: |
+          python3 scripts/test-playback-regressions.py
+          python3 scripts/test-timeline-cache.py
 
       - name: Run static analyzer
         run: |

@@ -5125,6 +5125,8 @@ struct LyricsTimelineContext {
     let lastLyricEndTimes: [Int64]?
     let markerInterludeInfos: [InterludeInfo?]
     let baseItems: [LyricsTimelineDisplayItem]
+    let itemQueries: TimelineIntervalCache<[LyricsTimelineDisplayItem]>
+    let previewQueries: TimelineIntervalCache<LyricsTimelineDisplayItem?>
 
     var cachesLyricEndTimes: Bool { lastLyricEndTimes != nil }
 
@@ -5183,6 +5185,11 @@ struct LyricsTimelineContext {
             baseItems.append(.line(index: 0, line: first, id: lineIDs[0]))
         }
         self.baseItems = baseItems
+        let boundaries = LyricsTimelineDisplayBuilder.queryBoundaries(
+            lines: lines, markers: markerInterludeInfos, lyricEndTimes: lastLyricEndTimes
+        )
+        itemQueries = TimelineIntervalCache(boundaries: boundaries)
+        previewQueries = TimelineIntervalCache(boundaries: boundaries)
     }
 }
 
@@ -5308,6 +5315,19 @@ enum LyricsTimelineDisplayBuilder {
         trackDurationMs: Int64,
         autoInstrumentalBreakEnabled: Bool
     ) -> [LyricsTimelineDisplayItem] {
+        context.itemQueries.value(position: positionMs, duration: trackDurationMs,
+                                  automaticInterludes: autoInstrumentalBreakEnabled) {
+            uncachedItems(context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
+                          autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled)
+        }
+    }
+
+    fileprivate static func uncachedItems(
+        context: LyricsTimelineContext,
+        positionMs: Int64,
+        trackDurationMs: Int64,
+        autoInstrumentalBreakEnabled: Bool
+    ) -> [LyricsTimelineDisplayItem] {
         let lines = context.lines
         guard !lines.isEmpty else { return [] }
         guard hasActiveInterlude(
@@ -5369,6 +5389,19 @@ enum LyricsTimelineDisplayBuilder {
     }
 
     static func previewItem(
+        context: LyricsTimelineContext,
+        positionMs: Int64,
+        trackDurationMs: Int64,
+        autoInstrumentalBreakEnabled: Bool
+    ) -> LyricsTimelineDisplayItem? {
+        context.previewQueries.value(position: positionMs, duration: trackDurationMs,
+                                     automaticInterludes: autoInstrumentalBreakEnabled) {
+            uncachedPreviewItem(context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
+                                autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled)
+        }
+    }
+
+    fileprivate static func uncachedPreviewItem(
         context: LyricsTimelineContext,
         positionMs: Int64,
         trackDurationMs: Int64,
@@ -5722,6 +5755,25 @@ enum LyricsTimelineDisplayBuilder {
         }
         if lastEnd >= 0 { return lastEnd }
         return line.endTimeMs > line.startTimeMs ? line.endTimeMs : -1
+    }
+
+    fileprivate static func queryBoundaries(
+        lines: [LyricsLine], markers: [InterludeInfo?], lyricEndTimes: [Int64]?
+    ) -> [Int64] {
+        // Structural items change only at starts, marker edges and automatic-break
+        // starts. The cache key also splits at the current track duration.
+        var boundaries: [Int64] = [0]
+        for index in lines.indices {
+            boundaries.append(lines[index].startTimeMs)
+            if let marker = markers[index] {
+                boundaries.append(marker.startTimeMs)
+                boundaries.append(marker.endTimeMs)
+            }
+            let end = lyricEndTimes?[index] ?? lastLyricEndTime(lines[index])
+            let (breakStart, overflow) = end.addingReportingOverflow(trailingInterludeDelayMs)
+            if end >= 0, !overflow { boundaries.append(breakStart) }
+        }
+        return boundaries
     }
 
     private static func maxSyllableEnd(_ syllables: [LyricsLine.Syllable], fallbackLineEndMs: Int64) -> Int64 {
