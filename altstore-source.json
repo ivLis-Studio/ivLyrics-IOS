@@ -23,7 +23,7 @@
           "version": "1.3.10",
           "buildVersion": "49",
           "date": "2026-09-06",
-          "localizedDescription": "v1.3.10는 이전 릴리스 이후의 4개 변경을 기능별로 정리하고 AltStore 설치용 무서명 IPA를 함께 제공하는 업데이트입니다.\n\nv1.3.10 contains 4 changes since the previous release, organized by product area and accompanied by an unsigned IPA for AltStore.",
+          "localizedDescription": "Unison, LyricsPlus, Paxsenix의 겹치는 주 가사를 독립적인 줄로 유지하여 순서가 뒤집히거나 여러 문장이 합쳐지던 문제를 수정했습니다. 미리보기와 화면 속 화면에서도 아직 부르고 있는 줄을 각각 표시하며, 긴 보컬 중 잘못 나타나던 자동 간주와 Paxsenix의 가사 잘림을 방지합니다. 명시적인 배경 보컬과 ivLyrics 자체 싱크 구성은 유지합니다.\n\nPreserves independent overlapping primary lines from Unison, LyricsPlus and Paxsenix instead of reordering or concatenating them. Compact previews and Picture in Picture retain lines still being sung, while false instrumental breaks and Paxsenix overlap truncation are fixed. Explicit background vocals and saved ivLyrics sync arrangements are preserved.",
           "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.10/ivLyrics-IOS-v1.3.10-unsigned.ipa",
           "size": 7304635,
           "sha256": "83350eedadf206e2eac6bd913caa3ecfe1e47fc250dcded476a1a0ebd457333d",
