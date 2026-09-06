@@ -173,11 +173,26 @@ _ = cache.value(for: key, prepare: prepared)
 key.syllables = [.init(text: "lyrics", startTimeMs: 100, endTimeMs: 1000)]
 _ = cache.value(for: key, prepare: prepared)
 check(preparations == 5, "Granularity/ruby/annotations/timing changes invalidate preparation")
+var resultCache = BoundedLRUCache<String, Int>(capacity: 3)
+resultCache.insert(1, forKey: "track-a|old")
+resultCache.insert(2, forKey: "track-b|old")
+resultCache.insert(3, forKey: "track-a|new")
+check(resultCache.value(forKey: "track-a|old") == 1, "Recent furigana result remains reusable")
+resultCache.insert(4, forKey: "track-c|old")
+check(resultCache.value(forKey: "track-b|old") == nil, "Least recently used full result is evicted")
+check(resultCache.keys.count == 3, "Result memory remains bounded")
+resultCache.removeValues { key, _ in key.hasPrefix("track-a|") }
+check(resultCache.value(forKey: "track-a|old") == nil && resultCache.value(forKey: "track-a|new") == nil, "Track invalidation removes all text revisions")
+check(resultCache.value(forKey: "track-c|old") == 4, "Track invalidation preserves unrelated songs")
+resultCache.removeAll()
+check(resultCache.keys.isEmpty, "Memory pressure can release all retained results")
+resultCache.insert(4, forKey: "track-c|old")
+check(resultCache.value(forKey: "track-c|old") == 4, "Disk rehydration works after memory purge")
 print("PLAYBACK_REGRESSIONS_PASSED assertions=\(assertions)")
 '''
 with tempfile.TemporaryDirectory(prefix="ivlyrics-ios-regression-") as path:
     work = Path(path)
     (work / "main.swift").write_text(fixtures + settings_probe + cache + checks)
-    sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", work / "main.swift"]
+    sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", ROOT / "ivLyrics-IOS/BoundedLRUCache.swift", work / "main.swift"]
     subprocess.run(["xcrun", "swiftc", *map(str, sources), "-o", str(work / "regression")], check=True)
     subprocess.run([str(work / "regression")], check=True)

@@ -1,5 +1,6 @@
 import Foundation
 import WebKit
+import UIKit
 
 @MainActor
 final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -17,12 +18,24 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
     private let requestTimeoutNs: UInt64 = 45_000_000_000
     private let diskCache = LyricsDiskCache(namespace: "furigana_lyrics", maxEntries: 500)
     private var cacheGeneration = 0
-    private var memoryCache: [String: LyricsResult] = [:]
+    private var memoryCache = BoundedLRUCache<String, LyricsResult>(capacity: 250)
     private var pendingRequests: [String: PendingRequest] = [:]
     private var queuedScripts: [String] = []
     private var webView: WKWebView?
     private var pageLoaded = false
     private var nextRequestId = 0
+
+    override init() {
+        super.init()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(clearMemoryCache),
+            name: UIApplication.didReceiveMemoryWarningNotification, object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
     struct Response: Sendable {
         var result: LyricsResult
@@ -46,12 +59,12 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
             + "|version=\(cacheVersion)"
             + "|text=\(IvLyricsUtilities.sha256(payload))"
         if !bypassCache {
-            if let cached = memoryCache[cacheKey] {
+            if let cached = memoryCache.value(forKey: cacheKey) {
                 return Response(result: Self.mergeFurigana(baseResult: baseResult, furiganaResult: cached), logs: ["furigana js cache hit"], hadError: false)
             }
             let diskCached = await cachedResultFromDisk(for: cacheKey)
             if let cached = diskCached {
-                memoryCache[cacheKey] = cached
+                memoryCache.insert(cached, forKey: cacheKey)
                 return Response(result: Self.mergeFurigana(baseResult: baseResult, furiganaResult: cached), logs: ["furigana js disk cache hit"], hadError: false)
             }
         }
@@ -78,15 +91,16 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
         }
     }
 
-    func clearMemoryCache() {
+    @objc func clearMemoryCache() {
         memoryCache.removeAll()
+        Self.rubyAnnotationCache.removeAllObjects()
     }
 
     func clearTrackCache(_ trackKey: String) {
         let prefix = trackKey.trimmed + "|"
         guard !prefix.isEmpty else { return }
         cacheGeneration += 1
-        memoryCache = memoryCache.filter { !$0.key.hasPrefix(prefix) }
+        memoryCache.removeValues { key, _ in key.hasPrefix(prefix) }
         diskCache.removeByKeyPrefix(prefix)
     }
 
@@ -187,7 +201,7 @@ final class FuriganaRepository: NSObject, WKNavigationDelegate, WKScriptMessageH
         }
         let lines = payload["lines"] as? [String] ?? []
         let annotated = Self.buildAnnotatedResult(baseResult: pending.baseResult, requests: pending.requests, annotations: lines)
-        memoryCache[pending.cacheKey] = annotated
+        memoryCache.insert(annotated, forKey: pending.cacheKey)
         let cacheKey = pending.cacheKey
         Task.detached { [diskCache, cacheKey, annotated] in
             diskCache.put(cacheKey, result: annotated)
