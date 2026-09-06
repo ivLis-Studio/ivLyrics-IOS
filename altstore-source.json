@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.7",
+          "buildVersion": "46",
+          "date": "2026-09-06",
+          "localizedDescription": "v1.3.7은 데스크톱 가라오케 스타일의 가사 모션을 추가하고, 가사 보충 제공업체의 상태 및 진행 표시 정확도를 개선합니다. 재생 중 가사 화면의 갱신 처리와 가사 데이터 갱신 경로도 함께 정비되었습니다. 또한 배포 소스의 v1.3.6 IPA 메타데이터가 실제 파일 정보에 맞게 수정되었습니다.\n\nv1.3.7 adds desktop-style karaoke lyric motion and improves the accuracy of supplement-provider status and progress reporting. It also updates refresh handling for the lyrics display and lyric-data refresh paths. In addition, the distribution-source metadata for the v1.3.6 IPA has been corrected to match the actual artifact.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.7/ivLyrics-IOS-v1.3.7-unsigned.ipa",
+          "size": 7344818,
+          "sha256": "87b1c983136474ab774fc374fd6b953302ba7a2c46ba53312016f34c810dd3ff",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.6",
           "buildVersion": "45",
           "date": "2026-08-19",
