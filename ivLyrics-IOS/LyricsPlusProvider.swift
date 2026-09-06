@@ -13,9 +13,6 @@ enum LyricsPlusProvider {
     private static let splitMinimumWidth = 6.0
     private static let splitMinimumDurationMs: Int64 = 500
     private static let splitMaximumSegments = 4
-    private static let parallelMaximumSourceLines = 4
-    private static let parallelMinimumOverlapMs: Int64 = 30
-    private static let parallelMaximumSegmentDelayMs: Int64 = 16
     private static let endpointRotation = EndpointRotation()
 #if DEBUG
     private static let boundaryRegressionChecks: Void = {
@@ -40,12 +37,8 @@ enum LyricsPlusProvider {
                 syllable(" vocal）", 100, 200)
             ]
         )
-        let background = withVocalRole(parenthesized, role: "background")
-        assert(background.text == "Back vocal")
-        assert(background.syllables.map(\.text) == ["Back", " vocal"])
-        let lead = withVocalRole(parenthesized, role: "lead")
-        assert(lead.text == parenthesized.text)
-        assert(lead.syllables == parenthesized.syllables)
+        assert(stripBackgroundParentheses(parenthesized.text).trimmed == "Back vocal")
+        assert(stripBackgroundSyllableParentheses(parenthesized.syllables).map(\.text) == ["Back", " vocal"])
     }()
 #endif
     private static let speakerPalette: [(String, String)] = [
@@ -70,8 +63,6 @@ enum LyricsPlusProvider {
 
     private struct RawLine: Sendable {
         var sourceIndex: Int
-        var key: String
-        var singer: String
         var line: LyricsLine
         var hasTiming: Bool
         var hasWordTiming: Bool
@@ -86,36 +77,6 @@ enum LyricsPlusProvider {
         var speaker: String
         var color: String
         var fallback: String
-    }
-
-    private struct VocalLane: Sendable {
-        var singer: String
-        var lines: [RawLine]
-        var endTimeMs: Int64
-
-        var durationMs: Int64 {
-            lines.reduce(0) { total, raw in
-                total + max(0, raw.line.endTimeMs - raw.line.startTimeMs)
-            }
-        }
-
-        var startTimeMs: Int64 {
-            lines.map(\.line.startTimeMs).min() ?? 0
-        }
-
-        var minimumSourceIndex: Int {
-            lines.map(\.sourceIndex).min() ?? 0
-        }
-    }
-
-    private struct ParallelSplit: Sendable {
-        var left: [RawLine]
-        var right: [RawLine]
-        var leftEndTimeMs: Int64
-        var nextStartTimeMs: Int64
-        var leftKeyCount: Int
-        var maximumDelayMs: Int64
-        var distanceMs: Int64
     }
 
     private struct SplitSegmentKey: Hashable {
@@ -322,8 +283,6 @@ enum LyricsPlusProvider {
             rawLines.append(
                 RawLine(
                     sourceIndex: index,
-                    key: lineKey,
-                    singer: singer,
                     line: line,
                     hasTiming: effectiveStart != nil,
                     hasWordTiming: !allSyllables.isEmpty
@@ -344,8 +303,9 @@ enum LyricsPlusProvider {
         if completeTiming,
            sourceType == "word",
            timedRaw.allSatisfy(\.hasWordTiming) {
-            let grouped = groupParallelVocals(timedRaw)
-            karaoke = CrossLineVocalNormalizer.normalize(splitLongSoloLines(grouped))
+            // Singer identity and overlapping timing do not establish a background
+            // relationship. Keep each source line and its explicit isBackground parts.
+            karaoke = splitLongSoloLines(timedRaw.map(\.line))
         }
         let typeLabel = sourceType == "word" ? "Word" : (sourceType == "line" ? "Line" : "Plain")
         return FetchOutcome(
@@ -413,294 +373,6 @@ enum LyricsPlusProvider {
         )
     }
 
-    private static func groupParallelVocals(_ rawLines: [RawLine]) -> [LyricsLine] {
-        guard rawLines.count > 1 else { return rawLines.map(\.line) }
-        var parents = Array(rawLines.indices)
-        func root(_ index: Int, parents: inout [Int]) -> Int {
-            var current = index
-            while parents[current] != current { current = parents[current] }
-            var cursor = index
-            while parents[cursor] != cursor {
-                let next = parents[cursor]
-                parents[cursor] = current
-                cursor = next
-            }
-            return current
-        }
-        var parallelSeeds: [Int] = []
-        for left in rawLines.indices {
-            guard !rawLines[left].singer.isEmpty else { continue }
-            for right in rawLines.indices where right > left {
-                if rawLines[right].line.startTimeMs >= rawLines[left].line.endTimeMs { break }
-                guard !rawLines[right].singer.isEmpty else { continue }
-                let overlap = min(rawLines[left].line.endTimeMs, rawLines[right].line.endTimeMs)
-                    - max(rawLines[left].line.startTimeMs, rawLines[right].line.startTimeMs)
-                guard overlap > 0 else { continue }
-                let leftRoot = root(left, parents: &parents)
-                let rightRoot = root(right, parents: &parents)
-                if leftRoot != rightRoot { parents[rightRoot] = leftRoot }
-                if rawLines[left].singer != rawLines[right].singer,
-                   overlap >= parallelMinimumOverlapMs {
-                    parallelSeeds.append(left)
-                }
-            }
-        }
-
-        let parallelRoots = Set(parallelSeeds.map { root($0, parents: &parents) })
-        var components: [Int: [RawLine]] = [:]
-        for index in rawLines.indices {
-            components[root(index, parents: &parents), default: []].append(rawLines[index])
-        }
-        return components
-            .sorted {
-                ($0.value.map(\.sourceIndex).min() ?? 0) < ($1.value.map(\.sourceIndex).min() ?? 0)
-            }
-            .flatMap { componentRoot, component -> [LyricsLine] in
-                let ordered = component.sorted {
-                    $0.line.startTimeMs == $1.line.startTimeMs
-                        ? $0.sourceIndex < $1.sourceIndex
-                        : $0.line.startTimeMs < $1.line.startTimeMs
-                }
-                guard parallelRoots.contains(componentRoot) else {
-                    return ordered.map(\.line)
-                }
-                return createParallelVocalSegments(ordered)
-            }
-            .sorted { $0.startTimeMs == $1.startTimeMs ? $0.endTimeMs < $1.endTimeMs : $0.startTimeMs < $1.startTimeMs }
-    }
-
-    private static func createParallelVocalSegments(_ lines: [RawLine]) -> [LyricsLine] {
-        let prepared = lines.sorted {
-            $0.line.startTimeMs == $1.line.startTimeMs
-                ? $0.sourceIndex < $1.sourceIndex
-                : $0.line.startTimeMs < $1.line.startTimeMs
-        }
-        let componentLanes = buildSingerVocalLanes(prepared)
-        let preferredSinger = chooseLeadLaneIndex(componentLanes).map { componentLanes[$0].singer } ?? ""
-        guard countSourceLines(prepared) > parallelMaximumSourceLines else {
-            return [makeParallelLine(prepared, preferredSinger: preferredSinger, idSuffix: "segment-1")]
-        }
-
-        var segments: [LyricsLine] = []
-        var remaining = prepared
-        var forcedStartTimeMs = prepared[0].line.startTimeMs
-        var iteration = 0
-        while countSourceLines(remaining) > parallelMaximumSourceLines,
-              iteration < lines.count {
-            iteration += 1
-            guard let split = findParallelSegmentSplit(remaining, currentStartTimeMs: forcedStartTimeMs) else {
-                return [makeParallelLine(prepared, preferredSinger: preferredSinger, idSuffix: "segment-1")]
-            }
-            var segment = makeParallelLine(
-                split.left,
-                preferredSinger: preferredSinger,
-                idSuffix: "segment-\(segments.count + 1)"
-            )
-            guard !segment.vocalParts.isEmpty,
-                  forcedStartTimeMs <= split.leftEndTimeMs else {
-                return [makeParallelLine(prepared, preferredSinger: preferredSinger, idSuffix: "segment-1")]
-            }
-            segment.startTimeMs = forcedStartTimeMs
-            segment.endTimeMs = split.leftEndTimeMs
-            segments.append(segment)
-            remaining = split.right
-            forcedStartTimeMs = split.nextStartTimeMs
-        }
-
-        var finalSegment = makeParallelLine(
-            remaining,
-            preferredSinger: preferredSinger,
-            idSuffix: "segment-\(segments.count + 1)"
-        )
-        guard !finalSegment.vocalParts.isEmpty else {
-            return [makeParallelLine(prepared, preferredSinger: preferredSinger, idSuffix: "segment-1")]
-        }
-        finalSegment.startTimeMs = forcedStartTimeMs
-        segments.append(finalSegment)
-        return segments
-    }
-
-    private static func findParallelSegmentSplit(
-        _ lines: [RawLine],
-        currentStartTimeMs: Int64
-    ) -> ParallelSplit? {
-        let ordered = lines.sorted {
-            $0.line.startTimeMs == $1.line.startTimeMs
-                ? $0.sourceIndex < $1.sourceIndex
-                : $0.line.startTimeMs < $1.line.startTimeMs
-        }
-        guard countSourceLines(ordered) > parallelMaximumSourceLines else { return nil }
-        var sourceKeys: [String] = []
-        var nominalBoundary: Int64?
-        for raw in ordered where !sourceKeys.contains(raw.key) {
-            sourceKeys.append(raw.key)
-            if sourceKeys.count == parallelMaximumSourceLines + 1 {
-                nominalBoundary = raw.line.startTimeMs
-                break
-            }
-        }
-        guard let nominalBoundary else { return nil }
-        let firstSourceKeys = Set(sourceKeys.prefix(parallelMaximumSourceLines))
-        var candidateTimes = Set<Int64>([nominalBoundary])
-        for raw in ordered where firstSourceKeys.contains(raw.key) {
-            for syllable in sourceSyllables(raw) {
-                if syllable.startTimeMs > currentStartTimeMs,
-                   syllable.startTimeMs <= nominalBoundary {
-                    candidateTimes.insert(syllable.startTimeMs)
-                }
-                if syllable.endTimeMs > currentStartTimeMs,
-                   syllable.endTimeMs <= nominalBoundary {
-                    candidateTimes.insert(syllable.endTimeMs)
-                }
-            }
-        }
-
-        let candidates = candidateTimes.compactMap { candidateTime -> ParallelSplit? in
-            let partition = partitionParallelComponent(ordered, at: candidateTime)
-            let leftKeyCount = countSourceLines(partition.left)
-            guard leftKeyCount >= 2,
-                  leftKeyCount <= parallelMaximumSourceLines,
-                  !partition.right.isEmpty,
-                  Set(partition.left.map(\.singer).filter { !$0.isEmpty }).count >= 2 else {
-                return nil
-            }
-            let leftSyllables = partition.left.flatMap(sourceSyllables)
-            let rightSyllables = partition.right.flatMap(sourceSyllables)
-            guard let leftEndTimeMs = leftSyllables.map(\.endTimeMs).max(),
-                  let rightStartTimeMs = rightSyllables.map(\.startTimeMs).min() else {
-                return nil
-            }
-            let nextStartTimeMs = max(leftEndTimeMs, rightStartTimeMs)
-            let delayedRight = rightSyllables.filter { $0.startTimeMs < nextStartTimeMs }
-            guard !delayedRight.contains(where: { $0.endTimeMs <= nextStartTimeMs }) else { return nil }
-            let maximumDelayMs = delayedRight.reduce(Int64(0)) {
-                max($0, nextStartTimeMs - $1.startTimeMs)
-            }
-            guard maximumDelayMs <= parallelMaximumSegmentDelayMs else { return nil }
-            return ParallelSplit(
-                left: partition.left,
-                right: partition.right,
-                leftEndTimeMs: leftEndTimeMs,
-                nextStartTimeMs: nextStartTimeMs,
-                leftKeyCount: leftKeyCount,
-                maximumDelayMs: maximumDelayMs,
-                distanceMs: abs(candidateTime - nominalBoundary)
-            )
-        }
-        return candidates.sorted { left, right in
-            if left.leftKeyCount != right.leftKeyCount { return left.leftKeyCount > right.leftKeyCount }
-            if left.maximumDelayMs != right.maximumDelayMs { return left.maximumDelayMs < right.maximumDelayMs }
-            if left.distanceMs != right.distanceMs { return left.distanceMs < right.distanceMs }
-            return left.leftEndTimeMs > right.leftEndTimeMs
-        }.first
-    }
-
-    private static func partitionParallelComponent(
-        _ lines: [RawLine],
-        at candidateTimeMs: Int64
-    ) -> (left: [RawLine], right: [RawLine]) {
-        var left: [RawLine] = []
-        var right: [RawLine] = []
-        for raw in lines {
-            if let fragment = slice(raw, at: candidateTimeMs, takeLeft: true) { left.append(fragment) }
-            if let fragment = slice(raw, at: candidateTimeMs, takeLeft: false) { right.append(fragment) }
-        }
-        return (left, right)
-    }
-
-    private static func slice(_ raw: RawLine, at boundaryMs: Int64, takeLeft: Bool) -> RawLine? {
-        var leadSyllables = sliceSyllables(raw.line.syllables, at: boundaryMs, takeLeft: takeLeft)
-        var vocalParts = raw.line.vocalParts.compactMap {
-            sliceVocalPart($0, at: boundaryMs, takeLeft: takeLeft)
-        }
-        if !vocalParts.isEmpty {
-            var leadIndex = vocalParts.firstIndex { $0.role == "lead" }
-            if leadIndex == nil {
-                vocalParts[0] = withVocalRole(vocalParts[0], role: "lead")
-                leadIndex = 0
-            }
-            leadSyllables = vocalParts[leadIndex!].syllables
-            if vocalParts.count == 1 { vocalParts.removeAll() }
-        }
-        guard !leadSyllables.isEmpty else { return nil }
-        let allSyllables = vocalParts.isEmpty
-            ? leadSyllables
-            : vocalParts.flatMap(\.syllables)
-        guard let startTimeMs = allSyllables.map(\.startTimeMs).min(),
-              let endTimeMs = allSyllables.map(\.endTimeMs).max() else { return nil }
-        var line = raw.line
-        line.startTimeMs = startTimeMs
-        line.endTimeMs = endTimeMs
-        line.text = vocalParts.isEmpty
-            ? leadSyllables.map(\.text).joined().trimmed
-            : vocalParts.map(\.text).joined(separator: " ").trimmed
-        line.syllables = vocalParts.isEmpty ? leadSyllables : []
-        line.vocalParts = vocalParts
-        guard !line.text.isEmpty else { return nil }
-        return RawLine(
-            sourceIndex: raw.sourceIndex,
-            key: raw.key,
-            singer: raw.singer,
-            line: line,
-            hasTiming: true,
-            hasWordTiming: raw.hasWordTiming
-        )
-    }
-
-    private static func sliceSyllables(
-        _ syllables: [LyricsLine.Syllable],
-        at boundaryMs: Int64,
-        takeLeft: Bool
-    ) -> [LyricsLine.Syllable] {
-        syllables.filter { syllable in
-            let midpoint = syllable.startTimeMs + (syllable.endTimeMs - syllable.startTimeMs) / 2
-            return (midpoint <= boundaryMs) == takeLeft
-        }
-    }
-
-    private static func sliceVocalPart(
-        _ part: LyricsLine.VocalPart,
-        at boundaryMs: Int64,
-        takeLeft: Bool
-    ) -> LyricsLine.VocalPart? {
-        let syllables = sliceSyllables(part.syllables, at: boundaryMs, takeLeft: takeLeft)
-        guard !syllables.isEmpty else { return nil }
-        return LyricsLine.VocalPart(
-            id: part.id,
-            role: part.role,
-            speaker: part.speaker,
-            speakerColor: part.speakerColor,
-            speakerFallback: part.speakerFallback,
-            kind: part.kind,
-            text: syllables.map(\.text).joined().trimmed,
-            syllables: syllables,
-            pronunciationText: part.pronunciationText,
-            translationText: part.translationText,
-            furiganaText: part.furiganaText
-        )
-    }
-
-    private static func withVocalRole(
-        _ part: LyricsLine.VocalPart,
-        role: String,
-        idSuffix: String = ""
-    ) -> LyricsLine.VocalPart {
-        let isBackground = role == "background"
-        return LyricsLine.VocalPart(
-            id: idSuffix.isEmpty ? part.id : "\(part.id)-\(idSuffix)",
-            role: role,
-            speaker: part.speaker,
-            speakerColor: part.speakerColor,
-            speakerFallback: part.speakerFallback,
-            kind: part.kind,
-            text: isBackground ? stripBackgroundParentheses(part.text).trimmed : part.text,
-            syllables: isBackground ? stripBackgroundSyllableParentheses(part.syllables) : part.syllables,
-            pronunciationText: part.pronunciationText,
-            translationText: part.translationText,
-            furiganaText: part.furiganaText
-        )
-    }
-
     private static func stripBackgroundSyllableParentheses(
         _ syllables: [LyricsLine.Syllable]
     ) -> [LyricsLine.Syllable] {
@@ -717,191 +389,6 @@ enum LyricsPlusProvider {
 
     private static func stripBackgroundParentheses(_ text: String) -> String {
         text.replacingOccurrences(of: "[()（）]", with: "", options: .regularExpression)
-    }
-
-    private static func sourceSyllables(_ raw: RawLine) -> [LyricsLine.Syllable] {
-        raw.line.vocalParts.isEmpty
-            ? raw.line.syllables
-            : raw.line.vocalParts.flatMap(\.syllables)
-    }
-
-    private static func countSourceLines(_ lines: [RawLine]) -> Int {
-        Set(lines.map(\.key)).count
-    }
-
-    private static func buildSingerVocalLanes(_ lines: [RawLine]) -> [VocalLane] {
-        var singerOrder: [String] = []
-        var singerLines: [String: [RawLine]] = [:]
-        for source in lines {
-            guard !source.singer.isEmpty,
-                  let raw = leadRawLine(source) else { continue }
-            if singerLines[raw.singer] == nil { singerOrder.append(raw.singer) }
-            singerLines[raw.singer, default: []].append(raw)
-        }
-        var result: [VocalLane] = []
-        for singer in singerOrder {
-            let entries = (singerLines[singer] ?? []).sorted {
-                $0.line.startTimeMs == $1.line.startTimeMs
-                    ? $0.sourceIndex < $1.sourceIndex
-                    : $0.line.startTimeMs < $1.line.startTimeMs
-            }
-            var singerLanes: [VocalLane] = []
-            for raw in entries {
-                if let index = singerLanes.firstIndex(where: { $0.endTimeMs <= raw.line.startTimeMs }) {
-                    singerLanes[index].lines.append(raw)
-                    singerLanes[index].endTimeMs = max(singerLanes[index].endTimeMs, raw.line.endTimeMs)
-                } else {
-                    singerLanes.append(VocalLane(singer: singer, lines: [raw], endTimeMs: raw.line.endTimeMs))
-                }
-            }
-            result.append(contentsOf: singerLanes)
-        }
-        return result
-    }
-
-    private static func leadRawLine(_ raw: RawLine) -> RawLine? {
-        guard !raw.line.vocalParts.isEmpty else {
-            return raw.line.syllables.isEmpty ? nil : raw
-        }
-        guard let part = raw.line.vocalParts.first(where: { $0.role == "lead" })
-            ?? raw.line.vocalParts.first,
-              !part.syllables.isEmpty else { return nil }
-        var line = raw.line
-        line.startTimeMs = part.startTimeMs
-        line.endTimeMs = part.endTimeMs
-        line.text = part.text
-        line.syllables = part.syllables
-        line.speaker = part.speaker
-        line.speakerColor = part.speakerColor
-        line.speakerFallback = part.speakerFallback
-        line.kind = part.kind
-        line.vocalParts = []
-        return RawLine(
-            sourceIndex: raw.sourceIndex,
-            key: raw.key,
-            singer: raw.singer,
-            line: line,
-            hasTiming: raw.hasTiming,
-            hasWordTiming: raw.hasWordTiming
-        )
-    }
-
-    private static func chooseLeadLaneIndex(
-        _ lanes: [VocalLane],
-        preferredSinger: String = ""
-    ) -> Int? {
-        guard !lanes.isEmpty else { return nil }
-        func ranked(_ indexes: [Int]) -> [Int] {
-            indexes.sorted { leftIndex, rightIndex in
-                let left = lanes[leftIndex]
-                let right = lanes[rightIndex]
-                if left.durationMs != right.durationMs { return left.durationMs > right.durationMs }
-                if left.lines.count != right.lines.count { return left.lines.count > right.lines.count }
-                if left.startTimeMs != right.startTimeMs { return left.startTimeMs < right.startTimeMs }
-                return left.minimumSourceIndex < right.minimumSourceIndex
-            }
-        }
-        guard let strongest = ranked(Array(lanes.indices)).first else { return nil }
-        guard !preferredSinger.isEmpty,
-              let preferred = ranked(lanes.indices.filter { lanes[$0].singer == preferredSinger }).first,
-              Double(lanes[preferred].durationMs) >= Double(lanes[strongest].durationMs) * 0.5 else {
-            return strongest
-        }
-        return preferred
-    }
-
-    private static func makeParallelLine(
-        _ lines: [RawLine],
-        preferredSinger: String,
-        idSuffix: String
-    ) -> LyricsLine {
-        let ordered = lines.sorted {
-            $0.line.startTimeMs == $1.line.startTimeMs
-                ? $0.sourceIndex < $1.sourceIndex
-                : $0.line.startTimeMs < $1.line.startTimeMs
-        }
-        guard ordered.count > 1 else {
-            return ordered.first?.line ?? LyricsLine(startTimeMs: 0, endTimeMs: 0, text: "")
-        }
-        let lanes = buildSingerVocalLanes(ordered)
-        guard lanes.count > 1,
-              let leadLaneIndex = chooseLeadLaneIndex(lanes, preferredSinger: preferredSinger) else {
-            return ordered[0].line
-        }
-        let laneOrder = [leadLaneIndex] + lanes.indices
-            .filter { $0 != leadLaneIndex }
-            .sorted {
-                let left = lanes[$0]
-                let right = lanes[$1]
-                if left.startTimeMs != right.startTimeMs { return left.startTimeMs < right.startTimeMs }
-                return left.minimumSourceIndex < right.minimumSourceIndex
-            }
-        var parts = laneOrder.compactMap { index -> LyricsLine.VocalPart? in
-            mergedVocalPart(
-                lanes[index],
-                role: index == leadLaneIndex ? "lead" : "background",
-                idSuffix: idSuffix
-            )
-        }
-        let explicitBackgroundParts = ordered
-            .flatMap(\.line.vocalParts)
-            .filter { $0.role != "lead" }
-            .sorted { $0.startTimeMs < $1.startTimeMs }
-            .map { withVocalRole($0, role: "background", idSuffix: idSuffix) }
-        parts.append(contentsOf: explicitBackgroundParts)
-        guard parts.count > 1 else { return ordered[0].line }
-        let lead = lanes[leadLaneIndex].lines[0]
-        return LyricsLine(
-            startTimeMs: parts.map(\.startTimeMs).min() ?? lead.line.startTimeMs,
-            endTimeMs: parts.map(\.endTimeMs).max() ?? lead.line.endTimeMs,
-            text: parts.map(\.text).joined(separator: " / "),
-            speaker: lead.line.speaker,
-            speakerColor: lead.line.speakerColor,
-            speakerFallback: lead.line.speakerFallback,
-            vocalParts: parts
-        )
-    }
-
-    private static func mergedVocalPart(
-        _ lane: VocalLane,
-        role: String,
-        idSuffix: String
-    ) -> LyricsLine.VocalPart? {
-        let lines = lane.lines.sorted {
-            $0.line.startTimeMs == $1.line.startTimeMs
-                ? $0.sourceIndex < $1.sourceIndex
-                : $0.line.startTimeMs < $1.line.startTimeMs
-        }
-        guard let first = lines.first else { return nil }
-        var syllables: [LyricsLine.Syllable] = []
-        for raw in lines {
-            if let previous = syllables.last,
-               let next = raw.line.syllables.first,
-               previous.text.last?.isWhitespace != true,
-               next.text.first?.isWhitespace != true {
-                syllables.append(
-                    LyricsLine.Syllable(
-                        text: " ",
-                        startTimeMs: next.startTimeMs,
-                        endTimeMs: next.startTimeMs
-                    )
-                )
-            }
-            syllables.append(contentsOf: raw.line.syllables)
-        }
-        guard !syllables.isEmpty else { return nil }
-        let keys = lines.map(\.key).joined(separator: "+")
-        let part = LyricsLine.VocalPart(
-            id: "lyricsplus-\(keys)-\(idSuffix)-\(role)",
-            role: role,
-            speaker: first.line.speaker,
-            speakerColor: first.line.speakerColor,
-            speakerFallback: first.line.speakerFallback,
-            kind: "vocal",
-            text: lines.map(\.line.text).joined(separator: " / "),
-            syllables: syllables
-        )
-        return withVocalRole(part, role: role)
     }
 
     private static func splitLongSoloLines(_ lines: [LyricsLine]) -> [LyricsLine] {

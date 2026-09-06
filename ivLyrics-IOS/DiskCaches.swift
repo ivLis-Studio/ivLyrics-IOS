@@ -174,6 +174,9 @@ nonisolated enum LyricsDiskCachePolicy {
 }
 
 nonisolated final class LyricsDiskCache: @unchecked Sendable {
+    // Earlier parsed caches concatenated independent overlapping provider lines.
+    private static let baseLyricsSchemaVersion = 14
+
     private struct Envelope: Codable {
         var version: Int
         var contributorSchemaVersion: Int?
@@ -205,7 +208,7 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
                 let data = try Data(contentsOf: file)
                 let envelope = try JSONDecoder().decode(Envelope.self, from: data)
                 guard envelope.version == 2 else { return nil }
-                if baseLyricsCache, (envelope.contributorSchemaVersion ?? 0) < 13 {
+                if baseLyricsCache, (envelope.contributorSchemaVersion ?? 0) < Self.baseLyricsSchemaVersion {
                     return nil
                 }
                 if envelope.savedAtMs <= 0 || Int64(Date().timeIntervalSince1970 * 1000) - envelope.savedAtMs > maxAgeMs {
@@ -231,7 +234,7 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 let envelope = Envelope(
                     version: 2,
-                    contributorSchemaVersion: baseLyricsCache ? 13 : nil,
+                    contributorSchemaVersion: baseLyricsCache ? Self.baseLyricsSchemaVersion : nil,
                     cacheKey: key,
                     savedAtMs: Int64(Date().timeIntervalSince1970 * 1000),
                     result: redactedResultForPersistence(result)

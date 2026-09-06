@@ -431,8 +431,9 @@ enum UnisonLyricsProvider {
                 vocalParts: karaoke ? line.vocalParts : []
             )
         }
-        let normalizedLines = karaoke ? CrossLineVocalNormalizer.normalize(lines) : lines
-        return ParsedLyrics(lines: normalizedLines, karaoke: karaoke, synced: !normalizedLines.isEmpty)
+        // TTML paragraphs already carry their explicit lead/background relationship.
+        // Overlapping paragraphs are independent lines, not additional background vocals.
+        return ParsedLyrics(lines: lines, karaoke: karaoke, synced: !lines.isEmpty)
     }
 
     private static func parseTimedNodes(

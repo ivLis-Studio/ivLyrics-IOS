@@ -370,7 +370,7 @@ enum PaxsenixLyricsProvider {
             LyricsLine(startTimeMs: 0, endTimeMs: 0, text: $0.text)
         }
         if parsed.karaoke {
-            let karaoke = CrossLineVocalNormalizer.normalize(parsed.lines)
+            let karaoke = parsed.lines
             let synced = karaoke.map(demoteSynced)
             return ParsedVariants(karaoke: karaoke, synced: synced, plain: plain)
         }
@@ -439,7 +439,6 @@ enum PaxsenixLyricsProvider {
                 ?? nextStart
                 ?? (start + 3000)
             if durationMs > 0 { end = min(end, durationMs) }
-            if let nextStart, end > nextStart + 15_000 { end = nextStart }
             end = max(start + 1, end)
 
             let presentation = speakerPresentation(rawLine, agentOrder: agentOrder)
@@ -517,7 +516,7 @@ enum PaxsenixLyricsProvider {
 
         let karaoke = hasSyllableSync
             && displayLines.contains(where: { !$0.syllables.isEmpty || !$0.vocalParts.isEmpty })
-            ? CrossLineVocalNormalizer.normalize(displayLines)
+            ? displayLines
             : nil
         let synced = string(payload["syncType"]).lowercased() == "none"
             ? nil

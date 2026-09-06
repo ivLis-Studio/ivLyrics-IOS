@@ -695,6 +695,32 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             return
         }
 
+        let visibleLines = state.activeLines
+        if visibleLines.count > 1 {
+            // Render each independent source line separately. Sharing a viewport
+            // must not turn another primary singer into a smaller background part.
+            let gap: CGFloat = 5
+            let rowHeight = max(1, (lyricRect.height - gap * CGFloat(visibleLines.count - 1)) / CGFloat(visibleLines.count))
+            let scale = Double(max(70, min(280, state.lyricsSizePercent))) / 100
+            let primarySize = max(12, min(34, lyricRect.width * 0.061 * scale, rowHeight / 2.8))
+            for (offset, visible) in visibleLines.enumerated() {
+                let rect = CGRect(x: lyricRect.minX, y: lyricRect.minY + CGFloat(offset) * (rowHeight + gap), width: lyricRect.width, height: rowHeight)
+                let supplements = visible.supplementLines.prefix(2)
+                let supplementSize = max(9, primarySize * 0.48 * CGFloat(AppSettings.clampPipTranslationSizePercent(state.translationSizePercent)) / 100)
+                let supplementHeight = supplementSize * 1.25
+                let primaryRect = CGRect(x: rect.minX, y: rect.minY, width: rect.width,
+                                         height: max(1, rect.height - CGFloat(supplements.count) * supplementHeight))
+                drawKaraokeText(visible, in: primaryRect, fontSize: primarySize)
+                for (supplementIndex, text) in supplements.enumerated() {
+                    drawText(text, in: CGRect(x: rect.minX, y: primaryRect.maxY + CGFloat(supplementIndex) * supplementHeight,
+                                            width: rect.width, height: supplementHeight),
+                             font: typographyFont(slotId: AppSettings.typoLyricsPronunciation, baseSize: supplementSize),
+                             color: UIColor.white.withAlphaComponent(0.72), alignment: state.textAlignment, lineLimit: 1)
+                }
+            }
+            return
+        }
+
         let scale = Double(max(70, min(280, state.lyricsSizePercent))) / 100
         let primarySize = max(15, min(34, lyricRect.width * 0.061 * scale))
         let supplementSize = max(10, primarySize * 0.48 * CGFloat(AppSettings.clampPipTranslationSizePercent(state.translationSizePercent)) / 100)
@@ -754,7 +780,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             syncedLyricsKaraokeAnimationEnabled: state.syncedLyricsKaraokeAnimationEnabled,
             bounceEnabled: state.karaokeBounceEffectEnabled,
             typography: state.typography,
-            preparationStore: karaokePreparationStore
+            preparationStore: karaokePreparationStore,
+            sourceLineIndex: active.index
         )
         .environment(\.lyricsSegmentationLocale, state.lyricsLocale)
         .frame(width: rect.width, height: rect.height, alignment: state.swiftUIFrameAlignment)
@@ -1129,11 +1156,23 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             return ActiveLine(line: line, index: index, progress: progress)
         }
 
+        var activeLines: [ActiveLine] {
+            let singing = lines.indices.compactMap { index -> ActiveLine? in
+                let line = lines[index]
+                guard line.isTimed,
+                      !InstrumentalBreakMarker.isMarkerText(line.text),
+                      positionMs >= line.startTimeMs,
+                      positionMs < line.endTimeMs else { return nil }
+                let duration = max(1, line.endTimeMs - line.startTimeMs)
+                let progress = max(0, min(1, CGFloat(positionMs - line.startTimeMs) / CGFloat(duration)))
+                return ActiveLine(line: line, index: index, progress: progress)
+            }
+            return singing.isEmpty ? activeLine.map { [$0] } ?? [] : singing
+        }
+
         var nextLineText: String? {
-            guard let activeLine else { return nil }
-            let index = activeLine.index + 1
-            guard lines.indices.contains(index) else { return nil }
-            let value = lines[index].text.trimmed
+            guard let next = lines.first(where: { $0.startTimeMs > positionMs }) else { return nil }
+            let value = next.text.trimmed
             return value.isEmpty ? nil : value
         }
 
@@ -1141,12 +1180,12 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             guard syncedLyricsKaraokeAnimationEnabled,
                   AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
                     != AppSettings.karaokeDisplayLine,
-                  let line = activeLine?.line else { return false }
-            if line.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs }) {
-                return true
-            }
-            return line.vocalParts.contains { part in
-                part.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs })
+                  !activeLines.isEmpty else { return false }
+            return activeLines.contains { active in
+                active.line.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs })
+                    || active.line.vocalParts.contains { part in
+                        part.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs })
+                    }
             }
         }
 
@@ -1159,6 +1198,17 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             identity.reserveCapacity(256)
             identity.append("|")
             identity.append(String(line?.index ?? -1))
+            for visible in activeLines {
+                identity.append("|source:\(visible.index):\(visible.line.id)")
+                identity.append(visible.line.pronunciationText)
+                identity.append(visible.line.translationText)
+                identity.append(visible.line.furiganaText)
+                for part in visible.line.vocalParts {
+                    identity.append(part.pronunciationText)
+                    identity.append(part.translationText)
+                    identity.append(part.furiganaText)
+                }
+            }
             identity.append("|")
             identity.append(title)
             identity.append("|")
@@ -1238,12 +1288,14 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private struct RenderIdentityInput {
         let state: RenderState
         let activeLine: ActiveLine?
+        let visibleLines: [ActiveLine]
 
         init(state: RenderState, activeLine: ActiveLine?) {
             var identityState = state
             identityState.lines = []
             self.state = identityState
             self.activeLine = activeLine
+            self.visibleLines = state.activeLines
         }
 
         func definitelyMatches(_ other: RenderIdentityInput) -> Bool {
@@ -1267,6 +1319,12 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                   state.typography == other.state.typography,
                   state.speakerColors == other.state.speakerColors else {
                 return false
+            }
+            guard visibleLines.count == other.visibleLines.count else { return false }
+            for index in visibleLines.indices {
+                let left = visibleLines[index]
+                let right = other.visibleLines[index]
+                guard left.index == right.index, left.line == right.line else { return false }
             }
             return definitelyMatchesActiveLine(other.activeLine)
         }
@@ -1320,6 +1378,7 @@ struct PictureInPictureKaraokeContent: View {
     var bounceEnabled: Bool
     var typography: AppSettings.TypographySettings = .defaults
     var preparationStore: KaraokeRenderPreparationStore? = nil
+    var sourceLineIndex: Int = -1
 
     var body: some View {
         let visibleParts = displayParts
@@ -1336,7 +1395,8 @@ struct PictureInPictureKaraokeContent: View {
                     speakerFallback: line.speakerFallback,
                     kind: line.kind,
                     active: true,
-                    inactiveDistance: 0
+                    inactiveDistance: 0,
+                    preparationSlot: "line:\(sourceLineIndex)"
                 )
             } else {
                 VStack(alignment: horizontalAlignment, spacing: 0) {
@@ -1356,7 +1416,7 @@ struct PictureInPictureKaraokeContent: View {
                             active: partActive,
                             inactiveDistance: partActive ? 0 : 0.45,
                             effectRowSeed: index,
-                            preparationSlot: "part:\(index):\(part.id)"
+                            preparationSlot: "line:\(sourceLineIndex):part:\(index):\(part.id)"
                         )
                         .padding(.top, vocalPartTopSpacing(index: index, parts: visibleParts))
                     }

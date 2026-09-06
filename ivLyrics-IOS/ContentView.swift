@@ -3684,6 +3684,15 @@ struct MainLyricPreviewPanel: View {
         if model.lyricsResult.lines.isEmpty {
             return emptyPreviewRows()
         }
+        let activeIndices = LyricsTimelineDisplayBuilder.activeLineIndices(
+            context: model.timelineContext,
+            positionMs: model.adjustedPositionMs
+        )
+        if !activeIndices.isEmpty {
+            return activeIndices.flatMap { index in
+                previewRows(for: model.lyricsResult.lines[index], lineIndex: index, previewItems: previewItems)
+            }
+        }
         guard let entry = LyricsTimelineDisplayBuilder.previewItem(
             context: model.timelineContext,
             positionMs: model.adjustedPositionMs,
@@ -3772,6 +3781,7 @@ struct MainLyricPreviewPanel: View {
         }
         return rows.map { row in
             var syncedRow = row
+            syncedRow.sourceLineIndex = lineIndex
             syncedRow.lineStartTimeMs = line.startTimeMs
             syncedRow.lineEndTimeMs = line.endTimeMs
             return syncedRow
@@ -4023,9 +4033,10 @@ private struct MainLyricPreviewRow: Identifiable {
     var slotId: String = AppSettings.typoMainPreviewOriginal
     var lineStartTimeMs: Int64 = 0
     var lineEndTimeMs: Int64 = 0
+    var sourceLineIndex: Int = -1
 
     var id: String {
-        "\(type.rawValue)-\(slotId)-\(primary)-\(text)-\(rubyText)-\(syllables.count)"
+        "\(sourceLineIndex)-\(type.rawValue)-\(slotId)-\(primary)-\(text)-\(rubyText)-\(syllables.count)"
     }
 
     var effectRowSeed: Int {
@@ -5127,6 +5138,8 @@ struct LyricsTimelineContext {
     let baseItems: [LyricsTimelineDisplayItem]
     let itemQueries: TimelineIntervalCache<[LyricsTimelineDisplayItem]>
     let previewQueries: TimelineIntervalCache<LyricsTimelineDisplayItem?>
+    let activeLineQueries: TimelineIntervalCache<[Int]>
+    let precedingLyricEndTimes: [Int64]
 
     var cachesLyricEndTimes: Bool { lastLyricEndTimes != nil }
 
@@ -5169,6 +5182,13 @@ struct LyricsTimelineContext {
         lastLyricEndTimes = cacheLyricEndTimes
             ? lines.map(LyricsTimelineDisplayBuilder.lastLyricEndTime)
             : nil
+        var precedingEnd: Int64 = -1
+        precedingLyricEndTimes = lines.indices.map { index in
+            if !isMarker[index] {
+                precedingEnd = max(precedingEnd, LyricsTimelineDisplayBuilder.lastLyricEndTime(lines[index]))
+            }
+            return precedingEnd
+        }
         let markerInterludeInfos = LyricsTimelineDisplayBuilder.markerInterludeInfos(
             lines: lines,
             isMarker: isMarker,
@@ -5190,6 +5210,7 @@ struct LyricsTimelineContext {
         )
         itemQueries = TimelineIntervalCache(boundaries: boundaries)
         previewQueries = TimelineIntervalCache(boundaries: boundaries)
+        activeLineQueries = TimelineIntervalCache(boundaries: boundaries)
     }
 }
 
@@ -5215,6 +5236,19 @@ enum LyricsTimelineDisplayBuilder {
     private static let karaokeReleaseWindowMs: Int64 = 820
     private static let karaokeCompletionPositionOffsetMs: Int64 = 900
     private static let completedColorFadeMs: Int64 = 520
+
+    // A scroll anchor is one line; the set of singing rows can contain several.
+    // Keep the original source order and individual end times in compact previews.
+    static func activeLineIndices(context: LyricsTimelineContext, positionMs: Int64) -> [Int] {
+        context.activeLineQueries.value(position: positionMs, duration: 0, automaticInterludes: false) {
+            context.lines.indices.filter { index in
+                let line = context.lines[index]
+                let end = context.lastLyricEndTimes?[index] ?? lastLyricEndTime(line)
+                return !context.isMarker[index] && line.isTimed
+                    && positionMs >= line.startTimeMs && positionMs < max(line.endTimeMs, end)
+            }
+        }
+    }
 
     static func lineID(index: Int, line: LyricsLine) -> String {
         "line-\(index)-\(line.id)"
@@ -5677,7 +5711,7 @@ enum LyricsTimelineDisplayBuilder {
               !hasRenderableInterludeMarkerBeforeNextRenderableLine(context: context, index: index, count: count) else {
             return nil
         }
-        let lyricEnd = context.lastLyricEndTimes?[index] ?? lastLyricEndTime(line)
+        let lyricEnd = context.precedingLyricEndTimes[index]
         guard lyricEnd >= 0 else { return nil }
         let start = lyricEnd + trailingInterludeDelayMs
         let nextStart = nextRenderableLineStartAfter(context: context, index: index)
@@ -5708,7 +5742,7 @@ enum LyricsTimelineDisplayBuilder {
         for index in lines.indices {
             let line = lines[index]
             guard line.isTimed, !context.isMarker[index] else { continue }
-            let lyricEnd = context.lastLyricEndTimes?[index] ?? lastLyricEndTime(line)
+            let lyricEnd = context.precedingLyricEndTimes[index]
             guard lyricEnd >= 0 else { continue }
             let start = lyricEnd + trailingInterludeDelayMs
             let nextStart = nextRenderableLineStartAfter(context: context, index: index)
@@ -5770,6 +5804,7 @@ enum LyricsTimelineDisplayBuilder {
                 boundaries.append(marker.endTimeMs)
             }
             let end = lyricEndTimes?[index] ?? lastLyricEndTime(lines[index])
+            boundaries.append(max(lines[index].endTimeMs, end))
             let (breakStart, overflow) = end.addingReportingOverflow(trailingInterludeDelayMs)
             if end >= 0, !overflow { boundaries.append(breakStart) }
         }
