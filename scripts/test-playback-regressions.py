@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 with (ROOT / "ivLyrics-IOS/Info.plist").open("rb") as plist:
     assert plistlib.load(plist).get("CADisableMinimumFrameDurationOnPhone") is True, "iPhone ProMotion opt-in missing"
 source = (ROOT / "ivLyrics-IOS/ContentView.swift").read_text()
-cache = source[source.index("private final class KaraokeRenderPreparationCache {"):source.index("private struct KaraokeBounceMetrics {")]
+cache = source[source.index("final class KaraokeRenderPreparationCache {"):source.index("private struct KaraokeBounceMetrics {")]
 # Exercise the production defaults and cloud merge with a disposable preferences suite,
 # without constructing the app's unrelated network/keychain dependencies.
 settings_source = (ROOT / "ivLyrics-IOS/AppSettings.swift").read_text()
@@ -173,6 +173,28 @@ _ = cache.value(for: key, prepare: prepared)
 key.syllables = [.init(text: "lyrics", startTimeMs: 100, endTimeMs: 1000)]
 _ = cache.value(for: key, prepare: prepared)
 check(preparations == 5, "Granularity/ruby/annotations/timing changes invalidate preparation")
+let pipStore = KaraokeRenderPreparationStore()
+var pipPreparations = 0
+// Each loop models a newly created PiP content root. The store belongs to its controller.
+for _ in 0..<180 {
+    for voice in 0..<4 {
+        var voiceKey = key
+        voiceKey.text = "voice \(voice) 日本語 العربية"
+        let row = pipStore.cache(for: "part:\(voice)")
+        _ = row.value(for: voiceKey) {
+            pipPreparations += 1
+            return .init(source: [], display: [], fillTimings: [], annotations: [], motionProfiles: [])
+        }
+    }
+}
+check(pipPreparations == 4, "180 fresh PiP frames reuse four independent vocal preparations")
+let persistentRow = pipStore.cache(for: "part:0")
+check(persistentRow === pipStore.cache(for: "part:0"), "Position and seek do not replace PiP row cache")
+pipStore.removeAll()
+check(persistentRow !== pipStore.cache(for: "part:0"), "Track replacement releases PiP preparation")
+let oldest = pipStore.cache(for: "oldest")
+for index in 0..<40 { _ = pipStore.cache(for: "new:\(index)") }
+check(oldest !== pipStore.cache(for: "oldest"), "PiP row identities cannot grow memory without bound")
 var resultCache = BoundedLRUCache<String, Int>(capacity: 3)
 resultCache.insert(1, forKey: "track-a|old")
 resultCache.insert(2, forKey: "track-b|old")

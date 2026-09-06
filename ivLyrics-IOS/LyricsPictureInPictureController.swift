@@ -74,6 +74,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private var pixelBufferPool: CVPixelBufferPool?
     private var pixelBufferPoolSize = CGSize.zero
     private var videoFormatDescription: CMVideoFormatDescription?
+    private let karaokePreparationStore = KaraokeRenderPreparationStore()
 
     override init() {
         super.init()
@@ -173,6 +174,9 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             lastRenderIdentityInput = nextRenderIdentityInput
         }
         let forceRender = nextRenderIdentity != lastRenderIdentityValue
+        if state.track?.stableKey != nextState.track?.stableKey {
+            karaokePreparationStore.removeAll()
+        }
         state = nextState
         lastRenderIdentityValue = nextRenderIdentity
         publishPlaybackState(
@@ -749,7 +753,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             karaokeDisplayGranularity: state.karaokeDisplayGranularity,
             syncedLyricsKaraokeAnimationEnabled: state.syncedLyricsKaraokeAnimationEnabled,
             bounceEnabled: state.karaokeBounceEffectEnabled,
-            typography: state.typography
+            typography: state.typography,
+            preparationStore: karaokePreparationStore
         )
         .environment(\.lyricsSegmentationLocale, state.lyricsLocale)
         .frame(width: rect.width, height: rect.height, alignment: state.swiftUIFrameAlignment)
@@ -1314,6 +1319,7 @@ struct PictureInPictureKaraokeContent: View {
     var syncedLyricsKaraokeAnimationEnabled: Bool
     var bounceEnabled: Bool
     var typography: AppSettings.TypographySettings = .defaults
+    var preparationStore: KaraokeRenderPreparationStore? = nil
 
     var body: some View {
         let visibleParts = displayParts
@@ -1349,7 +1355,8 @@ struct PictureInPictureKaraokeContent: View {
                             kind: part.kind,
                             active: partActive,
                             inactiveDistance: partActive ? 0 : 0.45,
-                            effectRowSeed: index
+                            effectRowSeed: index,
+                            preparationSlot: "part:\(index):\(part.id)"
                         )
                         .padding(.top, vocalPartTopSpacing(index: index, parts: visibleParts))
                     }
@@ -1391,7 +1398,8 @@ struct PictureInPictureKaraokeContent: View {
         kind: String,
         active: Bool,
         inactiveDistance: Double,
-        effectRowSeed: Int = 0
+        effectRowSeed: Int = 0,
+        preparationSlot: String = "line"
     ) -> some View {
         let displayGranularity = AppSettings.normalizeKaraokeDisplayGranularity(
             karaokeDisplayGranularity
@@ -1433,7 +1441,8 @@ struct PictureInPictureKaraokeContent: View {
             bounceEnabled: bounceEnabled,
             bounceTextSize: typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: fontSize),
             syntheticTimingEnabled: !hasTimedSyllables && syncedLyricsKaraokeAnimationEnabled,
-            effectRowSeed: effectRowSeed
+            effectRowSeed: effectRowSeed,
+            sharedPreparationCache: preparationStore?.cache(for: preparationSlot)
         )
         .frame(maxWidth: .infinity, alignment: frameAlignment)
     }

@@ -6309,6 +6309,7 @@ struct SyllableKaraokeText: View {
     var syntheticTimingEnabled: Bool = false
     var effectRowSeed: Int = 0
     var singleLine: Bool = false
+    var sharedPreparationCache: KaraokeRenderPreparationCache? = nil
 
     var body: some View {
         let displayKind = normalizedKind
@@ -6667,7 +6668,7 @@ struct SyllableKaraokeText: View {
             locale: lyricsSegmentationLocale, annotations: culturalAnnotations,
             start: startTimeMs, end: endTimeMs, synthetic: syntheticTimingEnabled
         )
-        return preparationCache.value(for: key) {
+        return (sharedPreparationCache ?? preparationCache).value(for: key) {
             let source = effectiveSyllables
             let timings = isWordDisplayGranularity
                 ? source.map { KaraokeSyllableTimingNormalizer.FillTiming(startTimeMs: $0.startTimeMs, endTimeMs: $0.endTimeMs) }
@@ -6697,7 +6698,7 @@ struct SyllableKaraokeText: View {
 
 /// One preparation per unchanged row. Position, focus, color and font changes do not
 /// invalidate timing/text work; those remain render inputs so user settings stay live.
-private final class KaraokeRenderPreparationCache {
+final class KaraokeRenderPreparationCache {
     struct Key: Equatable {
         var text: String
         var ruby: String
@@ -6726,6 +6727,21 @@ private final class KaraokeRenderPreparationCache {
         prepared = value
         return value
     }
+}
+
+/// A PiP frame gets a fresh SwiftUI root. Keep expensive text/timing preparation
+/// outside that root while retaining independent caches for simultaneous voices.
+final class KaraokeRenderPreparationStore {
+    private var rows = BoundedLRUCache<String, KaraokeRenderPreparationCache>(capacity: 32)
+
+    func cache(for slot: String) -> KaraokeRenderPreparationCache {
+        if let cached = rows.value(forKey: slot) { return cached }
+        let cache = KaraokeRenderPreparationCache()
+        rows.insert(cache, forKey: slot)
+        return cache
+    }
+
+    func removeAll() { rows.removeAll() }
 }
 
 private struct KaraokeBounceMetrics {
