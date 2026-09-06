@@ -69,6 +69,7 @@ jobs:
         run: |
           python3 scripts/test-playback-regressions.py
           python3 scripts/test-timeline-cache.py
+          python3 scripts/test-provider-overlap.py
 
       - name: Run static analyzer
         run: |
