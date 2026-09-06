@@ -1062,7 +1062,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             lyricsSizePercent: 150,
             translationSizePercent: 100,
             solidColor: "#1e3a8a",
-            syncedLyricsKaraokeAnimationEnabled: true,
+            syncedLyricsKaraokeAnimationEnabled: false,
             karaokeBounceEffectEnabled: true,
             karaokeDisplayGranularity: AppSettings.karaokeDisplayCharacter,
             useSyncCreatorSpeakerColors: true,

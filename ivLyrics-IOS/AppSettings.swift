@@ -337,7 +337,7 @@ final class AppSettings: ObservableObject {
         pronunciationEnabled = ruleConfig.defaultRule.pronunciationEnabled
         bingTranslateEnabled = loadedAIProviderEnabled[KeylessTranslationProviders.bingId] ?? true
         googleTranslateEnabled = loadedAIProviderEnabled[KeylessTranslationProviders.googleId] ?? true
-        metadataTranslationEnabled = defaults.object(forKey: "metadata_translation_enabled") as? Bool ?? true
+        metadataTranslationEnabled = defaults.object(forKey: "metadata_translation_enabled") as? Bool ?? false
         japaneseFuriganaEnabled = defaults.object(forKey: "japanese_furigana_enabled") as? Bool ?? false
         culturalAnnotationsEnabled = defaults.object(forKey: "cultural_annotations_enabled") as? Bool ?? false
         culturalAnnotationsFontFamily = Self.normalizeCulturalFontFamily(defaults.string(forKey: "cultural_annotations_font_family") ?? "pretendard")
@@ -362,7 +362,7 @@ final class AppSettings: ObservableObject {
         previewItems = Self.normalizePreviewItems(defaults.object(forKey: "preview_items") as? Int ?? Self.previewItemsForMode(loadedPreviewMode))
         autoInstrumentalBreakEnabled = defaults.object(forKey: "auto_instrumental_break") as? Bool ?? true
         interludeLabelsEnabled = defaults.object(forKey: "interlude_labels_enabled") as? Bool ?? true
-        syncedLyricsKaraokeAnimationEnabled = defaults.object(forKey: "synced_lyrics_karaoke_animation") as? Bool ?? true
+        syncedLyricsKaraokeAnimationEnabled = defaults.object(forKey: "synced_lyrics_karaoke_animation") as? Bool ?? false
         karaokeBounceEffectEnabled = defaults.object(forKey: "karaoke_bounce_effect") as? Bool ?? true
         karaokeDisplayGranularity = Self.normalizeKaraokeDisplayGranularity(
             defaults.string(forKey: "karaoke_display_granularity_v1")

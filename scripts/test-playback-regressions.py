@@ -10,6 +10,35 @@ with (ROOT / "ivLyrics-IOS/Info.plist").open("rb") as plist:
     assert plistlib.load(plist).get("CADisableMinimumFrameDurationOnPhone") is True, "iPhone ProMotion opt-in missing"
 source = (ROOT / "ivLyrics-IOS/ContentView.swift").read_text()
 cache = source[source.index("private final class KaraokeRenderPreparationCache {"):source.index("private struct KaraokeBounceMetrics {")]
+# Exercise the production defaults and cloud merge with a disposable preferences suite,
+# without constructing the app's unrelated network/keychain dependencies.
+settings_source = (ROOT / "ivLyrics-IOS/AppSettings.swift").read_text()
+default_properties = ("metadataTranslationEnabled", "syncedLyricsKaraokeAnimationEnabled")
+default_assignments = "\n".join(
+    next(line for line in settings_source.splitlines() if line.strip().startswith(f"{name} = defaults.object(forKey:"))
+    for name in default_properties
+)
+cloud_keys_start = settings_source.index("    private static let cloudSettingKeys:")
+cloud_keys_end = settings_source.index("\n    ]", cloud_keys_start) + len("\n    ]")
+cloud_keys = settings_source[cloud_keys_start:cloud_keys_end]
+cloud_merge_start = settings_source.index("        for key in Self.cloudSettingKeys {", settings_source.index("    func importCloudSettings("))
+cloud_merge_end = settings_source.index("\n\n        let loaded = AppSettings(defaults: defaults)", cloud_merge_start)
+settings_probe = """
+private struct SettingsDefaultsProbe {
+    let defaults: UserDefaults
+    var metadataTranslationEnabled: Bool
+    var syncedLyricsKaraokeAnimationEnabled: Bool
+""" + cloud_keys + """
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+""" + default_assignments + """
+    }
+    mutating func importCloudSettings(_ values: [String: Any]) {
+""" + settings_source[cloud_merge_start:cloud_merge_end] + """
+        self = Self(defaults: defaults)
+    }
+}
+"""
 fixtures = r'''
 import Foundation
 struct LyricsLine { struct Syllable: Equatable { var text: String; var startTimeMs: Int64; var endTimeMs: Int64 } }
@@ -30,6 +59,30 @@ check(PlaybackClockMode(foregroundActive: true, pictureInPictureEngaged: false) 
 check(PlaybackClockMode(foregroundActive: true, pictureInPictureEngaged: true) == .display, "Foreground PiP does not start a second clock")
 check(PlaybackClockMode(foregroundActive: false, pictureInPictureEngaged: true) == .backgroundPictureInPicture, "Background PiP retains an independent playback clock")
 check(PlaybackClockMode(foregroundActive: false, pictureInPictureEngaged: false) == .stopped, "Closing background PiP stops playback work")
+do {
+    let suite = "ivlyrics-defaults-regression-" + UUID().uuidString
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    var settings = SettingsDefaultsProbe(defaults: defaults)
+    check(!settings.metadataTranslationEnabled && !settings.syncedLyricsKaraokeAnimationEnabled, "Fresh settings disable title translation and virtual karaoke")
+    settings.importCloudSettings(["ui_lang": "ko"])
+    check(!settings.metadataTranslationEnabled && !settings.syncedLyricsKaraokeAnimationEnabled, "Older cloud settings with absent keys retain new defaults")
+    settings.importCloudSettings(["metadata_translation_enabled": true, "synced_lyrics_karaoke_animation": true])
+    check(settings.metadataTranslationEnabled && settings.syncedLyricsKaraokeAnimationEnabled, "Explicit cloud opt-ins are preserved")
+    settings = SettingsDefaultsProbe(defaults: defaults)
+    check(settings.metadataTranslationEnabled && settings.syncedLyricsKaraokeAnimationEnabled, "Saved opt-ins survive reload after upgrade")
+    settings.importCloudSettings(["ui_lang": "en", "metadata_translation_enabled": NSNull()])
+    check(settings.metadataTranslationEnabled && settings.syncedLyricsKaraokeAnimationEnabled, "Absent or null cloud keys do not erase saved choices")
+    settings.importCloudSettings(["metadata_translation_enabled": false, "synced_lyrics_karaoke_animation": false])
+    settings = SettingsDefaultsProbe(defaults: defaults)
+    check(!settings.metadataTranslationEnabled && !settings.syncedLyricsKaraokeAnimationEnabled, "Explicit opt-outs survive import and reload")
+    defaults.set(true, forKey: "metadata_translation_enabled")
+    defaults.set(true, forKey: "synced_lyrics_karaoke_animation")
+    defaults.removeObject(forKey: "metadata_translation_enabled")
+    defaults.removeObject(forKey: "synced_lyrics_karaoke_animation")
+    settings = SettingsDefaultsProbe(defaults: defaults)
+    check(!settings.metadataTranslationEnabled && !settings.syncedLyricsKaraokeAnimationEnabled, "Clearing stored choices restores off defaults")
+}
 check(OpenDBRefreshPolicy.isFresh(nowMs: 1000 + 6 * 60 * 60 * 1000 - 1, fetchedAtMs: 1000), "OpenDB reuses index for six hours")
 check(!OpenDBRefreshPolicy.isFresh(nowMs: 1000 + 6 * 60 * 60 * 1000, fetchedAtMs: 1000), "OpenDB refreshes at six hours")
 check(!OpenDBRefreshPolicy.isFresh(nowMs: 1000, fetchedAtMs: 0), "Missing fetch timestamp is stale")
@@ -124,7 +177,7 @@ print("PLAYBACK_REGRESSIONS_PASSED assertions=\(assertions)")
 '''
 with tempfile.TemporaryDirectory(prefix="ivlyrics-ios-regression-") as path:
     work = Path(path)
-    (work / "main.swift").write_text(fixtures + cache + checks)
+    (work / "main.swift").write_text(fixtures + settings_probe + cache + checks)
     sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", work / "main.swift"]
     subprocess.run(["xcrun", "swiftc", *map(str, sources), "-o", str(work / "regression")], check=True)
     subprocess.run([str(work / "regression")], check=True)
