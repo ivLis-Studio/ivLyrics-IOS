@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.9",
+          "buildVersion": "48",
+          "date": "2026-09-06",
+          "localizedDescription": "v1.3.9는 Spotify 재생 상태 확인의 안정성을 높이고, 가사 및 가라오케 표시의 성능과 메모리 사용을 개선합니다. 화면 속 화면에서도 가라오케 준비 상태를 유지하며, 가사 타임라인 조회와 후리가나 캐시를 더 효율적으로 관리합니다. 또한 배포 및 카탈로그 메타데이터를 정비했습니다.\n\nv1.3.9 improves the reliability of Spotify playback checks and the performance and memory behavior of lyric and karaoke presentation. Karaoke preparation is retained through Picture in Picture, while lyric timeline queries and furigana caches are managed more efficiently. Release and catalog metadata have also been updated.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.9/ivLyrics-IOS-v1.3.9-unsigned.ipa",
+          "size": 7352326,
+          "sha256": "4614dc7cff68d191f186cd8b47b01dc18b2c5e3531df59ad9ee62631bcdff1fe",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.8",
           "buildVersion": "47",
           "date": "2026-09-06",
