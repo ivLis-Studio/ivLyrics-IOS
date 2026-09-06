@@ -20,7 +20,9 @@ struct SpotifyPlaybackRetryPolicy {
 
     mutating func receivedPlayback(hasTrack: Bool, now: TimeInterval) {
         failures = 0
-        rateLimitedUntil = 0
+        // A poll and a user-triggered refresh can overlap. A response that began
+        // before a newer 429 must not erase its still-active server deadline.
+        if rateLimitedUntil <= now { rateLimitedUntil = 0 }
         if hasTrack {
             emptyResponses = 0
             retryAt = 0
