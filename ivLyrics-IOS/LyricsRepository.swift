@@ -27,7 +27,6 @@ actor LyricsRepository {
     private let spotifyTokenMaxAgeMs: Int64 = 50 * 60 * 1000
     private let spotifyTokenRefreshGraceMs: Int64 = 30_000
     private static let lyricsCacheMaxAgeMs = LyricsDiskCachePolicy.maxAgeMs
-    private let openDbFreshMs: Int64 = 60_000
     private let openDbUnavailableRetryMs: Int64 = 5 * 60 * 1000
     private let syncDataServerCacheBypassMs: Int64 = 30 * 1000
     private let networkRequestTimeout: TimeInterval = 47
@@ -1570,7 +1569,7 @@ actor LyricsRepository {
         }
         let cached = defaults.string(forKey: "sync_data_opendb_provider_map") ?? ""
         if !cached.isEmpty,
-           now - Int64(defaults.double(forKey: "sync_data_opendb_fetched_at_ms")) < openDbFreshMs,
+           OpenDBRefreshPolicy.isFresh(nowMs: now, fetchedAtMs: Int64(defaults.double(forKey: "sync_data_opendb_fetched_at_ms"))),
            let object = try? jsonObject(cached) {
             return object
         }

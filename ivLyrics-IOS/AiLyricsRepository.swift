@@ -184,6 +184,7 @@ actor AiLyricsRepository {
         settings: AppSettings.Snapshot,
         sourceLangOverride: String = "",
         bypassCache: Bool = false,
+        providerUpdate: ((String, String) async -> Void)? = nil,
         partialUpdate: ((SupplementResponse) async -> Void)? = nil
     ) async -> SupplementResponse {
         lastPartialEmitUptime = 0
@@ -351,6 +352,7 @@ actor AiLyricsRepository {
                         rule: rule,
                         translationSkipped: translationSkipped,
                         liveState: liveState,
+                        providerUpdate: providerUpdate,
                         partialUpdate: partialUpdate
                     )
                 }
@@ -369,6 +371,7 @@ actor AiLyricsRepository {
                         rule: rule,
                         translationSkipped: translationSkipped,
                         liveState: liveState,
+                        providerUpdate: providerUpdate,
                         partialUpdate: partialUpdate
                     )
                 }
@@ -413,6 +416,7 @@ actor AiLyricsRepository {
         rule: AppSettings.LanguageRule,
         translationSkipped: Bool,
         liveState: SupplementLiveState,
+        providerUpdate: ((String, String) async -> Void)?,
         partialUpdate: ((SupplementResponse) async -> Void)?
     ) async -> SupplementTaskOutcome {
         var logs: [String] = []
@@ -434,6 +438,7 @@ actor AiLyricsRepository {
                 for providerSettings in settings.readyAIProviderSnapshots {
                     await liveState.reset(task: task)
                     do {
+                        await providerUpdate?(task, providerSettings.provider.label)
                         log("ai pronunciation attempt: provider=\(providerSettings.provider.label) / model=\(providerSettings.model)")
                         resolvedValues = try await loadSupplementValuesStreamFirst(
                             prompt: prompt,
@@ -479,6 +484,7 @@ actor AiLyricsRepository {
                     await liveState.reset(task: task)
                     do {
                         if provider.isKeyless {
+                            await providerUpdate?(task, provider.label)
                             log("translation attempt: provider=\(provider.label)")
                             let result = try await keylessTranslationProviders.translate(
                                 providerId: provider.id,
@@ -490,6 +496,7 @@ actor AiLyricsRepository {
                         } else if let providerSettings = settings.selectingAIProvider(provider.id),
                                   providerSettings.hasApiKey,
                                   providerSettings.hasModel {
+                            await providerUpdate?(task, provider.label)
                             log("ai translation attempt: provider=\(provider.label) / model=\(providerSettings.model)")
                             resolvedValues = try await loadSupplementValuesStreamFirst(
                                 prompt: prompt,

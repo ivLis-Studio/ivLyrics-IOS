@@ -6231,6 +6231,7 @@ struct LyricsLineView: View, Equatable {
 }
 
 struct SyllableKaraokeText: View {
+    @State private var preparationCache = KaraokeRenderPreparationCache()
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.lyricsSegmentationLocale) private var lyricsSegmentationLocale
     var text: String
@@ -6259,7 +6260,7 @@ struct SyllableKaraokeText: View {
 
     var body: some View {
         let displayKind = normalizedKind
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: accessibilityReduceMotion || !requiresContinuousEffect(displayKind))) { timeline in
+        TimelineView(.animation(paused: accessibilityReduceMotion || !requiresContinuousEffect(displayKind))) { timeline in
             karaokeBody(
                 nowMs: accessibilityReduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate * 1_000,
                 displayKind: displayKind
@@ -6327,26 +6328,11 @@ struct SyllableKaraokeText: View {
     }
 
     private var karaokeSegments: [KaraokeSyllableSegment] {
-        let annotations = rubyAnnotations
-        let sourceSyllables = effectiveSyllables
-        let fillTimings = isWordDisplayGranularity
-            ? sourceSyllables.map {
-                KaraokeSyllableTimingNormalizer.FillTiming(
-                    startTimeMs: $0.startTimeMs,
-                    endTimeMs: $0.endTimeMs
-                )
-            }
-            : KaraokeSyllableTimingNormalizer.latinWordFillTimings(sourceSyllables)
-        let displaySyllables = CulturalAnnotation.annotateSyllables(
-            text: text,
-            syllables: sourceSyllables,
-            annotations: culturalAnnotations
-        )
-        let bounceWindowActive = positionMs >= startTimeMs
-            && positionMs < endTimeMs + (isWordDisplayGranularity ? 280 : 820)
-        let bounceActiveIndex = bounceEnabled && !accessibilityReduceMotion && bounceWindowActive && !displaySyllables.isEmpty
-            ? activeSegmentIndex(in: displaySyllables, fillTimings: fillTimings)
-            : nil
+        let prepared = preparedKaraoke
+        let annotations = prepared.annotations
+        let sourceSyllables = prepared.source
+        let fillTimings = prepared.fillTimings
+        let displaySyllables = prepared.display
         var timedSegments: [KaraokeSyllableSegment] = []
         timedSegments.reserveCapacity(displaySyllables.count)
         var sourceOffset = 0
@@ -6362,11 +6348,8 @@ struct SyllableKaraokeText: View {
             )
             defer { sourceOffset += sourceLength }
             guard !syllable.text.isEmpty else { continue }
-            let bounce = karaokeBounce(
-                fillTiming: fillTiming,
-                index: index,
-                activeIndex: bounceActiveIndex
-            )
+            let bounce = karaokeBounce(profile: prepared.motionProfiles.indices.contains(index)
+                ? prepared.motionProfiles[index] : nil)
             timedSegments.append(KaraokeSyllableSegment(
                 id: index,
                 text: syllable.text,
@@ -6626,112 +6609,70 @@ struct SyllableKaraokeText: View {
         return min(1, max(0, CGFloat(positionMs - startTimeMs) / CGFloat(endTimeMs - startTimeMs)))
     }
 
-    private func karaokeBounce(
-        fillTiming: KaraokeSyllableTimingNormalizer.FillTiming,
-        index: Int,
-        activeIndex: Int?
-    ) -> KaraokeBounceMetrics {
-        guard bounceEnabled,
-              fillTiming.endTimeMs > fillTiming.startTimeMs,
-              let activeIndex else {
-            return .idle
-        }
-        let distance = isWordDisplayGranularity ? 0 : abs(CGFloat(index - activeIndex))
-        guard distance <= 3,
-              let rawStrength = bounceStrength(
-                startTimeMs: fillTiming.startTimeMs,
-                endTimeMs: fillTiming.endTimeMs
-              ) else {
-            return .idle
-        }
-        let attenuation = max(0.22, 1 - distance * 0.23)
-        let strength = rawStrength * attenuation
-        guard strength >= 0.025 else {
-            return .idle
-        }
-        let offsetY = ((-6 * strength) * 4).rounded() / 4
-        let scale = ((1 + 0.055 * strength) * 200).rounded() / 200
-        return KaraokeBounceMetrics(offsetY: offsetY, scale: scale)
-    }
-
-    private func activeSegmentIndex(
-        in syllables: [LyricsLine.Syllable],
-        fillTimings: [KaraokeSyllableTimingNormalizer.FillTiming]
-    ) -> Int? {
-        var fallbackIndex: Int?
-        var fallbackEnd = Int64.min
-        var nextIndex: Int?
-        var nextStart = Int64.max
-        for (index, syllable) in syllables.enumerated() {
-            guard !syllable.text.unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) }) else {
-                continue
+    private var preparedKaraoke: KaraokeRenderPreparationCache.Value {
+        let key = KaraokeRenderPreparationCache.Key(
+            text: text, ruby: rubyText, syllables: syllables, granularity: normalizedDisplayGranularity,
+            locale: lyricsSegmentationLocale, annotations: culturalAnnotations,
+            start: startTimeMs, end: endTimeMs, synthetic: syntheticTimingEnabled
+        )
+        return preparationCache.value(for: key) {
+            let source = effectiveSyllables
+            let timings = isWordDisplayGranularity
+                ? source.map { KaraokeSyllableTimingNormalizer.FillTiming(startTimeMs: $0.startTimeMs, endTimeMs: $0.endTimeMs) }
+                : KaraokeSyllableTimingNormalizer.latinWordFillTimings(source)
+            let sourceUnits = (syllables.isEmpty ? source : syllables).map {
+                KaraokeMotionProfile.Unit(text: $0.text, startMs: Double($0.startTimeMs), endMs: Double($0.endTimeMs))
             }
-            let timing = fillTimings.indices.contains(index)
-                ? fillTimings[index]
-                : KaraokeSyllableTimingNormalizer.FillTiming(
-                    startTimeMs: syllable.startTimeMs,
-                    endTimeMs: syllable.endTimeMs
-                )
-            if positionMs >= timing.startTimeMs, positionMs < timing.endTimeMs {
-                return index
+            let displayUnits = source.enumerated().map { index, syllable in
+                KaraokeMotionProfile.Unit(text: syllable.text, startMs: Double(timings[index].startTimeMs), endMs: Double(timings[index].endTimeMs))
             }
-            if positionMs >= timing.endTimeMs, timing.endTimeMs >= fallbackEnd {
-                fallbackEnd = timing.endTimeMs
-                fallbackIndex = index
-            }
-            if positionMs < timing.startTimeMs, timing.startTimeMs < nextStart {
-                nextStart = timing.startTimeMs
-                nextIndex = index
-            }
-        }
-        if let fallbackIndex, positionMs - fallbackEnd < 2_000 {
-            return nextIndex ?? fallbackIndex
-        }
-        return nextIndex ?? fallbackIndex
-    }
-
-    private func bounceStrength(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat? {
-        let duration = CGFloat(max(1, endTimeMs - startTimeMs))
-        let currentTimeMs = CGFloat(positionMs)
-        if isWordDisplayGranularity {
-            let rise = min(180, max(60, duration * 0.38))
-            let release = min(280, max(180, duration * 0.45))
-            let peakTimeMs = min(CGFloat(endTimeMs), CGFloat(startTimeMs) + rise)
-            guard currentTimeMs >= CGFloat(startTimeMs),
-                  currentTimeMs < CGFloat(endTimeMs) + release else {
-                return nil
-            }
-            if currentTimeMs <= peakTimeMs {
-                return easeOutSine(
-                    (currentTimeMs - CGFloat(startTimeMs))
-                        / max(1, peakTimeMs - CGFloat(startTimeMs))
-                )
-            }
-            if currentTimeMs <= CGFloat(endTimeMs) {
-                // Allow the next word to rise before the current word settles.
-                return 1
-            }
-            return easeSoftRelease(
-                (currentTimeMs - CGFloat(endTimeMs)) / max(1, release)
+            return KaraokeRenderPreparationCache.Value(
+                source: source,
+                display: CulturalAnnotation.annotateSyllables(text: text, syllables: source, annotations: culturalAnnotations),
+                fillTimings: timings, annotations: rubyAnnotations,
+                motionProfiles: KaraokeMotionProfile.prepare(source: sourceUnits, display: displayUnits)
             )
         }
-
-        let rise = min(280, max(180, duration * 0.9))
-        let release = min(820, max(420, duration * 2.4))
-        let elapsed = currentTimeMs - CGFloat(startTimeMs)
-        guard elapsed >= 0, elapsed <= rise + release else { return nil }
-        if elapsed <= rise {
-            return easeOutSine(elapsed / max(1, rise))
-        }
-        return easeSoftRelease((elapsed - rise) / max(1, release))
     }
 
-    private func easeOutSine(_ value: CGFloat) -> CGFloat {
-        sin(min(1, max(0, value)) * .pi / 2)
+    private func karaokeBounce(profile: KaraokeMotionProfile?) -> KaraokeBounceMetrics {
+        guard bounceEnabled, !accessibilityReduceMotion, let profile else { return .idle }
+        let values = profile.values(positionMs: Double(positionMs), textSize: Double(bounceTextSize))
+        return KaraokeBounceMetrics(offsetY: CGFloat(values.offsetY), scale: CGFloat(values.scale))
     }
 
-    private func easeSoftRelease(_ value: CGFloat) -> CGFloat {
-        0.5 + 0.5 * cos(min(1, max(0, value)) * .pi)
+}
+
+/// One preparation per unchanged row. Position, focus, color and font changes do not
+/// invalidate timing/text work; those remain render inputs so user settings stay live.
+private final class KaraokeRenderPreparationCache {
+    struct Key: Equatable {
+        var text: String
+        var ruby: String
+        var syllables: [LyricsLine.Syllable]
+        var granularity: String
+        var locale: String
+        var annotations: [CulturalAnnotation]
+        var start: Int64
+        var end: Int64
+        var synthetic: Bool
+    }
+    struct Value {
+        var source: [LyricsLine.Syllable]
+        var display: [LyricsLine.Syllable]
+        var fillTimings: [KaraokeSyllableTimingNormalizer.FillTiming]
+        var annotations: [FuriganaRepository.RubyAnnotation]
+        var motionProfiles: [KaraokeMotionProfile?]
+    }
+    private var key: Key?
+    private var prepared: Value?
+
+    func value(for next: Key, prepare: () -> Value) -> Value {
+        if key == next, let prepared { return prepared }
+        let value = prepare()
+        key = next
+        prepared = value
+        return value
     }
 }
 
@@ -6800,7 +6741,7 @@ private struct KaraokeSyllableSegmentView: View {
                 .fixedSize(horizontal: true, vertical: false)
         }
         .fixedSize(horizontal: true, vertical: false)
-            .scaleEffect(segment.bounceScale, anchor: .center)
+            .scaleEffect(segment.bounceScale, anchor: .bottom)
             .offset(y: segment.bounceOffsetY)
             .modifier(LyricGlyphEffectModifier(kind: kind, active: active, nowMs: nowMs, textSize: textSize, segmentIndex: segment.id, rowSeed: rowSeed, color: segment.activeColor))
             .layoutValue(key: KaraokeWhitespaceLayoutKey.self, value: segment.isWhitespace)
@@ -6832,19 +6773,18 @@ private struct LyricLineMotionModifier: ViewModifier {
             let y: [CGFloat] = [0, 0.25, -0.25, -0.35]
             return (x[step], y[step], 0, 1)
         case "adlib":
-            return (0, -1.5 * signedSine(effectNowMs, periodMs: 1_050), 0, 1)
+            return (0, CGFloat(KaraokeEffectTiming.adlibOffset(timeMs: effectNowMs)) * textSize, 0, 1)
         case "pulse":
             return (0, 0, 0, 1 + positiveSine(effectNowMs, periodMs: 940) * 0.025)
         case "bounce":
-            return (0, -positiveSine(effectNowMs, periodMs: 780) * textSize * 0.12, 0, 1)
+            return (0, CGFloat(KaraokeEffectTiming.bounceOffset(timeMs: effectNowMs)) * textSize, 0, 1)
         case "sway":
             let wave = signedSine(effectNowMs, periodMs: 1_350)
             return (wave * textSize * 0.0245, 0, Double(wave * 0.84), 1)
         case "float":
             return (0, -positiveSine(effectNowMs, periodMs: 1_650) * textSize * 0.09, Double(signedSine(effectNowMs, periodMs: 1_650) * 0.45), 1)
         case "pop":
-            let phase = effectNowMs.truncatingRemainder(dividingBy: 1_080) / 1_080
-            return (0, 0, 0, phase < 0.18 ? 1.035 : (phase < 0.34 ? 0.996 : 1))
+            return (0, 0, 0, CGFloat(KaraokeEffectTiming.popScale(timeMs: effectNowMs)))
         case "glitch":
             let step = Int(effectNowMs / 35) % 32
             if step == 5 || step == 19 { return (textSize * 0.035, -textSize * 0.01, 0, 1) }
@@ -6894,9 +6834,7 @@ private struct LyricGlyphEffectModifier: ViewModifier {
         let waveOffset: CGFloat
         if kind == "wave" {
             let phaseTime = nowMs + Double(rowSeed) * 95 + Double(segmentIndex) * 62
-            let wave = CGFloat(sin(phaseTime.truncatingRemainder(dividingBy: 980) / 980 * .pi * 2))
-            let lift = positiveSine(nowMs + Double(segmentIndex) * 42, periodMs: 760) * textSize * 0.018
-            waveOffset = wave * textSize * 0.145 - lift
+            waveOffset = CGFloat(KaraokeEffectTiming.waveOffset(timeMs: phaseTime)) * textSize
         } else {
             waveOffset = 0
         }
@@ -6968,23 +6906,46 @@ private struct KaraokeSegmentFlowLayout: Layout {
     var rowSpacing: CGFloat = 0
     var wraps: Bool = true
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    struct Cache {
+        var sizes: [CGSize]
+        var whitespace: [Bool]
+        var rows: [KaraokeSegmentLayoutRow] = []
+        var rowWidth: CGFloat?
+        var rowSpacing: CGFloat = 0
+    }
+
+    func makeCache(subviews: Subviews) -> Cache {
+        Cache(sizes: subviews.map { $0.sizeThatFits(.unspecified) },
+              whitespace: subviews.map { $0[KaraokeWhitespaceLayoutKey.self] })
+    }
+
+    func updateCache(_ cache: inout Cache, subviews: Subviews) {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let whitespace = subviews.map { $0[KaraokeWhitespaceLayoutKey.self] }
+        // Fill/motion changes leave intrinsic sizes intact. Fonts, ruby, content and
+        // Dynamic Type still invalidate the measured layout when their sizes change.
+        if sizes != cache.sizes || whitespace != cache.whitespace {
+            cache = Cache(sizes: sizes, whitespace: whitespace)
+        }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
         let maxWidth = wraps
             ? max(1, proposal.width ?? CGFloat.greatestFiniteMagnitude)
             : CGFloat.greatestFiniteMagnitude
-        let rows = makeRows(subviews: subviews, maxWidth: maxWidth)
+        let rows = cachedRows(cache: &cache, maxWidth: maxWidth)
         let contentWidth = rows.map(\.width).max() ?? 0
         let contentHeight = rows.last.map { $0.y + $0.height } ?? 0
         return CGSize(width: wraps ? (proposal.width ?? contentWidth) : contentWidth, height: contentHeight)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
         let maxWidth = wraps ? max(1, bounds.width) : CGFloat.greatestFiniteMagnitude
-        let rows = makeRows(subviews: subviews, maxWidth: maxWidth)
+        let rows = cachedRows(cache: &cache, maxWidth: maxWidth)
         for row in rows {
             var x = bounds.minX + horizontalOffset(rowWidth: row.width, containerWidth: bounds.width)
             for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
+                let size = cache.sizes[index]
                 subviews[index].place(
                     at: CGPoint(x: x, y: bounds.minY + row.y + max(0, row.height - size.height)),
                     anchor: .topLeading,
@@ -6995,7 +6956,8 @@ private struct KaraokeSegmentFlowLayout: Layout {
         }
     }
 
-    private func makeRows(subviews: Subviews, maxWidth: CGFloat) -> [KaraokeSegmentLayoutRow] {
+    private func cachedRows(cache: inout Cache, maxWidth: CGFloat) -> [KaraokeSegmentLayoutRow] {
+        if cache.rowWidth == maxWidth, cache.rowSpacing == rowSpacing { return cache.rows }
         var rows: [KaraokeSegmentLayoutRow] = []
         var currentIndices: [Int] = []
         var currentWidth: CGFloat = 0
@@ -7011,10 +6973,10 @@ private struct KaraokeSegmentFlowLayout: Layout {
             currentHeight = 0
         }
 
-        let units = makeWrapUnits(subviews: subviews)
+        let units = makeWrapUnits(whitespace: cache.whitespace)
         for unit in units {
-            let sizes = unit.map { subviews[$0].sizeThatFits(.unspecified) }
-            let separatorCount = unit.prefix { subviews[$0][KaraokeWhitespaceLayoutKey.self] }.count
+            let sizes = unit.map { cache.sizes[$0] }
+            let separatorCount = unit.prefix { cache.whitespace[$0] }.count
             let phraseIndices = Array(unit.dropFirst(separatorCount))
             let separatorWidth = sizes.prefix(separatorCount).reduce(0) { $0 + $1.width }
             let phraseWidth = sizes.dropFirst(separatorCount).reduce(0) { $0 + $1.width }
@@ -7034,7 +6996,7 @@ private struct KaraokeSegmentFlowLayout: Layout {
             }
             // Only an oversized single phrase falls back to its constituent glyph/syllable segments.
             for index in phraseIndices {
-                let size = subviews[index].sizeThatFits(.unspecified)
+                let size = cache.sizes[index]
                 if !currentIndices.isEmpty, currentWidth + size.width > maxWidth {
                     flushRow()
                 }
@@ -7044,15 +7006,18 @@ private struct KaraokeSegmentFlowLayout: Layout {
             }
         }
         flushRow()
+        cache.rows = rows
+        cache.rowWidth = maxWidth
+        cache.rowSpacing = rowSpacing
         return rows
     }
 
-    private func makeWrapUnits(subviews: Subviews) -> [[Int]] {
+    private func makeWrapUnits(whitespace: [Bool]) -> [[Int]] {
         var units: [[Int]] = []
         var current: [Int] = []
-        for index in subviews.indices {
-            if subviews[index][KaraokeWhitespaceLayoutKey.self] {
-                if current.contains(where: { !subviews[$0][KaraokeWhitespaceLayoutKey.self] }) {
+        for index in whitespace.indices {
+            if whitespace[index] {
+                if current.contains(where: { !whitespace[$0] }) {
                     units.append(current)
                     current = []
                 }
@@ -7061,7 +7026,7 @@ private struct KaraokeSegmentFlowLayout: Layout {
                 current.append(index)
             }
         }
-        if current.contains(where: { !subviews[$0][KaraokeWhitespaceLayoutKey.self] }) {
+        if current.contains(where: { !whitespace[$0] }) {
             units.append(current)
         }
         return units

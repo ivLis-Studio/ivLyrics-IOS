@@ -15,6 +15,11 @@ on:
         required: true
         type: boolean
         default: false
+      notify_discord:
+        description: "Send release notes to Discord"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -59,6 +64,9 @@ jobs:
 
       - name: Validate translations
         run: python3 scripts/validate-i18n.py
+
+      - name: Validate playback, motion and provider regressions
+        run: python3 scripts/test-playback-regressions.py
 
       - name: Run static analyzer
         run: |
@@ -185,6 +193,7 @@ jobs:
           fi
 
       - name: Send iOS release notes to Discord
+        if: github.event_name != 'workflow_dispatch' || inputs.notify_discord
         env:
           RELEASE_WEBHOOK_URL: ${{ secrets.RELEASE_NOTES_WEBHOOK_URL }}
           RELEASE_PLATFORM: ios

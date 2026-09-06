@@ -171,11 +171,6 @@ final class AppViewModel: ObservableObject {
         420_000_000,
         1_100_000_000
     ]
-    // Drive lyric fill, bounce, and line hand-offs at the display cadence.
-    // Thirty hertz made short syllables visibly step even when SwiftUI could
-    // render the surrounding transition at 60 fps.
-    private static let playbackClockInterval: TimeInterval = 1.0 / 60.0
-    private static let playbackClockTolerance: TimeInterval = 0.002
 
     @Published var inputTitle: String
     @Published var inputArtist: String
@@ -241,6 +236,9 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var culturalAnnotations: [CulturalAnnotation] = []
     @Published private(set) var culturalAnnotationsLoading = false
     @Published private(set) var lyricsLoadingProviderName = ""
+    @Published private var supplementProviderProgress = SupplementProviderProgress()
+    var lyricsSupplementTranslationProviderName: String { supplementProviderProgress.translation }
+    var lyricsSupplementPronunciationProviderName: String { supplementProviderProgress.pronunciation }
     @Published private(set) var lyricsSupplementPronunciationLoading = false
     @Published private(set) var lyricsSupplementTranslationLoading = false
     @Published private(set) var lyricsSupplementFuriganaLoading = false
@@ -262,14 +260,16 @@ final class AppViewModel: ObservableObject {
     var aiTranslationLoadingText: String {
         aiProviderLoadingText(
             formatKey: "loading.translation_provider_format",
-            fallbackKey: "loading.translation"
+            fallbackKey: "loading.translation",
+            providerName: lyricsSupplementTranslationProviderName
         )
     }
 
     var aiPronunciationLoadingText: String {
         aiProviderLoadingText(
             formatKey: "loading.pronunciation_provider_format",
-            fallbackKey: "loading.pronunciation"
+            fallbackKey: "loading.pronunciation",
+            providerName: lyricsSupplementPronunciationProviderName
         )
     }
 
@@ -289,7 +289,7 @@ final class AppViewModel: ObservableObject {
             return settings.t("loading.translation")
         }
         if lyricsSupplementTranslationLoading && lyricsSupplementPronunciationLoading {
-            return aiLyricsLoadingText
+            return aiTranslationLoadingText + " · " + aiPronunciationLoadingText
         }
         if lyricsSupplementTranslationLoading {
             return aiTranslationLoadingText
@@ -405,7 +405,12 @@ final class AppViewModel: ObservableObject {
     private var spotifyWebAPIAuthorizationTask: Task<Void, Never>?
     private var youtubeBackgroundLoadTask: Task<Void, Never>?
     private var updateTask: Task<Void, Never>?
+    #if os(iOS)
+    private var displayClock: DisplayRefreshClock?
+    #else
     private var timer: Timer?
+    #endif
+    private var lastPiPClockUpdateUptime: TimeInterval = 0
     private var cachedTimelineContext: LyricsTimelineContext?
     private var audioRouteObserver: NSObjectProtocol?
     private var spotifyMetadataHydrationTrackId = ""
@@ -563,8 +568,9 @@ final class AppViewModel: ObservableObject {
             self.showSavedToast(self.settings.t("pip.enter_failed"))
         }
         pictureInPictureController.onEngagementEnded = { [weak self] in
-            guard let self,
-                  UIApplication.shared.applicationState != .active,
+            guard let self else { return }
+            self.updatePlaybackClockMode()
+            guard UIApplication.shared.applicationState != .active,
                   self.spotifyLivePolling,
                   !self.pictureInPictureController.active else { return }
             self.suspendSpotifyLiveInBackground()
@@ -582,7 +588,11 @@ final class AppViewModel: ObservableObject {
     }
 
     deinit {
+        #if os(iOS)
+        displayClock?.invalidate()
+        #else
         timer?.invalidate()
+        #endif
         loadTask?.cancel()
         metadataTranslationTask?.cancel()
         furiganaRefreshTask?.cancel()
@@ -1064,6 +1074,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func appDidBecomeActive() {
+        updatePlaybackClockMode(foregroundActive: true)
         let deferredAuthorizationRecovery = spotifyWebAPIAuthorizationCoordinator
             .consumeDeferredRecovery()
         if settings.spotifyWebAPIEnabled,
@@ -1107,9 +1118,11 @@ final class AppViewModel: ObservableObject {
     func appWillResignActive() {
         updatePictureInPictureState(force: true)
         pictureInPictureController.prepareForAutomaticTransition()
+        updatePlaybackClockMode(foregroundActive: false)
     }
 
     func appDidEnterBackground() {
+        updatePlaybackClockMode(foregroundActive: false)
         guard spotifyLivePolling else { return }
         if pictureInPictureController.isEngaged {
             if let currentTrack {
@@ -1140,6 +1153,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func handlePictureInPictureActiveChange(_ active: Bool) {
+        updatePlaybackClockMode()
         guard UIApplication.shared.applicationState != .active,
               spotifyLivePolling else { return }
         if active {
@@ -3590,6 +3604,7 @@ final class AppViewModel: ObservableObject {
         let snapshot = settings.snapshot
         let sourceLang = effectiveSelectedSourceLang(lines: base.lines)
         var result = base
+        let requestID = supplementProviderProgress.begin(trackKey: track.stableKey)
         setLyricsSupplementLoading(pronunciation: false, translation: false, furigana: lyricsSupplementFuriganaLoading)
         let loading = aiSupplementLoadingState(track: track, base: base, snapshot: snapshot, sourceLang: sourceLang)
         guard loading.pronunciation || loading.translation else {
@@ -3606,11 +3621,18 @@ final class AppViewModel: ObservableObject {
             baseResult: base,
             settings: snapshot,
             sourceLangOverride: sourceLang,
-            bypassCache: bypassCache
+            bypassCache: bypassCache,
+            providerUpdate: { [weak self] task, provider in
+                guard !Task.isCancelled, let self,
+                      self.currentTrack?.stableKey == track.stableKey else { return }
+                self.supplementProviderProgress.update(request: requestID, trackKey: track.stableKey,
+                                                       task: task, provider: provider)
+            }
         ) { [weak self] partial in
-            self?.applyAiSupplementPartial(track: track, response: partial)
+            guard let self, self.supplementProviderProgress.isCurrent(requestID, trackKey: track.stableKey) else { return }
+            self.applyAiSupplementPartial(track: track, response: partial)
         }
-        if Task.isCancelled { return result }
+        if Task.isCancelled || !supplementProviderProgress.isCurrent(requestID, trackKey: track.stableKey) { return result }
         appendLogs(response.logs)
         result = response.result
         setLyricsSupplementLoading(pronunciation: false, translation: false, furigana: lyricsSupplementFuriganaLoading)
@@ -3815,8 +3837,8 @@ final class AppViewModel: ObservableObject {
         resetLyricsSupplementLoading()
     }
 
-    private func aiProviderLoadingText(formatKey: String, fallbackKey: String) -> String {
-        let providerName = settings.snapshot.provider.label.trimmed
+    private func aiProviderLoadingText(formatKey: String, fallbackKey: String, providerName: String? = nil) -> String {
+        let providerName = (providerName ?? settings.snapshot.provider.label).trimmed
         return providerName.isEmpty
             ? settings.t(fallbackKey)
             : settings.tf(formatKey, providerName)
@@ -3834,12 +3856,14 @@ final class AppViewModel: ObservableObject {
     }
 
     private func resetLyricsSupplementLoading() {
+        supplementProviderProgress.invalidate()
         setLyricsSupplementLoading(pronunciation: false, translation: false, furigana: false)
     }
 
     private func setLyricsSupplementLoading(pronunciation: Bool, translation: Bool, furigana: Bool) {
         lyricsSupplementPronunciationLoading = pronunciation
         lyricsSupplementTranslationLoading = translation
+        supplementProviderProgress.setLoading(pronunciation: pronunciation, translation: translation)
         lyricsSupplementFuriganaLoading = furigana
         aiLyricsGenerating = pronunciation || translation
     }
@@ -4095,30 +4119,49 @@ final class AppViewModel: ObservableObject {
     }
 
     private func startClock() {
-        timer?.invalidate()
-        let playbackTimer = Timer(timeInterval: Self.playbackClockInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                let uptime = ProcessInfo.processInfo.systemUptime
-                let position = self.currentTrack?.positionNow(uptime: uptime) ?? 0
-                if let track = self.currentTrack {
-                    self.updateSpotifyDJLyricsTimeline(
-                        track: track,
-                        playerPositionMs: position,
-                        spotifyDJContext: self.currentSpotifyDJContext,
-                        uptime: uptime
-                    )
-                }
-                let positionChanged = position != self.nowPositionMs
-                if positionChanged {
-                    self.nowPositionMs = position
-                }
-                self.updatePictureInPictureState()
-            }
+        #if os(iOS)
+        displayClock?.invalidate()
+        displayClock = DisplayRefreshClock { [weak self] in
+            MainActor.assumeIsolated { self?.refreshPlaybackClock() }
         }
-        playbackTimer.tolerance = Self.playbackClockTolerance
+        updatePlaybackClockMode()
+        #else
+        timer?.invalidate()
+        let playbackTimer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshPlaybackClock() }
+        }
+        playbackTimer.tolerance = 0.002
         RunLoop.main.add(playbackTimer, forMode: .common)
         timer = playbackTimer
+        #endif
+    }
+
+    private func updatePlaybackClockMode(foregroundActive: Bool? = nil) {
+        #if os(iOS)
+        displayClock?.setMode(PlaybackClockMode(
+            foregroundActive: foregroundActive ?? (UIApplication.shared.applicationState == .active),
+            pictureInPictureEngaged: pictureInPictureController.isEngaged
+        ))
+        #endif
+    }
+
+    private func refreshPlaybackClock() {
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let position = currentTrack?.positionNow(uptime: uptime) ?? 0
+        if let track = currentTrack {
+            updateSpotifyDJLyricsTimeline(
+                track: track, playerPositionMs: position,
+                spotifyDJContext: currentSpotifyDJContext, uptime: uptime
+            )
+        }
+        if position != nowPositionMs { nowPositionMs = position }
+        // PiP renders at its own cadence. Avoid rebuilding settings and the inactive
+        // priming frame for every foreground glyph update, including 120Hz displays.
+        let pipInterval = pictureInPictureController.isEngaged ? 1.0 / 30.0 : 1.0
+        if uptime - lastPiPClockUpdateUptime >= pipInterval {
+            lastPiPClockUpdateUptime = uptime
+            updatePictureInPictureState()
+        }
     }
 
     private func updateSpotifyDJLyricsTimeline(
