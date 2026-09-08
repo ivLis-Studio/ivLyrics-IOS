@@ -8353,25 +8353,18 @@ struct SettingsView: View {
         case general
         case lyrics
         case appearance
-        case player
         case ai
         case system
 
         var id: String { rawValue }
         var titleKey: String { "tab.\(rawValue)" }
-        var systemImage: String {
-            switch self {
-            case .general: return "slider.horizontal.3"
-            case .lyrics: return "text.quote"
-            case .appearance: return "paintbrush"
-            case .player: return "play.rectangle"
-            case .ai: return "sparkles"
-            case .system: return "gearshape.2"
-            }
-        }
+
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedSpeakerColor = AppSettings.speakerColorNormal
+    @State private var expandedAIProvider: String?
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @State private var settingsLogsPresented = false
@@ -8383,41 +8376,44 @@ struct SettingsView: View {
     @State private var cloudDeleteConfirmationPresented = false
 
     var body: some View {
-        ZStack {
-            Color(red: 12.0 / 255.0, green: 13.0 / 255.0, blue: 17.0 / 255.0)
-                .ignoresSafeArea()
+        VStack(spacing: 0) {
+            VStack(spacing: 9) {
+                settingsHeader
+                settingsTabs
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 13)
+            .padding(.bottom, 12)
+            .background(SettingsDesign.background.opacity(0.96))
+            .overlay(alignment: .bottom) { SettingsDesign.border.frame(height: 1) }
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    settingsHeader
-
-                    Text(settings.t(aiStatusKey))
-                        .font(.pretendard(14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.82))
-                        .padding(.top, 22)
-
-                    settingsTabs
-                        .padding(.top, 20)
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text(settings.t(selectedTab.titleKey))
-                            .font(.pretendard(21, weight: .bold))
-                            .foregroundStyle(.white)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Color.clear.frame(height: 0).id("settings-top")
                         selectedSettingsPage
                     }
+                    .frame(maxWidth: 640)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 20)
                     .padding(.top, 22)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 22)
-                .padding(.top, 18)
-                .padding(.bottom, 34)
+                .onChange(of: selectedTab) { _, _ in
+                    proxy.scrollTo("settings-top", anchor: .top)
+                }
             }
         }
+        .background(SettingsDesign.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .tint(Color(red: 0.48, green: 0.80, blue: 0.78))
+        .foregroundStyle(SettingsDesign.text)
+        .font(.pretendard(15))
+        .tint(SettingsDesign.accent)
+        .toggleStyle(SettingsSwitchStyle())
         .onAppear {
 #if DEBUG
             if let rawTab = ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_SETTINGS_TAB"],
-               let tab = SettingsTab(rawValue: rawTab) {
+               let tab = SettingsTab(rawValue: rawTab == "player" ? "appearance" : rawTab) {
                 selectedTab = tab
             }
 #endif
@@ -8438,25 +8434,20 @@ struct SettingsView: View {
     }
 
     private var settingsHeader: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(settings.t("settings.title"))
-                    .font(.pretendard(26, weight: .bold))
-                    .foregroundStyle(.white)
-                Text(settings.t("settings.subtitle"))
-                    .font(.pretendard(14))
-                    .foregroundStyle(.white.opacity(0.62))
-                    .lineLimit(2)
-            }
+        HStack(spacing: 16) {
+            Text(settings.t("settings.title"))
+                .font(.pretendard(22, weight: .heavy))
+                .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
-            Button {
-                dismiss()
-            } label: {
+            Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(SettingsDesign.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(SettingsDesign.control, in: Circle())
+                    .overlay(Circle().stroke(SettingsDesign.strongBorder, lineWidth: 1))
                     .frame(width: 44, height: 44)
-                    .background(Color(red: 0.23, green: 0.23, blue: 0.25), in: RoundedRectangle(cornerRadius: 8))
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(settings.t("button.close"))
@@ -8465,31 +8456,25 @@ struct SettingsView: View {
 
     private var settingsTabs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 ForEach(SettingsTab.allCases) { tab in
                     Button {
-                        withAnimation(.easeOut(duration: 0.16)) {
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
                             selectedTab = tab
                         }
                     } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: tab.systemImage)
-                                .font(.system(size: 13, weight: .semibold))
-                            Text(settings.t(tab.titleKey))
-                                .font(.pretendard(14, weight: .semibold))
-                        }
-                        .foregroundStyle(selectedTab == tab ? Color(red: 0.05, green: 0.10, blue: 0.11) : .white.opacity(0.82))
-                        .fixedSize(horizontal: true, vertical: false)
-                        .padding(.horizontal, 13)
-                        .frame(minWidth: 88, minHeight: 40)
-                        .background(
-                            selectedTab == tab
-                                ? Color(red: 0.75, green: 0.88, blue: 0.86)
-                                : Color.white.opacity(0.07),
-                            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        )
+                        Text(settings.t(tab.titleKey))
+                            .font(.pretendard(14.5, weight: .semibold))
+                            .foregroundStyle(selectedTab == tab ? SettingsDesign.background : SettingsDesign.secondary)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(selectedTab == tab ? SettingsDesign.text : .clear, in: Capsule())
+                            .frame(minHeight: 44)
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
                 }
             }
         }
@@ -8503,9 +8488,10 @@ struct SettingsView: View {
         case .lyrics:
             lyricsSettingsPage
         case .appearance:
-            appearanceSettingsPage
-        case .player:
-            playerSettingsPage
+            VStack(alignment: .leading, spacing: 28) {
+                appearanceSettingsPage
+                playerSettingsPage
+            }
         case .ai:
             aiSettingsPage
         case .system:
@@ -8570,7 +8556,12 @@ struct SettingsView: View {
                 }
             }
 
-            settingsSection(settings.t("section.player"), description: settings.t("section.player_desc")) {
+        }
+    }
+
+    private var lyricsSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            settingsSection(settings.t("section.player")) {
                 settingsToggleCard(
                     settings.t("setting.keep_screen_on"),
                     description: settings.t("setting.keep_screen_on_desc"),
@@ -8586,12 +8577,36 @@ struct SettingsView: View {
                     description: settings.t("setting.landscape_center_no_lyrics_desc"),
                     binding: landscapeCenterNoLyricsBinding
                 )
+                settingsToggleCard(settings.t("setting.auto_interlude"), description: settings.t("setting.auto_interlude_desc"), binding: autoInterludeBinding)
+                settingsToggleCard(settings.t("setting.interlude_labels"), description: settings.t("setting.interlude_labels_desc"), binding: settingsSavedBinding(\.interludeLabelsEnabled))
+                settingsToggleCard(settings.t("setting.synced_karaoke_animation"), description: settings.t("setting.synced_karaoke_animation_desc"), binding: settingsSavedBinding(\.syncedLyricsKaraokeAnimationEnabled))
+                settingsToggleCard(settings.t("setting.karaoke_bounce_effect"), description: settings.t("setting.karaoke_bounce_effect_desc"), binding: settingsSavedBinding(\.karaokeBounceEffectEnabled))
+                settingsCard(
+                    settings.t("setting.karaoke_display_granularity"),
+                    description: settings.t("setting.karaoke_display_granularity_desc")
+                ) {
+                    SettingsSegmentedPicker(
+                        title: settings.t("setting.karaoke_display_granularity"),
+                        selection: Binding(
+                            get: {
+                                AppSettings.normalizeKaraokeDisplayGranularity(
+                                    settings.karaokeDisplayGranularity
+                                )
+                            },
+                            set: { value in
+                                settings.karaokeDisplayGranularity = value
+                                model.showSavedToast(settings.t("toast.settings_saved"))
+                            }
+                        ),
+                        options: [
+                            (AppSettings.karaokeDisplayCharacter, settings.t("karaoke.display.character")),
+                            (AppSettings.karaokeDisplayWord, settings.t("karaoke.display.word")),
+                            (AppSettings.karaokeDisplayLine, settings.t("karaoke.display.line"))
+                        ]
+                    )
+                }
             }
-        }
-    }
 
-    private var lyricsSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
             settingsSection(
                 settings.t("section.lyrics_providers"),
                 description: settings.t("section.lyrics_providers_desc")
@@ -8612,152 +8627,95 @@ struct SettingsView: View {
                     }
                 }
             }
-
-            settingsSection(settings.t("tab.lyrics")) {
-                settingsToggleCard(settings.t("setting.auto_interlude"), description: settings.t("setting.auto_interlude_desc"), binding: autoInterludeBinding)
-                settingsToggleCard(settings.t("setting.interlude_labels"), description: settings.t("setting.interlude_labels_desc"), binding: settingsSavedBinding(\.interludeLabelsEnabled))
-                settingsToggleCard(settings.t("setting.synced_karaoke_animation"), description: settings.t("setting.synced_karaoke_animation_desc"), binding: settingsSavedBinding(\.syncedLyricsKaraokeAnimationEnabled))
-                settingsToggleCard(settings.t("setting.karaoke_bounce_effect"), description: settings.t("setting.karaoke_bounce_effect_desc"), binding: settingsSavedBinding(\.karaokeBounceEffectEnabled))
-                settingsCard(
-                    settings.t("setting.karaoke_display_granularity"),
-                    description: settings.t("setting.karaoke_display_granularity_desc")
-                ) {
-                    Picker(
-                        "",
-                        selection: Binding(
-                            get: {
-                                AppSettings.normalizeKaraokeDisplayGranularity(
-                                    settings.karaokeDisplayGranularity
-                                )
-                            },
-                            set: { value in
-                                settings.karaokeDisplayGranularity = value
-                                model.showSavedToast(settings.t("toast.settings_saved"))
-                            }
-                        )
-                    ) {
-                        Text(settings.t("karaoke.display.character"))
-                            .tag(AppSettings.karaokeDisplayCharacter)
-                        Text(settings.t("karaoke.display.word"))
-                            .tag(AppSettings.karaokeDisplayWord)
-                        Text(settings.t("karaoke.display.line"))
-                            .tag(AppSettings.karaokeDisplayLine)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                }
-            }
         }
     }
 
-    @ViewBuilder
     private func lyricsProviderSettingsCard(_ provider: AppSettings.LyricsProvider, index: Int) -> some View {
-        settingsCard(
-            provider.name,
-            description: settings.t("lyrics.provider.author_default")
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 10) {
-                    Toggle(
-                        settings.t("lyrics.provider.enabled"),
-                        isOn: lyricsProviderEnabledBinding(provider.id)
-                    )
-                    .font(.pretendard(14, weight: .semibold))
-
-                    Spacer(minLength: 8)
-
-                    Button {
-                        settings.moveLyricsProvider(provider.id, offset: -1)
-                        model.reloadLyrics(bypassCache: true)
-                    } label: {
-                        Image(systemName: "chevron.up")
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(index == 0)
-
-                    Button {
-                        settings.moveLyricsProvider(provider.id, offset: 1)
-                        model.reloadLyrics(bypassCache: true)
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(index == settings.lyricsProviderOrder.count - 1)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                providerOrderControls(index: index, count: settings.lyricsProviderOrder.count) { offset in
+                    settings.moveLyricsProvider(provider.id, offset: offset)
+                    model.reloadLyrics(bypassCache: true)
                 }
-
-                Divider().overlay(.white.opacity(0.12))
-
-                VStack(alignment: .leading, spacing: 9) {
-                    Text(settings.t("lyrics.provider.allowed_types"))
-                        .font(.pretendard(13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.64))
-                    Toggle(
-                        provider.supportsNativeKaraoke
-                            ? settings.t("lyrics.provider.type_karaoke")
-                            : settings.t("lyrics.provider.type_karaoke_sync_data"),
-                        isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypeKaraoke)
-                    )
+                Toggle(isOn: lyricsProviderEnabledBinding(provider.id)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(provider.name).font(.pretendard(14.5, weight: .semibold))
+                        Text(settings.t("lyrics.provider.author_default"))
+                            .font(.pretendard(12))
+                            .foregroundStyle(SettingsDesign.muted)
+                    }
+                }
+                .accessibilityLabel("\(provider.name), \(settings.t("lyrics.provider.enabled"))")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    Toggle(settings.t("lyrics.provider.type_karaoke"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypeKaraoke))
+                        .accessibilityLabel(provider.supportsNativeKaraoke ? settings.t("lyrics.provider.type_karaoke") : settings.t("lyrics.provider.type_karaoke_sync_data"))
                     if provider.supportsSynced {
-                        Toggle(
-                            settings.t("lyrics.provider.type_synced"),
-                            isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypeSynced)
-                        )
+                        Toggle(settings.t("lyrics.provider.type_synced"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypeSynced))
                     }
                     if provider.supportsPlain {
-                        Toggle(
-                            settings.t("lyrics.provider.type_plain"),
-                            isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypePlain)
-                        )
+                        Toggle(settings.t("lyrics.provider.type_plain"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypePlain))
+                    }
+                    if let projectURL = provider.projectURL, let url = URL(string: projectURL) {
+                        Link(destination: url) {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 13))
+                                .frame(width: 32, height: 32)
+                        }
+                        .foregroundStyle(SettingsDesign.secondary)
+                        .accessibilityLabel(settings.t("lyrics.provider.open_project"))
                     }
                 }
-                .font(.pretendard(14))
-
-                if let projectURL = provider.projectURL,
-                   let url = URL(string: projectURL) {
-                    Link(destination: url) {
-                        Label(settings.t("lyrics.provider.open_project"), systemImage: "arrow.up.right.square")
-                            .font(.pretendard(13, weight: .semibold))
-                    }
-                }
+                .toggleStyle(SettingsChipToggleStyle())
             }
+            .padding(.leading, 56)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(settings.t("lyrics.provider.allowed_types"))
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .settingsRowSeparator()
+    }
+
+    private func providerOrderControls(index: Int, count: Int, move: @escaping (Int) -> Void) -> some View {
+        VStack(spacing: 0) {
+            Button { move(-1) } label: {
+                Image(systemName: "triangle.fill").font(.system(size: 8))
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .disabled(index == 0)
+            .accessibilityLabel(settings.t("accessibility.move_up"))
+            Button { move(1) } label: {
+                Image(systemName: "triangle.fill").rotationEffect(.degrees(180)).font(.system(size: 8))
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .disabled(index == count - 1)
+            .accessibilityLabel(settings.t("accessibility.move_down"))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(SettingsDesign.secondary)
     }
 
     private var appearanceSettingsPage: some View {
         VStack(alignment: .leading, spacing: 26) {
-            settingsSection(settings.t("section.typography"), description: settings.t("section.typography_desc")) {
+            settingsSection(settings.t("section.layout")) {
                 settingsCard(settings.t("setting.lyrics_alignment"), description: settings.t("setting.lyrics_alignment_desc")) {
-                    Picker("", selection: lyricsAlignmentBinding) {
-                        Text(settings.t("alignment.left")).tag("left")
-                        Text(settings.t("alignment.center")).tag("center")
-                        Text(settings.t("alignment.right")).tag("right")
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
+                    SettingsSegmentedPicker(
+                        title: settings.t("setting.lyrics_alignment"),
+                        selection: lyricsAlignmentBinding,
+                        options: [
+                            ("left", settings.t("alignment.left")),
+                            ("center", settings.t("alignment.center")),
+                            ("right", settings.t("alignment.right"))
+                        ]
+                    )
                 }
+            }
+
+            settingsSection(settings.t("section.typography"), description: settings.t("section.typography_desc")) {
                 ForEach(AppSettings.typographySlots) { slot in
-                    settingsCard(
-                        settings.t("typography.slot.\(slot.id)"),
-                        description: settings.t("typography.slot.\(slot.id)_desc")
-                    ) {
-                        VStack(spacing: 10) {
-                            HStack {
-                                Slider(value: typographySizeBinding(slot), in: 70...160, step: 1, onEditingChanged: { editing in
-                                    if !editing { model.showSavedToast(settings.t("toast.typography_saved")) }
-                                })
-                                Text("\(typographyStyle(slot).sizePercent)%")
-                                    .foregroundStyle(.white.opacity(0.68))
-                            }
-                            Picker(settings.t("field.weight"), selection: typographyWeightBinding(slot)) {
-                                Text(settings.t("typography.weight.regular")).tag(AppSettings.typoWeightRegular)
-                                Text(settings.t("typography.weight.semibold")).tag(AppSettings.typoWeightSemibold)
-                                Text(settings.t("typography.weight.bold")).tag(AppSettings.typoWeightBold)
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                    }
+                    typographySettingsRow(slot)
                 }
             }
 
@@ -8767,16 +8725,13 @@ struct SettingsView: View {
                     description: settings.t("setting.creator_speaker_colors_desc"),
                     binding: settingsSavedBinding(\.useSyncCreatorSpeakerColors)
                 )
-                settingsCard(settings.t("section.speaker_colors")) {
-                    VStack(spacing: 12) {
-                        ForEach(AppSettings.speakerColorSlots) { slot in
-                            SpeakerColorRow(slot: slot)
-                                .environmentObject(settings)
-                        }
-                        settingsActionButton(settings.t("button.reset"), role: .destructive) {
-                            settings.resetSpeakerColors()
-                            model.showSavedToast(settings.t("toast.speaker_colors_reset"))
-                        }
+                ForEach(["normal", "duet", "male", "female"], id: \.self) { group in
+                    speakerSwatchGroup(group)
+                }
+                settingsCard("") {
+                    settingsActionButton(settings.t("button.reset"), role: .destructive) {
+                        settings.resetSpeakerColors()
+                        model.showSavedToast(settings.t("toast.speaker_colors_reset"))
                     }
                 }
             }
@@ -8795,51 +8750,57 @@ struct SettingsView: View {
                     binding: pipShowArtworkBinding
                 )
                 settingsCard(settings.t("setting.pip_background"), description: settings.t("setting.pip_background_desc")) {
-                    Picker("", selection: Binding(get: {
+                    SettingsSegmentedPicker(
+                        title: settings.t("setting.pip_background"),
+                        selection: Binding(get: {
                         AppSettings.normalizePipBackgroundMode(settings.pipBackgroundMode)
                     }, set: { value in
                         settings.pipBackgroundMode = value
                         model.showSavedToast(settings.t("toast.pip_settings_saved"))
-                    })) {
-                        Text(settings.t("pip.background.cover")).tag(AppSettings.pipBackgroundCover)
-                        Text(settings.t("pip.background.blur")).tag(AppSettings.pipBackgroundBlur)
-                        Text(settings.t("pip.background.gradient")).tag(AppSettings.pipBackgroundGradient)
-                        Text(settings.t("background.mode.solid")).tag(AppSettings.pipBackgroundSolid)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
+                    }),
+                        options: [
+                            (AppSettings.pipBackgroundCover, settings.t("pip.background.cover")),
+                            (AppSettings.pipBackgroundBlur, settings.t("pip.background.blur")),
+                            (AppSettings.pipBackgroundGradient, settings.t("pip.background.gradient")),
+                            (AppSettings.pipBackgroundSolid, settings.t("background.mode.solid"))
+                        ]
+                    )
                 }
                 settingsCard(settings.t("setting.pip_orientation"), description: settings.t("setting.pip_orientation_desc")) {
-                    Picker("", selection: Binding(get: {
+                    SettingsSegmentedPicker(
+                        title: settings.t("setting.pip_orientation"),
+                        selection: Binding(get: {
                         AppSettings.normalizePipOrientation(settings.pipOrientation)
                     }, set: { value in
                         settings.pipOrientation = value
                         model.showSavedToast(settings.t("toast.pip_settings_saved"))
-                    })) {
-                        Text(settings.t("pip.orientation.landscape")).tag(AppSettings.pipOrientationLandscape)
-                        Text(settings.t("pip.orientation.portrait")).tag(AppSettings.pipOrientationPortrait)
-                        Text(settings.t("pip.orientation.square")).tag(AppSettings.pipOrientationSquare)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
+                    }),
+                        options: [
+                            (AppSettings.pipOrientationLandscape, settings.t("pip.orientation.landscape")),
+                            (AppSettings.pipOrientationPortrait, settings.t("pip.orientation.portrait")),
+                            (AppSettings.pipOrientationSquare, settings.t("pip.orientation.square"))
+                        ]
+                    )
                 }
                 settingsCard(settings.t("setting.pip_lyrics_alignment"), description: settings.t("setting.pip_lyrics_alignment_desc")) {
-                    Picker("", selection: Binding(get: {
+                    SettingsSegmentedPicker(
+                        title: settings.t("setting.pip_lyrics_alignment"),
+                        selection: Binding(get: {
                         AppSettings.normalizeLyricsAlignment(settings.pipLyricsTextAlignment)
                     }, set: { value in
                         settings.pipLyricsTextAlignment = value
                         model.showSavedToast(settings.t("toast.pip_settings_saved"))
-                    })) {
-                        Text(settings.t("alignment.left")).tag("left")
-                        Text(settings.t("alignment.center")).tag("center")
-                        Text(settings.t("alignment.right")).tag("right")
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
+                    }),
+                        options: [
+                            ("left", settings.t("alignment.left")),
+                            ("center", settings.t("alignment.center")),
+                            ("right", settings.t("alignment.right"))
+                        ]
+                    )
                 }
                 settingsCard(settings.t("setting.pip_lyrics_size"), description: settings.t("setting.pip_lyrics_size_desc")) {
                     HStack {
-                        Slider(value: Binding(get: {
+                        SettingsSlider(value: Binding(get: {
                             Double(AppSettings.clampPipLyricsSizePercent(settings.pipLyricsSizePercent))
                         }, set: { value in
                             settings.pipLyricsSizePercent = AppSettings.clampPipLyricsSizePercent(Int(value.rounded()))
@@ -8848,12 +8809,12 @@ struct SettingsView: View {
                         })
                         Text("\(AppSettings.clampPipLyricsSizePercent(settings.pipLyricsSizePercent))%")
                             .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.68))
+                            .foregroundStyle(SettingsDesign.secondary)
                     }
                 }
                 settingsCard(settings.t("setting.pip_translation_size"), description: settings.t("setting.pip_translation_size_desc")) {
                     HStack {
-                        Slider(value: Binding(get: {
+                        SettingsSlider(value: Binding(get: {
                             Double(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent))
                         }, set: { value in
                             settings.pipTranslationSizePercent = AppSettings.clampPipTranslationSizePercent(Int(value.rounded()))
@@ -8862,7 +8823,7 @@ struct SettingsView: View {
                         })
                         Text("\(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent))%")
                             .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.68))
+                            .foregroundStyle(SettingsDesign.secondary)
                     }
                 }
             }
@@ -8873,7 +8834,7 @@ struct SettingsView: View {
                     description: settings.t("vinyl.settings.album_size_desc")
                 ) {
                     HStack {
-                        Slider(value: Binding(get: {
+                        SettingsSlider(value: Binding(get: {
                             Double(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent))
                         }, set: { value in
                             settings.vinylAlbumSizePercent = AppSettings.clampVinylSizePercent(Int(value.rounded()))
@@ -8882,7 +8843,7 @@ struct SettingsView: View {
                         })
                         Text("\(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent))%")
                             .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.68))
+                            .foregroundStyle(SettingsDesign.secondary)
                     }
                 }
 
@@ -8891,7 +8852,7 @@ struct SettingsView: View {
                     description: settings.t("vinyl.settings.record_size_desc")
                 ) {
                     HStack {
-                        Slider(value: Binding(get: {
+                        SettingsSlider(value: Binding(get: {
                             Double(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent))
                         }, set: { value in
                             settings.vinylRecordSizePercent = AppSettings.clampVinylSizePercent(Int(value.rounded()))
@@ -8900,7 +8861,7 @@ struct SettingsView: View {
                         })
                         Text("\(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent))%")
                             .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.68))
+                            .foregroundStyle(SettingsDesign.secondary)
                     }
                 }
 
@@ -8938,17 +8899,20 @@ struct SettingsView: View {
                     settings.t("vinyl.settings.tonearm_finish"),
                     description: settings.t("vinyl.settings.tonearm_finish_desc")
                 ) {
-                    Picker("", selection: Binding(get: {
+                    SettingsSegmentedPicker(
+                        title: settings.t("vinyl.settings.tonearm_finish"),
+                        selection: Binding(get: {
                         AppSettings.normalizeVinylTonearmFinish(settings.vinylTonearmFinish)
                     }, set: { value in
                         settings.vinylTonearmFinish = AppSettings.normalizeVinylTonearmFinish(value)
                         model.showSavedToast(settings.t("toast.settings_saved"))
-                    })) {
-                        Text(settings.t("vinyl.settings.tonearm_finish_white")).tag(AppSettings.vinylTonearmFinishWhite)
-                        Text(settings.t("vinyl.settings.tonearm_finish_silver")).tag(AppSettings.vinylTonearmFinishSilver)
-                        Text(settings.t("vinyl.settings.tonearm_finish_black")).tag(AppSettings.vinylTonearmFinishBlack)
-                    }
-                    .pickerStyle(.segmented)
+                    }),
+                        options: [
+                            (AppSettings.vinylTonearmFinishWhite, settings.t("vinyl.settings.tonearm_finish_white")),
+                            (AppSettings.vinylTonearmFinishSilver, settings.t("vinyl.settings.tonearm_finish_silver")),
+                            (AppSettings.vinylTonearmFinishBlack, settings.t("vinyl.settings.tonearm_finish_black"))
+                        ]
+                    )
                 }
 
                 settingsCard(
@@ -8956,7 +8920,7 @@ struct SettingsView: View {
                     description: settings.t("vinyl.settings.tonearm_size_desc")
                 ) {
                     HStack {
-                        Slider(value: Binding(get: {
+                        SettingsSlider(value: Binding(get: {
                             Double(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent))
                         }, set: { value in
                             settings.vinylTonearmSizePercent = AppSettings.clampVinylTonearmSizePercent(Int(value.rounded()))
@@ -8965,7 +8929,7 @@ struct SettingsView: View {
                         })
                         Text("\(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent))%")
                             .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.68))
+                            .foregroundStyle(SettingsDesign.secondary)
                     }
                 }
 
@@ -8990,26 +8954,7 @@ struct SettingsView: View {
 
             settingsSection(settings.t("section.typography"), description: settings.t("vinyl.settings.typography_desc")) {
                 ForEach(AppSettings.vinylTypographySlots) { slot in
-                    settingsCard(
-                        settings.t("typography.slot.\(slot.id)"),
-                        description: settings.t("typography.slot.\(slot.id)_desc")
-                    ) {
-                        VStack(spacing: 10) {
-                            HStack {
-                                Slider(value: typographySizeBinding(slot), in: 70...160, step: 1, onEditingChanged: { editing in
-                                    if !editing { model.showSavedToast(settings.t("toast.typography_saved")) }
-                                })
-                                Text("\(typographyStyle(slot).sizePercent)%")
-                                    .foregroundStyle(.white.opacity(0.68))
-                            }
-                            Picker(settings.t("field.weight"), selection: typographyWeightBinding(slot)) {
-                                Text(settings.t("typography.weight.regular")).tag(AppSettings.typoWeightRegular)
-                                Text(settings.t("typography.weight.semibold")).tag(AppSettings.typoWeightSemibold)
-                                Text(settings.t("typography.weight.bold")).tag(AppSettings.typoWeightBold)
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                    }
+                    typographySettingsRow(slot)
                 }
             }
         }
@@ -9020,18 +8965,18 @@ struct SettingsView: View {
             settingsSection(settings.t("section.ai_lyrics"), description: settings.t("section.ai_lyrics_desc")) {
                 settingsToggleCard(settings.t("lyrics.translation"), binding: $settings.translationEnabled)
                 settingsToggleCard(settings.t("lyrics.pronunciation"), binding: $settings.pronunciationEnabled)
-                settingsCard(
-                    settings.t("section.provider"),
-                    description: settings.t("setting.ai_provider_order_desc")
-                ) {
-                    VStack(spacing: 8) {
-                        ForEach(Array(settings.aiProviderOrder.enumerated()), id: \.element) { index, providerId in
-                            if let provider = AppSettings.aiProviderById(providerId) {
-                                aiProviderSettingsCard(provider, index: index)
-                            }
-                        }
+
+            }
+
+            settingsSection(settings.t("section.provider"), description: settings.t("setting.ai_provider_order_desc")) {
+                ForEach(Array(settings.aiProviderOrder.enumerated()), id: \.element) { index, providerId in
+                    if let provider = AppSettings.aiProviderById(providerId) {
+                        aiProviderSettingsCard(provider, index: index)
                     }
                 }
+            }
+
+            settingsSection(settings.t("setting.cultural_annotations")) {
                 settingsToggleCard(
                     settings.t("setting.cultural_annotations"),
                     description: settings.t("setting.cultural_annotations_desc"),
@@ -9040,14 +8985,16 @@ struct SettingsView: View {
                 if settings.culturalAnnotationsEnabled {
                     settingsCard(settings.t("setting.cultural_font_family")) {
                         VStack(alignment: .leading, spacing: 14) {
-                            Picker("", selection: $settings.culturalAnnotationsFontFamily) {
-                                Text(settings.t("font.pretendard")).tag("pretendard")
-                                Text(settings.t("font.system")).tag("system")
-                                Text(settings.t("font.serif")).tag("serif")
-                                Text(settings.t("font.monospace")).tag("monospace")
-                            }
-                            .labelsHidden()
-                            .settingsMenuSurface()
+                            SettingsSegmentedPicker(
+                                title: settings.t("setting.cultural_font_family"),
+                                selection: $settings.culturalAnnotationsFontFamily,
+                                options: [
+                                    ("pretendard", settings.t("font.pretendard")),
+                                    ("system", settings.t("font.system")),
+                                    ("serif", settings.t("font.serif")),
+                                    ("monospace", settings.t("font.monospace"))
+                                ]
+                            )
 
                             culturalAnnotationSlider(
                                 title: settings.t("setting.cultural_font_size"),
@@ -9073,14 +9020,16 @@ struct SettingsView: View {
                     }
                     settingsCard("\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_font_family"))") {
                         VStack(alignment: .leading, spacing: 14) {
-                            Picker("", selection: $settings.culturalAnnotationsVinylFontFamily) {
-                                Text(settings.t("font.pretendard")).tag("pretendard")
-                                Text(settings.t("font.system")).tag("system")
-                                Text(settings.t("font.serif")).tag("serif")
-                                Text(settings.t("font.monospace")).tag("monospace")
-                            }
-                            .labelsHidden()
-                            .settingsMenuSurface()
+                            SettingsSegmentedPicker(
+                                title: settings.t("setting.cultural_font_family"),
+                                selection: $settings.culturalAnnotationsVinylFontFamily,
+                                options: [
+                                    ("pretendard", settings.t("font.pretendard")),
+                                    ("system", settings.t("font.system")),
+                                    ("serif", settings.t("font.serif")),
+                                    ("monospace", settings.t("font.monospace"))
+                                ]
+                            )
 
                             culturalAnnotationSlider(
                                 title: "\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_font_size"))",
@@ -9105,102 +9054,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                if let url = URL(string: selectedProvider.apiKeyURL), !selectedProvider.apiKeyURL.trimmed.isEmpty {
-                    Link(settings.t("button.get_key"), destination: url)
-                        .font(.pretendard(15, weight: .semibold))
-                }
-                settingsCard(settings.t("field.base_url")) {
-                    settingsTextField(settings.t("field.base_url"), text: $settings.baseUrl)
-                }
-                settingsCard(
-                    settings.t("field.model"),
-                    description: settings.providerId == "paxsenix" && settings.model.trimmed.isEmpty
-                        ? settings.t("field.model_required")
-                        : ""
-                ) {
-                    if settings.providerId == "paxsenix" {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(spacing: 10) {
-                                Picker("", selection: $settings.model) {
-                                    Text(settings.t("field.model_required")).tag("")
-                                    if !settings.model.trimmed.isEmpty,
-                                       !paxsenixModels.contains(where: { $0.id == settings.model }) {
-                                        Text(settings.model).tag(settings.model)
-                                    }
-                                    ForEach(paxsenixModels) { model in
-                                        Text(model.displayName).tag(model.id)
-                                    }
-                                }
-                                .labelsHidden()
-                                .settingsMenuSurface()
-                                .disabled(paxsenixModelsLoading || paxsenixModels.isEmpty)
 
-                                Button {
-                                    Task { await refreshPaxsenixModels() }
-                                } label: {
-                                    Image(systemName: "arrow.clockwise")
-                                        .frame(width: 34, height: 34)
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(paxsenixModelsLoading)
-                                .accessibilityLabel(settings.t("button.refresh_models"))
-                            }
-                            if paxsenixModelsLoading {
-                                Text(settings.t("status.models_loading"))
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.62))
-                            } else if !paxsenixModelsError.isEmpty {
-                                Text(settings.t("status.models_unavailable"))
-                                    .font(.caption)
-                                    .foregroundStyle(Color.orange.opacity(0.88))
-                            }
-                            settingsTextField(settings.t("field.model_id"), text: $settings.model)
-                        }
-                    } else {
-                        settingsTextField(settings.t("field.model"), text: $settings.model)
-                    }
-                }
-                settingsCard(settings.t("field.max_tokens")) {
-                    Stepper(value: maxTokensBinding, in: 256...65_536, step: 256) {
-                        Text("\(settings.maxTokens)")
-                    }
-                }
-                settingsCard(settings.t("field.temperature")) {
-                    HStack {
-                        Slider(value: temperatureBinding, in: 0...2, step: 0.05)
-                        Text(String(format: "%.2f", settings.temperature))
-                            .foregroundStyle(.white.opacity(0.68))
-                    }
-                }
-                settingsCard(settings.t("field.api_key"), description: settings.t("field.api_key_desc")) {
-                    TextEditor(text: $settings.apiKeys)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 86)
-                        .padding(10)
-                        .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
-                }
-                if settings.providerId == "pollinations" {
-                    settingsCard(settings.t("pollinations.access_token")) {
-                        SecureField(settings.t("pollinations.access_token"), text: $settings.pollinationsAccessToken)
-                            .textFieldStyle(PlayerTextFieldStyle())
-                        Text(model.pollinationsAuthStatusText)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.62))
-                        settingsActionButton(model.pollinationsConnected ? settings.t("pollinations.reconnect") : settings.t("pollinations.connect")) {
-                            model.startPollinationsLogin()
-                        }
-                        .disabled(model.pollinationsAuthInFlight)
-                        settingsActionButton(settings.t("pollinations.open_login")) { model.openPollinationsLoginPage() }
-                            .disabled(!model.pollinationsCanOpenLoginPage)
-                        settingsActionButton(settings.t("pollinations.test")) { model.testPollinationsToken() }
-                            .disabled(!model.pollinationsCanTestToken)
-                        settingsActionButton(settings.t("pollinations.disconnect"), role: .destructive) { model.disconnectPollinationsLogin() }
-                            .disabled(!model.pollinationsConnected || model.pollinationsAuthInFlight)
-                    }
-                }
-                settingsActionButton(settings.t("button.save_regenerate")) {
-                    model.saveAiSettingsAndRegenerate()
-                }
             }
 
             settingsSection(settings.t("section.language_rules")) {
@@ -9231,44 +9085,113 @@ struct SettingsView: View {
         }
     }
 
+    private var aiProviderConfiguration: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let url = URL(string: selectedProvider.apiKeyURL), !selectedProvider.apiKeyURL.trimmed.isEmpty {
+                Link(settings.t("button.get_key"), destination: url)
+                    .font(.pretendard(15, weight: .semibold))
+            }
+            settingsCard(settings.t("field.base_url")) {
+                settingsTextField(settings.t("field.base_url"), text: $settings.baseUrl)
+            }
+            settingsCard(
+                settings.t("field.model"),
+                description: settings.providerId == "paxsenix" && settings.model.trimmed.isEmpty
+                    ? settings.t("field.model_required")
+                    : ""
+            ) {
+                if settings.providerId == "paxsenix" {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            Picker("", selection: $settings.model) {
+                                Text(settings.t("field.model_required")).tag("")
+                                if !settings.model.trimmed.isEmpty,
+                                   !paxsenixModels.contains(where: { $0.id == settings.model }) {
+                                    Text(settings.model).tag(settings.model)
+                                }
+                                ForEach(paxsenixModels) { model in
+                                    Text(model.displayName).tag(model.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .settingsMenuSurface()
+                            .disabled(paxsenixModelsLoading || paxsenixModels.isEmpty)
+
+                            Button {
+                                Task { await refreshPaxsenixModels() }
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                                    .frame(width: 34, height: 34)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(paxsenixModelsLoading)
+                            .accessibilityLabel(settings.t("button.refresh_models"))
+                        }
+                        if paxsenixModelsLoading {
+                            Text(settings.t("status.models_loading"))
+                                .font(.caption)
+                                .foregroundStyle(SettingsDesign.secondary)
+                        } else if !paxsenixModelsError.isEmpty {
+                            Text(settings.t("status.models_unavailable"))
+                                .font(.caption)
+                                .foregroundStyle(Color.orange.opacity(0.88))
+                        }
+                        settingsTextField(settings.t("field.model_id"), text: $settings.model)
+                    }
+                } else {
+                    settingsTextField(settings.t("field.model"), text: $settings.model)
+                }
+            }
+            settingsCard(settings.t("field.max_tokens")) {
+                Stepper(value: maxTokensBinding, in: 256...65_536, step: 256) {
+                    Text("\(settings.maxTokens)")
+                }
+            }
+            settingsCard(settings.t("field.temperature")) {
+                HStack {
+                    SettingsSlider(value: temperatureBinding, in: 0...2, step: 0.05)
+                    Text(String(format: "%.2f", settings.temperature))
+                        .foregroundStyle(SettingsDesign.secondary)
+                }
+            }
+            settingsCard(settings.t("field.api_key"), description: settings.t("field.api_key_desc")) {
+                TextEditor(text: $settings.apiKeys)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 86)
+                    .padding(10)
+                    .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
+                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
+            }
+            if settings.providerId == "pollinations" {
+                settingsCard(settings.t("pollinations.access_token")) {
+                    SecureField(settings.t("pollinations.access_token"), text: $settings.pollinationsAccessToken)
+                        .textFieldStyle(SettingsTextFieldStyle())
+                    Text(model.pollinationsAuthStatusText)
+                        .font(.caption)
+                        .foregroundStyle(SettingsDesign.secondary)
+                    settingsActionButton(model.pollinationsConnected ? settings.t("pollinations.reconnect") : settings.t("pollinations.connect")) {
+                        model.startPollinationsLogin()
+                    }
+                    .disabled(model.pollinationsAuthInFlight)
+                    settingsActionButton(settings.t("pollinations.open_login")) { model.openPollinationsLoginPage() }
+                        .disabled(!model.pollinationsCanOpenLoginPage)
+                    settingsActionButton(settings.t("pollinations.test")) { model.testPollinationsToken() }
+                        .disabled(!model.pollinationsCanTestToken)
+                    settingsActionButton(settings.t("pollinations.disconnect"), role: .destructive) { model.disconnectPollinationsLogin() }
+                        .disabled(!model.pollinationsConnected || model.pollinationsAuthInFlight)
+                }
+            }
+            settingsActionButton(settings.t("button.save_regenerate")) {
+                model.saveAiSettingsAndRegenerate()
+            }
+        }
+    }
+
+
     private var systemSettingsPage: some View {
         VStack(alignment: .leading, spacing: 26) {
-            settingsSection(
-                settings.t("creator_privacy.section"),
-                description: settings.t("creator_privacy.section_desc")
-            ) {
-                settingsCard(
-                    settings.t("creator_privacy.private_title"),
-                    description: settings.t("creator_privacy.private_desc")
-                ) {
-                    HStack(alignment: .center, spacing: 12) {
-                        Group {
-                            if model.creatorPrivacyRequestInFlight {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Circle()
-                                    .fill(creatorPrivacyStatusColor)
-                                    .frame(width: 8, height: 8)
-                            }
-                        }
-                        .frame(width: 18, height: 18)
-
-                        Text(model.creatorPrivacyStatusText)
-                            .font(.pretendard(13))
-                            .foregroundStyle(.white.opacity(0.68))
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer(minLength: 10)
-
-                        Toggle("", isOn: creatorPrivacyBinding)
-                            .labelsHidden()
-                            .fixedSize()
-                            .disabled(!model.creatorPrivacyCanEdit)
-                            .accessibilityLabel(settings.t("creator_privacy.private_title"))
-                            .accessibilityValue(model.creatorPrivacyStatusText)
-                    }
-
+            settingsSection(settings.t("section.account")) {
+                settingsCard("Discord", description: settings.t("creator_privacy.section_desc")) {
                     HStack(spacing: 10) {
                         if model.creatorAccountConnected {
                             settingsActionButton(settings.t("creator_privacy.refresh")) {
@@ -9288,14 +9211,41 @@ struct SettingsView: View {
                         }
                     }
                 }
-            }
+                settingsCard(
+                    settings.t("creator_privacy.private_title"),
+                    description: settings.t("creator_privacy.private_desc")
+                ) {
+                    HStack(alignment: .center, spacing: 12) {
+                        Group {
+                            if model.creatorPrivacyRequestInFlight {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Circle()
+                                    .fill(creatorPrivacyStatusColor)
+                                    .frame(width: 8, height: 8)
+                            }
+                        }
+                        .frame(width: 18, height: 18)
 
-            settingsSection(
-                settings.t("cloud_sync.section"),
-                description: settings.t("cloud_sync.monthly_required")
-                    + "\n" + settings.t("cloud_sync.section_desc")
-            ) {
-                settingsCard(settings.t("cloud_sync.section")) {
+                        Text(model.creatorPrivacyStatusText)
+                            .font(.pretendard(13))
+                            .foregroundStyle(SettingsDesign.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Spacer(minLength: 10)
+
+                        Toggle("", isOn: creatorPrivacyBinding)
+                            .labelsHidden()
+                            .fixedSize()
+                            .disabled(!model.creatorPrivacyCanEdit)
+                            .accessibilityLabel(settings.t("creator_privacy.private_title"))
+                            .accessibilityValue(model.creatorPrivacyStatusText)
+                    }
+
+
+                }
+                settingsCard(settings.t("cloud_sync.section"), description: settings.t("cloud_sync.monthly_required") + "\n" + settings.t("cloud_sync.section_desc")) {
                     HStack(alignment: .center, spacing: 10) {
                         if model.cloudSettingsRequestInFlight {
                             ProgressView()
@@ -9310,7 +9260,7 @@ struct SettingsView: View {
                         }
                         Text(model.cloudSettingsStatusText)
                             .font(.pretendard(13))
-                            .foregroundStyle(.white.opacity(0.68))
+                            .foregroundStyle(SettingsDesign.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityLabel(model.cloudSettingsStatusText)
                     }
@@ -9336,20 +9286,7 @@ struct SettingsView: View {
                         .disabled(!model.cloudSettingsActionsEnabled)
                     }
                 }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.66, green: 0.55, blue: 0.98).opacity(0.72),
-                                    Color(red: 0.93, green: 0.28, blue: 0.60).opacity(0.42)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                }
+
             }
 
             settingsSection(
@@ -9367,7 +9304,7 @@ struct SettingsView: View {
                     description: settings.t("field.spotify_client_secret_role")
                 ) {
                     SecureField(settings.t("field.spotify_client_secret"), text: $settings.spotifyClientSecret)
-                        .textFieldStyle(PlayerTextFieldStyle())
+                        .textFieldStyle(SettingsTextFieldStyle())
                 }
                 settingsCard(settings.t("field.redirect_uri")) {
                     Text(SpotifyRedirectConfiguration.uri)
@@ -9386,7 +9323,7 @@ struct SettingsView: View {
                 if !model.spotifyValidationStatus.trimmed.isEmpty {
                     Text(model.spotifyValidationStatus)
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.62))
+                        .foregroundStyle(SettingsDesign.secondary)
                 }
                 settingsActionButton(model.spotifyCredentialsValidationInFlight ? settings.t("spotify.validate_checking") : settings.t("button.spotify_save")) {
                     model.validateSpotifyApiCredentials(reloadOnChange: true)
@@ -9438,7 +9375,7 @@ struct SettingsView: View {
                 settingsCard(settings.t("section.update")) {
                     Text(model.updateStatus)
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.62))
+                        .foregroundStyle(SettingsDesign.secondary)
                     settingsActionButton(model.updateCheckInFlight ? settings.t("update.checking") : settings.t("update.check")) {
                         model.checkForUpdates(manual: true)
                     }
@@ -9448,11 +9385,14 @@ struct SettingsView: View {
             }
 
             settingsSection(settings.t("section.tools"), description: settings.t("section.tools_desc")) {
-                settingsActionButton(settings.t("button.reload_current")) { model.reloadLyrics(bypassCache: true) }
-                settingsActionButton(settings.t("button.clear_current")) { model.clearCachesForCurrentTrack() }
-                settingsActionButton(settings.t("button.clear_all"), role: .destructive) { model.clearAllCaches() }
-                settingsActionButton(settings.t("button.ai_cache_clear")) { model.clearAiCaches() }
-                settingsActionButton(settings.t("button.debug_log")) { settingsLogsPresented = true }
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    settingsActionButton(settings.t("button.clear_current")) { model.clearCachesForCurrentTrack() }
+                    settingsActionButton(settings.t("button.clear_all"), role: .destructive) { model.clearAllCaches() }
+                    settingsActionButton(settings.t("button.ai_cache_clear")) { model.clearAiCaches() }
+                    settingsActionButton(settings.t("button.debug_log")) { settingsLogsPresented = true }
+                    settingsActionButton(settings.t("button.reload_current")) { model.reloadLyrics(bypassCache: true) }
+                }
+                .padding(16)
             }
         }
         .alert(settings.t("cloud_sync.apply"), isPresented: $cloudApplyConfirmationPresented) {
@@ -9485,27 +9425,29 @@ struct SettingsView: View {
     private var backgroundSettingsSection: some View {
         settingsSection(settings.t("section.background"), description: settings.t("section.background_desc")) {
             settingsCard(settings.t("setting.background_mode"), description: settings.t("setting.background_mode_desc")) {
-                Picker("", selection: Binding(get: { settings.backgroundMode }, set: { value in
+                SettingsSegmentedPicker(
+                    title: settings.t("setting.background_mode"),
+                    selection: Binding(get: { settings.backgroundMode }, set: { value in
                     settings.backgroundMode = value
                     model.refreshBackgroundForCurrentTrack()
                     model.showSavedToast(settings.t("toast.background_saved"))
-                })) {
-                    Text(settings.t("background.mode.gradient")).tag(AppSettings.backgroundGradient)
-                    Text(settings.t("background.mode.blur_gradient")).tag(AppSettings.backgroundBlurGradient)
-                    Text(settings.t("background.mode.video")).tag(AppSettings.backgroundVideo)
-                    Text(settings.t("background.mode.solid")).tag(AppSettings.backgroundSolid)
-                }
-                .labelsHidden()
-                .settingsMenuSurface()
+                }),
+                    options: [
+                        (AppSettings.backgroundGradient, settings.t("background.mode.gradient")),
+                        (AppSettings.backgroundBlurGradient, settings.t("background.mode.blur_gradient")),
+                        (AppSettings.backgroundVideo, settings.t("background.mode.video")),
+                        (AppSettings.backgroundSolid, settings.t("background.mode.solid"))
+                    ]
+                )
             }
-            settingsCard(settings.t("setting.brightness")) {
-                Slider(value: Binding(get: { Double(settings.backgroundBrightness) }, set: { settings.backgroundBrightness = Int($0.rounded()) }), in: 0...100, step: 1, onEditingChanged: backgroundSliderEditingChanged)
+            settingsCard(settings.t("setting.brightness"), valueText: "\(settings.backgroundBrightness)%") {
+                SettingsSlider(value: Binding(get: { Double(settings.backgroundBrightness) }, set: { settings.backgroundBrightness = Int($0.rounded()) }), in: 0...100, step: 1, onEditingChanged: backgroundSliderEditingChanged)
             }
-            settingsCard(settings.t("setting.blur")) {
-                Slider(value: Binding(get: { Double(settings.backgroundBlur) }, set: { settings.backgroundBlur = Int($0.rounded()) }), in: 0...100, step: 1, onEditingChanged: backgroundSliderEditingChanged)
+            settingsCard(settings.t("setting.blur"), valueText: "\(settings.backgroundBlur)%") {
+                SettingsSlider(value: Binding(get: { Double(settings.backgroundBlur) }, set: { settings.backgroundBlur = Int($0.rounded()) }), in: 0...100, step: 1, onEditingChanged: backgroundSliderEditingChanged)
             }
-            settingsCard(settings.t("setting.video_scale")) {
-                Slider(value: Binding(get: { Double(settings.backgroundVideoScale) }, set: { settings.backgroundVideoScale = AppSettings.clampBackgroundVideoScale(Int($0.rounded())) }), in: 100...180, step: 1, onEditingChanged: backgroundSliderEditingChanged)
+            settingsCard(settings.t("setting.video_scale"), valueText: "\(settings.backgroundVideoScale)%") {
+                SettingsSlider(value: Binding(get: { Double(settings.backgroundVideoScale) }, set: { settings.backgroundVideoScale = AppSettings.clampBackgroundVideoScale(Int($0.rounded())) }), in: 100...180, step: 1, onEditingChanged: backgroundSliderEditingChanged)
             }
             settingsToggleCard(settings.t("setting.noise"), binding: backgroundNoiseBinding)
             settingsToggleCard(settings.t("setting.reduce_motion"), binding: backgroundReduceMotionBinding)
@@ -9530,23 +9472,25 @@ struct SettingsView: View {
                     .foregroundStyle(.white.opacity(0.58))
             } else if currentTrackHasBackgroundOverride {
                 settingsCard(settings.t("setting.background_mode")) {
-                    Picker("", selection: trackBackgroundModeBinding) {
-                        Text(settings.t("background.mode.gradient")).tag(AppSettings.backgroundGradient)
-                        Text(settings.t("background.mode.blur_gradient")).tag(AppSettings.backgroundBlurGradient)
-                        Text(settings.t("background.mode.video")).tag(AppSettings.backgroundVideo)
-                        Text(settings.t("background.mode.solid")).tag(AppSettings.backgroundSolid)
-                    }
-                    .labelsHidden()
-                    .settingsMenuSurface()
+                    SettingsSegmentedPicker(
+                        title: settings.t("setting.background_mode"),
+                        selection: trackBackgroundModeBinding,
+                        options: [
+                            (AppSettings.backgroundGradient, settings.t("background.mode.gradient")),
+                            (AppSettings.backgroundBlurGradient, settings.t("background.mode.blur_gradient")),
+                            (AppSettings.backgroundVideo, settings.t("background.mode.video")),
+                            (AppSettings.backgroundSolid, settings.t("background.mode.solid"))
+                        ]
+                    )
                 }
-                settingsCard(settings.t("setting.brightness")) {
-                    Slider(value: trackBackgroundBrightnessBinding, in: 0...100, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
+                settingsCard(settings.t("setting.brightness"), valueText: "\(Int(trackBackgroundBrightnessBinding.wrappedValue))%") {
+                    SettingsSlider(value: trackBackgroundBrightnessBinding, in: 0...100, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
                 }
-                settingsCard(settings.t("setting.blur")) {
-                    Slider(value: trackBackgroundBlurBinding, in: 0...100, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
+                settingsCard(settings.t("setting.blur"), valueText: "\(Int(trackBackgroundBlurBinding.wrappedValue))%") {
+                    SettingsSlider(value: trackBackgroundBlurBinding, in: 0...100, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
                 }
-                settingsCard(settings.t("setting.video_scale")) {
-                    Slider(value: trackBackgroundVideoScaleBinding, in: 100...180, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
+                settingsCard(settings.t("setting.video_scale"), valueText: "\(Int(trackBackgroundVideoScaleBinding.wrappedValue))%") {
+                    SettingsSlider(value: trackBackgroundVideoScaleBinding, in: 100...180, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
                 }
                 settingsToggleCard(settings.t("setting.noise"), binding: trackBackgroundNoiseBinding)
                 settingsToggleCard(settings.t("setting.reduce_motion"), binding: trackBackgroundReduceMotionBinding)
@@ -9562,31 +9506,32 @@ struct SettingsView: View {
         }
     }
 
-    private var aiStatusKey: String {
-        if settings.translationEnabled || settings.pronunciationEnabled {
-            return "status.ai_lyrics_active"
-        }
-        return "status.ai_disabled"
-    }
-
     private func settingsSection<Content: View>(
         _ title: String,
         description: String = "",
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.pretendard(18, weight: .bold))
-                .foregroundStyle(.white)
-            if !description.trimmed.isEmpty {
-                Text(description)
-                    .font(.pretendard(14))
-                    .foregroundStyle(.white.opacity(0.62))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            VStack(alignment: .leading, spacing: 12) {
+                .font(.pretendard(13.5, weight: .bold))
+                .foregroundStyle(SettingsDesign.secondary)
+                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 0) {
+                if !description.trimmed.isEmpty {
+                    Text(description)
+                        .font(.pretendard(12.5))
+                        .foregroundStyle(SettingsDesign.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
+                        .padding(.bottom, 4)
+                }
                 content()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(SettingsDesign.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(SettingsDesign.border, lineWidth: 1))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -9594,47 +9539,152 @@ struct SettingsView: View {
     private func settingsCard<Content: View>(
         _ title: String,
         description: String = "",
+        valueText: String = "",
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 9) {
             if !title.trimmed.isEmpty {
-                Text(title)
-                    .font(.pretendard(15, weight: .semibold))
-                    .foregroundStyle(.white)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(.pretendard(15, weight: .semibold))
+                        .foregroundStyle(SettingsDesign.text)
+                    if !valueText.isEmpty {
+                        Spacer(minLength: 8)
+                        Text(valueText)
+                            .font(.pretendard(13))
+                            .monospacedDigit()
+                            .foregroundStyle(SettingsDesign.secondary)
+                    }
+                }
             }
             if !description.trimmed.isEmpty {
                 Text(description)
-                    .font(.pretendard(13))
-                    .foregroundStyle(.white.opacity(0.60))
+                    .font(.pretendard(12.5))
+                    .foregroundStyle(SettingsDesign.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .settingsRowSeparator()
     }
 
     private func settingsToggleCard(_ title: String, description: String = "", binding: Binding<Bool>) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 7) {
+        Toggle(isOn: binding) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.pretendard(15, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(SettingsDesign.text)
                 if !description.trimmed.isEmpty {
                     Text(description)
-                        .font(.pretendard(13))
-                        .foregroundStyle(.white.opacity(0.60))
+                        .font(.pretendard(12.5))
+                        .foregroundStyle(SettingsDesign.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Toggle("", isOn: binding)
-                .labelsHidden()
-                .fixedSize()
         }
-        .padding(16)
-        .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .settingsRowSeparator()
+    }
+
+    private func typographySettingsRow(_ slot: AppSettings.TypographySlot) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                typographyLabel(slot).frame(width: 74, alignment: .leading)
+                typographySlider(slot).frame(minWidth: 60)
+                typographyWeights(slot)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                typographyLabel(slot)
+                HStack(spacing: 12) {
+                    typographySlider(slot)
+                    typographyWeights(slot)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .settingsRowSeparator()
+    }
+
+    private func typographyLabel(_ slot: AppSettings.TypographySlot) -> some View {
+        Text(settings.t("typography.slot.\(slot.id)"))
+            .font(.pretendard(14, weight: .semibold))
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityHint(settings.t("typography.slot.\(slot.id)_desc"))
+    }
+
+    private func typographySlider(_ slot: AppSettings.TypographySlot) -> some View {
+        VStack(spacing: 1) {
+            SettingsSlider(value: typographySizeBinding(slot), in: 70...160, step: 1, onEditingChanged: { editing in
+                if !editing { model.showSavedToast(settings.t("toast.typography_saved")) }
+            })
+            .accessibilityLabel(settings.t("typography.slot.\(slot.id)"))
+            .accessibilityValue("\(typographyStyle(slot).sizePercent)%")
+            Text("\(typographyStyle(slot).sizePercent)%")
+                .font(.pretendard(10))
+                .monospacedDigit()
+                .foregroundStyle(SettingsDesign.secondary)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func typographyWeights(_ slot: AppSettings.TypographySlot) -> some View {
+        HStack(spacing: 3) {
+            ForEach([AppSettings.typoWeightRegular, AppSettings.typoWeightSemibold, AppSettings.typoWeightBold], id: \.self) { weight in
+                Button {
+                    typographyWeightBinding(slot).wrappedValue = weight
+                } label: {
+                    Text(weight == AppSettings.typoWeightRegular ? "R" : weight == AppSettings.typoWeightSemibold ? "S" : "B")
+                        .font(.pretendard(12, weight: .bold))
+                        .foregroundStyle(typographyStyle(slot).weight == weight ? SettingsDesign.background : SettingsDesign.secondary)
+                        .frame(minWidth: 26, minHeight: 26)
+                        .background(typographyStyle(slot).weight == weight ? SettingsDesign.text : .clear, in: RoundedRectangle(cornerRadius: 6))
+                        .frame(minWidth: 36, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(settings.t("typography.weight.\(weight)"))
+                .accessibilityAddTraits(typographyStyle(slot).weight == weight ? [.isSelected] : [])
+            }
+        }
+        .padding(.horizontal, 3)
+        .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func speakerSwatchGroup(_ group: String) -> some View {
+        let slots = AppSettings.speakerColorSlots.filter { $0.id.hasPrefix(group) }
+        return settingsCard("") {
+            Text(settings.t("speaker_color.\(group)"))
+                .font(.pretendard(13, weight: .bold))
+                .foregroundStyle(SettingsDesign.secondary)
+            HStack(spacing: 6) {
+                ForEach(slots) { slot in
+                    Button { selectedSpeakerColor = slot.id } label: {
+                        Circle()
+                            .fill(Color(hex: settings.speakerColorSettings().hex(slot.id)))
+                            .frame(width: 34, height: 34)
+                            .overlay(Circle().stroke(selectedSpeakerColor == slot.id ? SettingsDesign.text : .clear, lineWidth: 2).padding(-3))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(slot.id == AppSettings.speakerColorNormal ? settings.t("speaker_color.normal") : "\(settings.t("speaker_color.\(group)")) \(slot.id.last.map(String.init) ?? "")")
+                    .accessibilityValue(settings.speakerColorSettings().hex(slot.id))
+                    .accessibilityAddTraits(selectedSpeakerColor == slot.id ? [.isSelected] : [])
+                }
+            }
+            if let slot = slots.first(where: { $0.id == selectedSpeakerColor }) {
+                SpeakerColorRow(slot: slot)
+                    .id(slot.id)
+                    .font(.pretendard(13.5, weight: .semibold))
+                    .padding(12)
+                    .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
+            }
+        }
     }
 
     private var spotifyWebAPIOptInCard: some View {
@@ -9646,7 +9696,7 @@ struct SettingsView: View {
                         .foregroundStyle(.white)
                     Text(settings.t("setting.spotify_web_api_desc"))
                         .font(.pretendard(13))
-                        .foregroundStyle(.white.opacity(0.60))
+                        .foregroundStyle(SettingsDesign.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -9671,7 +9721,7 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color(red: 0.16, green: 0.16, blue: 0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .settingsRowSeparator()
     }
 
     private var spotifyWebAPIEnabledBinding: Binding<Bool> {
@@ -9703,20 +9753,22 @@ struct SettingsView: View {
     private func settingsActionButton(_ title: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
         Button(role: role, action: action) {
             Text(title)
-                .font(.pretendard(15, weight: .semibold))
-                .foregroundStyle(role == .destructive ? Color(red: 1.0, green: 0.45, blue: 0.48) : .white)
+                .font(.pretendard(13.5, weight: .semibold))
+                .foregroundStyle(role == .destructive ? SettingsDesign.accent : SettingsDesign.text)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
-                .background(Color.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .padding(.horizontal, 10)
+                .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SettingsActionButtonStyle())
     }
 
     private func settingsTextField(_ title: String, text: Binding<String>) -> some View {
         TextField(title, text: text)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .textFieldStyle(PlayerTextFieldStyle())
+            .textFieldStyle(SettingsTextFieldStyle())
     }
 
     private func culturalAnnotationSlider(
@@ -9733,9 +9785,9 @@ struct SettingsView: View {
                 Spacer()
                 Text(valueText)
                     .font(.pretendard(12))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(SettingsDesign.secondary)
             }
-            Slider(value: value, in: range, step: step)
+            SettingsSlider(value: value, in: range, step: step)
         }
     }
 
@@ -9767,59 +9819,65 @@ struct SettingsView: View {
         AppSettings.providerById(settings.providerId)
     }
 
-    @ViewBuilder
     private func aiProviderSettingsCard(_ provider: AppSettings.Provider, index: Int) -> some View {
         let selected = !provider.isKeyless && settings.providerId == provider.id
-        HStack(spacing: 12) {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.52))
-                .frame(width: 32, height: 44)
-                .contentShape(Rectangle())
-                .draggable(provider.id)
-                .accessibilityLabel(settings.tf("setting.ai_provider_drag_format", provider.label))
-
-            Button {
-                guard !provider.isKeyless else { return }
-                settings.setProvider(provider.id)
-                model.showSavedToast(settings.t("toast.provider_saved"))
-            } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(provider.label)
-                        .font(.pretendard(14, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Text(aiProviderDescription(provider))
-                        .font(.pretendard(11))
-                        .foregroundStyle(.white.opacity(0.58))
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                    if selected {
-                        Text(settings.t("setting.ai_provider_selected"))
-                            .font(.pretendard(10, weight: .semibold))
-                            .foregroundStyle(Color(red: 0.58, green: 0.75, blue: 1.0))
-                    }
+        let expanded = expandedAIProvider == provider.id && selected
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                providerOrderControls(index: index, count: settings.aiProviderOrder.count) { offset in
+                    settings.moveAIProvider(provider.id, offset: offset)
+                    model.translationProviderSettingsChanged()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(provider.isKeyless)
+                .draggable(provider.id)
+                .accessibilityHint(settings.tf("setting.ai_provider_drag_format", provider.label))
 
-            Toggle("", isOn: aiProviderEnabledBinding(provider.id))
-                .labelsHidden()
-                .fixedSize()
-                .accessibilityLabel(settings.tf("setting.ai_provider_toggle_format", provider.label))
+                Button {
+                    guard !provider.isKeyless else { return }
+                    if expanded {
+                        expandedAIProvider = nil
+                    } else {
+                        settings.setProvider(provider.id)
+                        expandedAIProvider = provider.id
+                        model.showSavedToast(settings.t("toast.provider_saved"))
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(provider.label).font(.pretendard(14.5, weight: .semibold))
+                            Text(aiProviderDescription(provider))
+                                .font(.pretendard(12))
+                                .foregroundStyle(SettingsDesign.muted)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if !provider.isKeyless {
+                            Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(SettingsDesign.muted)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(provider.isKeyless)
+                .accessibilityValue(selected ? settings.t("setting.ai_provider_selected") : "")
+
+                Toggle("", isOn: aiProviderEnabledBinding(provider.id))
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityLabel(settings.tf("setting.ai_provider_toggle_format", provider.label))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+            if expanded {
+                aiProviderConfiguration
+                    .padding(.leading, 56)
+                    .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1).padding(.leading, 72) }
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            selected ? Color(red: 0.22, green: 0.39, blue: 0.68).opacity(0.42) : Color.white.opacity(0.055),
-            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(selected ? Color(red: 0.48, green: 0.67, blue: 1.0).opacity(0.55) : .white.opacity(0.06))
-        )
+        .settingsRowSeparator()
         .dropDestination(for: String.self) { providerIds, location in
             guard let sourceId = providerIds.first else { return false }
             settings.moveAIProvider(sourceId, relativeTo: provider.id, after: location.y > 36)
@@ -10345,11 +10403,12 @@ private extension View {
     func settingsMenuSurface() -> some View {
         self
             .pickerStyle(.menu)
-            .tint(.white)
+            .font(.pretendard(14.5, weight: .semibold))
+            .tint(SettingsDesign.text)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .frame(minHeight: 48)
-            .background(Color.white.opacity(0.22), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 }
 

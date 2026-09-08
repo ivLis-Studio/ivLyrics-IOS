@@ -1,5 +1,7 @@
 {
   "ko": {
+    "section.account": "계정",
+    "section.layout": "레이아웃",
     "first_language.title_format": "%@ 곡을 처음 재생하시네요",
     "first_language.message": "이 노래는 어떻게 번역할까요?",
     "first_language.hint": "다음에 설정하시려면, 플레이어의 곡 제목을 꾹 눌러주세요.",
@@ -701,6 +703,8 @@
     "research.font_increase": "글자 크게"
   },
   "en": {
+    "section.account": "Account",
+    "section.layout": "Layout",
     "first_language.title_format": "First time playing a %@ song",
     "first_language.message": "How should this song be translated?",
     "first_language.hint": "To configure this later, press and hold the song title in the player.",
@@ -1402,6 +1406,8 @@
     "research.font_increase": "Increase text size"
   },
   "zh-CN": {
+    "section.account": "账户",
+    "section.layout": "布局",
     "first_language.title_format": "第一次播放%@歌曲",
     "first_language.message": "要如何翻译这首歌？",
     "first_language.hint": "以后如需设置，请长按播放器中的歌曲标题。",
@@ -2103,6 +2109,8 @@
     "research.font_increase": "增大文字"
   },
   "zh-TW": {
+    "section.account": "帳戶",
+    "section.layout": "版面配置",
     "first_language.title_format": "第一次播放%@歌曲",
     "first_language.message": "要如何翻譯這首歌？",
     "first_language.hint": "日後若要設定，請長按播放器中的歌曲標題。",
@@ -2804,6 +2812,8 @@
     "research.font_increase": "放大文字"
   },
   "ja": {
+    "section.account": "アカウント",
+    "section.layout": "レイアウト",
     "first_language.title_format": "%@の曲を初めて再生しています",
     "first_language.message": "この曲をどのように翻訳しますか？",
     "first_language.hint": "後で設定するには、プレーヤーの曲名を長押ししてください。",
@@ -3505,6 +3515,8 @@
     "research.font_increase": "文字を大きくする"
   },
   "hi": {
+    "section.account": "खाता",
+    "section.layout": "लेआउट",
     "first_language.title_format": "आप पहली बार %@ गीत चला रहे हैं",
     "first_language.message": "इस गीत का अनुवाद कैसे किया जाए?",
     "first_language.hint": "बाद में सेट करने के लिए, प्लेयर में गीत के शीर्षक को दबाकर रखें।",
@@ -4206,6 +4218,8 @@
     "research.font_increase": "टेक्स्ट बड़ा करें"
   },
   "es": {
+    "section.account": "Cuenta",
+    "section.layout": "Diseño",
     "first_language.title_format": "Es la primera vez que reproduces una canción en %@",
     "first_language.message": "¿Cómo quieres traducir esta canción?",
     "first_language.hint": "Para configurarlo más tarde, mantén pulsado el título de la canción en el reproductor.",
@@ -4907,6 +4921,8 @@
     "research.font_increase": "Aumentar el texto"
   },
   "fr": {
+    "section.account": "Compte",
+    "section.layout": "Disposition",
     "first_language.title_format": "Première lecture d’une chanson en %@",
     "first_language.message": "Comment souhaitez-vous traduire cette chanson ?",
     "first_language.hint": "Pour le configurer plus tard, maintenez le titre de la chanson appuyé dans le lecteur.",
@@ -5608,6 +5624,8 @@
     "research.font_increase": "Agrandir le texte"
   },
   "ar": {
+    "section.account": "الحساب",
+    "section.layout": "التخطيط",
     "first_language.title_format": "هذه أول مرة تشغّل فيها أغنية باللغة %@",
     "first_language.message": "كيف تريد ترجمة هذه الأغنية؟",
     "first_language.hint": "للإعداد لاحقًا، اضغط مطولًا على عنوان الأغنية في المشغّل.",
@@ -6309,6 +6327,8 @@
     "research.font_increase": "تكبير حجم النص"
   },
   "fa": {
+    "section.account": "حساب",
+    "section.layout": "چیدمان",
     "first_language.title_format": "این نخستین بار است که آهنگی به زبان %@ پخش می‌کنید",
     "first_language.message": "این آهنگ چگونه ترجمه شود؟",
     "first_language.hint": "برای تنظیم در آینده، عنوان آهنگ را در پخش‌کننده لمس طولانی کنید.",
@@ -7010,6 +7030,8 @@
     "research.font_increase": "بزرگ کردن متن"
   },
   "de": {
+    "section.account": "Konto",
+    "section.layout": "Layout",
     "first_language.title_format": "Du spielst zum ersten Mal einen Song auf %@ ab",
     "first_language.message": "Wie soll dieser Song übersetzt werden?",
     "first_language.hint": "Halte für eine spätere Einrichtung den Songtitel im Player gedrückt.",
@@ -7711,6 +7733,8 @@
     "research.font_increase": "Text vergrößern"
   },
   "ru": {
+    "section.account": "Аккаунт",
+    "section.layout": "Макет",
     "first_language.title_format": "Песня на языке «%@» воспроизводится впервые",
     "first_language.message": "Как перевести эту песню?",
     "first_language.hint": "Чтобы настроить позже, нажмите и удерживайте название песни в плеере.",
@@ -8412,6 +8436,8 @@
     "research.font_increase": "Увеличить текст"
   },
   "sv": {
+    "section.account": "Konto",
+    "section.layout": "Layout",
     "first_language.title_format": "Första gången du spelar en låt på %@",
     "first_language.message": "Hur ska den här låten översättas?",
     "first_language.hint": "Om du vill konfigurera detta senare håller du ned låttiteln i spelaren.",
@@ -9113,6 +9139,8 @@
     "research.font_increase": "Förstora texten"
   },
   "pt": {
+    "section.account": "Conta",
+    "section.layout": "Layout",
     "first_language.title_format": "Primeira vez que você reproduz uma música em %@",
     "first_language.message": "Como esta música deve ser traduzida?",
     "first_language.hint": "Para configurar mais tarde, mantenha pressionado o título da música no reprodutor.",
@@ -9814,6 +9842,8 @@
     "research.font_increase": "Aumentar texto"
   },
   "bn": {
+    "section.account": "অ্যাকাউন্ট",
+    "section.layout": "বিন্যাস",
     "first_language.title_format": "আপনি প্রথমবার %@ ভাষার গান চালাচ্ছেন",
     "first_language.message": "এই গানটি কীভাবে অনুবাদ করা হবে?",
     "first_language.hint": "পরে সেট করতে, প্লেয়ারে গানের শিরোনামটি চেপে ধরে রাখুন।",
@@ -10515,6 +10545,8 @@
     "research.font_increase": "লেখার আকার বড় করুন"
   },
   "cs": {
+    "section.account": "Účet",
+    "section.layout": "Rozložení",
     "first_language.title_format": "Poprvé přehráváte skladbu v jazyce %@",
     "first_language.message": "Jak se má tato skladba přeložit?",
     "first_language.hint": "Chcete-li nastavit později, podržte název skladby v přehrávači.",
@@ -11216,6 +11248,8 @@
     "research.font_increase": "Zvětšit text"
   },
   "it": {
+    "section.account": "Account",
+    "section.layout": "Layout",
     "first_language.title_format": "È la prima volta che riproduci un brano in %@",
     "first_language.message": "Come vuoi tradurre questo brano?",
     "first_language.hint": "Per configurarlo in seguito, tieni premuto il titolo del brano nel lettore.",
@@ -11917,6 +11951,8 @@
     "research.font_increase": "Ingrandisci il testo"
   },
   "th": {
+    "section.account": "บัญชี",
+    "section.layout": "เค้าโครง",
     "first_language.title_format": "นี่เป็นครั้งแรกที่คุณเล่นเพลงภาษา%@",
     "first_language.message": "ต้องการแปลเพลงนี้อย่างไร?",
     "first_language.hint": "หากต้องการตั้งค่าในภายหลัง ให้แตะชื่อเพลงในเครื่องเล่นค้างไว้",
@@ -12618,6 +12654,8 @@
     "research.font_increase": "เพิ่มขนาดตัวอักษร"
   },
   "vi": {
+    "section.account": "Tài khoản",
+    "section.layout": "Bố cục",
     "first_language.title_format": "Đây là lần đầu bạn phát một bài hát bằng %@",
     "first_language.message": "Bạn muốn dịch bài hát này như thế nào?",
     "first_language.hint": "Để thiết lập sau, hãy nhấn và giữ tên bài hát trong trình phát.",
@@ -13319,6 +13357,8 @@
     "research.font_increase": "Tăng cỡ chữ"
   },
   "id": {
+    "section.account": "Akun",
+    "section.layout": "Tata letak",
     "first_language.title_format": "Pertama kali memutar lagu berbahasa %@",
     "first_language.message": "Bagaimana lagu ini akan diterjemahkan?",
     "first_language.hint": "Untuk mengaturnya nanti, tekan dan tahan judul lagu di pemutar.",
@@ -14020,6 +14060,8 @@
     "research.font_increase": "Perbesar teks"
   },
   "ms": {
+    "section.account": "Akaun",
+    "section.layout": "Susun atur",
     "first_language.title_format": "Kali pertama memainkan lagu dalam bahasa %@",
     "first_language.message": "Bagaimanakah lagu ini harus diterjemahkan?",
     "first_language.hint": "Untuk menetapkannya kemudian, tekan dan tahan tajuk lagu dalam pemain.",
@@ -14721,6 +14763,8 @@
     "research.font_increase": "Besarkan teks"
   },
   "tr": {
+    "section.account": "Hesap",
+    "section.layout": "Düzen",
     "first_language.title_format": "İlk kez %@ dilinde bir şarkı çalıyorsunuz",
     "first_language.message": "Bu şarkı nasıl çevrilsin?",
     "first_language.hint": "Daha sonra ayarlamak için oynatıcıdaki şarkı adına basılı tutun.",
