@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.12",
+          "buildVersion": "51",
+          "date": "2026-09-10",
+          "localizedDescription": "v1.3.12는 일반 가사 화면과 화면 속 화면(PiP)에서 루비 겹침 및 공백 처리 메타데이터를 재사용하도록 개선했습니다. 반복적인 가사 표시 준비 비용을 줄이면서 기존 렌더링 입력과 타이밍 동작은 유지합니다. 또한 AltStore의 이전 v1.3.11 배포 정보와 설정 화면 재설계 설명을 정리하고, 이번 패치 릴리스 구성을 갱신했습니다.\n\nv1.3.12 improves reuse of ruby-overlap and whitespace-preparation metadata on the regular lyrics screen and in Picture in Picture (PiP). It reduces repeated lyrics-display preparation work while preserving existing rendering inputs and timing behavior. This release also tidies AltStore information for the earlier v1.3.11 release and updates the patch release configuration.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.12/ivLyrics-IOS-v1.3.12-unsigned.ipa",
+          "size": 7405523,
+          "sha256": "48c87bf6ca802324b168ccb9d353e3cd5e8b293e10966ec57a9d240afe308fc4",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.11",
           "buildVersion": "50",
           "date": "2026-09-08",
