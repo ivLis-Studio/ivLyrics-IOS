@@ -6418,30 +6418,25 @@ struct SyllableKaraokeText: View {
     private var karaokeSegments: [KaraokeSyllableSegment] {
         let prepared = preparedKaraoke
         let annotations = prepared.annotations
-        let sourceSyllables = prepared.source
         let fillTimings = prepared.fillTimings
         let displaySyllables = prepared.display
         var timedSegments: [KaraokeSyllableSegment] = []
         timedSegments.reserveCapacity(displaySyllables.count)
-        var sourceOffset = 0
         for (index, syllable) in displaySyllables.enumerated() {
-            let sourceLength = sourceSyllables.indices.contains(index)
-                ? sourceSyllables[index].text.count
-                : syllable.text.count
             let fillTiming = fillTimings.indices.contains(index)
                 ? fillTimings[index]
                 : KaraokeSyllableTimingNormalizer.FillTiming(
                     startTimeMs: syllable.startTimeMs,
                     endTimeMs: syllable.endTimeMs
             )
-            defer { sourceOffset += sourceLength }
             guard !syllable.text.isEmpty else { continue }
+            let metadata = prepared.displayMetadata[index]
             let bounce = karaokeBounce(profile: prepared.motionProfiles.indices.contains(index)
                 ? prepared.motionProfiles[index] : nil)
             timedSegments.append(KaraokeSyllableSegment(
                 id: index,
                 text: syllable.text,
-                rubyText: rubyReading(start: sourceOffset, length: sourceLength, annotations: annotations),
+                rubyText: metadata.rubyText,
                 fill: fillFraction(
                     startTimeMs: fillTiming.startTimeMs,
                     endTimeMs: fillTiming.endTimeMs
@@ -6452,7 +6447,7 @@ struct SyllableKaraokeText: View {
                 bounceOffsetY: bounce.offsetY,
                 bounceScale: bounce.scale,
                 completedColorOpacity: completedColorOpacity,
-                isWhitespace: syllable.text.unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
+                isWhitespace: metadata.isWhitespace
             ))
         }
         if !timedSegments.isEmpty {
@@ -6544,20 +6539,6 @@ struct SyllableKaraokeText: View {
 
     private var rubyAnnotations: [FuriganaRepository.RubyAnnotation] {
         FuriganaRepository.rubyAnnotations(text: text, markup: rubyText)
-    }
-
-    private func rubyReading(
-        start: Int,
-        length: Int,
-        annotations: [FuriganaRepository.RubyAnnotation]
-    ) -> String {
-        guard length > 0 else { return "" }
-        let end = start + length
-        return annotations.compactMap { annotation in
-            guard annotation.start < end, annotation.end > start else { return nil }
-            let value = annotation.reading(overlapStart: start, overlapEnd: end)
-            return value.isEmpty ? nil : value
-        }.joined(separator: " ")
     }
 
     private var effectiveSyllables: [LyricsLine.Syllable] {
@@ -6751,6 +6732,56 @@ final class KaraokeRenderPreparationCache {
         var fillTimings: [KaraokeSyllableTimingNormalizer.FillTiming]
         var annotations: [FuriganaRepository.RubyAnnotation]
         var motionProfiles: [KaraokeMotionProfile?]
+        var displayMetadata: [DisplayMetadata]
+
+        init(
+            source: [LyricsLine.Syllable],
+            display: [LyricsLine.Syllable],
+            fillTimings: [KaraokeSyllableTimingNormalizer.FillTiming],
+            annotations: [FuriganaRepository.RubyAnnotation],
+            motionProfiles: [KaraokeMotionProfile?]
+        ) {
+            self.source = source
+            self.display = display
+            self.fillTimings = fillTimings
+            self.annotations = annotations
+            self.motionProfiles = motionProfiles
+            // Ruby overlap and whitespace depend on prepared text, not playback.
+            // Preserve source offsets before cultural markers enlarge display text.
+            var sourceOffset = 0
+            self.displayMetadata = display.enumerated().map { index, syllable in
+                let sourceLength = source.indices.contains(index)
+                    ? source[index].text.count
+                    : syllable.text.count
+                defer { sourceOffset += sourceLength }
+                return DisplayMetadata(
+                    rubyText: syllable.text.isEmpty ? "" : Self.rubyReading(
+                        start: sourceOffset, length: sourceLength, annotations: annotations
+                    ),
+                    isWhitespace: syllable.text.unicodeScalars.allSatisfy {
+                        CharacterSet.whitespacesAndNewlines.contains($0)
+                    }
+                )
+            }
+        }
+
+        private static func rubyReading(
+            start: Int,
+            length: Int,
+            annotations: [FuriganaRepository.RubyAnnotation]
+        ) -> String {
+            guard length > 0 else { return "" }
+            let end = start + length
+            return annotations.compactMap { annotation in
+                guard annotation.start < end, annotation.end > start else { return nil }
+                let value = annotation.reading(overlapStart: start, overlapEnd: end)
+                return value.isEmpty ? nil : value
+            }.joined(separator: " ")
+        }
+    }
+    struct DisplayMetadata {
+        var rubyText: String
+        var isWhitespace: Bool
     }
     private var key: Key?
     private var prepared: Value?

@@ -68,6 +68,7 @@ jobs:
       - name: Validate playback, motion and provider regressions
         run: |
           python3 scripts/test-playback-regressions.py
+          python3 scripts/test-karaoke-display-metadata.py
           python3 scripts/test-timeline-cache.py
           python3 scripts/test-provider-overlap.py
 

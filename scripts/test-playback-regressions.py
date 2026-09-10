@@ -44,8 +44,11 @@ import Foundation
 struct LyricsLine { struct Syllable: Equatable { var text: String; var startTimeMs: Int64; var endTimeMs: Int64 } }
 struct CulturalAnnotation: Equatable { var note: String }
 enum KaraokeSyllableTimingNormalizer { struct FillTiming { var startTimeMs: Int64; var endTimeMs: Int64 } }
-enum FuriganaRepository { struct RubyAnnotation {} }
 '''
+ruby_source = (ROOT / "ivLyrics-IOS/FuriganaRepository.swift").read_text()
+fixtures += "enum FuriganaRepository {\n" + ruby_source[
+    ruby_source.index("    struct RubyAnnotation:"):ruby_source.index("    private static func containsKanji(")
+] + "}\n"
 checks = r'''
 var assertions = 0
 func check(_ value: @autoclosure () -> Bool, _ label: String) {
