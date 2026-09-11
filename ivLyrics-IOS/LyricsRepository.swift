@@ -72,6 +72,42 @@ actor LyricsRepository {
     private var spotifyTokenExpiresAtMs: Int64 = 0
     private var syncDataServerCacheBypassUntil: [String: Int64] = [:]
     private var syncDataServerCacheBypassAllUntilMs: Int64 = 0
+    private var activeSyncDataLoads: [UUID: SyncDataLoadContext] = [:]
+
+    // Actor-confined, short-lived response reuse. A new lyric load must refresh
+    // contributor privacy again, even when the previous load fetched this song.
+    private final class SyncDataLoadContext {
+        let id = UUID()
+        let trackKey: String
+        var isrc: String
+        var isValid = true
+        var responses: [SyncDataLoadRequest: SyncDataResult] = [:]
+        var acceptedMetadata: Set<SyncDataMetadataFingerprint> = []
+
+        init(trackKey: String, isrc: String) {
+            self.trackKey = trackKey
+            self.isrc = TrackSnapshot.normalizeIsrc(isrc)
+        }
+    }
+
+    private struct SyncDataLoadRequest: Hashable {
+        var provider: String
+        var requestVersion: String
+        var metadata: SyncDataMetadataFingerprint
+    }
+
+    private struct SyncDataMetadataFingerprint: Hashable {
+        var isrc: String
+        var title: String
+        var artist: String
+        var album: String
+        var trackId: String
+    }
+
+    private func checkSyncDataLoad(_ load: SyncDataLoadContext) throws {
+        try Task.checkCancellation()
+        guard load.isValid else { throw CancellationError() }
+    }
 
     init() {
         spotifyAccessToken = SecureStringStore.shared.migratedString(
@@ -257,7 +293,10 @@ actor LyricsRepository {
         onProviderLoading: ((String) async -> Void)? = nil,
         onSpotifyMetadataResolved: ((ResolvedSpotifyMetadata) async -> Void)? = nil
     ) async throws -> LoadedLyrics {
-        try Task.checkCancellation()
+        let syncDataLoad = SyncDataLoadContext(trackKey: track.stableKey, isrc: track.isrc)
+        activeSyncDataLoads[syncDataLoad.id] = syncDataLoad
+        defer { activeSyncDataLoads.removeValue(forKey: syncDataLoad.id) }
+        try checkSyncDataLoad(syncDataLoad)
         guard track.hasUsableMetadata else {
             return LoadedLyrics(trackKey: "", result: .empty(ui("repo.metadata_waiting", settings: settings)), artworkURL: nil, logs: [], resolvedIsrc: "", resolvedSpotifyTrackId: "")
         }
@@ -271,7 +310,7 @@ actor LyricsRepository {
         let cacheKey = lyricsCacheKey(trackKey: key, settings: settings)
         var publishedSpotifyMetadataKeys = Set<String>()
         func publishResolvedMetadata(isrc: String, spotifyTrackId: String, artworkURL: URL?) async {
-            guard !Task.isCancelled, let onSpotifyMetadataResolved else { return }
+            guard !Task.isCancelled, syncDataLoad.isValid, let onSpotifyMetadataResolved else { return }
             let normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc)
             let safeSpotifyTrackId = spotifyTrackId.trimmed
             guard !normalizedIsrc.isEmpty || !safeSpotifyTrackId.isEmpty || artworkURL != nil else { return }
@@ -308,12 +347,12 @@ actor LyricsRepository {
                         resolvedSpotifyTrackId: cached.spotifyTrackId
                     )
                 )
-                try Task.checkCancellation()
+                try checkSyncDataLoad(syncDataLoad)
                 logs.removeAll(keepingCapacity: true)
             }
         }
         if cachedBase == nil, let diskCached = reusableDiskCachedLyrics(cacheKey) {
-            try Task.checkCancellation()
+            try checkSyncDataLoad(syncDataLoad)
             putMemoryCachedLyrics(cacheKey, result: diskCached)
             let cachedIsrc = IvLyricsUtilities.firstNonEmpty(diskCached.isrc, track.isrc)
             if !shouldRevalidateCachedResult(diskCached, settings: settings, resolvedIsrc: cachedIsrc) {
@@ -333,7 +372,7 @@ actor LyricsRepository {
                         resolvedSpotifyTrackId: diskCached.spotifyTrackId
                     )
                 )
-                try Task.checkCancellation()
+                try checkSyncDataLoad(syncDataLoad)
                 logs.removeAll(keepingCapacity: true)
             }
         }
@@ -363,16 +402,17 @@ actor LyricsRepository {
                 await publishResolvedMetadata(isrc: match.isrc, spotifyTrackId: match.spotifyId, artworkURL: match.artworkURL)
             }
         }
-        try Task.checkCancellation()
+        try checkSyncDataLoad(syncDataLoad)
         let isrc = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.isrc, track.isrc, cachedBase?.isrc)
         let spotifyTrackId = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.spotifyId, track.trackId, cachedBase?.spotifyTrackId)
+        syncDataLoad.isrc = TrackSnapshot.normalizeIsrc(isrc)
         let hasSpotifyIsrc = spotifyMatch?.isrc.isEmpty == false
         let isrcFromCache = !hasSpotifyIsrc && track.isrc.isEmpty && cachedBase?.isrc.isEmpty == false
         let isrcSource = isrc.isEmpty ? "" : (hasSpotifyIsrc ? "Spotify Web API" : (isrcFromCache ? "lyrics cache" : "player metadata"))
         log(isrc.isEmpty ? "isrc: unavailable after Spotify lookup" : "isrc: \(isrc) (\(isrcSource))")
         if !isrc.isEmpty {
             await publishResolvedMetadata(isrc: isrc, spotifyTrackId: spotifyTrackId, artworkURL: spotifyMatch?.artworkURL)
-            try Task.checkCancellation()
+            try checkSyncDataLoad(syncDataLoad)
         }
 
         if let cached = cachedBase, !cached.contributors.isEmpty {
@@ -386,9 +426,10 @@ actor LyricsRepository {
                     track: track,
                     spotifyMatch: spotifyMatch,
                     log: log,
+                    load: syncDataLoad,
                     forceContributorRefresh: true
                 )
-                try Task.checkCancellation()
+                try checkSyncDataLoad(syncDataLoad)
             } else {
                 currentSyncData = nil
             }
@@ -413,7 +454,7 @@ actor LyricsRepository {
             syncDataProviders = []
         } else {
             syncDataProviders = await availableSyncDataProviderIds(isrc: isrc, log: log)
-            try Task.checkCancellation()
+            try checkSyncDataLoad(syncDataLoad)
         }
         if let cachedBase {
             let preferredSyncProvider = preferredIvLyricsSyncProviderId(
@@ -431,9 +472,10 @@ actor LyricsRepository {
                         providerId: preferredSyncProvider,
                         track: track,
                         spotifyMatch: spotifyMatch,
-                        log: log
+                        log: log,
+                        load: syncDataLoad
                     )
-                    try Task.checkCancellation()
+                    try checkSyncDataLoad(syncDataLoad)
                     if let applied = applySyncData(
                         syncData,
                         base: cachedBase,
@@ -463,9 +505,10 @@ actor LyricsRepository {
                     providerId: cachedBase.providerId,
                     track: track,
                     spotifyMatch: spotifyMatch,
-                    log: log
+                    log: log,
+                    load: syncDataLoad
                 )
-                try Task.checkCancellation()
+                try checkSyncDataLoad(syncDataLoad)
                 if let applied = applySyncData(
                     syncData,
                     base: cachedBase,
@@ -505,12 +548,12 @@ actor LyricsRepository {
         var attempts: [String: ProviderVariants] = [:]
         var attempted = Set<String>()
         func loadOnce(_ providerId: String) async throws -> ProviderVariants? {
-            try Task.checkCancellation()
+            try checkSyncDataLoad(syncDataLoad)
             if attempted.contains(providerId) { return attempts[providerId] }
             attempted.insert(providerId)
             if let providerName = AppSettings.lyricsProviderById(providerId)?.name {
                 await onProviderLoading?(providerName)
-                try Task.checkCancellation()
+                try checkSyncDataLoad(syncDataLoad)
             }
             do {
                 if let variants = try await loadProviderVariants(
@@ -521,9 +564,10 @@ actor LyricsRepository {
                     spotifyTrackId: spotifyTrackId,
                     syncDataAvailable: syncDataProviders.contains(providerId),
                     settings: settings,
-                    log: log
+                    log: log,
+                    syncDataLoad: syncDataLoad
                 ) {
-                    try Task.checkCancellation()
+                    try checkSyncDataLoad(syncDataLoad)
                     attempts[providerId] = variants
                     return variants
                 }
@@ -585,8 +629,8 @@ actor LyricsRepository {
             }
         }
 
+        try checkSyncDataLoad(syncDataLoad)
         if let selected {
-            try Task.checkCancellation()
             let selectedWithPolicy = markProviderLyricsNormalized(
                 selected.withSelection(
                     providerId: selectedProvider,
@@ -657,7 +701,8 @@ actor LyricsRepository {
         spotifyTrackId: String,
         syncDataAvailable: Bool,
         settings: AppSettings.Snapshot,
-        log: @escaping (String) -> Void
+        log: @escaping (String) -> Void,
+        syncDataLoad: SyncDataLoadContext
     ) async throws -> ProviderVariants? {
         log("provider attempt: \(providerId)")
         switch providerId {
@@ -689,7 +734,8 @@ actor LyricsRepository {
                 isrc: isrc,
                 spotifyTrackId: spotifyTrackId,
                 settings: settings,
-                log: log
+                log: log,
+                syncDataLoad: syncDataLoad
             )
 
         case "lyricsplus":
@@ -720,7 +766,8 @@ actor LyricsRepository {
                 isrc: isrc,
                 spotifyTrackId: spotifyTrackId,
                 settings: settings,
-                log: log
+                log: log,
+                syncDataLoad: syncDataLoad
             )
 
         case "unison":
@@ -743,13 +790,14 @@ actor LyricsRepository {
                 isrc: isrc,
                 spotifyTrackId: spotifyTrackId,
                 settings: settings,
-                log: log
+                log: log,
+                syncDataLoad: syncDataLoad
             )
 
         case "lrclib":
             let syncData = syncDataAvailable
                 && settings.isLyricsTypeEnabled(providerId: providerId, type: AppSettings.lyricsTypeKaraoke)
-                ? await fetchSyncData(isrc: isrc, providerId: providerId, track: track, spotifyMatch: spotifyMatch, log: log)
+                ? await fetchSyncData(isrc: isrc, providerId: providerId, track: track, spotifyMatch: spotifyMatch, log: log, load: syncDataLoad)
                 : nil
             return try await loadLrclibVariants(
                 track: track,
@@ -774,7 +822,8 @@ actor LyricsRepository {
         isrc: String,
         spotifyTrackId: String,
         settings: AppSettings.Snapshot,
-        log: @escaping (String) -> Void
+        log: @escaping (String) -> Void,
+        syncDataLoad: SyncDataLoadContext
     ) async -> ProviderVariants {
         guard syncDataAvailable,
               settings.isLyricsTypeEnabled(providerId: providerId, type: AppSettings.lyricsTypeKaraoke),
@@ -786,7 +835,8 @@ actor LyricsRepository {
             providerId: providerId,
             track: track,
             spotifyMatch: spotifyMatch,
-            log: log
+            log: log,
+            load: syncDataLoad
         )
         let base = variants.synced ?? variants.plain ?? variants.karaoke
         guard let applied = applySyncData(
@@ -952,6 +1002,7 @@ actor LyricsRepository {
     }
 
     func clearCache() {
+        for load in activeSyncDataLoads.values { load.isValid = false }
         cache.removeAll()
         diskCache.clear()
         syncDataResponseCache.clear()
@@ -962,6 +1013,7 @@ actor LyricsRepository {
     func clearCacheForTrack(_ trackKey: String) {
         let key = trackKey.trimmed
         guard !key.isEmpty else { return }
+        for load in activeSyncDataLoads.values where load.trackKey == key { load.isValid = false }
         cache.keys.filter { $0 == key || $0.hasPrefix("\(key)|provider-policy-") }.forEach { cache.removeValue(forKey: $0) }
         diskCache.remove(key)
         diskCache.removeByKeyPrefix("\(key)|provider-policy-")
@@ -970,6 +1022,8 @@ actor LyricsRepository {
     func clearSyncDataCacheForIsrc(_ isrc: String) {
         let prefix = syncDataCacheKeyPrefix(isrc)
         guard !prefix.isEmpty else { return }
+        let normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc)
+        for load in activeSyncDataLoads.values where load.isrc == normalizedIsrc { load.isValid = false }
         syncDataResponseCache.removeByKeyPrefix(prefix)
         clearOpenDbCache()
         markSyncDataServerCacheBypass(TrackSnapshot.normalizeIsrc(isrc))
@@ -1448,12 +1502,26 @@ actor LyricsRepository {
         track: TrackSnapshot,
         spotifyMatch: SpotifyTrackMatch?,
         log: (String) -> Void,
+        load: SyncDataLoadContext,
         forceContributorRefresh: Bool = false
     ) async -> SyncDataResult? {
         do {
+            try checkSyncDataLoad(load)
             let normalizedIsrc = TrackSnapshot.normalizeIsrc(isrc)
             let normalizedProvider = providerId.trimmed.lowercased()
             guard !normalizedIsrc.isEmpty, AppSettings.lyricsProviderById(normalizedProvider) != nil else { return nil }
+            let metadata = SyncDataMetadataFingerprint(
+                isrc: normalizedIsrc,
+                title: IvLyricsUtilities.firstNonEmpty(spotifyMatch?.title, track.title),
+                artist: IvLyricsUtilities.firstNonEmpty(spotifyMatch?.artist, track.artist),
+                album: IvLyricsUtilities.firstNonEmpty(spotifyMatch?.album, track.album),
+                trackId: IvLyricsUtilities.firstNonEmpty(spotifyMatch?.spotifyId, track.trackId)
+            )
+            let requestKey = SyncDataLoadRequest(provider: normalizedProvider, requestVersion: syncDataRequestVersion, metadata: metadata)
+            if let currentResponse = load.responses[requestKey] {
+                log("sync-data reused within current lyric load: isrc=\(normalizedIsrc) / provider=\(normalizedProvider)")
+                return currentResponse
+            }
             let cacheKey = syncDataCacheKey(isrc, providerId: normalizedProvider)
             let cachedResponse = syncDataResponseCache.get(cacheKey)
             let cachedIdentityRedacted = cachedResponse.contains("\"identityRedacted\":true")
@@ -1484,33 +1552,48 @@ actor LyricsRepository {
                 }
             }
 
+            try checkSyncDataLoad(load)
             var params: [String: String] = [
                 "isrc": normalizedIsrc,
                 "provider": normalizedProvider,
                 "request-version": syncDataRequestVersion,
-                "metadata": "1",
-                "title": IvLyricsUtilities.firstNonEmpty(spotifyMatch?.title, track.title),
-                "artist": IvLyricsUtilities.firstNonEmpty(spotifyMatch?.artist, track.artist),
-                "album": IvLyricsUtilities.firstNonEmpty(spotifyMatch?.album, track.album)
+                "title": metadata.title,
+                "artist": metadata.artist,
+                "album": metadata.album
             ]
+            if !load.acceptedMetadata.contains(metadata) {
+                params["metadata"] = "1"
+                params["metadata_ack"] = "1"
+            }
             if bypassServerCache {
                 params["bypassCache"] = "1"
             }
-            let trackId = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.spotifyId, track.trackId)
+            let trackId = metadata.trackId
             if !trackId.isEmpty {
                 params["trackId"] = trackId
             }
             log("sync-data request: \(describeParams(params))")
             let headers = syncDataHeaders()
             log("sync-data headers: Origin=\(headers["Origin"] ?? "")")
-            let response = try await get("\(syncDataBase)?\(IvLyricsUtilities.encodeParams(params))", headers: headers)
+            var metadataAccepted = false
+            let response = try await get("\(syncDataBase)?\(IvLyricsUtilities.encodeParams(params))", headers: headers, onSyncMetadataAccepted: {
+                metadataAccepted = true
+            })
             let result = try parseSyncDataResponse(
                 response,
                 expectedProvider: normalizedProvider,
                 log: log,
                 fromCache: false
             )
-            guard !Task.isCancelled else { return nil }
+            try checkSyncDataLoad(load)
+            if metadataAccepted, params["metadata"] == "1" {
+                load.acceptedMetadata.insert(metadata)
+            }
+            if let result {
+                // Reuse a successful live payload, not a metadata-write ACK.
+                // Failures/absence/disk results never suppress a later attempt.
+                load.responses[requestKey] = result
+            }
             if !cacheKey.isEmpty,
                let persistentResponse = redactedSyncDataResponseForPersistence(response) {
                 syncDataResponseCache.put(cacheKey, body: persistentResponse)
@@ -2352,7 +2435,7 @@ actor LyricsRepository {
         ]
     }
 
-    private func get(_ url: String, headers: [String: String] = [:], timeoutInterval: TimeInterval? = nil) async throws -> String {
+    private func get(_ url: String, headers: [String: String] = [:], timeoutInterval: TimeInterval? = nil, onSyncMetadataAccepted: (() -> Void)? = nil) async throws -> String {
         guard let parsed = URL(string: url) else { throw URLError(.badURL) }
         var request = URLRequest(url: parsed, timeoutInterval: timeoutInterval ?? networkRequestTimeout)
         request.httpMethod = "GET"
@@ -2364,7 +2447,11 @@ actor LyricsRepository {
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }
-        let (data, _) = try await URLSession.shared.ivLyricsData(for: request)
+        let (data, response) = try await URLSession.shared.ivLyricsData(for: request)
+        if response.value(forHTTPHeaderField: "X-Sync-Metadata-Accepted") == "1",
+           response.value(forHTTPHeaderField: "X-Cache")?.uppercased() != "HIT" {
+            onSyncMetadataAccepted?()
+        }
         return String(data: data, encoding: .utf8) ?? ""
     }
 
