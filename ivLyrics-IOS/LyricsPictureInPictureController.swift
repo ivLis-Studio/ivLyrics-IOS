@@ -75,6 +75,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private var pixelBufferPoolSize = CGSize.zero
     private var videoFormatDescription: CMVideoFormatDescription?
     private let karaokePreparationStore = KaraokeRenderPreparationStore()
+    private let lyricsTimeline = PictureInPictureLyricsTimeline()
 
     override init() {
         super.init()
@@ -138,7 +139,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         lyricsLocale: String,
         settings: AppSettings.Snapshot
     ) {
-        let nextState = RenderState(
+        var nextState = RenderState(
             track: track,
             lines: lyrics.lines,
             positionMs: positionMs,
@@ -160,6 +161,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             typography: settings.typography,
             speakerColors: settings.speakerColors
         )
+        lyricsTimeline.update(lines: lyrics.lines)
+        nextState.selection = lyricsTimeline.selection(at: positionMs)
         let nextRenderIdentityInput = RenderIdentityInput(
             state: nextState,
             activeLine: nextState.activeLine
@@ -520,6 +523,9 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             translationText: "Android PiP visual parity"
         )]
         state.positionMs = 4_800
+        let debugTimeline = PictureInPictureLyricsTimeline()
+        debugTimeline.update(lines: state.lines)
+        state.selection = debugTimeline.selection(at: state.positionMs)
         state.title = "Midnight Signal"
         state.artist = "ivLyrics"
         state.statusText = ""
@@ -1078,6 +1084,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var useSyncCreatorSpeakerColors: Bool
         var typography: AppSettings.TypographySettings
         var speakerColors: AppSettings.SpeakerColorSettings
+        var selection = PictureInPictureLyricsTimeline.Selection.empty
 
         static let empty = RenderState(
             track: nil,
@@ -1138,18 +1145,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         }
 
         var activeLine: ActiveLine? {
-            guard !lines.isEmpty else { return nil }
-            var index = 0
-            for candidate in lines.indices {
-                let line = lines[candidate]
-                if positionMs >= line.startTimeMs { index = candidate }
-                if line.endTimeMs > line.startTimeMs,
-                   positionMs >= line.startTimeMs,
-                   positionMs < line.endTimeMs {
-                    index = candidate
-                    break
-                }
-            }
+            selection.activeIndex.map(activeLine(at:))
+        }
+
+        private func activeLine(at index: Int) -> ActiveLine {
             let line = lines[index]
             let duration = max(1, line.endTimeMs - line.startTimeMs)
             let progress = max(0, min(1, CGFloat(positionMs - line.startTimeMs) / CGFloat(duration)))
@@ -1157,22 +1156,12 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         }
 
         var activeLines: [ActiveLine] {
-            let singing = lines.indices.compactMap { index -> ActiveLine? in
-                let line = lines[index]
-                guard line.isTimed,
-                      !InstrumentalBreakMarker.isMarkerText(line.text),
-                      positionMs >= line.startTimeMs,
-                      positionMs < line.endTimeMs else { return nil }
-                let duration = max(1, line.endTimeMs - line.startTimeMs)
-                let progress = max(0, min(1, CGFloat(positionMs - line.startTimeMs) / CGFloat(duration)))
-                return ActiveLine(line: line, index: index, progress: progress)
-            }
-            return singing.isEmpty ? activeLine.map { [$0] } ?? [] : singing
+            selection.activeIndices.map(activeLine(at:))
         }
 
         var nextLineText: String? {
-            guard let next = lines.first(where: { $0.startTimeMs > positionMs }) else { return nil }
-            let value = next.text.trimmed
+            guard let index = selection.nextLineIndex else { return nil }
+            let value = lines[index].text.trimmed
             return value.isEmpty ? nil : value
         }
 
@@ -1180,13 +1169,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             guard syncedLyricsKaraokeAnimationEnabled,
                   AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
                     != AppSettings.karaokeDisplayLine,
-                  !activeLines.isEmpty else { return false }
-            return activeLines.contains { active in
-                active.line.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs })
-                    || active.line.vocalParts.contains { part in
-                        part.syllables.contains(where: { $0.endTimeMs > $0.startTimeMs })
-                    }
-            }
+                  selection.hasTimedKaraoke else { return false }
+            return true
         }
 
         var preferredFrameInterval: TimeInterval {

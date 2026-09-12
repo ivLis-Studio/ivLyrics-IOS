@@ -45,6 +45,7 @@ jobs:
           python3 scripts/test-karaoke-display-metadata.py
           python3 scripts/test-timeline-cache.py
           python3 scripts/test-provider-overlap.py
+          python3 scripts/test-pip-selection-cache.py
           python3 scripts/test-sync-load-reuse.py
 
       - name: Run static analyzer

@@ -3725,9 +3725,8 @@ struct MainLyricPreviewPanel: View {
         var rows: [MainLyricPreviewRow] = []
         let original = originalPreviewText(line)
         let culturalAnnotations = showsCulturalAnnotations && settings.culturalAnnotationsEnabled
-            ? CulturalAnnotation.forLine(
-                model.culturalAnnotations,
-                lineIndex: lineIndex,
+            ? model.culturalAnnotations(
+                forLine: lineIndex,
                 text: original.text
             )
             : []
@@ -4714,9 +4713,8 @@ struct LyricsTimelineView: View {
                                 line: line,
                                 originalText: originalText,
                                 culturalAnnotations: settings.culturalAnnotationsEnabled
-                                    ? CulturalAnnotation.forLine(
-                                        model.culturalAnnotations,
-                                        lineIndex: index,
+                                    ? model.culturalAnnotations(
+                                        forLine: index,
                                         text: originalText
                                     )
                                     : [],

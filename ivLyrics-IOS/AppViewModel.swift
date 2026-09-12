@@ -182,6 +182,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var lyricsResult = LyricsResult.empty("") {
         didSet {
             cachedTimelineContext = nil
+            culturalAnnotationLineCache.removeAll()
             refreshCreatorSupportPresentations(for: lyricsResult)
         }
     }
@@ -233,7 +234,9 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var cloudSettingsUpdatedAt: Int64 = 0
     @Published private(set) var cloudMonthlyRequiredAlertPresented = false
     @Published private(set) var aiLyricsGenerating = false
-    @Published private(set) var culturalAnnotations: [CulturalAnnotation] = []
+    @Published private(set) var culturalAnnotations: [CulturalAnnotation] = [] {
+        didSet { culturalAnnotationLineCache.removeAll() }
+    }
     @Published private(set) var culturalAnnotationsLoading = false
     @Published private(set) var lyricsLoadingProviderName = ""
     @Published private var supplementProviderProgress = SupplementProviderProgress()
@@ -412,6 +415,7 @@ final class AppViewModel: ObservableObject {
     #endif
     private var lastPiPClockUpdateUptime: TimeInterval = 0
     private var cachedTimelineContext: LyricsTimelineContext?
+    private let culturalAnnotationLineCache = CulturalAnnotationLineCache()
     private var audioRouteObserver: NSObjectProtocol?
     private var spotifyMetadataHydrationTrackId = ""
     private var spotifyQueuePrefetchSourceKey = ""
@@ -2812,6 +2816,12 @@ final class AppViewModel: ObservableObject {
             return position >= line.startTimeMs ? 1 : 0
         }
         return max(0, min(1, Double(position - line.startTimeMs) / Double(line.endTimeMs - line.startTimeMs)))
+    }
+
+    func culturalAnnotations(forLine lineIndex: Int, text: String) -> [CulturalAnnotation] {
+        culturalAnnotationLineCache.value(lineIndex: lineIndex, text: text) {
+            CulturalAnnotation.forLine(culturalAnnotations, lineIndex: lineIndex, text: text)
+        }
     }
 
     func displayText(for line: LyricsLine) -> String {

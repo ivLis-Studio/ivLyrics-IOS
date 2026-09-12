@@ -27,6 +27,7 @@ content = (SRC / 'ContentView.swift').read_text()
 timeline = content[content.index('enum LyricsTimelineDisplayItem:'):content.index('struct LyricsInterludeView:')]
 pip = (SRC / 'LyricsPictureInPictureController.swift').read_text()
 pip_selection = 'struct PiPSelectionProbe { var lines: [LyricsLine]; var positionMs: Int64; struct ActiveLine { var line: LyricsLine; var index: Int; var progress: CGFloat }\n'
+pip_selection += 'var selection: PictureInPictureLyricsTimeline.Selection { let timeline = PictureInPictureLyricsTimeline(); timeline.update(lines: lines); return timeline.selection(at: positionMs) }\n'
 pip_selection += pip[pip.index('        var activeLine: ActiveLine? {'):pip.index('        var usesTimedKaraoke: Bool {')] + '}\n'
 # Exclude networking only; all production parsing, metadata filtering, timings,
 # roles, splitting and display selection execute unchanged.
@@ -132,5 +133,5 @@ print("PROVIDER_OVERLAP_PASSED assertions=\(assertions)")
 with tempfile.TemporaryDirectory(prefix='ivlyrics-ios-provider-overlap-') as directory:
     work = Path(directory)
     (work / 'main.swift').write_text(prelude + production + unison + plus + pax + timeline + pip_selection + checks)
-    subprocess.run(['xcrun', 'swiftc', '-D', 'DEBUG', str(SRC / 'BoundedLRUCache.swift'), str(SRC / 'TimelineIntervalCache.swift'), str(work / 'main.swift'), '-o', str(work / 'tests')], check=True)
+    subprocess.run(['xcrun', 'swiftc', '-D', 'DEBUG', str(SRC / 'BoundedLRUCache.swift'), str(SRC / 'TimelineIntervalCache.swift'), str(SRC / 'PictureInPictureLyricsTimeline.swift'), str(work / 'main.swift'), '-o', str(work / 'tests')], check=True)
     subprocess.run([str(work / 'tests'), *sys.argv[1:]], check=True)

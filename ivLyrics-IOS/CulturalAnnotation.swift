@@ -1,5 +1,26 @@
 import Foundation
 
+/// Keeps one displayed-text variant per source row. Owners invalidate the cache
+/// when lyrics or annotations change; text changes are checked on every lookup.
+final class CulturalAnnotationLineCache {
+    private struct Entry {
+        let text: String
+        let annotations: [CulturalAnnotation]
+    }
+    private var entries: [Int: Entry] = [:]
+
+    func removeAll() {
+        entries.removeAll(keepingCapacity: false)
+    }
+
+    func value(lineIndex: Int, text: String, make: () -> [CulturalAnnotation]) -> [CulturalAnnotation] {
+        if let entry = entries[lineIndex], entry.text == text { return entry.annotations }
+        let annotations = make()
+        entries[lineIndex] = Entry(text: text, annotations: annotations)
+        return annotations
+    }
+}
+
 struct CulturalAnnotation: Codable, Equatable, Hashable, Sendable, Identifiable {
     var lineIndex: Int
     var expression: String
