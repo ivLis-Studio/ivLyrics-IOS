@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.14",
+          "buildVersion": "53",
+          "date": "2026-09-12",
+          "localizedDescription": "가사 처리와 PiP 가사 표시의 반복 작업을 줄여 현재 및 겹치는 가사 행의 선택과 타이밍 처리를 더 효율적으로 재사용합니다. 가사 페이지와 메인 미리보기에서는 행과 표시 텍스트별 문화적 주석 결과를 재사용하며, 가사나 주석이 변경되면 캐시를 초기화합니다. 또한 iOS 1.3.14(빌드 53)와 AltStore 배포 메타데이터를 정비했습니다.\n\nThis release reduces repeated work in lyric processing and Picture-in-Picture lyric rendering by reusing selection and timing data across current and overlapping lyric rows. The lyrics page and main preview now reuse cultural annotation matches by row and displayed text, while clearing the cache whenever lyrics or annotations change. iOS 1.3.14 (build 53) and the AltStore release metadata have also been updated.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.14/ivLyrics-IOS-v1.3.14-unsigned.ipa",
+          "size": 7410610,
+          "sha256": "55068ab47c250403265c49cef1f088b0908ffa694e6b21d0c5d614ec3f04b7b4",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.13",
           "buildVersion": "52",
           "date": "2026-09-11",
