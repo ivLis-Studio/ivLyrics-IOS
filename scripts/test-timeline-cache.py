@@ -56,10 +56,15 @@ for lines in fixtures {
                 for position in positions {
                     for queryPosition in [position, position + 300] {
                         let cached = LyricsTimelineDisplayBuilder.items(context: context, positionMs: queryPosition, trackDurationMs: duration, autoInstrumentalBreakEnabled: automatic)
+                        let snapshot = LyricsTimelineDisplayBuilder.displaySnapshot(context: context, positionMs: queryPosition, trackDurationMs: duration, autoInstrumentalBreakEnabled: automatic)
+                        check(snapshot === LyricsTimelineDisplayBuilder.displaySnapshot(context: context, positionMs: queryPosition, trackDurationMs: duration, autoInstrumentalBreakEnabled: automatic), "Repeated interval returns the same indexed snapshot")
                         let original = LyricsTimelineDisplayBuilder.uncachedItems(context: context, positionMs: queryPosition, trackDurationMs: duration, autoInstrumentalBreakEnabled: automatic)
                         check(cached.map(\.id) == original.map(\.id), "Items diverged at \(queryPosition), auto=\(automatic)")
                         let preview = LyricsTimelineDisplayBuilder.previewItem(context: context, positionMs: queryPosition, trackDurationMs: duration, autoInstrumentalBreakEnabled: automatic)
                         let expected = LyricsTimelineDisplayBuilder.uncachedPreviewItem(context: context, positionMs: queryPosition, trackDurationMs: duration, autoInstrumentalBreakEnabled: automatic)
+                        check(snapshot.firstIndex(id: preview?.id) == preview.flatMap { value in original.firstIndex { $0.id == value.id } }, "Current/anticipated ID index follows actual item membership")
+                        check(snapshot.firstIndex(id: original.last?.id) == original.last.flatMap { value in original.firstIndex { $0.id == value.id } }, "Last ID preserves first occurrence")
+                        check(snapshot.firstIndex(lineIndex: 0) == original.firstIndex { if case .line(let index, _, _) = $0 { return index == 0 }; return false }, "Source index fallback follows actual item membership")
                         check(preview?.id == expected?.id, "Preview diverged at \(queryPosition)")
                     }
                 }
@@ -67,6 +72,19 @@ for lines in fixtures {
         }
     }
 }
+let duplicates = LyricsTimelineDisplaySnapshot(items: [
+    .line(index: 7, line: line(100, 200), id: "duplicate"),
+    .line(index: 8, line: line(200, 300), id: "duplicate"),
+    .line(index: 7, line: line(300, 400), id: "later"),
+    .interlude(.init(startTimeMs: 400, endTimeMs: 600, kind: "break", automatic: true)),
+    .interlude(.init(startTimeMs: 400, endTimeMs: 600, kind: "break", automatic: false))
+])
+check(duplicates.firstIndex(id: "duplicate") == 0 && duplicates.firstIndex(lineIndex: 7) == 0, "Duplicate ID and source indices keep first occurrence")
+check(duplicates.firstIndex(id: duplicates.items[3].id) == 3, "Duplicate interlude IDs keep first occurrence")
+check(duplicates.firstIndex(id: nil) == nil && duplicates.firstIndex(id: "missing") == nil && duplicates.firstIndex(lineIndex: 999) == nil, "Absent targets remain absent")
+let replacement = LyricsTimelineContext(lines: [line(900, 1000, "replacement")])
+let replacementSnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(context: replacement, positionMs: 950, trackDurationMs: 2000, autoInstrumentalBreakEnabled: false)
+check(replacementSnapshot.firstIndex(id: "duplicate") == nil && replacementSnapshot.items.first?.startTimeMs == 900, "New lyric context replaces all indices")
 let queryCache = TimelineIntervalCache<Int?>(boundaries: [0, 1000, 2000])
 var scans = 0
 for position in 0..<700 {

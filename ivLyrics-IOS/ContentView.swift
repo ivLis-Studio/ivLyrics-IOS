@@ -4625,26 +4625,21 @@ struct LyricsTimelineView: View {
     var body: some View {
         let position = model.adjustedPositionMs
         let timelineContext = model.timelineContext
-        let items = LyricsTimelineDisplayBuilder.items(
+        let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
             context: timelineContext,
             positionMs: position,
             trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
         )
+        let items = displaySnapshot.items
         let activeItemID = LyricsTimelineDisplayBuilder.previewItem(
             context: timelineContext,
             positionMs: position,
             trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
         )?.id
-        let activeDisplayIndex = activeItemID.flatMap { id in
-            items.firstIndex { $0.id == id }
-        } ?? max(0, items.firstIndex { item in
-            if case .line(let index, _, _) = item {
-                return index == model.activeLineIndex
-            }
-            return false
-        } ?? 0)
+        let activeDisplayIndex = displaySnapshot.firstIndex(id: activeItemID)
+            ?? max(0, displaySnapshot.firstIndex(lineIndex: model.activeLineIndex) ?? 0)
         let anticipatedItemID = settings.syncedLyricsKaraokeAnimationEnabled && !accessibilityReduceMotion
             ? LyricsTimelineDisplayBuilder.previewItem(
                 context: timelineContext,
@@ -4653,9 +4648,7 @@ struct LyricsTimelineView: View {
                 autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
             )?.id
             : nil
-        let anticipatedDisplayIndex = anticipatedItemID.flatMap { id in
-            items.firstIndex { $0.id == id }
-        }
+        let anticipatedDisplayIndex = displaySnapshot.firstIndex(id: anticipatedItemID)
         // PC starts moving up to one row 300 ms before the next line. Never
         // skip an intermediate row when several short lines share that window.
         let targetDisplayIndex = anticipatedDisplayIndex.flatMap { index in
@@ -4965,14 +4958,14 @@ private struct LyricsTimelineScrollView: View {
               currentItem.id != advancedItem.id else {
             return currentTargetID
         }
-        let items = LyricsTimelineDisplayBuilder.items(
+        let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
             context: model.timelineContext,
             positionMs: model.adjustedPositionMs,
             trackDurationMs: model.lyricsDurationMs,
             autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
         )
-        guard let currentIndex = items.firstIndex(where: { $0.id == currentItem.id }),
-              let advancedIndex = items.firstIndex(where: { $0.id == advancedItem.id }),
+        guard let currentIndex = displaySnapshot.firstIndex(id: currentItem.id),
+              let advancedIndex = displaySnapshot.firstIndex(id: advancedItem.id),
               advancedIndex == currentIndex + 1 else {
             return currentTargetID
         }
@@ -5013,14 +5006,14 @@ private struct LyricsTimelineScrollView: View {
             )
         }
         if animated && !accessibilityReduceMotion {
-            let items = LyricsTimelineDisplayBuilder.items(
+            let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
                 context: model.timelineContext,
                 positionMs: model.adjustedPositionMs,
                 trackDurationMs: model.lyricsDurationMs,
                 autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
             )
-            let duration = items.firstIndex(where: { $0.id == targetID }).map {
-                LyricsMotion.centeringDuration(items: items, targetIndex: $0)
+            let duration = displaySnapshot.firstIndex(id: targetID).map {
+                LyricsMotion.centeringDuration(items: displaySnapshot.items, targetIndex: $0)
             } ?? LyricsMotion.defaultCenteringDuration
             withAnimation(LyricsMotion.centering(duration: duration), action)
         } else {
@@ -5124,6 +5117,34 @@ struct InterludeInfo {
     var automatic: Bool
 }
 
+/// Item membership and first-occurrence indices share the same interval cache.
+/// Duplicate IDs retain firstIndex semantics instead of replacing earlier rows.
+final class LyricsTimelineDisplaySnapshot {
+    let items: [LyricsTimelineDisplayItem]
+    private let indicesByID: [String: Int]
+    private let indicesByLine: [Int: Int]
+
+    init(items: [LyricsTimelineDisplayItem]) {
+        self.items = items
+        var ids: [String: Int] = [:]
+        var lines: [Int: Int] = [:]
+        ids.reserveCapacity(items.count)
+        lines.reserveCapacity(items.count)
+        for (index, item) in items.enumerated() {
+            let id = item.id
+            if ids[id] == nil { ids[id] = index }
+            if case .line(let sourceIndex, _, _) = item, lines[sourceIndex] == nil {
+                lines[sourceIndex] = index
+            }
+        }
+        indicesByID = ids
+        indicesByLine = lines
+    }
+
+    func firstIndex(id: String?) -> Int? { id.flatMap { indicesByID[$0] } }
+    func firstIndex(lineIndex: Int) -> Int? { indicesByLine[lineIndex] }
+}
+
 struct LyricsTimelineContext {
     let lines: [LyricsLine]
     let lineIDs: [String]
@@ -5135,7 +5156,8 @@ struct LyricsTimelineContext {
     let lastLyricEndTimes: [Int64]?
     let markerInterludeInfos: [InterludeInfo?]
     let baseItems: [LyricsTimelineDisplayItem]
-    let itemQueries: TimelineIntervalCache<[LyricsTimelineDisplayItem]>
+    let baseSnapshot: LyricsTimelineDisplaySnapshot
+    let itemQueries: TimelineIntervalCache<LyricsTimelineDisplaySnapshot>
     let previewQueries: TimelineIntervalCache<LyricsTimelineDisplayItem?>
     let activeLineQueries: TimelineIntervalCache<[Int]>
     let precedingLyricEndTimes: [Int64]
@@ -5204,6 +5226,7 @@ struct LyricsTimelineContext {
             baseItems.append(.line(index: 0, line: first, id: lineIDs[0]))
         }
         self.baseItems = baseItems
+        baseSnapshot = LyricsTimelineDisplaySnapshot(items: baseItems)
         let boundaries = LyricsTimelineDisplayBuilder.queryBoundaries(
             lines: lines, markers: markerInterludeInfos, lyricEndTimes: lastLyricEndTimes
         )
@@ -5348,10 +5371,26 @@ enum LyricsTimelineDisplayBuilder {
         trackDurationMs: Int64,
         autoInstrumentalBreakEnabled: Bool
     ) -> [LyricsTimelineDisplayItem] {
+        displaySnapshot(context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
+                        autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled).items
+    }
+
+    static func displaySnapshot(
+        context: LyricsTimelineContext,
+        positionMs: Int64,
+        trackDurationMs: Int64,
+        autoInstrumentalBreakEnabled: Bool
+    ) -> LyricsTimelineDisplaySnapshot {
         context.itemQueries.value(position: positionMs, duration: trackDurationMs,
                                   automaticInterludes: autoInstrumentalBreakEnabled) {
-            uncachedItems(context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
-                          autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled)
+            guard !context.lines.isEmpty else { return context.baseSnapshot }
+            guard hasActiveInterlude(context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
+                                    autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled) else {
+                return context.baseSnapshot
+            }
+            return LyricsTimelineDisplaySnapshot(items: uncachedItems(
+                context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
+                autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled))
         }
     }
 
