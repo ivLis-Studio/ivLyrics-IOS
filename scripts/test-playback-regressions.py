@@ -23,6 +23,14 @@ cloud_keys_end = settings_source.index("\n    ]", cloud_keys_start) + len("\n   
 cloud_keys = settings_source[cloud_keys_start:cloud_keys_end]
 cloud_merge_start = settings_source.index("        for key in Self.cloudSettingKeys {", settings_source.index("    func importCloudSettings("))
 cloud_merge_end = settings_source.index("\n\n        let loaded = AppSettings(defaults: defaults)", cloud_merge_start)
+motion_start = source.index("private enum LyricsMotion {")
+motion_end = source.index("private struct LyricsTimelineEdgeFadeMask:", motion_start)
+motion = source[motion_start:motion_end].replace("private enum LyricsMotion", "enum LyricsMotion")
+# Compare against the shipped eager search while executing the production curve.
+baseline_motion = subprocess.check_output(
+    ["git", "show", "4e3c721:ivLyrics-IOS/ContentView.swift"], cwd=ROOT, text=True
+)
+baseline_motion = baseline_motion[baseline_motion.index("private enum LyricsMotion {"):baseline_motion.index("private struct LyricsTimelineEdgeFadeMask:")].replace("private enum LyricsMotion", "enum BaselineLyricsMotion")
 settings_probe = """
 private struct SettingsDefaultsProbe {
     let defaults: UserDefaults
@@ -41,6 +49,14 @@ private struct SettingsDefaultsProbe {
 """
 fixtures = r'''
 import Foundation
+struct Animation {
+    static func timingCurve(_ a: Double, _ b: Double, _ c: Double, _ d: Double, duration: Double) -> Animation { Animation() }
+}
+var centeringStartReads = 0
+struct LyricsTimelineDisplayItem {
+    var start: Int64
+    var startTimeMs: Int64 { centeringStartReads += 1; return start }
+}
 struct LyricsLine { struct Syllable: Equatable { var text: String; var startTimeMs: Int64; var endTimeMs: Int64 } }
 struct CulturalAnnotation: Equatable { var note: String }
 enum KaraokeSyllableTimingNormalizer { struct FillTiming { var startTimeMs: Int64; var endTimeMs: Int64 } }
@@ -58,6 +74,22 @@ func check(_ value: @autoclosure () -> Bool, _ label: String) {
 func near(_ first: Double, _ second: Double, _ label: String, tolerance: Double = 0.0001) {
     check(abs(first - second) <= tolerance, label)
 }
+for starts: [Int64] in [[], [0], [0, 0, 0, 400], [1000, 200, 300, 1600], [0, 40, 80, 120], [0, 1000, 10000]] {
+    let items = starts.map { LyricsTimelineDisplayItem(start: $0) }
+    for target in -1...items.count {
+        near(LyricsMotion.centeringDuration(items: items, targetIndex: target),
+             BaselineLyricsMotion.centeringDuration(items: items, targetIndex: target),
+             "Centering preserves source-order timing at every boundary")
+    }
+}
+let centeringItems = (0..<500).map { LyricsTimelineDisplayItem(start: Int64($0 * 400)) }
+centeringStartReads = 0
+let previousCentering = (100..<200).map { BaselineLyricsMotion.centeringDuration(items: centeringItems, targetIndex: $0) }
+let previousCenteringReads = centeringStartReads
+centeringStartReads = 0
+let currentCentering = (100..<200).map { LyricsMotion.centeringDuration(items: centeringItems, targetIndex: $0) }
+check(currentCentering == previousCentering, "All centering durations stay identical")
+check(centeringStartReads == 200 && previousCenteringReads == 35050, "Centering stops at the next distinct start")
 check(PlaybackClockMode(foregroundActive: true, pictureInPictureEngaged: false) == .display, "Foreground uses native display cadence")
 check(PlaybackClockMode(foregroundActive: true, pictureInPictureEngaged: true) == .display, "Foreground PiP does not start a second clock")
 check(PlaybackClockMode(foregroundActive: false, pictureInPictureEngaged: true) == .backgroundPictureInPicture, "Background PiP retains an independent playback clock")
@@ -241,7 +273,7 @@ print("PLAYBACK_REGRESSIONS_PASSED assertions=\(assertions)")
 '''
 with tempfile.TemporaryDirectory(prefix="ivlyrics-ios-regression-") as path:
     work = Path(path)
-    (work / "main.swift").write_text(fixtures + settings_probe + cache + checks)
+    (work / "main.swift").write_text(fixtures + motion + baseline_motion + settings_probe + cache + checks)
     sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", ROOT / "ivLyrics-IOS/BoundedLRUCache.swift", ROOT / "ivLyrics-IOS/SpotifyPlaybackRetryPolicy.swift", work / "main.swift"]
     subprocess.run(["xcrun", "swiftc", *map(str, sources), "-o", str(work / "regression")], check=True)
     subprocess.run([str(work / "regression")], check=True)

@@ -5050,6 +5050,7 @@ private enum LyricsMotion {
         }
         let targetStart = items[targetIndex].startTimeMs
         guard let nextStart = items.dropFirst(targetIndex + 1)
+            .lazy
             .map(\.startTimeMs)
             .first(where: { $0 > targetStart }) else {
             return defaultCenteringDuration
