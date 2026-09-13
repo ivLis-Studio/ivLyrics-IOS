@@ -76,6 +76,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private var videoFormatDescription: CMVideoFormatDescription?
     private let karaokePreparationStore = KaraokeRenderPreparationStore()
     private let lyricsTimeline = PictureInPictureLyricsTimeline()
+    private let staticFrameCache = PictureInPictureStaticFrameCache()
 
     override init() {
         super.init()
@@ -179,6 +180,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         let forceRender = nextRenderIdentity != lastRenderIdentityValue
         if state.track?.stableKey != nextState.track?.stableKey {
             karaokePreparationStore.removeAll()
+            staticFrameCache.removeAll()
         }
         state = nextState
         lastRenderIdentityValue = nextRenderIdentity
@@ -566,6 +568,11 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
 #endif
 
     private func drawFrame(in rect: CGRect, context: CGContext) {
+        drawStaticFrame(in: rect, context: context)
+        drawLyrics(in: frameLayout(in: rect).lyricsRect)
+    }
+
+    private func drawStaticFrame(in rect: CGRect, context: CGContext) {
         drawBackground(in: rect, context: context)
         let layout = frameLayout(in: rect)
         if state.showArtwork {
@@ -576,7 +583,6 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             }
             drawMetadata(layout: layout)
         }
-        drawLyrics(in: layout.lyricsRect)
     }
 
     private func drawBackground(in rect: CGRect, context: CGContext) {
@@ -1035,7 +1041,44 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         context.scaleBy(x: 1, y: -1)
         UIGraphicsPushContext(context)
         defer { UIGraphicsPopContext() }
-        drawFrame(in: CGRect(x: 0, y: 0, width: width, height: height), context: context)
+        let rect = CGRect(x: 0, y: 0, width: width, height: height)
+        let key = PictureInPictureStaticFrameKey(
+            trackKey: state.track?.stableKey,
+            width: Int(width), height: Int(height),
+            bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+            title: state.title, artist: state.artist, showArtwork: state.showArtwork,
+            orientation: state.orientation, backgroundMode: state.backgroundMode,
+            solidColor: state.solidColor, artwork: artwork, blurredArtwork: blurredArtwork
+        )
+        // Transparent covers blend with the destination's existing pixels. Keep
+        // their original draw path; only self-contained backgrounds are reusable.
+        let backgroundImage: UIImage?
+        switch AppSettings.normalizePipBackgroundMode(state.backgroundMode) {
+        case AppSettings.pipBackgroundCover: backgroundImage = artwork
+        case AppSettings.pipBackgroundBlur: backgroundImage = blurredArtwork ?? artwork
+        default: backgroundImage = nil
+        }
+        let canCache: Bool
+        if let backgroundImage {
+            switch backgroundImage.cgImage?.alphaInfo {
+            case .none?, .noneSkipFirst?, .noneSkipLast?: canCache = true
+            default: canCache = false
+            }
+        } else {
+            canCache = true
+        }
+        if !canCache || !staticFrameCache.restore(key: key, into: baseAddress) {
+            drawStaticFrame(in: rect, context: context)
+            if canCache {
+                context.flush()
+                staticFrameCache.store(key: key, from: baseAddress)
+            } else {
+                staticFrameCache.removeAll()
+            }
+        }
+        // Foreground lyrics, supplements and timed effects remain live on every
+        // frame. Artwork and blur replacements are part of the key above.
+        drawLyrics(in: frameLayout(in: rect).lyricsRect)
         return true
     }
 

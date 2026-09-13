@@ -46,6 +46,7 @@ jobs:
           python3 scripts/test-timeline-cache.py
           python3 scripts/test-provider-overlap.py
           python3 scripts/test-pip-selection-cache.py
+          python3 scripts/test-pip-static-frame-cache.py
           python3 scripts/test-sync-load-reuse.py
 
       - name: Run static analyzer
