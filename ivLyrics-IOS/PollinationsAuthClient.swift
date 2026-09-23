@@ -6,7 +6,6 @@ final class PollinationsAuthClient: Sendable {
 
     private static let clientId = "pk_r7hWynUBrOgSV9SJ"
     private static let authScope = "generate"
-    private static let authModel = "openai"
     private static let authBudget = 999
     private static let authExpiryDays = 365
     private static let defaultPollIntervalMs: Int64 = 5_000
@@ -88,7 +87,6 @@ final class PollinationsAuthClient: Sendable {
             URLQueryItem(name: "user_code", value: userCode),
             URLQueryItem(name: "app_key", value: Self.clientId),
             URLQueryItem(name: "scope", value: Self.authScope),
-            URLQueryItem(name: "models", value: Self.authModel),
             URLQueryItem(name: "budget", value: String(Self.authBudget)),
             URLQueryItem(name: "expiry", value: String(Self.authExpiryDays))
         ]

@@ -8438,9 +8438,12 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppViewModel
     @State private var settingsLogsPresented = false
     @State private var selectedTab: SettingsTab = .general
-    @State private var paxsenixModels: [PaxsenixAIProvider.Model] = []
-    @State private var paxsenixModelsLoading = false
-    @State private var paxsenixModelsError = ""
+    @State private var aiModels: [AIProviderModels.Model] = []
+    @State private var aiModelsConfiguration: AIProviderModels.Configuration?
+    @State private var aiModelsLoading = false
+    @State private var aiModelsError = ""
+    @State private var aiModelsBuiltIn = false
+    @State private var aiModelsRequestId = UUID()
     @State private var cloudApplyConfirmationPresented = false
     @State private var cloudDeleteConfirmationPresented = false
 
@@ -8486,14 +8489,7 @@ struct SettingsView: View {
                 selectedTab = tab
             }
 #endif
-            if settings.providerId == "paxsenix" {
-                Task { await refreshPaxsenixModels() }
-            }
             model.prepareCreatorPrivacySettings()
-        }
-        .onChange(of: settings.providerId) { _, providerId in
-            guard providerId == "paxsenix" else { return }
-            Task { await refreshPaxsenixModels() }
         }
         .fullScreenCover(isPresented: $settingsLogsPresented) {
             LogsView(visible: $settingsLogsPresented)
@@ -9169,46 +9165,40 @@ struct SettingsView: View {
                     ? settings.t("field.model_required")
                     : ""
             ) {
-                if settings.providerId == "paxsenix" {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 10) {
-                            Picker("", selection: $settings.model) {
-                                Text(settings.t("field.model_required")).tag("")
-                                if !settings.model.trimmed.isEmpty,
-                                   !paxsenixModels.contains(where: { $0.id == settings.model }) {
-                                    Text(settings.model).tag(settings.model)
-                                }
-                                ForEach(paxsenixModels) { model in
-                                    Text(model.displayName).tag(model.id)
-                                }
-                            }
-                            .labelsHidden()
-                            .settingsMenuSurface()
-                            .disabled(paxsenixModelsLoading || paxsenixModels.isEmpty)
-
-                            Button {
-                                Task { await refreshPaxsenixModels() }
-                            } label: {
-                                Image(systemName: "arrow.clockwise")
-                                    .frame(width: 34, height: 34)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(paxsenixModelsLoading)
-                            .accessibilityLabel(settings.t("button.refresh_models"))
+                aiModelSelector
+            }
+            .task(id: aiModelConfiguration) {
+                aiModels = []
+                aiModelsError = ""
+                aiModelsBuiltIn = false
+                do {
+                    try await Task.sleep(for: .milliseconds(350))
+                    await refreshAIModels()
+                } catch { }
+            }
+            if settings.providerId == "chatgpt" {
+                settingsCard(settings.t("openai.connections"), description: settings.t("openai.connections_desc")) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(Array(settings.openAIConnections.enumerated()), id: \.element.id) { index, connection in
+                            OpenAIConnectionEditor(connection: Binding(
+                                get: { settings.openAIConnections.first(where: { $0.id == connection.id }) ?? connection },
+                                set: { value in settings.openAIConnections = settings.openAIConnections.map { $0.id == value.id ? value : $0 } }
+                            ), position: index, count: settings.openAIConnections.count,
+                            onMove: { delta in
+                                var connections = settings.openAIConnections
+                                guard let current = connections.firstIndex(where: { $0.id == connection.id }),
+                                      connections.indices.contains(current + delta) else { return }
+                                connections.swapAt(current, current + delta)
+                                settings.openAIConnections = connections
+                            }, onRemove: {
+                                settings.openAIConnections.removeAll { $0.id == connection.id }
+                            })
                         }
-                        if paxsenixModelsLoading {
-                            Text(settings.t("status.models_loading"))
-                                .font(.caption)
-                                .foregroundStyle(SettingsDesign.secondary)
-                        } else if !paxsenixModelsError.isEmpty {
-                            Text(settings.t("status.models_unavailable"))
-                                .font(.caption)
-                                .foregroundStyle(Color.orange.opacity(0.88))
+                        Button(settings.t("openai.add_connection")) {
+                            settings.openAIConnections.append(OpenAIConnection())
                         }
-                        settingsTextField(settings.t("field.model_id"), text: $settings.model)
+                        .buttonStyle(.bordered)
                     }
-                } else {
-                    settingsTextField(settings.t("field.model"), text: $settings.model)
                 }
             }
             settingsCard(settings.t("field.max_tokens")) {
@@ -9986,21 +9976,75 @@ struct SettingsView: View {
         )
     }
 
-    @MainActor
-    private func refreshPaxsenixModels() async {
-        guard settings.providerId == "paxsenix", !paxsenixModelsLoading else { return }
-        paxsenixModelsLoading = true
-        paxsenixModelsError = ""
-        defer { paxsenixModelsLoading = false }
-        do {
-            paxsenixModels = try await PaxsenixAIProvider.fetchModels(apiKeys: settings.apiKeys)
-            if paxsenixModels.isEmpty {
-                paxsenixModelsError = "empty"
+    private var aiModelConfiguration: AIProviderModels.Configuration {
+        AIProviderModels.Configuration(provider: settings.providerId,
+                                       baseURL: settings.baseUrl.trimmed.isEmpty ? selectedProvider.defaultBaseUrl : settings.baseUrl,
+                                       apiKeys: settings.apiKeys, pollinationsAccessToken: settings.pollinationsAccessToken)
+    }
+
+    private var availableAIModels: [AIProviderModels.Model] {
+        aiModelsConfiguration == aiModelConfiguration ? aiModels : []
+    }
+
+    private var aiModelSelector: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Picker(settings.t("field.model"), selection: $settings.model) {
+                    Text(settings.t("field.model_required")).tag("")
+                    if !settings.model.trimmed.isEmpty,
+                       !availableAIModels.contains(where: { $0.id == settings.model }) {
+                        Text(settings.model).tag(settings.model)
+                    }
+                    ForEach(availableAIModels) { model in
+                        Text(model.displayName).tag(model.id)
+                    }
+                }
+                .labelsHidden()
+                .settingsMenuSurface()
+                .disabled(aiModelsLoading || availableAIModels.isEmpty)
+                Button {
+                    Task { await refreshAIModels() }
+                } label: {
+                    Image(systemName: "arrow.clockwise").frame(width: 34, height: 34)
+                }
+                .buttonStyle(.bordered)
+                .disabled(aiModelsLoading)
+                .accessibilityLabel(settings.t("button.refresh_models"))
             }
-        } catch is CancellationError {
-            return
+            if aiModelsLoading {
+                Text(settings.t("status.models_loading"))
+                    .font(.caption).foregroundStyle(SettingsDesign.secondary)
+            } else if !aiModelsError.isEmpty {
+                Text(settings.t("status.models_unavailable"))
+                    .font(.caption).foregroundStyle(Color.orange.opacity(0.88))
+            } else if aiModelsBuiltIn {
+                Text(settings.t("status.models_builtin_sonar"))
+                    .font(.caption).foregroundStyle(SettingsDesign.secondary)
+            }
+            settingsTextField(settings.t("field.model_id"), text: $settings.model)
+        }
+    }
+
+    @MainActor
+    private func refreshAIModels() async {
+        let configuration = aiModelConfiguration
+        let requestId = UUID()
+        aiModelsRequestId = requestId
+        aiModelsLoading = true
+        aiModelsError = ""
+        defer { if aiModelsRequestId == requestId { aiModelsLoading = false } }
+        do {
+            let catalog = try await AIProviderModels.fetch(configuration)
+            try Task.checkCancellation()
+            guard requestId == aiModelsRequestId, configuration == aiModelConfiguration else { return }
+            aiModels = catalog.models
+            aiModelsConfiguration = configuration
+            aiModelsBuiltIn = catalog.builtIn
+            if aiModels.isEmpty { aiModelsError = "empty" }
         } catch {
-            paxsenixModelsError = error.localizedDescription
+            guard !Task.isCancelled, requestId == aiModelsRequestId, configuration == aiModelConfiguration else { return }
+            aiModels = []
+            aiModelsError = error.localizedDescription
         }
     }
 
@@ -10794,5 +10838,90 @@ extension Color {
         #else
         return nil
         #endif
+    }
+}
+
+private struct OpenAIConnectionEditor: View {
+    @EnvironmentObject private var settings: AppSettings
+    @Binding var connection: OpenAIConnection
+    var position: Int
+    var count: Int
+    var onMove: (Int) -> Void
+    var onRemove: () -> Void
+    @State private var models: [AIProviderModels.Model] = []
+    @State private var loadedConfiguration: AIProviderModels.Configuration?
+    @State private var loading = false
+    @State private var error = false
+    @State private var requestID = UUID()
+    @State private var revision = 0
+
+    private var configuration: AIProviderModels.Configuration {
+        .init(provider: "chatgpt", baseURL: connection.baseUrl.trimmed.isEmpty ? "https://api.openai.com/v1" : connection.baseUrl,
+              apiKeys: connection.apiKeys, pollinationsAccessToken: "")
+    }
+
+    private var availableModels: [AIProviderModels.Model] { loadedConfiguration == configuration ? models : [] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Toggle("\(position + 2). \(connection.name)", isOn: $connection.enabled)
+                Button { onMove(-1) } label: { Image(systemName: "arrow.up") }
+                    .disabled(position == 0).accessibilityLabel(settings.t("openai.move_up"))
+                Button { onMove(1) } label: { Image(systemName: "arrow.down") }
+                    .disabled(position == count - 1).accessibilityLabel(settings.t("openai.move_down"))
+                Button(role: .destructive, action: onRemove) { Image(systemName: "trash") }
+                    .accessibilityLabel(settings.t("openai.remove_connection"))
+            }
+            TextField(settings.t("openai.connection_name"), text: $connection.name)
+            TextField(settings.t("field.base_url"), text: $connection.baseUrl)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            SecureField(settings.t("field.api_key"), text: $connection.apiKeys)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            HStack {
+                Picker(settings.t("field.model"), selection: $connection.model) {
+                    if !availableModels.contains(where: { $0.id == connection.model }) {
+                        Text(connection.model.isEmpty ? settings.t("field.model_required") : connection.model).tag(connection.model)
+                    }
+                    ForEach(availableModels) { model in Text(model.displayName).tag(model.id) }
+                }
+                .labelsHidden().settingsMenuSurface().disabled(loading || availableModels.isEmpty)
+                Button { revision += 1 } label: { Image(systemName: "arrow.clockwise") }
+                    .disabled(loading).accessibilityLabel(settings.t("button.refresh_models"))
+            }
+            TextField(settings.t("field.model_id"), text: $connection.model)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            if loading {
+                Text(settings.t("status.models_loading")).font(.caption)
+            } else if error {
+                Text(settings.t("status.models_unavailable")).font(.caption).foregroundStyle(.orange)
+            }
+        }
+        .textFieldStyle(.roundedBorder)
+        .padding(12)
+        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        .task(id: configuration) { await loadModels() }
+        .task(id: revision) { if revision > 0 { await loadModels() } }
+    }
+
+    @MainActor private func loadModels() async {
+        let context = configuration
+        let id = UUID()
+        requestID = id
+        models = []
+        loading = true
+        error = false
+        defer { if requestID == id { loading = false } }
+        do {
+            try await Task.sleep(for: .milliseconds(350))
+            let catalog = try await AIProviderModels.fetch(context)
+            try Task.checkCancellation()
+            guard id == requestID, context == configuration else { return }
+            models = catalog.models
+            loadedConfiguration = context
+            error = models.isEmpty
+        } catch {
+            if !Task.isCancelled, id == requestID, context == configuration { self.error = true }
+        }
     }
 }

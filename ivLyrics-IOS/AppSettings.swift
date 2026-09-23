@@ -1037,10 +1037,20 @@ final class AppSettings: ObservableObject {
         cachedSnapshot = nil
     }
 
+    var openAIConnections: [OpenAIConnection] {
+        get { aiProviderProfiles["chatgpt"]?.openAIConnections ?? [] }
+        set {
+            var profile = aiProviderProfiles["chatgpt"] ?? AIProviderProfile.defaults(for: Self.providerById("chatgpt"))
+            profile.openAIConnections = newValue
+            aiProviderProfiles["chatgpt"] = profile
+        }
+    }
+
     private func saveAIProviderProfileFromPublished() {
         guard !isBootstrapping, !isSwitchingAIProviderProfile else { return }
         let provider = Self.providerById(providerId)
         aiProviderProfiles[provider.id] = AIProviderProfile(
+            openAIConnections: aiProviderProfiles[provider.id]?.openAIConnections,
             apiKeys: apiKeys,
             baseUrl: baseUrl.trimmed.isEmpty ? provider.defaultBaseUrl : baseUrl,
             model: model,
@@ -1194,6 +1204,7 @@ final class AppSettings: ObservableObject {
         for provider in providers {
             if let stored = profiles[provider.id] {
                 profiles[provider.id] = AIProviderProfile(
+                    openAIConnections: stored.openAIConnections,
                     apiKeys: stored.apiKeys,
                     baseUrl: stored.baseUrl.trimmed.isEmpty ? provider.defaultBaseUrl : stored.baseUrl,
                     model: stored.model,
@@ -1795,11 +1806,11 @@ final class AppSettings: ObservableObject {
             if provider.id == "pollinations", !pollinationsAccessToken.trimmed.isEmpty {
                 return true
             }
-            return !apiKeys.trimmed.isEmpty
+            return !apiKeys.trimmed.isEmpty || hasReadyOpenAIConnection
         }
 
         var hasModel: Bool {
-            !model.trimmed.isEmpty
+            !model.trimmed.isEmpty || hasReadyOpenAIConnection
         }
 
         var hasKeylessTranslationProvider: Bool {
@@ -1851,6 +1862,21 @@ final class AppSettings: ObservableObject {
             copy.maxTokens = profile.maxTokens
             copy.temperature = profile.temperature
             return copy
+        }
+
+        var openAIConnectionSnapshots: [Snapshot] {
+            guard provider.id == "chatgpt" else { return [self] }
+            return [self] + (aiProviderProfiles["chatgpt"]?.openAIConnections ?? []).filter(\.enabled).map { connection in
+                var copy = self
+                copy.apiKeys = connection.apiKeys
+                copy.baseUrl = connection.baseUrl.trimmed.isEmpty ? provider.defaultBaseUrl : connection.baseUrl
+                copy.model = connection.model
+                return copy
+            }
+        }
+
+        private var hasReadyOpenAIConnection: Bool {
+            provider.id == "chatgpt" && (aiProviderProfiles["chatgpt"]?.openAIConnections ?? []).contains(where: \.isReady)
         }
 
         var hasSpotifyCredentials: Bool {
@@ -1930,6 +1956,11 @@ final class AppSettings: ObservableObject {
                 key += "|provider=\(providerId):enabled=\(isAIProviderEnabled(providerId))"
                 if let profile = aiProviderProfiles[providerId] {
                     key += ":model=\(profile.model):url=\(profile.baseUrl):tok=\(profile.maxTokens):temp=\(profile.temperature)"
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.sortedKeys]
+                    if let data = try? encoder.encode(profile.openAIConnections ?? []) {
+                        key += ":connections=" + IvLyricsUtilities.sha256(String(decoding: data, as: UTF8.self))
+                    }
                 }
             }
             for rule in languageRules.values.sorted(by: { $0.sourceLang < $1.sourceLang }) {
@@ -2118,6 +2149,7 @@ final class AppSettings: ObservableObject {
     }
 
     struct AIProviderProfile: Codable, Hashable, Sendable {
+        var openAIConnections: [OpenAIConnection]? = nil
         var apiKeys: String
         var baseUrl: String
         var model: String
