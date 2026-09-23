@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.16",
+          "buildVersion": "55",
+          "date": "2026-09-23",
+          "localizedDescription": "ivLyrics iOS 1.3.16은 AI 가사 생성에 사용할 연결을 더 유연하게 설정하고, 연결 우선순위에 따른 장애 조치를 지원합니다. 제공자 모델 검색과 Pollinations 모델 권한 처리가 개선되었으며, iOS의 누락된 번역도 22개 로케일에 걸쳐 보완되었습니다. 또한 이전 1.3.15 배포본의 AltStore 소스 메타데이터를 실제 아티팩트 정보로 정정했습니다.\n\nivLyrics iOS 1.3.16 makes AI connections for lyric generation more configurable and supports failover based on connection priority. Provider model discovery and Pollinations model authorization have been improved, while missing iOS translations have been completed across 22 locales. The AltStore source metadata for the previous 1.3.15 release was also corrected to match its actual artifact details.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.16/ivLyrics-IOS-v1.3.16-unsigned.ipa",
+          "size": 7471290,
+          "sha256": "6a312be7d65b50c26b19a436b0d366abfe9cea3358c11bea97582e4b71df6141",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.15",
           "buildVersion": "54",
           "date": "2026-09-13",
