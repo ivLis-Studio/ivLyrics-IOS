@@ -128,9 +128,6 @@ struct LyricsMetaMenuOverlay: View {
                     ForEach(LyricsMetaMenuTab.allCases) { tab in
                         Button {
                             selectedTab = tab
-                            if tab == .lrclib, model.manualCandidates.isEmpty {
-                                model.searchManualCandidates()
-                            }
                         } label: {
                             Text(tabTitle(tab))
                                 .font(.pretendard(14, weight: .semibold))
@@ -190,7 +187,7 @@ struct LyricsMetaMenuOverlay: View {
         case .background:
             return settings.t("lyrics.tab.background")
         case .lrclib:
-            return "LRCLIB"
+            return settings.t("section.lyrics_providers")
         }
     }
 
@@ -416,6 +413,17 @@ struct LyricsMetaMenuOverlay: View {
 
     private var lrclibTab: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Picker(settings.t("section.lyrics_providers"), selection: Binding(
+                get: { settings.selectedLyricsProvider(trackKey: model.currentTrackKey) },
+                set: { model.selectTrackLyricsProvider($0) }
+            )) {
+                Text(settings.t("label.auto")).tag("")
+                ForEach(AppSettings.lyricsProviders) { provider in
+                    Text(provider.name).tag(provider.id)
+                }
+            }
+            .disabled(model.currentTrackKey.isEmpty)
+            .padding(.bottom, 12)
             Text(settings.t("lyrics.lrclib_search.title"))
                 .font(.pretendard(14, weight: .bold))
             Text(settings.t("lyrics.lrclib_search.desc"))

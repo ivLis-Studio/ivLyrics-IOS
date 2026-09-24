@@ -517,6 +517,24 @@ final class AppSettings: ObservableObject {
         speakerColorRevision += 1
     }
 
+    func selectedLyricsProvider(trackKey: String) -> String {
+        guard !trackKey.isEmpty else { return "" }
+        let id = defaults.string(forKey: "track_lyrics_provider." + trackKey) ?? ""
+        return Self.lyricsProviderById(id) == nil ? "" : id
+    }
+
+    func selectLyricsProvider(_ id: String, trackKey: String) {
+        guard !trackKey.isEmpty else { return }
+        objectWillChange.send()
+        let key = "track_lyrics_provider." + trackKey
+        if Self.lyricsProviderById(id) != nil { defaults.set(id, forKey: key) }
+        else { defaults.removeObject(forKey: key) }
+    }
+
+    func snapshotForTrack(_ trackKey: String) -> Snapshot {
+        snapshot.selectingLyricsProvider(selectedLyricsProvider(trackKey: trackKey))
+    }
+
     var snapshot: Snapshot {
         if let cachedSnapshot {
             return cachedSnapshot
@@ -1885,6 +1903,19 @@ final class AppSettings: ObservableObject {
 
         var hasSpotifyClientId: Bool {
             !spotifyClientId.trimmed.isEmpty
+        }
+
+        func selectingLyricsProvider(_ id: String) -> Snapshot {
+            guard AppSettings.lyricsProviderById(id) != nil else { return self }
+            var copy = self
+            copy.lyricsProviderOrder = [id] + AppSettings.defaultLyricsProviderOrder.filter { $0 != id }
+            for providerId in AppSettings.defaultLyricsProviderOrder {
+                copy.lyricsProviderEnabled[providerId] = providerId == id
+            }
+            copy.lyricsProviderTypes[id] = [AppSettings.lyricsTypeKaraoke: true, AppSettings.lyricsTypeSynced: true, AppSettings.lyricsTypePlain: true]
+            copy.preferSyncDataProvider = false
+            copy.preferLyricsTypeOverProviderOrder = true
+            return copy
         }
 
         var enabledLyricsProviderOrder: [String] {

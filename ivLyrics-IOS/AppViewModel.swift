@@ -1642,6 +1642,18 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func selectTrackLyricsProvider(_ id: String) {
+        let key = currentTrackKey
+        guard !key.isEmpty else { return }
+        settings.selectLyricsProvider(id, trackKey: key)
+        cancelLyricsLoadTask()
+        Task {
+            await lyricsRepository.clearCacheForTrack(key)
+            guard currentTrackKey == key else { return }
+            reloadLyrics(bypassCache: true)
+        }
+    }
+
     func reloadLyrics(bypassCache: Bool) {
         if currentTrack == nil {
             applyManualTrack(loadImmediately: false)
@@ -2917,7 +2929,7 @@ final class AppViewModel: ObservableObject {
             let spotifyUserAccessToken = await spotifyMetadataUserAccessToken()
             let loaded = try await lyricsRepository.loadLyrics(
                 track: track,
-                settings: settings.snapshot,
+                settings: settings.snapshotForTrack(track.stableKey),
                 spotifyUserAccessToken: spotifyUserAccessToken,
                 onCachedLyricsLoaded: { [weak self] cached in
                     self?.applyCachedLyricsPreview(cached, track: track, requestID: requestID)
@@ -3233,7 +3245,7 @@ final class AppViewModel: ObservableObject {
         _ nextTrack: TrackSnapshot,
         sourceKey: String
     ) async throws {
-        let settingsSnapshot = settings.snapshot
+        let settingsSnapshot = settings.snapshotForTrack(nextTrack.stableKey)
         let spotifyUserAccessToken = await spotifyMetadataUserAccessToken()
         guard SpotifyWebAPIFeaturePolicy.shouldContinueQueuePrefetch(
             enabled: settings.spotifyWebAPIEnabled,
