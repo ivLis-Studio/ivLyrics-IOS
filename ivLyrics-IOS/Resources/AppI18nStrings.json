@@ -755,7 +755,13 @@
     "pip.simulator_unavailable": "시뮬레이터에서는 시스템 PiP를 사용할 수 없습니다. 실기기에서 확인해 주세요.",
     "label.lyrics_settings": "가사 설정",
     "label.open_lrclib_list": "LRCLIB 목록 열기",
-    "label.sync_by": "sync by"
+    "label.sync_by": "sync by",
+    "video.choose": "배경 영상 선택",
+    "video.community": "커뮤니티 영상",
+    "video.url": "YouTube URL 입력",
+    "video.invalid": "올바른 YouTube URL 또는 영상 ID를 입력하세요.",
+    "video.empty": "등록된 영상이 없습니다.",
+    "video.failed": "영상 목록을 불러오지 못했습니다."
   },
   "en": {
     "section.account": "Account",
@@ -1513,7 +1519,13 @@
     "pip.simulator_unavailable": "System PiP is unavailable in the Simulator. Please check it on a physical device.",
     "label.lyrics_settings": "Lyrics settings",
     "label.open_lrclib_list": "Open LRCLIB list",
-    "label.sync_by": "sync by"
+    "label.sync_by": "sync by",
+    "video.choose": "Choose background video",
+    "video.community": "Community videos",
+    "video.url": "Enter YouTube URL",
+    "video.invalid": "Enter a valid YouTube URL or video ID.",
+    "video.empty": "No videos available.",
+    "video.failed": "Could not load videos."
   },
   "zh-CN": {
     "section.account": "账户",
@@ -2271,7 +2283,13 @@
     "update.available.title": "有可用更新",
     "update.release_notes": "发行说明",
     "label.spotify": "Spotify",
-    "label.regenerate": "重新生成"
+    "label.regenerate": "重新生成",
+    "video.choose": "选择背景视频",
+    "video.community": "社区视频",
+    "video.url": "输入 YouTube 链接",
+    "video.invalid": "请输入有效的 YouTube 链接或视频 ID。",
+    "video.empty": "没有可用视频。",
+    "video.failed": "无法加载视频。"
   },
   "zh-TW": {
     "section.account": "帳戶",
@@ -3029,7 +3047,13 @@
     "update.available.title": "有可用的更新",
     "update.release_notes": "發行說明",
     "label.spotify": "Spotify",
-    "label.regenerate": "重新生成"
+    "label.regenerate": "重新生成",
+    "video.choose": "選擇背景影片",
+    "video.community": "社群影片",
+    "video.url": "輸入 YouTube 網址",
+    "video.invalid": "請輸入有效的 YouTube 網址或影片 ID。",
+    "video.empty": "沒有可用影片。",
+    "video.failed": "無法載入影片。"
   },
   "ja": {
     "section.account": "アカウント",
@@ -3787,7 +3811,13 @@
     "update.available.title": "アップデートが利用可能です",
     "update.release_notes": "リリースノート",
     "label.spotify": "Spotify",
-    "label.regenerate": "再生成"
+    "label.regenerate": "再生成",
+    "video.choose": "背景動画を選択",
+    "video.community": "コミュニティ動画",
+    "video.url": "YouTube URLを入力",
+    "video.invalid": "有効なYouTube URLまたは動画IDを入力してください。",
+    "video.empty": "動画がありません。",
+    "video.failed": "動画を読み込めませんでした。"
   },
   "hi": {
     "section.account": "खाता",
@@ -4545,7 +4575,13 @@
     "update.available.title": "अपडेट उपलब्ध",
     "update.release_notes": "रिलीज़ नोट्स",
     "label.spotify": "Spotify",
-    "label.regenerate": "फिर से बनाएँ"
+    "label.regenerate": "फिर से बनाएँ",
+    "video.choose": "पृष्ठभूमि वीडियो चुनें",
+    "video.community": "समुदाय के वीडियो",
+    "video.url": "YouTube URL दर्ज करें",
+    "video.invalid": "मान्य YouTube URL या वीडियो ID दर्ज करें।",
+    "video.empty": "कोई वीडियो उपलब्ध नहीं है।",
+    "video.failed": "वीडियो लोड नहीं हो सके।"
   },
   "es": {
     "section.account": "Cuenta",
@@ -5303,7 +5339,13 @@
     "update.available.title": "Actualización disponible",
     "update.release_notes": "Notas de la versión",
     "label.spotify": "Spotify",
-    "label.regenerate": "Regenerar"
+    "label.regenerate": "Regenerar",
+    "video.choose": "Elegir vídeo de fondo",
+    "video.community": "Vídeos de la comunidad",
+    "video.url": "Introducir URL de YouTube",
+    "video.invalid": "Introduce una URL o un ID de vídeo válido de YouTube.",
+    "video.empty": "No hay vídeos disponibles.",
+    "video.failed": "No se pudieron cargar los vídeos."
   },
   "fr": {
     "section.account": "Compte",
@@ -6061,7 +6103,13 @@
     "update.available.title": "Mise à jour disponible",
     "update.release_notes": "Notes de version",
     "label.spotify": "Spotify",
-    "label.regenerate": "Régénérer"
+    "label.regenerate": "Régénérer",
+    "video.choose": "Choisir la vidéo de fond",
+    "video.community": "Vidéos de la communauté",
+    "video.url": "Saisir une URL YouTube",
+    "video.invalid": "Saisissez une URL ou un identifiant de vidéo YouTube valide.",
+    "video.empty": "Aucune vidéo disponible.",
+    "video.failed": "Impossible de charger les vidéos."
   },
   "ar": {
     "section.account": "الحساب",
@@ -6819,7 +6867,13 @@
     "update.available.title": "تحديث متاح",
     "update.release_notes": "ملاحظات الإصدار",
     "label.spotify": "Spotify",
-    "label.regenerate": "إعادة الإنشاء"
+    "label.regenerate": "إعادة الإنشاء",
+    "video.choose": "اختيار فيديو الخلفية",
+    "video.community": "فيديوهات المجتمع",
+    "video.url": "إدخال رابط YouTube",
+    "video.invalid": "أدخل رابط YouTube أو معرّف فيديو صالحًا.",
+    "video.empty": "لا تتوفر فيديوهات.",
+    "video.failed": "تعذّر تحميل الفيديوهات."
   },
   "fa": {
     "section.account": "حساب",
@@ -7577,7 +7631,13 @@
     "update.available.title": "بروزرسانی موجود است",
     "update.release_notes": "توضیحات انتشار",
     "label.spotify": "Spotify",
-    "label.regenerate": "بازتولید"
+    "label.regenerate": "بازتولید",
+    "video.choose": "انتخاب ویدیوی پس‌زمینه",
+    "video.community": "ویدیوهای انجمن",
+    "video.url": "وارد کردن نشانی YouTube",
+    "video.invalid": "نشانی یا شناسه معتبر ویدیوی YouTube را وارد کنید.",
+    "video.empty": "ویدیویی موجود نیست.",
+    "video.failed": "بارگیری ویدیوها ممکن نشد."
   },
   "de": {
     "section.account": "Konto",
@@ -8335,7 +8395,13 @@
     "update.available.title": "Update verfügbar",
     "update.release_notes": "Versionshinweise",
     "label.spotify": "Spotify",
-    "label.regenerate": "Neu erzeugen"
+    "label.regenerate": "Neu erzeugen",
+    "video.choose": "Hintergrundvideo auswählen",
+    "video.community": "Community-Videos",
+    "video.url": "YouTube-URL eingeben",
+    "video.invalid": "Gib eine gültige YouTube-URL oder Video-ID ein.",
+    "video.empty": "Keine Videos verfügbar.",
+    "video.failed": "Videos konnten nicht geladen werden."
   },
   "ru": {
     "section.account": "Аккаунт",
@@ -9093,7 +9159,13 @@
     "update.available.title": "Доступно обновление",
     "update.release_notes": "Описание выпуска",
     "label.spotify": "Spotify",
-    "label.regenerate": "Пересоздать"
+    "label.regenerate": "Пересоздать",
+    "video.choose": "Выбрать фоновое видео",
+    "video.community": "Видео сообщества",
+    "video.url": "Ввести ссылку YouTube",
+    "video.invalid": "Введите действительную ссылку или ID видео YouTube.",
+    "video.empty": "Нет доступных видео.",
+    "video.failed": "Не удалось загрузить видео."
   },
   "sv": {
     "section.account": "Konto",
@@ -9851,7 +9923,13 @@
     "update.available.title": "Uppdatering tillgänglig",
     "update.release_notes": "Versionsinformation",
     "label.spotify": "Spotify",
-    "label.regenerate": "Återskapa"
+    "label.regenerate": "Återskapa",
+    "video.choose": "Välj bakgrundsvideo",
+    "video.community": "Communityvideor",
+    "video.url": "Ange YouTube-URL",
+    "video.invalid": "Ange en giltig YouTube-URL eller ett video-ID.",
+    "video.empty": "Inga videor tillgängliga.",
+    "video.failed": "Kunde inte läsa in videor."
   },
   "pt": {
     "section.account": "Conta",
@@ -10609,7 +10687,13 @@
     "update.available.title": "Atualização disponível",
     "update.release_notes": "Notas de Lançamento",
     "label.spotify": "Spotify",
-    "label.regenerate": "Regenerar"
+    "label.regenerate": "Regenerar",
+    "video.choose": "Escolher vídeo de fundo",
+    "video.community": "Vídeos da comunidade",
+    "video.url": "Inserir URL do YouTube",
+    "video.invalid": "Insira uma URL ou um ID de vídeo válido do YouTube.",
+    "video.empty": "Não há vídeos disponíveis.",
+    "video.failed": "Não foi possível carregar os vídeos."
   },
   "bn": {
     "section.account": "অ্যাকাউন্ট",
@@ -11367,7 +11451,13 @@
     "update.available.title": "আপডেট পাওয়া যাচ্ছে",
     "update.release_notes": "রিলিজ নোট",
     "label.spotify": "Spotify",
-    "label.regenerate": "পুনরায় তৈরি"
+    "label.regenerate": "পুনরায় তৈরি",
+    "video.choose": "পটভূমির ভিডিও বেছে নিন",
+    "video.community": "কমিউনিটির ভিডিও",
+    "video.url": "YouTube URL লিখুন",
+    "video.invalid": "সঠিক YouTube URL বা ভিডিও ID লিখুন।",
+    "video.empty": "কোনো ভিডিও নেই।",
+    "video.failed": "ভিডিও লোড করা যায়নি।"
   },
   "cs": {
     "section.account": "Účet",
@@ -12125,7 +12215,13 @@
     "update.available.title": "Aktualizace k dispozici",
     "update.release_notes": "Poznámky k vydání",
     "label.spotify": "Spotify",
-    "label.regenerate": "Regenerovat"
+    "label.regenerate": "Regenerovat",
+    "video.choose": "Vybrat video na pozadí",
+    "video.community": "Komunitní videa",
+    "video.url": "Zadat adresu YouTube",
+    "video.invalid": "Zadejte platnou adresu YouTube nebo ID videa.",
+    "video.empty": "Nejsou dostupná žádná videa.",
+    "video.failed": "Videa se nepodařilo načíst."
   },
   "it": {
     "section.account": "Account",
@@ -12883,7 +12979,13 @@
     "update.available.title": "Aggiornamento disponibile",
     "update.release_notes": "Note di rilascio",
     "label.spotify": "Spotify",
-    "label.regenerate": "Rigenera"
+    "label.regenerate": "Rigenera",
+    "video.choose": "Scegli video di sfondo",
+    "video.community": "Video della community",
+    "video.url": "Inserisci URL YouTube",
+    "video.invalid": "Inserisci un URL o un ID video YouTube valido.",
+    "video.empty": "Nessun video disponibile.",
+    "video.failed": "Impossibile caricare i video."
   },
   "th": {
     "section.account": "บัญชี",
@@ -13641,7 +13743,13 @@
     "update.available.title": "มีอัปเดตใหม่",
     "update.release_notes": "รายละเอียดรุ่น",
     "label.spotify": "Spotify",
-    "label.regenerate": "สร้างใหม่"
+    "label.regenerate": "สร้างใหม่",
+    "video.choose": "เลือกวิดีโอพื้นหลัง",
+    "video.community": "วิดีโอจากชุมชน",
+    "video.url": "ป้อน URL ของ YouTube",
+    "video.invalid": "ป้อน URL ของ YouTube หรือรหัสวิดีโอที่ถูกต้อง",
+    "video.empty": "ไม่มีวิดีโอ",
+    "video.failed": "โหลดวิดีโอไม่สำเร็จ"
   },
   "vi": {
     "section.account": "Tài khoản",
@@ -14399,7 +14507,13 @@
     "update.available.title": "Có bản cập nhật mới",
     "update.release_notes": "Ghi chú phát hành",
     "label.spotify": "Spotify",
-    "label.regenerate": "Tạo lại"
+    "label.regenerate": "Tạo lại",
+    "video.choose": "Chọn video nền",
+    "video.community": "Video cộng đồng",
+    "video.url": "Nhập URL YouTube",
+    "video.invalid": "Nhập URL YouTube hoặc ID video hợp lệ.",
+    "video.empty": "Không có video.",
+    "video.failed": "Không thể tải video."
   },
   "id": {
     "section.account": "Akun",
@@ -15157,7 +15271,13 @@
     "update.available.title": "Pembaruan tersedia",
     "update.release_notes": "Catatan Rilis",
     "label.spotify": "Spotify",
-    "label.regenerate": "Buat ulang"
+    "label.regenerate": "Buat ulang",
+    "video.choose": "Pilih video latar",
+    "video.community": "Video komunitas",
+    "video.url": "Masukkan URL YouTube",
+    "video.invalid": "Masukkan URL YouTube atau ID video yang valid.",
+    "video.empty": "Tidak ada video.",
+    "video.failed": "Gagal memuat video."
   },
   "ms": {
     "section.account": "Akaun",
@@ -15915,7 +16035,13 @@
     "update.available.title": "Kemas kini tersedia",
     "update.release_notes": "Nota Keluaran",
     "label.spotify": "Spotify",
-    "label.regenerate": "Jana semula"
+    "label.regenerate": "Jana semula",
+    "video.choose": "Pilih video latar",
+    "video.community": "Video komuniti",
+    "video.url": "Masukkan URL YouTube",
+    "video.invalid": "Masukkan URL YouTube atau ID video yang sah.",
+    "video.empty": "Tiada video tersedia.",
+    "video.failed": "Video tidak dapat dimuatkan."
   },
   "tr": {
     "section.account": "Hesap",
@@ -16673,6 +16799,12 @@
     "update.available.title": "Güncelleme mevcut",
     "update.release_notes": "Yama Notları",
     "label.spotify": "Spotify",
-    "label.regenerate": "Yeniden Oluştur"
+    "label.regenerate": "Yeniden Oluştur",
+    "video.choose": "Arka plan videosu seç",
+    "video.community": "Topluluk videoları",
+    "video.url": "YouTube URL’si gir",
+    "video.invalid": "Geçerli bir YouTube URL’si veya video kimliği girin.",
+    "video.empty": "Video bulunamadı.",
+    "video.failed": "Videolar yüklenemedi."
   }
 }

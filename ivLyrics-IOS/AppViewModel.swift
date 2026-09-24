@@ -424,6 +424,7 @@ final class AppViewModel: ObservableObject {
     private var spotifyArtworkURLsByTrackId = BoundedLRUCache<String, URL>(capacity: 200)
     private var spotifyMetadataHydrationRetryAfter = BoundedLRUCache<String, Date>(capacity: 200)
     private var currentYouTubeBackgroundRequestKey = ""
+    private var youTubeSelectionRevision = UUID()
     private var currentYouTubeBackgroundLoading = false
     private var currentTmiRequestKey = ""
     private var pendingResearchBypassCache: Bool?
@@ -2829,6 +2830,21 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func selectTrackVideo(_ info: YouTubeVideoInfo?, trackKey: String) async {
+        await youtubeRepository.selectVideo(info, trackKey: trackKey)
+        guard currentTrackKey == trackKey else { return }
+        youTubeSelectionRevision = UUID()
+        if info == nil, let track = currentTrack {
+            await youtubeRepository.clearCacheForIsrc(IvLyricsUtilities.firstNonEmpty(lyricsResult.isrc, track.isrc))
+        }
+        refreshBackgroundForCurrentTrack()
+    }
+
+    func communityVideosForCurrentTrack() async throws -> [YouTubeVideoInfo] {
+        guard let track = currentTrack else { return [] }
+        return try await youtubeRepository.communityVideos(track: track, lyricsResult: lyricsResult)
+    }
+
     func refreshBackgroundForCurrentTrack() {
         guard let track = currentTrack else {
             resetYouTubeBackgroundForTrack()
@@ -4049,11 +4065,7 @@ final class AppViewModel: ObservableObject {
             return
         }
         let isrc = IvLyricsUtilities.firstNonEmpty(result.isrc, track.isrc)
-        guard !isrc.isEmpty else {
-            appendLog("youtube background: waiting for ISRC")
-            return
-        }
-        let requestKey = "isrc:\(isrc)"
+        let requestKey = "\(track.stableKey)|\(isrc)|\(youTubeSelectionRevision)"
         if requestKey == currentYouTubeBackgroundRequestKey && (currentYouTubeBackgroundLoading || youtubeInfo != nil) {
             return
         }
