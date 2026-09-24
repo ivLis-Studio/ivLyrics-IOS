@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.17",
+          "buildVersion": "56",
+          "date": "2026-09-24",
+          "localizedDescription": "v1.3.17은 트랙별 가사 제공자와 배경 동영상 선택을 추가하고, iOS 설정 탐색 및 검색 흐름을 개선했습니다. 네이티브 DeepL 번역, Gemini 사고 설정의 플랫폼 간 일관성, 가사 재생성 및 제공자 연결 테스트도 보강했습니다. 배경 표시 품질과 배포 메타데이터도 정비했습니다.\n\nv1.3.17 adds per-track lyric-provider and background-video selection, while improving settings navigation and search on iOS. It also adds native DeepL translation support, aligns Gemini thinking configuration across platforms, and restores lyric regeneration and provider connection testing. Background presentation and distribution metadata have also been refined.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.17/ivLyrics-IOS-v1.3.17-unsigned.ipa",
+          "size": 7554463,
+          "sha256": "663a0961a0c04b9551c6d1b28f979ad9ffaa894a2b90d8438c3fd5d69fc81a8d",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.16",
           "buildVersion": "55",
           "date": "2026-09-23",
