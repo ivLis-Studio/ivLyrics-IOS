@@ -132,7 +132,8 @@ final class AppSettings: ObservableObject {
         Provider(id: "groq", label: "Groq", description: "빠른 OpenAI 호환 추론", defaultBaseUrl: "https://api.groq.com/openai/v1", defaultModel: "llama-3.3-70b-versatile", apiKeyURL: "https://console.groq.com/keys"),
         Provider(id: "perplexity", label: "Perplexity", description: "Sonar API 사용", defaultBaseUrl: "https://api.perplexity.ai", defaultModel: "sonar-pro", apiKeyURL: "https://www.perplexity.ai/settings/api"),
         Provider(id: "pollinations", label: "Pollinations.ai", description: "Pollinations OpenAI 호환 API", defaultBaseUrl: "https://gen.pollinations.ai", defaultModel: "openai", apiKeyURL: "https://enter.pollinations.ai"),
-        Provider(id: "paxsenix", label: "paxsenix", description: "OpenAI 호환 API 서버", defaultBaseUrl: PaxsenixAIProvider.baseURL, defaultModel: "", apiKeyURL: PaxsenixAIProvider.dashboardURL)
+        Provider(id: "paxsenix", label: "paxsenix", description: "OpenAI 호환 API 서버", defaultBaseUrl: PaxsenixAIProvider.baseURL, defaultModel: "", apiKeyURL: PaxsenixAIProvider.dashboardURL),
+        Provider(id: "deepl", label: "DeepL", description: "DeepL API Free / Pro", defaultBaseUrl: "", defaultModel: "", apiKeyURL: "https://www.deepl.com/your-account/keys")
     ]
     static let allAIProviders: [Provider] = [
         Provider(
@@ -1846,7 +1847,7 @@ final class AppSettings: ObservableObject {
 
         var readyAIProviderSnapshots: [Snapshot] {
             enabledAIProviderOrder.compactMap { providerId in
-                guard let provider = AppSettings.aiProviderById(providerId), !provider.isKeyless,
+                guard let provider = AppSettings.aiProviderById(providerId), !provider.translationOnly,
                       let snapshot = selectingAIProvider(providerId), snapshot.hasApiKey, snapshot.hasModel else {
                     return nil
                 }
@@ -1861,12 +1862,13 @@ final class AppSettings: ObservableObject {
         var hasEnabledAIProvider: Bool {
             enabledAIProviderOrder.contains { providerId in
                 guard let provider = AppSettings.aiProviderById(providerId) else { return false }
-                return !provider.isKeyless
+                return !provider.translationOnly
             }
         }
 
         var hasAnyTranslationProvider: Bool {
             hasKeylessTranslationProvider || hasReadyAIProvider
+                || (isAIProviderEnabled("deepl") && selectingAIProvider("deepl")?.hasApiKey == true)
         }
 
         func selectingAIProvider(_ providerId: String) -> Snapshot? {
@@ -2175,6 +2177,7 @@ final class AppSettings: ObservableObject {
         var defaultBaseUrl: String
         var defaultModel: String
         var apiKeyURL: String
+        var translationOnly: Bool { isKeyless || id == "deepl" }
         var isKeyless: Bool = false
         var defaultEnabled: Bool = false
     }

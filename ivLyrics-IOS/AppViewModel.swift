@@ -2262,7 +2262,7 @@ final class AppViewModel: ObservableObject {
     func testAIConnection() {
         guard !aiConnectionTesting else { return }
         let tested = settings.snapshot
-        guard tested.hasApiKey, !tested.model.trimmed.isEmpty else {
+        guard tested.hasApiKey, tested.provider.translationOnly || !tested.model.trimmed.isEmpty else {
             showSavedToast(settings.t(!tested.hasApiKey ? "status.ai_key_needed" : "status.ai_model_needed"))
             return
         }
@@ -3951,10 +3951,10 @@ final class AppViewModel: ObservableObject {
         }
         let rule = snapshot.ruleForSource(sourceLang)
         let targetLang = snapshot.resolveTargetLanguage(sourceLang: sourceLang)
-        let selectedAiReady = snapshot.hasApiKey && snapshot.hasModel
+        let selectedAiReady = snapshot.hasReadyAIProvider
         let translationRequested = rule.translationEnabled
             && !snapshot.shouldSkipTranslation(sourceLang: sourceLang, resolvedTargetLang: targetLang)
-        let translation = translationRequested && (snapshot.hasKeylessTranslationProvider || selectedAiReady)
+        let translation = translationRequested && snapshot.hasAnyTranslationProvider
         return (rule.pronunciationEnabled && selectedAiReady, translation)
     }
 

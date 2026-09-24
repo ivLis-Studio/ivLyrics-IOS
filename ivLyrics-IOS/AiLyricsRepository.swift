@@ -215,7 +215,7 @@ actor AiLyricsRepository {
         let requestedPronunciation = rule.pronunciationEnabled
         let requestedTranslation = rule.translationEnabled && !translationSkipped
         let needsPronunciation = requestedPronunciation && selectedAiReady
-        let needsTranslation = requestedTranslation && (settings.hasKeylessTranslationProvider || selectedAiReady)
+        let needsTranslation = requestedTranslation && settings.hasAnyTranslationProvider
 
         guard rule.enabled else {
             log("ai lyrics skipped for source=\(sourceLang): translation=false / pronunciation=false")
@@ -483,7 +483,11 @@ actor AiLyricsRepository {
                     guard let provider = AppSettings.aiProviderById(providerId) else { continue }
                     await liveState.reset(task: task)
                     do {
-                        if provider.isKeyless {
+                        if provider.id == "deepl" {
+                            guard let profile = settings.selectingAIProvider(provider.id), profile.hasApiKey else { continue }
+                            await providerUpdate?(task, provider.label)
+                            resolvedValues = try await translateDeepL(texts: requests.map(\.text), language: targetLang, settings: profile)
+                        } else if provider.isKeyless {
                             await providerUpdate?(task, provider.label)
                             log("translation attempt: provider=\(provider.label)")
                             let result = try await keylessTranslationProviders.translate(
@@ -671,7 +675,11 @@ actor AiLyricsRepository {
             guard let provider = AppSettings.aiProviderById(providerId) else { continue }
             do {
                 let translation: MetadataTranslation
-                if provider.isKeyless {
+                if provider.id == "deepl" {
+                    guard let profile = settings.selectingAIProvider(provider.id), profile.hasApiKey else { continue }
+                    let values = try await translateDeepL(texts: [title, artist], language: targetLang, settings: profile, preserveLyricsStructure: false)
+                    translation = MetadataTranslation(title: values[0], artist: values[1], sourceLang: sourceLang, targetLang: targetLang)
+                } else if provider.isKeyless {
                     log("metadata translation attempt: provider=\(provider.label)")
                     let result = try await keylessTranslationProviders.translate(
                         providerId: provider.id,
@@ -956,7 +964,27 @@ actor AiLyricsRepository {
         culturalAnnotationDiskCache.removeByKeyPrefix("cultural|" + key + "|")
     }
 
+    private func translateDeepL(texts: [String], language: String, settings: AppSettings.Snapshot,
+                               preserveLyricsStructure: Bool = true) async throws -> [String] {
+        let keys = providerApiKeys(settings)
+        guard !keys.isEmpty else { throw DeepLTranslationProvider.invalid("API key is required") }
+        var lastError: Error = DeepLTranslationProvider.invalid("Translation failed")
+        for key in keys {
+            do {
+                return try await DeepLTranslationProvider.translate(texts: texts, targetLanguage: language,
+                    apiKey: key, preserveLyricsStructure: preserveLyricsStructure)
+            } catch let error as HTTPStatusError where [401, 403, 429, 456].contains(error.statusCode) {
+                lastError = error
+            }
+        }
+        throw lastError
+    }
+
     func testConnection(settings: AppSettings.Snapshot) async throws {
+        if settings.provider.id == "deepl" {
+            _ = try await translateDeepL(texts: ["Hello"], language: "KO", settings: settings, preserveLyricsStructure: false)
+            return
+        }
         let keys = providerApiKeys(settings)
         guard let key = keys.first, !settings.model.trimmed.isEmpty else {
             throw NSError(domain: "ivLyrics.AI", code: -1)
@@ -998,6 +1026,8 @@ actor AiLyricsRepository {
 
     private func callProviderRawOnce(prompt: String, settings: AppSettings.Snapshot, apiKey: String) async throws -> String {
         switch settings.provider.id {
+        case "deepl":
+            throw DeepLTranslationProvider.invalid("Only translation is supported")
         case "gemini":
             return try await callGemini(prompt: prompt, settings: settings, apiKey: apiKey)
         case "claude":
@@ -1159,6 +1189,8 @@ actor AiLyricsRepository {
     ) async throws -> String {
         let researchMaxTokens = await resolveResearchMaxTokens(settings: settings, apiKey: apiKey)
         switch settings.provider.id {
+        case "deepl":
+            throw DeepLTranslationProvider.invalid("Only translation is supported")
         case "gemini":
             return try await callGeminiStream(
                 prompt: prompt, settings: settings, apiKey: apiKey,
@@ -1214,6 +1246,8 @@ actor AiLyricsRepository {
         onDelta: ((String) async -> Void)? = nil
     ) async throws -> String {
         switch settings.provider.id {
+        case "deepl":
+            throw DeepLTranslationProvider.invalid("Only translation is supported")
         case "gemini":
             return try await callGeminiStream(prompt: prompt, settings: settings, apiKey: apiKey, onDelta: onDelta)
         case "claude":

@@ -2647,7 +2647,7 @@ private struct FirstLanguagePromptSheetView: View {
 
     private var shouldShowAIProviderHint: Bool {
         let snapshot = settings.snapshot
-        return snapshot.hasKeylessTranslationProvider && !snapshot.hasEnabledAIProvider
+        return snapshot.hasAnyTranslationProvider && !snapshot.hasEnabledAIProvider
     }
 
     private var aiProviderHintKey: String {
@@ -9315,25 +9315,27 @@ struct SettingsView: View {
                 Link(settings.t("button.get_key"), destination: url)
                     .font(.pretendard(15, weight: .semibold))
             }
-            settingsCard(settings.t("field.base_url")) {
-                settingsTextField(settings.t("field.base_url"), text: $settings.baseUrl)
-            }
-            settingsCard(
-                settings.t("field.model"),
-                description: settings.providerId == "paxsenix" && settings.model.trimmed.isEmpty
-                    ? settings.t("field.model_required")
-                    : ""
-            ) {
-                aiModelSelector
-            }
-            .task(id: aiModelConfiguration) {
-                aiModels = []
-                aiModelsError = ""
-                aiModelsBuiltIn = false
-                do {
-                    try await Task.sleep(for: .milliseconds(350))
-                    await refreshAIModels()
-                } catch { }
+            if !selectedProvider.translationOnly {
+                settingsCard(settings.t("field.base_url")) {
+                    settingsTextField(settings.t("field.base_url"), text: $settings.baseUrl)
+                }
+                settingsCard(
+                    settings.t("field.model"),
+                    description: settings.providerId == "paxsenix" && settings.model.trimmed.isEmpty
+                        ? settings.t("field.model_required")
+                        : ""
+                ) {
+                    aiModelSelector
+                }
+                .task(id: aiModelConfiguration) {
+                    aiModels = []
+                    aiModelsError = ""
+                    aiModelsBuiltIn = false
+                    do {
+                        try await Task.sleep(for: .milliseconds(350))
+                        await refreshAIModels()
+                    } catch { }
+                }
             }
             if settings.providerId == "chatgpt" {
                 settingsCard(settings.t("openai.connections"), description: settings.t("openai.connections_desc")) {
@@ -9360,16 +9362,18 @@ struct SettingsView: View {
                     }
                 }
             }
-            settingsCard(settings.t("field.max_tokens")) {
-                Stepper(value: maxTokensBinding, in: 256...65_536, step: 256) {
-                    Text("\(settings.maxTokens)")
+            if !selectedProvider.translationOnly {
+                settingsCard(settings.t("field.max_tokens")) {
+                    Stepper(value: maxTokensBinding, in: 256...65_536, step: 256) {
+                        Text("\(settings.maxTokens)")
+                    }
                 }
-            }
-            settingsCard(settings.t("field.temperature")) {
-                HStack {
-                    SettingsSlider(value: temperatureBinding, in: 0...2, step: 0.05)
-                    Text(String(format: "%.2f", settings.temperature))
-                        .foregroundStyle(SettingsDesign.secondary)
+                settingsCard(settings.t("field.temperature")) {
+                    HStack {
+                        SettingsSlider(value: temperatureBinding, in: 0...2, step: 0.05)
+                        Text(String(format: "%.2f", settings.temperature))
+                            .foregroundStyle(SettingsDesign.secondary)
+                    }
                 }
             }
             settingsCard(settings.t("field.api_key"), description: settings.t("field.api_key_desc")) {
@@ -10126,6 +10130,8 @@ struct SettingsView: View {
 
     private func aiProviderDescription(_ provider: AppSettings.Provider) -> String {
         switch provider.id {
+        case "deepl":
+            return provider.description
         case KeylessTranslationProviders.bingId:
             return settings.t("setting.bing_translate_provider_desc")
         case KeylessTranslationProviders.googleId:
