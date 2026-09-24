@@ -9240,6 +9240,10 @@ struct SettingsView: View {
                         .disabled(!model.pollinationsConnected || model.pollinationsAuthInFlight)
                 }
             }
+            settingsActionButton(settings.t(model.aiConnectionTesting ? "pollinations.status_testing" : "pollinations.test")) {
+                model.testAIConnection()
+            }
+            .disabled(model.aiConnectionTesting)
             settingsActionButton(settings.t("button.save_regenerate")) {
                 model.saveAiSettingsAndRegenerate()
             }

@@ -212,6 +212,18 @@ struct LyricsMetaMenuOverlay: View {
 
     private var languageTab: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Button {
+                model.saveAiSettingsAndRegenerate()
+                dismiss()
+            } label: {
+                Label(settings.t("tmi.regenerate"), systemImage: "arrow.clockwise")
+                    .font(.pretendard(13, weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .disabled(model.lyricsResult.lines.isEmpty)
+
             Text(languageRuleSummary)
                 .font(.pretendard(12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.82))

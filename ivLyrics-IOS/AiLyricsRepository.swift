@@ -956,6 +956,15 @@ actor AiLyricsRepository {
         culturalAnnotationDiskCache.removeByKeyPrefix("cultural|" + key + "|")
     }
 
+    func testConnection(settings: AppSettings.Snapshot) async throws {
+        let keys = providerApiKeys(settings)
+        guard let key = keys.first, !settings.model.trimmed.isEmpty else {
+            throw NSError(domain: "ivLyrics.AI", code: -1)
+        }
+        let response = try await callProviderRawOnce(prompt: "Reply with only OK.", settings: settings, apiKey: key)
+        guard !response.trimmed.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -2) }
+    }
+
     private func callProviderRaw(prompt: String, settings: AppSettings.Snapshot) async throws -> String {
         let keys = providerApiKeys(settings)
         guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: "API 키가 필요합니다"]) }

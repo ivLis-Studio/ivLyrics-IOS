@@ -2244,6 +2244,30 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    @Published private(set) var aiConnectionTesting = false
+
+    func testAIConnection() {
+        guard !aiConnectionTesting else { return }
+        let tested = settings.snapshot
+        guard tested.hasApiKey, !tested.model.trimmed.isEmpty else {
+            showSavedToast(settings.t(!tested.hasApiKey ? "status.ai_key_needed" : "status.ai_model_needed"))
+            return
+        }
+        aiConnectionTesting = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            var valid = false
+            do { try await aiRepository.testConnection(settings: tested); valid = true }
+            catch { /* Do not expose provider error bodies containing credentials. */ }
+            aiConnectionTesting = false
+            let current = settings.snapshot
+            guard current.provider.id == tested.provider.id, current.apiKeys == tested.apiKeys,
+                  current.baseUrl == tested.baseUrl, current.model == tested.model,
+                  current.pollinationsAccessToken == tested.pollinationsAccessToken else { return }
+            showSavedToast(settings.t(valid ? "pollinations.status_valid" : "pollinations.status_invalid"))
+        }
+    }
+
     func saveAiSettingsAndRegenerate() {
         showSavedToast(settings.t("toast.settings_saved"))
         regenerateCurrentAiSupplements(statusKey: "toast.settings_saved")
