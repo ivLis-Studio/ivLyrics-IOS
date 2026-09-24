@@ -8420,9 +8420,11 @@ private struct SpotifySetupInstructionsPanel: View {
 struct SettingsView: View {
     private enum SettingsTab: String, CaseIterable, Identifiable {
         case general
-        case lyrics
-        case appearance
+        case providers
         case ai
+        case appearance
+        case lyrics
+        case player
         case system
 
         var id: String { rawValue }
@@ -8438,6 +8440,9 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppViewModel
     @State private var settingsLogsPresented = false
     @State private var selectedTab: SettingsTab = .general
+    @State private var settingsSearch = ""
+    @FocusState private var settingsSearchFocused: Bool
+    @State private var settingsSearchTarget = ""
     @State private var aiModels: [AIProviderModels.Model] = []
     @State private var aiModelsConfiguration: AIProviderModels.Configuration?
     @State private var aiModelsLoading = false
@@ -8451,6 +8456,17 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             VStack(spacing: 9) {
                 settingsHeader
+                HStack {
+                    Image(systemName: "magnifyingglass").foregroundStyle(SettingsDesign.secondary)
+                    TextField(settings.t("settings.search"), text: $settingsSearch)
+                        .focused($settingsSearchFocused)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    if !settingsSearch.isEmpty {
+                        Button { settingsSearch = "" } label: { Image(systemName: "xmark.circle.fill") }
+                            .accessibilityLabel(settings.t("button.close"))
+                    }
+                }
+                .padding(10).background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 10))
                 settingsTabs
             }
             .padding(.horizontal, 20)
@@ -8463,7 +8479,8 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         Color.clear.frame(height: 0).id("settings-top")
-                        selectedSettingsPage
+                        if settingsSearch.trimmed.isEmpty { selectedSettingsPage }
+                        else { settingsSearchResults }
                     }
                     .frame(maxWidth: 640)
                     .frame(maxWidth: .infinity)
@@ -8472,7 +8489,12 @@ struct SettingsView: View {
                     .padding(.bottom, 40)
                 }
                 .onChange(of: selectedTab) { _, _ in
-                    proxy.scrollTo("settings-top", anchor: .top)
+                    if settingsSearchTarget.isEmpty { proxy.scrollTo("settings-top", anchor: .top) }
+                }
+                .task(id: settingsSearchTarget) {
+                    guard !settingsSearchTarget.isEmpty else { return }
+                    await Task.yield()
+                    proxy.scrollTo(settingsSearchTarget, anchor: .top)
                 }
             }
         }
@@ -8482,10 +8504,13 @@ struct SettingsView: View {
         .font(.pretendard(15))
         .tint(SettingsDesign.accent)
         .toggleStyle(SettingsSwitchStyle())
+        .onChange(of: settingsSearch) { _, query in
+            if !query.trimmed.isEmpty { settingsSearchTarget = "" }
+        }
         .onAppear {
 #if DEBUG
             if let rawTab = ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_SETTINGS_TAB"],
-               let tab = SettingsTab(rawValue: rawTab == "player" ? "appearance" : rawTab) {
+               let tab = SettingsTab(rawValue: rawTab) {
                 selectedTab = tab
             }
 #endif
@@ -8495,6 +8520,121 @@ struct SettingsView: View {
             LogsView(visible: $settingsLogsPresented)
                 .environmentObject(model)
                 .environmentObject(model.playbackClock)
+        }
+    }
+
+    private var settingsSearchEntries: [(tab: SettingsTab, key: String)] {
+        [
+            (.general, "section.language"),
+            (.general, "setting.ui_language"),
+            (.general, "setting.pronunciation_language"),
+            (.general, "setting.pronunciation_notation"),
+            (.general, "setting.metadata_translation"),
+            (.general, "setting.japanese_furigana"),
+            (.general, "setting.main_preview"),
+            (.lyrics, "section.player"),
+            (.lyrics, "setting.auto_interlude"),
+            (.lyrics, "setting.interlude_labels"),
+            (.lyrics, "setting.synced_karaoke_animation"),
+            (.lyrics, "setting.karaoke_bounce_effect"),
+            (.lyrics, "setting.karaoke_display_granularity"),
+            (.providers, "section.lyrics_providers"),
+            (.providers, "setting.lyrics_type_priority"),
+            (.providers, "setting.sync_data_provider_priority"),
+            (.appearance, "section.layout"),
+            (.appearance, "setting.lyrics_alignment"),
+            (.appearance, "section.typography"),
+            (.appearance, "section.speaker_colors"),
+            (.appearance, "setting.creator_speaker_colors"),
+            (.player, "section.player"),
+            (.player, "setting.keep_screen_on"),
+            (.player, "setting.landscape_auto_hide"),
+            (.player, "setting.landscape_center_no_lyrics"),
+            (.player, "section.pip"),
+            (.player, "setting.pip_show_artwork"),
+            (.player, "setting.pip_background"),
+            (.player, "setting.pip_orientation"),
+            (.player, "setting.pip_lyrics_alignment"),
+            (.player, "setting.pip_lyrics_size"),
+            (.player, "setting.pip_translation_size"),
+            (.player, "vinyl.mode"),
+            (.player, "vinyl.settings.album_size"),
+            (.player, "vinyl.settings.record_size"),
+            (.player, "vinyl.settings.tonearm_style"),
+            (.player, "vinyl.settings.tonearm_finish"),
+            (.player, "vinyl.settings.tonearm_size"),
+            (.player, "vinyl.settings.animations"),
+            (.player, "vinyl.settings.center_rotation"),
+            (.player, "vinyl.settings.lyrics"),
+            (.player, "section.typography"),
+            (.ai, "section.ai_lyrics"),
+            (.ai, "lyrics.translation"),
+            (.ai, "lyrics.pronunciation"),
+            (.ai, "section.provider"),
+            (.ai, "setting.cultural_annotations"),
+            (.ai, "setting.cultural_font_family"),
+            (.ai, "section.language_rules"),
+            (.ai, "field.source"),
+            (.ai, "field.track_language"),
+            (.ai, "field.save_target"),
+            (.ai, "field.base_url"),
+            (.ai, "field.model"),
+            (.ai, "openai.connections"),
+            (.ai, "field.max_tokens"),
+            (.ai, "field.temperature"),
+            (.ai, "field.api_key"),
+            (.ai, "pollinations.access_token"),
+            (.system, "section.account"),
+            (.system, "creator_privacy.private_title"),
+            (.system, "cloud_sync.section"),
+            (.system, "section.spotify_api"),
+            (.system, "field.spotify_client_id"),
+            (.system, "field.spotify_client_secret"),
+            (.system, "field.redirect_uri"),
+            (.system, "field.live_source"),
+            (.system, "spotify.disconnect_oauth"),
+            (.system, "lyrics.tab.sync"),
+            (.system, "section.update"),
+            (.system, "section.tools"),
+            (.system, "section.background"),
+            (.system, "setting.background_mode"),
+            (.system, "setting.brightness"),
+            (.system, "setting.blur"),
+            (.system, "setting.video_scale"),
+            (.system, "setting.noise"),
+            (.system, "setting.reduce_motion"),
+            (.system, "field.solid_color"),
+            (.system, "section.track_background"),
+            (.system, "lyrics.background.override")
+        ]
+    }
+
+    private var settingsSearchResults: some View {
+        let query = settingsSearch.trimmed
+        let matches = settingsSearchEntries.filter {
+            settings.t($0.key).localizedStandardContains(query)
+                || settings.t($0.tab.titleKey).localizedStandardContains(query)
+                || settings.t($0.key + "_desc").localizedStandardContains(query)
+        }
+        return VStack(alignment: .leading, spacing: 12) {
+            if matches.isEmpty { Text(settings.t("settings.no_results")).foregroundStyle(SettingsDesign.secondary) }
+            ForEach(matches.indices, id: \.self) { index in
+                let entry = matches[index]
+                Button {
+                    settingsSearchFocused = false
+                    selectedTab = entry.tab
+                    if entry.tab == .ai { expandedAIProvider = settings.providerId }
+                    settingsSearchTarget = settings.t(entry.key)
+                    settingsSearch = ""
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(settings.t(entry.key)).font(.pretendard(15, weight: .semibold))
+                        Text(settings.t(entry.tab.titleKey)).font(.caption).foregroundStyle(SettingsDesign.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                    .background(SettingsDesign.surface, in: RoundedRectangle(cornerRadius: 12))
+                }.buttonStyle(.plain)
+            }
         }
     }
 
@@ -8525,6 +8665,8 @@ struct SettingsView: View {
                 ForEach(SettingsTab.allCases) { tab in
                     Button {
                         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
+                            settingsSearch = ""
+                            settingsSearchTarget = ""
                             selectedTab = tab
                         }
                     } label: {
@@ -8552,11 +8694,12 @@ struct SettingsView: View {
             generalSettingsPage
         case .lyrics:
             lyricsSettingsPage
+        case .providers:
+            lyricsProvidersSettingsPage
         case .appearance:
-            VStack(alignment: .leading, spacing: 28) {
-                appearanceSettingsPage
-                playerSettingsPage
-            }
+            appearanceSettingsPage
+        case .player:
+            playerSettingsPage
         case .ai:
             aiSettingsPage
         case .system:
@@ -8627,21 +8770,6 @@ struct SettingsView: View {
     private var lyricsSettingsPage: some View {
         VStack(alignment: .leading, spacing: 26) {
             settingsSection(settings.t("section.player")) {
-                settingsToggleCard(
-                    settings.t("setting.keep_screen_on"),
-                    description: settings.t("setting.keep_screen_on_desc"),
-                    binding: keepScreenOnBinding
-                )
-                settingsToggleCard(
-                    settings.t("setting.landscape_auto_hide"),
-                    description: settings.t("setting.landscape_auto_hide_desc"),
-                    binding: landscapeAutoHideBinding
-                )
-                settingsToggleCard(
-                    settings.t("setting.landscape_center_no_lyrics"),
-                    description: settings.t("setting.landscape_center_no_lyrics_desc"),
-                    binding: landscapeCenterNoLyricsBinding
-                )
                 settingsToggleCard(settings.t("setting.auto_interlude"), description: settings.t("setting.auto_interlude_desc"), binding: autoInterludeBinding)
                 settingsToggleCard(settings.t("setting.interlude_labels"), description: settings.t("setting.interlude_labels_desc"), binding: settingsSavedBinding(\.interludeLabelsEnabled))
                 settingsToggleCard(settings.t("setting.synced_karaoke_animation"), description: settings.t("setting.synced_karaoke_animation_desc"), binding: settingsSavedBinding(\.syncedLyricsKaraokeAnimationEnabled))
@@ -8672,6 +8800,11 @@ struct SettingsView: View {
                 }
             }
 
+        }
+    }
+
+    private var lyricsProvidersSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 26) {
             settingsSection(
                 settings.t("section.lyrics_providers"),
                 description: settings.t("section.lyrics_providers_desc")
@@ -8808,6 +8941,24 @@ struct SettingsView: View {
 
     private var playerSettingsPage: some View {
         VStack(alignment: .leading, spacing: 26) {
+            settingsSection(settings.t("section.player")) {
+                settingsToggleCard(
+                    settings.t("setting.keep_screen_on"),
+                    description: settings.t("setting.keep_screen_on_desc"),
+                    binding: keepScreenOnBinding
+                )
+                settingsToggleCard(
+                    settings.t("setting.landscape_auto_hide"),
+                    description: settings.t("setting.landscape_auto_hide_desc"),
+                    binding: landscapeAutoHideBinding
+                )
+                settingsToggleCard(
+                    settings.t("setting.landscape_center_no_lyrics"),
+                    description: settings.t("setting.landscape_center_no_lyrics_desc"),
+                    binding: landscapeCenterNoLyricsBinding
+                )
+            }
+
             settingsSection(settings.t("section.pip"), description: settings.t("section.pip_desc")) {
                 settingsToggleCard(
                     settings.t("setting.pip_show_artwork"),
@@ -9240,11 +9391,13 @@ struct SettingsView: View {
                         .disabled(!model.pollinationsConnected || model.pollinationsAuthInFlight)
                 }
             }
+            Text(settings.t("settings.ai_autosave"))
+                .font(.caption).foregroundStyle(SettingsDesign.secondary)
             settingsActionButton(settings.t(model.aiConnectionTesting ? "pollinations.status_testing" : "pollinations.test")) {
                 model.testAIConnection()
             }
             .disabled(model.aiConnectionTesting)
-            settingsActionButton(settings.t("button.save_regenerate")) {
+            settingsActionButton(settings.t("tmi.regenerate")) {
                 model.saveAiSettingsAndRegenerate()
             }
         }
@@ -9597,6 +9750,7 @@ struct SettingsView: View {
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(SettingsDesign.border, lineWidth: 1))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .id(title)
     }
 
     private func settingsCard<Content: View>(
@@ -9632,6 +9786,7 @@ struct SettingsView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .settingsRowSeparator()
+        .id(title)
     }
 
     private func settingsToggleCard(_ title: String, description: String = "", binding: Binding<Bool>) -> some View {
@@ -9651,6 +9806,7 @@ struct SettingsView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .settingsRowSeparator()
+        .id(title)
     }
 
     private func typographySettingsRow(_ slot: AppSettings.TypographySlot) -> some View {
