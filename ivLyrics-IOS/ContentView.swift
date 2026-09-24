@@ -8596,25 +8596,28 @@ struct SettingsView: View {
             (.system, "lyrics.tab.sync"),
             (.system, "section.update"),
             (.system, "section.tools"),
-            (.system, "section.background"),
-            (.system, "setting.background_mode"),
-            (.system, "setting.brightness"),
-            (.system, "setting.blur"),
-            (.system, "setting.video_scale"),
-            (.system, "setting.noise"),
-            (.system, "setting.reduce_motion"),
-            (.system, "field.solid_color"),
-            (.system, "section.track_background"),
-            (.system, "lyrics.background.override")
-        ]
+            (.appearance, "section.background"),
+            (.appearance, "setting.background_mode"),
+            (.appearance, "setting.brightness"),
+            (.appearance, "setting.blur"),
+            (.appearance, "setting.video_scale"),
+            (.appearance, "setting.noise"),
+            (.appearance, "setting.reduce_motion"),
+            (.appearance, "field.solid_color"),
+            (.appearance, "section.track_background"),
+            (.appearance, "lyrics.background.override")
+        ] + AppSettings.allAIProviders.map { (tab: SettingsTab.ai, key: $0.label) }
+          + AppSettings.lyricsProviders.map { (tab: SettingsTab.providers, key: $0.name) }
     }
 
     private var settingsSearchResults: some View {
         let query = settingsSearch.trimmed
-        let matches = settingsSearchEntries.filter {
-            settings.t($0.key).localizedStandardContains(query)
-                || settings.t($0.tab.titleKey).localizedStandardContains(query)
-                || settings.t($0.key + "_desc").localizedStandardContains(query)
+        let matches = settingsSearchEntries.filter { entry in
+            let descriptionKey = entry.key + "_desc"
+            let description = settings.t(descriptionKey)
+            return settings.t(entry.key).localizedStandardContains(query)
+                || settings.t(entry.tab.titleKey).localizedStandardContains(query)
+                || (description != descriptionKey && description.localizedStandardContains(query))
         }
         return VStack(alignment: .leading, spacing: 12) {
             if matches.isEmpty { Text(settings.t("settings.no_results")).foregroundStyle(SettingsDesign.secondary) }
@@ -8623,7 +8626,12 @@ struct SettingsView: View {
                 Button {
                     settingsSearchFocused = false
                     selectedTab = entry.tab
-                    if entry.tab == .ai { expandedAIProvider = settings.providerId }
+                    if entry.tab == .ai {
+                        if let provider = AppSettings.providers.first(where: { $0.label == entry.key }) {
+                            settings.setProvider(provider.id)
+                        }
+                        expandedAIProvider = settings.providerId
+                    }
                     settingsSearchTarget = settings.t(entry.key)
                     settingsSearch = ""
                 } label: {
@@ -10097,6 +10105,7 @@ struct SettingsView: View {
             }
         }
         .settingsRowSeparator()
+        .id(provider.label)
         .dropDestination(for: String.self) { providerIds, location in
             guard let sourceId = providerIds.first else { return false }
             settings.moveAIProvider(sourceId, relativeTo: provider.id, after: location.y > 36)
