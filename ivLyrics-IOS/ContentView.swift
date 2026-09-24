@@ -1111,7 +1111,7 @@ struct PlayerBackgroundView: View {
                     url: url,
                     blur: background.blur,
                     opacity: 1,
-                    scale: background.blur >= 55 ? 2.55 : 2.2,
+                    scale: background.reduceMotion ? 1 : 1.08,
                     date: date,
                     reduceMotion: background.reduceMotion
                 )
@@ -1225,7 +1225,7 @@ private struct AnimatedGradientBackgroundLayer: View {
     }
 
     private func blob(index: Int, size: CGSize) -> some View {
-        let radius = max(size.width, size.height) * Self.radii[index]
+        let radius = max(size.width, size.height) * Self.radii[index] * (0.6 + CGFloat(min(100, max(0, background.blur))) * 0.02)
         let center = blobCenter(index: index, size: size)
         let alpha = max(0.16, 0.35 - Double(index) * 0.025)
         return Circle()
@@ -1275,14 +1275,14 @@ private struct MovingArtworkBlurLayer: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .scaleEffect(transform.scale)
             .offset(transform.offset)
-            .blur(radius: max(8, CGFloat(blur) * 0.72))
+            .blur(radius: CGFloat(min(100, max(0, blur))) * 0.72)
             .opacity(opacity)
             .clipped()
         }
     }
 
     private func artworkTransform(size: CGSize) -> (scale: CGFloat, offset: CGSize) {
-        let effectiveScale: CGFloat = reduceMotion ? max(1.16, scale * 0.92) : scale
+        let effectiveScale: CGFloat = reduceMotion ? max(1, scale * 0.92) : scale
         guard !reduceMotion else {
             return (effectiveScale, .zero)
         }
