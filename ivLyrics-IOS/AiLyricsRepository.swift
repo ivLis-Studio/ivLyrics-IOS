@@ -1316,18 +1316,23 @@ actor AiLyricsRepository {
     }
 
     private func geminiBody(prompt: String, settings: AppSettings.Snapshot, maxTokens: Int) -> [String: Any] {
-        [
+        var config: [String: Any] = ["maxOutputTokens": maxTokens, "temperature": settings.temperature]
+        let model = settings.model.replacingOccurrences(of: #"^models/"#, with: "", options: .regularExpression).lowercased()
+        if model.range(of: #"^gemini-3[.-]"#, options: .regularExpression) != nil {
+            let supportsMinimal = model.range(of: #"^gemini-3\.(1|5)-flash-lite($|-)"#, options: .regularExpression) != nil
+            config["thinkingConfig"] = ["thinkingLevel": supportsMinimal ? "minimal" : "low"]
+        } else if model.range(of: #"^gemini-2\.5-flash($|-)"#, options: .regularExpression) != nil {
+            config["thinkingConfig"] = ["thinkingBudget": 0]
+        }
+        // Pro and non-thinking models keep their API defaults, matching Android.
+        return [
             "contents": [
                 [
                     "role": "user",
                     "parts": [["text": prompt]]
                 ]
             ],
-            "generationConfig": [
-                "maxOutputTokens": maxTokens,
-                "temperature": settings.temperature,
-                "thinkingConfig": ["thinkingBudget": 0]
-            ]
+            "generationConfig": config
         ]
     }
 
