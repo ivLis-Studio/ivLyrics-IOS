@@ -601,6 +601,17 @@ struct ContentView: View {
         if environment["IVLYRICS_DEBUG_LYRICS_LOADING"] == "1" {
             model.applyDebugLyricsLoadingState()
         }
+        if DebugKaraokeFixture.isEnabled {
+            model.applyDebugKaraokeFixture()
+        }
+        if environment["IVLYRICS_DEBUG_SHOW_VINYL"] == "1" {
+            DispatchQueue.main.async {
+                presentVinylMode()
+            }
+        }
+#if os(iOS)
+        DebugFrameProbe.shared.scheduleFromEnvironment()
+#endif
         if let rawDragOffset = environment["IVLYRICS_DEBUG_LYRICS_DRAG_OFFSET"],
            let debugDragOffset = Double(rawDragOffset) {
             DispatchQueue.main.async {
@@ -3654,6 +3665,9 @@ struct MainLyricPreviewPanel: View {
     @State private var emptyLyricsPreviewToken = UUID()
 
     var body: some View {
+#if DEBUG && os(iOS)
+        let _ = debugProbeCount(.previewBody)
+#endif
         let previewItems = AppSettings.normalizePreviewItems(settings.previewItems)
         Group {
             if previewItems != AppSettings.previewItemNone {
@@ -4644,6 +4658,9 @@ struct LyricsTimelineView: View {
     @State private var animatedCenterIndex: Double?
 
     var body: some View {
+#if DEBUG && os(iOS)
+        let _ = debugProbeCount(.timelineBody)
+#endif
         let position = model.adjustedPositionMs
         let timelineContext = model.timelineContext
         let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
@@ -4864,6 +4881,9 @@ private struct LyricsTimelineScrollView: View {
     private static let manualScrollHoldSeconds: TimeInterval = 4.0
 
     var body: some View {
+#if DEBUG && os(iOS)
+        let _ = debugProbeCount(.scrollBody)
+#endif
         let targetID = activeTargetID
         GeometryReader { geometry in
             if shouldCenterEmptyContent {
@@ -5020,6 +5040,9 @@ private struct LyricsTimelineScrollView: View {
         guard let targetID else { return }
         guard force || lastScrolledTargetID != targetID else { return }
         lastScrolledTargetID = targetID
+#if DEBUG && os(iOS)
+        DebugFrameProbe.shared.recordEvent("travel", ["target": targetID, "animated": animated, "force": force])
+#endif
         let action = {
             proxy.scrollTo(
                 targetID,
@@ -6017,6 +6040,9 @@ struct LyricsLineView: View, Equatable {
     }
 
     var body: some View {
+#if DEBUG && os(iOS)
+        let _ = debugProbeCount(.lineBody)
+#endif
         let orderedVocalParts = LyricsTimelineDisplayBuilder.orderedVocalParts(line.vocalParts)
         let displayVocalParts = LyricsTimelineDisplayBuilder.displayableVocalParts(orderedVocalParts)
         let linePronunciationText = distinctPronunciation(line.pronunciationText, original: originalText)
@@ -6417,6 +6443,9 @@ struct SyllableKaraokeText: View {
 
     @ViewBuilder
     private func karaokeBody(nowMs: Double, displayKind: String) -> some View {
+#if DEBUG && os(iOS)
+        let _ = debugProbeCount(.karaokeBody)
+#endif
         let segments = karaokeSegments
         Group {
             if segments.isEmpty {
@@ -6509,6 +6538,16 @@ struct SyllableKaraokeText: View {
                 isWhitespace: metadata.isWhitespace
             ))
         }
+#if DEBUG && os(iOS)
+        if DebugFrameProbe.shared.recording, !timedSegments.isEmpty {
+            DebugFrameProbe.shared.recordFill(
+                singleLine: singleLine, active: active, lineStart: startTimeMs, lineEnd: endTimeMs,
+                position: Double(positionMs),
+                fill: timedSegments.reduce(0) { $0 + Double($1.fill) },
+                bounce: timedSegments.map { Double($0.bounceOffsetY) }.min() ?? 0
+            )
+        }
+#endif
         if !timedSegments.isEmpty {
             return timedSegments
         }
@@ -6847,6 +6886,9 @@ final class KaraokeRenderPreparationCache {
 
     func value(for next: Key, prepare: () -> Value) -> Value {
         if key == next, let prepared { return prepared }
+#if DEBUG && os(iOS)
+        MainActor.assumeIsolated { debugProbeCount(.preparationMiss) }
+#endif
         let value = prepare()
         key = next
         prepared = value
@@ -6904,6 +6946,9 @@ private struct KaraokeSyllableSegmentView: View {
     var rowSeed: Int
 
     var body: some View {
+#if DEBUG && os(iOS)
+        let _ = debugProbeCount(.glyphBody)
+#endif
         VStack(spacing: 0) {
             if !segment.rubyText.isEmpty {
                 Text(segment.rubyText)
@@ -7108,11 +7153,17 @@ private struct KaraokeSegmentFlowLayout: Layout {
     }
 
     func makeCache(subviews: Subviews) -> Cache {
-        Cache(sizes: subviews.map { $0.sizeThatFits(.unspecified) },
+#if DEBUG && os(iOS)
+        MainActor.assumeIsolated { debugProbeCount(.flowLayoutMake) }
+#endif
+        return Cache(sizes: subviews.map { $0.sizeThatFits(.unspecified) },
               whitespace: subviews.map { $0[KaraokeWhitespaceLayoutKey.self] })
     }
 
     func updateCache(_ cache: inout Cache, subviews: Subviews) {
+#if DEBUG && os(iOS)
+        MainActor.assumeIsolated { debugProbeCount(.flowLayoutUpdate) }
+#endif
         let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
         let whitespace = subviews.map { $0[KaraokeWhitespaceLayoutKey.self] }
         // Fill/motion changes leave intrinsic sizes intact. Fonts, ruby, content and

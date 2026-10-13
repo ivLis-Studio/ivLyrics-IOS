@@ -831,6 +831,31 @@ final class AppViewModel: ObservableObject {
         baseLyricsResult = loadingResult
         lyricsResult = loadingResult
     }
+
+    /// Plays DebugKaraokeFixture through the production clock and lyric renderers.
+    func applyDebugKaraokeFixture() {
+        let environment = ProcessInfo.processInfo.environment
+        let startMs = max(0, Int64(environment["IVLYRICS_DEBUG_FIXTURE_START_MS"] ?? "") ?? 0)
+        let playing = environment["IVLYRICS_DEBUG_FIXTURE_PAUSED"] != "1"
+        let fixture = DebugKaraokeFixture.make()
+        cancelLyricsLoadTask()
+        initialSetupPresented = false
+        lyricsLoadingProviderName = ""
+        currentTrack = TrackSnapshot(
+            title: DebugKaraokeFixture.title,
+            artist: DebugKaraokeFixture.artist,
+            album: "DEBUG",
+            packageName: "ios.debug-fixture",
+            durationMs: fixture.durationMs,
+            positionMs: startMs,
+            lastPositionUpdateUptime: ProcessInfo.processInfo.systemUptime,
+            playing: playing
+        )
+        nowPositionMs = startMs
+        baseLyricsResult = fixture.result
+        lyricsResult = fixture.result
+        status = .loaded
+    }
 #endif
 
     func setSelectedRuleSourceLang(_ sourceLang: String) {
@@ -3117,7 +3142,8 @@ final class AppViewModel: ObservableObject {
 
     private func applySpotifyPlayback(_ playback: SpotifyPlaybackSnapshot, loadLyricsIfNeeded: Bool) {
 #if DEBUG
-        if ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_LYRICS_LOADING"] == "1" {
+        if ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_LYRICS_LOADING"] == "1"
+            || DebugKaraokeFixture.isEnabled {
             return
         }
 #endif
