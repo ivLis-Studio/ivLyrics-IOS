@@ -685,6 +685,34 @@ struct ContentView: View {
                 }
             }
         }
+        // Scripted playback changes for headless runs (vinyl play/pause and track sequences,
+        // decoration cadence while playback is paused).
+        if let raw = environment["IVLYRICS_DEBUG_FIXTURE_PAUSE_AFTER_S"], let delay = Double(raw) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+#if os(iOS)
+                DebugFrameProbe.shared.recordEvent("debugPause")
+#endif
+                model.pausePlayback()
+            }
+        }
+        if let raw = environment["IVLYRICS_DEBUG_FIXTURE_PLAY_AFTER_S"], let delay = Double(raw) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+#if os(iOS)
+                DebugFrameProbe.shared.recordEvent("debugPlay")
+#endif
+                if model.currentTrack?.playing == false {
+                    model.togglePlayback()
+                }
+            }
+        }
+        if let raw = environment["IVLYRICS_DEBUG_FIXTURE_NEXT_TRACK_AFTER_S"], let delay = Double(raw) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+#if os(iOS)
+                DebugFrameProbe.shared.recordEvent("debugNextTrack")
+#endif
+                model.debugAdvanceFixtureTrack()
+            }
+        }
 #if os(iOS)
         DebugFrameProbe.shared.scheduleFromEnvironment()
 #endif

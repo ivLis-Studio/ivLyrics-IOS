@@ -9,6 +9,9 @@ import UIKit
 /// IVLYRICS_DEBUG_FIXTURE=1 loads it through the real model, display clock and renderers.
 /// IVLYRICS_DEBUG_FIXTURE_START_MS selects the segment; IVLYRICS_DEBUG_FIXTURE_PAUSED=1 freezes it.
 /// IVLYRICS_DEBUG_FIXTURE_TITLE replaces the title (a long one exercises the main-page marquee).
+/// IVLYRICS_DEBUG_FIXTURE_FROZEN=1 keeps the position fixed while playing (static engaged vinyl).
+/// IVLYRICS_DEBUG_FIXTURE_PAUSE_AFTER_S / _PLAY_AFTER_S toggle playback after a delay, and
+/// IVLYRICS_DEBUG_FIXTURE_NEXT_TRACK_AFTER_S switches to a second fixture track.
 enum DebugKaraokeFixture {
     static let title = "ivLyrics Motion Fixture"
     static let artist = "ivLyrics QA"
@@ -147,6 +150,22 @@ func debugProbeTimeline(_ counter: DebugFrameProbe.Counter, _ date: Date) {
     DebugFrameProbe.shared.recordTimeline(counter, date: date)
 }
 
+/// One vinyl tonearm evaluation: drawn rotation and progress, engagement, playback progress.
+@MainActor
+func debugProbeTonearm(rotation: Double, progress: Double, engagement: Double,
+                       playbackProgress: Double, dragging: Bool) {
+    DebugFrameProbe.shared.count(.vinylTonearmBody)
+    DebugFrameProbe.shared.recordTonearm([rotation, progress, engagement, playbackProgress, dragging ? 1 : 0])
+}
+
+/// One vinyl record angle evaluation with the spin state it was computed from.
+@MainActor
+func debugProbeSpin(disc: Int, date: Date, angle: Double, origin: Date, base: Double, spinning: Bool) {
+    DebugFrameProbe.shared.count(.vinylDiscTick)
+    DebugFrameProbe.shared.recordSpin(disc: disc, date: date, angle: angle, origin: origin, base: base,
+                                      spinning: spinning)
+}
+
 /// DEBUG-only frame cadence probe (IVLYRICS_DEBUG_FRAME_PROBE=1). After
 /// IVLYRICS_DEBUG_PROBE_DELAY_S it records IVLYRICS_DEBUG_PROBE_DURATION_S seconds of
 /// display-link frames, main-thread awake time per frame, the lyric scroll offset and every
@@ -161,7 +180,8 @@ final class DebugFrameProbe: NSObject {
              preparationMiss, previewBody, scrollBody,
              // Time-driven decoration TimelineViews (see debugProbeTimeline).
              marqueeTick, previewInterludeTick, previewSkeletonTick, lyricsSkeletonTick,
-             interludeBarsTick, vinylSceneTick
+             interludeBarsTick, vinylSceneTick,
+             vinylTonearmBody, vinylDiscTick
     }
 
     private struct FrameRecord {
@@ -217,6 +237,8 @@ final class DebugFrameProbe: NSObject {
     private var offsets: [OffsetRecord] = []
     private var clocks: [ClockRecord] = []
     private var timelines: [TimelineRecord] = []
+    private var tonearms: [[Double]] = []
+    private var spins: [[Double]] = []
     private var events: [[String: Any]] = []
     private var cpuStart = (user: 0.0, system: 0.0)
     private var startTime = 0.0
@@ -276,6 +298,20 @@ final class DebugFrameProbe: NSObject {
         timelines.append(TimelineRecord(time: now, site: counter.rawValue, date: mediaDate))
     }
 
+    func recordTonearm(_ values: [Double]) {
+        guard recording else { return }
+        tonearms.append([CACurrentMediaTime()] + values)
+    }
+
+    /// Dates are stored on the media clock of the frame records.
+    func recordSpin(disc: Int, date: Date, angle: Double, origin: Date, base: Double, spinning: Bool) {
+        guard recording else { return }
+        let now = CACurrentMediaTime()
+        let wall = Date()
+        spins.append([now, Double(disc), now + date.timeIntervalSince(wall), angle,
+                      now + origin.timeIntervalSince(wall), base, spinning ? 1 : 0])
+    }
+
     func recordEvent(_ kind: String, _ values: [String: Any] = [:]) {
         guard recording else { return }
         var event = values
@@ -290,6 +326,8 @@ final class DebugFrameProbe: NSObject {
         offsets.reserveCapacity(40_000)
         clocks.reserveCapacity(6_000)
         timelines.reserveCapacity(40_000)
+        tonearms.reserveCapacity(12_000)
+        spins.reserveCapacity(24_000)
         cpuStart = Self.cpuTimes()
         startTime = CACurrentMediaTime()
         // DisplayRefreshClock passes CADisplayLink.timestamp as playback uptime.
@@ -368,6 +406,8 @@ final class DebugFrameProbe: NSObject {
             "clocks": clocks.map { [number($0.callback), number($0.frame), number($0.painted),
                                    number($0.callbackSampled)] },
             "timelines": timelines.map { [number($0.time), $0.site, number($0.date)] },
+            "tonearm": tonearms.map { $0.map(number) },
+            "spins": spins.map { $0.map(number) },
             "events": events
         ]
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

@@ -44,6 +44,11 @@ struct VinylPlayerModeView: View {
             TimelineView(.animation(paused: !spinning || !effectiveAnimationsEnabled)) { timeline in
 #if DEBUG && os(iOS)
                 let _ = debugProbeTimeline(.vinylSceneTick, timeline.date)
+                let _ = debugProbeSpin(
+                    disc: 0, date: timeline.date,
+                    angle: accessibilityReduceMotion ? spinBaseDegrees : spinDegrees(at: timeline.date),
+                    origin: spinOrigin, base: spinBaseDegrees, spinning: spinning
+                )
 #endif
                 scene(
                     geometry: geometry,
@@ -342,6 +347,10 @@ struct VinylPlayerModeView: View {
             sizeScale: sizeScale,
             progress: progress
         )
+#if DEBUG && os(iOS)
+        debugProbeTonearm(rotation: rotation, progress: progress, engagement: engagement,
+                          playbackProgress: playbackProgress, dragging: tonearmDragState != nil)
+#endif
 
         return ZStack(alignment: .topLeading) {
             Canvas { context, _ in

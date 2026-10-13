@@ -870,7 +870,7 @@ final class AppViewModel: ObservableObject {
         cancelLyricsLoadTask()
         initialSetupPresented = false
         lyricsLoadingProviderName = ""
-        currentTrack = TrackSnapshot(
+        var track = TrackSnapshot(
             title: environment["IVLYRICS_DEBUG_FIXTURE_TITLE"] ?? DebugKaraokeFixture.title,
             artist: DebugKaraokeFixture.artist,
             album: "DEBUG",
@@ -880,10 +880,30 @@ final class AppViewModel: ObservableObject {
             lastPositionUpdateUptime: ProcessInfo.processInfo.systemUptime,
             playing: playing
         )
+        if environment["IVLYRICS_DEBUG_FIXTURE_FROZEN"] == "1" {
+            // init clamps the speed to a positive value; a frozen "playing" track keeps its position.
+            track.playbackSpeed = 0
+        }
+        currentTrack = track
         nowPositionMs = startMs
         baseLyricsResult = fixture.result
         lyricsResult = fixture.result
         status = .loaded
+    }
+
+    /// Replaces the fixture track with a second one (same lyrics) to exercise track changes.
+    func debugAdvanceFixtureTrack() {
+        guard let track = currentTrack else { return }
+        currentTrack = TrackSnapshot(
+            title: track.title + " 2",
+            artist: track.artist,
+            album: track.album,
+            packageName: track.packageName,
+            durationMs: track.durationMs,
+            positionMs: track.positionNow(),
+            lastPositionUpdateUptime: ProcessInfo.processInfo.systemUptime,
+            playing: track.playing
+        )
     }
 #endif
 
@@ -1975,6 +1995,10 @@ final class AppViewModel: ObservableObject {
         let playbackChanged = track.playing != targetPlaying
         guard playbackChanged || forceCommand else { return }
         let position = track.positionNow()
+#if DEBUG && os(iOS)
+        DebugFrameProbe.shared.recordEvent("playback", ["playing": targetPlaying, "positionMs": position,
+                                                       "changed": playbackChanged])
+#endif
         if spotifyAppRemotePlaybackService.connected || spotifyLivePolling {
             spotifyPlaybackInteractionGuard.registerPlayback(
                 trackKey: track.stableKey,
@@ -2039,6 +2063,9 @@ final class AppViewModel: ObservableObject {
     }
 
     private func seekPlayer(to position: Int64, track: inout TrackSnapshot) {
+#if DEBUG && os(iOS)
+        DebugFrameProbe.shared.recordEvent("seek", ["positionMs": position, "fromMs": track.positionNow()])
+#endif
         track = track.withPlayback(positionMs: position, playing: track.playing)
         currentTrack = track
         nowPositionMs = position
