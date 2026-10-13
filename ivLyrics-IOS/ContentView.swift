@@ -53,7 +53,9 @@ private struct AndroidSlidingMetadataText: View {
             let availableWidth = max(0, proxy.size.width)
             let overflowing = textWidth > availableWidth + 0.5
 
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !overflowing || coveredPageDecorationsPaused)) { timeline in
+            // Display rate, like every continuous animation here: a minimumInterval holds each
+            // value for two or more frames on ProMotion displays.
+            TimelineView(.animation(paused: !overflowing || coveredPageDecorationsPaused)) { timeline in
 #if DEBUG && os(iOS)
                 let _ = debugProbeTimeline(.marqueeTick, timeline.date)
 #endif
@@ -4387,7 +4389,7 @@ private struct MainLyricPreviewInterludeIcon: View {
     @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: coveredPageDecorationsPaused)) { timeline in
+        TimelineView(.animation(paused: coveredPageDecorationsPaused)) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.previewInterludeTick, timeline.date)
 #endif
@@ -4409,7 +4411,7 @@ private struct MainLyricPreviewLoadingSkeleton: View {
     @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: coveredPageDecorationsPaused)) { timeline in
+        TimelineView(.animation(paused: coveredPageDecorationsPaused)) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.previewSkeletonTick, timeline.date)
 #endif
@@ -4437,7 +4439,7 @@ private struct LyricsLoadingSkeleton: View {
     private let widths: [CGFloat] = [0.62, 0.86, 0.74, 0.92, 0.56]
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.lyricsSkeletonTick, timeline.date)
 #endif
@@ -6173,7 +6175,7 @@ struct LyricsInterludeView: View {
     }
 
     private var interludeBars: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !active)) { timeline in
+        TimelineView(.animation(paused: !active)) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.interludeBarsTick, timeline.date)
 #endif
