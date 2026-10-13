@@ -55,6 +55,7 @@ private struct AndroidSlidingMetadataText: View {
     let color: Color
 
     @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
+    @Environment(\.playbackAdvancing) private var playbackAdvancing
     @State private var animationStart = Date()
 
     var body: some View {
@@ -66,9 +67,12 @@ private struct AndroidSlidingMetadataText: View {
             let availableWidth = max(0, proxy.size.width)
             let overflowing = textWidth > availableWidth + 0.5
 
-            // Display rate, like every continuous animation here: a minimumInterval holds each
-            // value for two or more frames on ProMotion displays.
-            TimelineView(.animation(paused: !overflowing || coveredPageDecorationsPaused)) { timeline in
+            // Display rate while playback runs (the page already updates every frame); the previous
+            // 1/30 s cadence while it is paused, when each tick would be the page's only update.
+            TimelineView(.animation(
+                minimumInterval: playbackAdvancing ? nil : 1.0 / 30.0,
+                paused: !overflowing || coveredPageDecorationsPaused
+            )) { timeline in
 #if DEBUG && os(iOS)
                 let _ = debugProbeTimeline(.marqueeTick, timeline.date)
 #endif
@@ -4456,9 +4460,14 @@ private struct MainLyricPreviewInterludeIcon: View {
 private struct MainLyricPreviewLoadingSkeleton: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
+    @Environment(\.playbackAdvancing) private var playbackAdvancing
 
     var body: some View {
-        TimelineView(.animation(paused: coveredPageDecorationsPaused)) { timeline in
+        // Display rate while playback runs; the previous 1/30 s cadence while it is paused.
+        TimelineView(.animation(
+            minimumInterval: playbackAdvancing ? nil : 1.0 / 30.0,
+            paused: coveredPageDecorationsPaused
+        )) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.previewSkeletonTick, timeline.date)
 #endif
@@ -4483,10 +4492,12 @@ private struct MainLyricPreviewLoadingSkeleton: View {
 
 private struct LyricsLoadingSkeleton: View {
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.playbackAdvancing) private var playbackAdvancing
     private let widths: [CGFloat] = [0.62, 0.86, 0.74, 0.92, 0.56]
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        // Display rate while playback runs; the previous 1/30 s cadence while it is paused.
+        TimelineView(.animation(minimumInterval: playbackAdvancing ? nil : 1.0 / 30.0)) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.lyricsSkeletonTick, timeline.date)
 #endif
