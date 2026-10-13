@@ -10,10 +10,22 @@ private struct LyricsSegmentationLocaleKey: EnvironmentKey {
     static let defaultValue = "auto"
 }
 
+private struct CoveredPageDecorationsPausedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     var lyricsSegmentationLocale: String {
         get { self[LyricsSegmentationLocaleKey.self] }
         set { self[LyricsSegmentationLocaleKey.self] = newValue }
+    }
+
+    /// True while the portrait main page sits fully covered by the lyrics page or vinyl mode.
+    /// Its time-driven decorations stop ticking; they draw the current time again in the update
+    /// that starts uncovering the page.
+    var coveredPageDecorationsPaused: Bool {
+        get { self[CoveredPageDecorationsPausedKey.self] }
+        set { self[CoveredPageDecorationsPausedKey.self] = newValue }
     }
 }
 
@@ -29,6 +41,7 @@ private struct AndroidSlidingMetadataText: View {
     let baseSize: CGFloat
     let color: Color
 
+    @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
     @State private var animationStart = Date()
 
     var body: some View {
@@ -40,7 +53,7 @@ private struct AndroidSlidingMetadataText: View {
             let availableWidth = max(0, proxy.size.width)
             let overflowing = textWidth > availableWidth + 0.5
 
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !overflowing)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !overflowing || coveredPageDecorationsPaused)) { timeline in
 #if DEBUG && os(iOS)
                 let _ = debugProbeTimeline(.marqueeTick, timeline.date)
 #endif
@@ -306,11 +319,16 @@ struct ContentView: View {
             )
             // The portrait main page stays mounted (artwork, marquee and preview state) while the
             // lyrics page or vinyl mode covers it, but stops repainting on every display frame.
-            // The live clock returns in the same update that starts uncovering it.
+            // The live clock and its time-driven decorations return in the same update that
+            // starts uncovering it.
             .environmentObject(
                 mainPageFrozen && mainPageCovered(isLandscape: isLandscape)
                     ? Self.coveredPagePlaybackClock
                     : model.playbackClock
+            )
+            .environment(
+                \.coveredPageDecorationsPaused,
+                mainPageFrozen && mainPageCovered(isLandscape: isLandscape)
             )
             .opacity(vinylModeVisible ? 0 : 1)
             .scaleEffect(vinylModeVisible ? 0.985 : 1)
@@ -4366,8 +4384,10 @@ private struct MainLyricPreviewRowView: View {
 }
 
 private struct MainLyricPreviewInterludeIcon: View {
+    @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: coveredPageDecorationsPaused)) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.previewInterludeTick, timeline.date)
 #endif
@@ -4386,8 +4406,10 @@ private struct MainLyricPreviewInterludeIcon: View {
 
 private struct MainLyricPreviewLoadingSkeleton: View {
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: coveredPageDecorationsPaused)) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.previewSkeletonTick, timeline.date)
 #endif
