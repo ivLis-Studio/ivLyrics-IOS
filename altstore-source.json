@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.18",
+          "buildVersion": "57",
+          "date": "2026-10-13",
+          "localizedDescription": "v1.3.18에서는 가로 화면의 설정/더보기 버튼을 더 쉽게 누를 수 있도록 조작 영역과 자동 숨김 상태의 터치 동작을 개선했습니다. 또한 iOS 1.3.18 빌드 릴리스 정보를 준비하고, AltStore 소스에 이전 v1.3.17 IPA의 실제 메타데이터를 반영했습니다.\n\nv1.3.18 improves the touch behavior of the Settings/More control in landscape playback, including when controls are auto-hidden. It also prepares the iOS 1.3.18 build release and updates the AltStore source with the actual metadata for the prior v1.3.17 IPA.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.18/ivLyrics-IOS-v1.3.18-unsigned.ipa",
+          "size": 7555722,
+          "sha256": "f7d514d4a9fa8444de250357c6a7f9a8b9c63b19df283fabb8316440672cb082",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.17",
           "buildVersion": "56",
           "date": "2026-09-24",
