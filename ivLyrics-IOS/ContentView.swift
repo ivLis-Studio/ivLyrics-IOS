@@ -697,14 +697,30 @@ struct ContentView: View {
         .padding(.horizontal, horizontalPadding)
         .padding(.vertical, 16)
         .overlay(alignment: .topTrailing) {
-            if controlsShown {
-                LandscapeCommandBar(
-                    showingSettings: $showingSettings
-                )
-                .padding(.top, 16)
-                .padding(.trailing, 22)
-                .transition(.opacity)
+            Group {
+                if controlsShown {
+                    LandscapeCommandBar(
+                        showingSettings: $showingSettings
+                    )
+                    .transition(.opacity)
+                } else {
+                    // Keep the settings corner from passing taps to the lyric rows
+                    // underneath while the controls are auto-hidden; a tap here
+                    // brings the controls back instead of seeking the lyrics.
+                    Color.clear
+                        .frame(
+                            width: LandscapeCommandBar.hitTargetSize,
+                            height: LandscapeCommandBar.hitTargetSize
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            showLandscapeControlsTemporarily(isLandscape: true)
+                        }
+                        .accessibilityHidden(true)
+                }
             }
+            .padding(.top, 16)
+            .padding(.trailing, 22)
         }
         .animation(.easeInOut(duration: controlsShown ? 0.18 : 0.26), value: controlsShown)
     }
@@ -2466,6 +2482,8 @@ private struct PlayerProgressBar: View {
 }
 
 private struct LandscapeCommandBar: View {
+    static let hitTargetSize: CGFloat = 44
+
     @EnvironmentObject private var settings: AppSettings
     @Binding var showingSettings: Bool
 
@@ -2475,7 +2493,10 @@ private struct LandscapeCommandBar: View {
         } label: {
             AndroidMoreIcon()
                 .frame(width: 18, height: 18)
-                .frame(width: 44, height: 44)
+                .frame(width: Self.hitTargetSize, height: Self.hitTargetSize)
+                // The plain-style label only hit-tests the 18 pt icon it draws, so taps
+                // beside it fell through to the lyric rows; claim the whole 44 pt frame.
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
