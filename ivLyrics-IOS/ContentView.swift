@@ -14,6 +14,10 @@ private struct CoveredPageDecorationsPausedKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct PlaybackAdvancingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     var lyricsSegmentationLocale: String {
         get { self[LyricsSegmentationLocaleKey.self] }
@@ -26,6 +30,15 @@ extension EnvironmentValues {
     var coveredPageDecorationsPaused: Bool {
         get { self[CoveredPageDecorationsPausedKey.self] }
         set { self[CoveredPageDecorationsPausedKey.self] = newValue }
+    }
+
+    /// True while playback runs, when the playback clock already updates the visible page on every
+    /// display frame and time-driven decorations can follow the display at little extra cost. While
+    /// playback is paused a decoration tick is the page's only update and re-runs the whole page, so
+    /// those decorations keep their previous cadence there.
+    var playbackAdvancing: Bool {
+        get { self[PlaybackAdvancingKey.self] }
+        set { self[PlaybackAdvancingKey.self] = newValue }
     }
 }
 
@@ -214,6 +227,7 @@ struct ContentView: View {
                 safeAreaInsets: geometry.safeAreaInsets
             )
             .environment(\.lyricsSegmentationLocale, model.effectiveSelectedRuleSourceLang)
+            .environment(\.playbackAdvancing, model.currentTrack?.playing == true)
             .statusBarHidden(isLandscape)
             .persistentSystemOverlays(isLandscape ? .hidden : .automatic)
             .contentShape(Rectangle())
@@ -4415,9 +4429,14 @@ private struct MainLyricPreviewRowView: View {
 
 private struct MainLyricPreviewInterludeIcon: View {
     @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
+    @Environment(\.playbackAdvancing) private var playbackAdvancing
 
     var body: some View {
-        TimelineView(.animation(paused: coveredPageDecorationsPaused)) { timeline in
+        // Display rate while playback runs; the previous 1/60 s cadence while it is paused.
+        TimelineView(.animation(
+            minimumInterval: playbackAdvancing ? nil : 1.0 / 60.0,
+            paused: coveredPageDecorationsPaused
+        )) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.previewInterludeTick, timeline.date)
 #endif
@@ -6175,6 +6194,7 @@ enum LyricsTimelineDisplayBuilder {
 struct LyricsInterludeView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
+    @Environment(\.playbackAdvancing) private var playbackAdvancing
     var info: InterludeInfo
     var active: Bool
     var displayDistance: Double
@@ -6203,7 +6223,8 @@ struct LyricsInterludeView: View {
     }
 
     private var interludeBars: some View {
-        TimelineView(.animation(paused: !active)) { timeline in
+        // Display rate while playback runs; the previous 1/60 s cadence while it is paused.
+        TimelineView(.animation(minimumInterval: playbackAdvancing ? nil : 1.0 / 60.0, paused: !active)) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.interludeBarsTick, timeline.date)
 #endif
