@@ -951,7 +951,7 @@ struct ContentView: View {
 
 private struct PortraitPlayerProgressSection: View {
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     var metadataControlsSpacing: CGFloat
 
@@ -1234,7 +1234,7 @@ struct PlayerBackgroundView: View {
 
 private struct YouTubeBackdropSection: View {
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     var info: YouTubeVideoInfo
     var background: AppSettings.BackgroundSettings
@@ -2349,7 +2349,7 @@ private struct LandscapeArtworkView: View {
 private struct LandscapeTransportControls: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
 
     var body: some View {
@@ -3484,7 +3484,7 @@ private struct TmiSheetView: View {
 struct TransportPanel: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
 
     var body: some View {
@@ -3708,7 +3708,7 @@ struct MainLyricPreviewPanel: View {
 
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     var chromeless = false
     var typographyOverride: AppSettings.TypographySettings? = nil
@@ -8142,7 +8142,7 @@ enum LyricSpeakerPalette {
 struct LogsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     @Binding var visible: Bool
 

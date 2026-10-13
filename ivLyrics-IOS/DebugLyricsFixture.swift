@@ -181,6 +181,15 @@ final class DebugFrameProbe: NSObject {
         var offset: Double
     }
 
+    /// One playback-clock tick: when the callback ran, the vsync uptime it paints from, the
+    /// painted continuous position and the whole-millisecond position sampled at callback time.
+    private struct ClockRecord {
+        var callback: Double
+        var frame: Double
+        var painted: Double
+        var callbackSampled: Double
+    }
+
     private(set) var recording = false
     private var link: CADisplayLink?
     private var observers: [CFRunLoopObserver] = []
@@ -188,6 +197,7 @@ final class DebugFrameProbe: NSObject {
     private var frames: [FrameRecord] = []
     private var fills: [FillRecord] = []
     private var offsets: [OffsetRecord] = []
+    private var clocks: [ClockRecord] = []
     private var events: [[String: Any]] = []
     private var cpuStart = (user: 0.0, system: 0.0)
     private var startTime = 0.0
@@ -233,6 +243,12 @@ final class DebugFrameProbe: NSObject {
         offsets.append(OffsetRecord(time: CACurrentMediaTime(), relativeIndex: relativeIndex, offset: offset))
     }
 
+    func recordClock(callbackUptime: Double, frameUptime: Double, painted: Double, callbackSampled: Double) {
+        guard recording else { return }
+        clocks.append(ClockRecord(callback: callbackUptime, frame: frameUptime, painted: painted,
+                                  callbackSampled: callbackSampled))
+    }
+
     func recordEvent(_ kind: String, _ values: [String: Any] = [:]) {
         guard recording else { return }
         var event = values
@@ -245,9 +261,10 @@ final class DebugFrameProbe: NSObject {
         frames.reserveCapacity(6_000)
         fills.reserveCapacity(40_000)
         offsets.reserveCapacity(40_000)
+        clocks.reserveCapacity(6_000)
         cpuStart = Self.cpuTimes()
         startTime = CACurrentMediaTime()
-        // DisplayRefreshClock passes CADisplayLink.targetTimestamp as playback uptime.
+        // DisplayRefreshClock passes CADisplayLink.timestamp as playback uptime.
         uptimeMinusMediaTime = ProcessInfo.processInfo.systemUptime - CACurrentMediaTime()
         let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
         let maximum = Float(UIScreen.main.maximumFramesPerSecond)
@@ -320,6 +337,8 @@ final class DebugFrameProbe: NSObject {
                                   $0.lineStart, $0.lineEnd, number($0.position), number($0.fill),
                                   number($0.bounce)] },
             "offsets": offsets.map { [number($0.time), $0.relativeIndex, number($0.offset)] },
+            "clocks": clocks.map { [number($0.callback), number($0.frame), number($0.painted),
+                                   number($0.callbackSampled)] },
             "events": events
         ]
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

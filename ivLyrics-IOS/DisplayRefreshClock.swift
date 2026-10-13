@@ -10,9 +10,11 @@ enum PlaybackClockMode: Equatable {
 import UIKit
 
 /// Uses the display in the foreground and preserves sample-buffer PiP updates in the background.
-/// Foreground ticks carry the frame's presentation time (CADisplayLink.targetTimestamp, the
-/// same uptime clock as ProcessInfo.systemUptime), so every display frame is painted from the
-/// playback position at the moment it appears. Background PiP ticks pass nil (sampled on call).
+/// Foreground ticks carry the frame's vsync time (CADisplayLink.timestamp, on the same uptime
+/// clock as ProcessInfo.systemUptime): the frame-start basis the PC renderer (requestAnimationFrame
+/// time) and Android (Choreographer frameTimeNanos) paint from. Consecutive frames therefore
+/// advance by exactly one frame interval, free of callback jitter. Background PiP ticks pass nil
+/// (sampled on call).
 final class DisplayRefreshClock: NSObject {
     private var displayLink: CADisplayLink?
     private var backgroundTimer: Timer?
@@ -29,7 +31,7 @@ final class DisplayRefreshClock: NSObject {
         displayLink = link
     }
 
-    @objc private func refresh(_ link: CADisplayLink) { tick(link.targetTimestamp) }
+    @objc private func refresh(_ link: CADisplayLink) { tick(link.timestamp) }
 
     func setMode(_ nextMode: PlaybackClockMode) {
         guard mode != nextMode else { return }

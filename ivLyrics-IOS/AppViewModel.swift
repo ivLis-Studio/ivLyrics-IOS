@@ -334,7 +334,7 @@ final class AppViewModel: ObservableObject {
     /// Discrete lyric state keeps using whole milliseconds; only continuously painted values
     /// (karaoke fill edge and bounce) read this, so they advance by exactly one frame per frame.
     private(set) var nowContinuousPositionMs: Double = 0
-    /// Uptime of the display frame being prepared (its presentation time in the foreground).
+    /// Uptime of the display frame being prepared (its vsync time in the foreground).
     private(set) var playbackFrameUptime: TimeInterval = ProcessInfo.processInfo.systemUptime
     private var lyricsFrameUpdatesUntilUptime: TimeInterval = 0
 
@@ -4262,9 +4262,13 @@ final class AppViewModel: ObservableObject {
         #endif
     }
 
-    /// frameUptime is the presentation time of the display frame being prepared; without it
-    /// (background PiP timer, other platforms) the clock is sampled when called.
+    /// frameUptime is the vsync time of the display frame being prepared (CADisplayLink.timestamp);
+    /// without it (background PiP timer, other platforms) the clock is sampled when called.
     private func refreshPlaybackClock(frameUptime: TimeInterval? = nil) {
+#if DEBUG && os(iOS)
+        // Before frame timestamps, the clock sampled systemUptime here; the probe compares both.
+        let debugCallbackUptime = ProcessInfo.processInfo.systemUptime
+#endif
         let uptime = frameUptime ?? ProcessInfo.processInfo.systemUptime
         playbackFrameUptime = uptime
         let position = currentTrack?.positionNow(uptime: uptime) ?? 0
@@ -4275,6 +4279,16 @@ final class AppViewModel: ObservableObject {
             )
         }
         nowContinuousPositionMs = currentTrack?.continuousPositionMs(uptime: uptime) ?? 0
+#if DEBUG && os(iOS)
+        if DebugFrameProbe.shared.recording, frameUptime != nil, let track = currentTrack {
+            DebugFrameProbe.shared.recordClock(
+                callbackUptime: debugCallbackUptime,
+                frameUptime: uptime,
+                painted: nowContinuousPositionMs,
+                callbackSampled: Double(track.positionNow(uptime: debugCallbackUptime))
+            )
+        }
+#endif
         if position != nowPositionMs {
             nowPositionMs = position
         } else if uptime < lyricsFrameUpdatesUntilUptime {
