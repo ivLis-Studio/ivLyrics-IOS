@@ -191,6 +191,7 @@ final class DebugFrameProbe: NSObject {
     private var events: [[String: Any]] = []
     private var cpuStart = (user: 0.0, system: 0.0)
     private var startTime = 0.0
+    private var uptimeMinusMediaTime = 0.0
     private weak var scrollView: UIScrollView?
     private var lastScrollLookup = 0.0
     private var name = "probe"
@@ -246,6 +247,8 @@ final class DebugFrameProbe: NSObject {
         offsets.reserveCapacity(40_000)
         cpuStart = Self.cpuTimes()
         startTime = CACurrentMediaTime()
+        // DisplayRefreshClock passes CADisplayLink.targetTimestamp as playback uptime.
+        uptimeMinusMediaTime = ProcessInfo.processInfo.systemUptime - CACurrentMediaTime()
         let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
         let maximum = Float(UIScreen.main.maximumFramesPerSecond)
         link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: maximum, preferred: maximum)
@@ -309,6 +312,7 @@ final class DebugFrameProbe: NSObject {
             "cpuUser": cpu.user - cpuStart.user,
             "cpuSystem": cpu.system - cpuStart.system,
             "maximumFramesPerSecond": UIScreen.main.maximumFramesPerSecond,
+            "uptimeMinusMediaTime": uptimeMinusMediaTime,
             "frames": frames.map { [number($0.callback), number($0.timestamp), number($0.target),
                                     number($0.busy), number($0.scrollY), number($0.longestWake), $0.counts] },
             "counterNames": Counter.allCases.map { "\($0)" },

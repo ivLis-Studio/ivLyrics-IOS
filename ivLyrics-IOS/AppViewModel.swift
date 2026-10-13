@@ -320,11 +320,20 @@ final class AppViewModel: ObservableObject {
     private(set) var nowPositionMs: Int64 {
         get { playbackClock.nowPositionMs }
         set {
+            // Writes outside the frame clock (seeks, track changes, Spotify sync) restart the
+            // continuous position at the same whole millisecond.
+            if Int64(nowContinuousPositionMs.rounded()) != newValue {
+                nowContinuousPositionMs = Double(newValue)
+            }
             if playbackClock.nowPositionMs != newValue {
                 playbackClock.nowPositionMs = newValue
             }
         }
     }
+    /// Unrounded playback position sampled for the same display frame as nowPositionMs.
+    /// Discrete lyric state keeps using whole milliseconds; only continuously painted values
+    /// (karaoke fill edge and bounce) read this, so they advance by exactly one frame per frame.
+    private(set) var nowContinuousPositionMs: Double = 0
     @Published var trackOffsetMs: Int = 0 {
         didSet {
             let clamped = Self.clampSyncOffset(trackOffsetMs)
@@ -784,6 +793,17 @@ final class AppViewModel: ObservableObject {
             + Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
         if lyricsDurationMs > 0 {
             return max(0, min(lyricsDurationMs, adjusted))
+        }
+        return max(0, adjusted)
+    }
+
+    /// adjustedPositionMs without whole-millisecond rounding; equal to it while paused.
+    var adjustedContinuousPositionMs: Double {
+        let adjusted = nowContinuousPositionMs
+            + Double(spotifyDJLyricsOffsetMs)
+            + Double(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
+        if lyricsDurationMs > 0 {
+            return max(0, min(Double(lyricsDurationMs), adjusted))
         }
         return max(0, adjusted)
     }
@@ -4209,8 +4229,8 @@ final class AppViewModel: ObservableObject {
     private func startClock() {
         #if os(iOS)
         displayClock?.invalidate()
-        displayClock = DisplayRefreshClock { [weak self] in
-            MainActor.assumeIsolated { self?.refreshPlaybackClock() }
+        displayClock = DisplayRefreshClock { [weak self] frameUptime in
+            MainActor.assumeIsolated { self?.refreshPlaybackClock(frameUptime: frameUptime) }
         }
         updatePlaybackClockMode()
         #else
@@ -4233,8 +4253,10 @@ final class AppViewModel: ObservableObject {
         #endif
     }
 
-    private func refreshPlaybackClock() {
-        let uptime = ProcessInfo.processInfo.systemUptime
+    /// frameUptime is the presentation time of the display frame being prepared; without it
+    /// (background PiP timer, other platforms) the clock is sampled when called.
+    private func refreshPlaybackClock(frameUptime: TimeInterval? = nil) {
+        let uptime = frameUptime ?? ProcessInfo.processInfo.systemUptime
         let position = currentTrack?.positionNow(uptime: uptime) ?? 0
         if let track = currentTrack {
             updateSpotifyDJLyricsTimeline(
@@ -4242,6 +4264,7 @@ final class AppViewModel: ObservableObject {
                 spotifyDJContext: currentSpotifyDJContext, uptime: uptime
             )
         }
+        nowContinuousPositionMs = currentTrack?.continuousPositionMs(uptime: uptime) ?? 0
         if position != nowPositionMs { nowPositionMs = position }
         // PiP renders at its own cadence. Avoid rebuilding settings and the inactive
         // priming frame for every foreground glyph update, including 120Hz displays.

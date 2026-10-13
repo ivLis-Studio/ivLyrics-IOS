@@ -194,6 +194,16 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
         return clampPosition(positionMs + Int64((elapsed * playbackSpeed).rounded()))
     }
 
+    /// The same position without whole-millisecond rounding, for values painted continuously
+    /// on every display frame (karaoke fill edge and bounce). Rounds to positionNow(uptime:).
+    func continuousPositionMs(uptime: TimeInterval) -> Double {
+        guard playing else {
+            return Double(clampPosition(positionMs))
+        }
+        let value = Double(positionMs) + max(0, uptime - lastPositionUpdateUptime) * 1000 * playbackSpeed
+        return durationMs > 0 ? max(0, min(Double(durationMs), value)) : max(0, value)
+    }
+
     func withPlayback(
         positionMs: Int64,
         playing: Bool,

@@ -70,6 +70,7 @@ def probe(source, name, cache_name, original):
     var sourceStart: Int64 = 0, sourceEnd: Int64 = 2400
     var synthetic = false
     var positionMs: Int64 = 0
+    var continuousPositionMs: Double? = nil
     var active = true, bounceEnabled = true, accessibilityReduceMotion = false
     var activeColor = Color(token: "active"), baseColor = Color(token: "inactive")
     var completedColorOpacity: CGFloat = 1, bounceTextSize: CGFloat = 22
@@ -147,6 +148,21 @@ for text in texts {
                 before.baseColor = Color(token: "base\(mode)"); after.baseColor = before.baseColor
                 check(before.karaokeSegments == after.karaokeSegments, "Segment output drift: \(text), \(granularity), \(position), \(mode)")
                 outputPairs += 1
+                // The frame clock's continuous position equals the whole millisecond on a static
+                // (paused) frame: the painted segments must be identical.
+                after.continuousPositionMs = Double(position)
+                check(before.karaokeSegments == after.karaokeSegments, "Static continuous position drift: \(text), \(granularity), \(position), \(mode)")
+                // Between whole milliseconds only the fill edge and bounce move; every glyph keeps
+                // its pending/active/done state from positionMs.
+                after.continuousPositionMs = Double(position) + 0.4
+                let discrete = before.karaokeSegments, continuous = after.karaokeSegments
+                check(discrete.count == continuous.count && zip(discrete, continuous).allSatisfy { lhs, rhs in
+                    lhs.text == rhs.text && lhs.baseColor == rhs.baseColor && lhs.activeColor == rhs.activeColor
+                        && (lhs.fill == 0) == (rhs.fill == 0) && (lhs.fill >= 1) == (rhs.fill >= 1)
+                        && abs(lhs.fill - rhs.fill) <= 0.4 / 239
+                }, "Continuous position changes glyph state: \(text), \(granularity), \(position), \(mode)")
+                after.continuousPositionMs = nil
+                outputPairs += 2
             }
         }
     }

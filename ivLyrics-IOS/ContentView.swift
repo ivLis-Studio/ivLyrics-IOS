@@ -3678,6 +3678,7 @@ struct MainLyricPreviewPanel: View {
                             MainLyricPreviewRowView(
                                 row: row,
                                 positionMs: model.adjustedPositionMs,
+                                continuousPositionMs: model.adjustedContinuousPositionMs,
                                 typographyOverride: typographyOverride
                             )
                         }
@@ -4159,6 +4160,7 @@ private struct MainLyricPreviewRowView: View {
     @EnvironmentObject private var settings: AppSettings
     var row: MainLyricPreviewRow
     var positionMs: Int64
+    var continuousPositionMs: Double? = nil
     var typographyOverride: AppSettings.TypographySettings? = nil
     @State private var contentWidth: CGFloat = 0
 
@@ -4274,6 +4276,7 @@ private struct MainLyricPreviewRowView: View {
                 startTimeMs: row.syllables.first?.startTimeMs ?? 0,
                 endTimeMs: row.syllables.last?.endTimeMs ?? 0,
                 positionMs: positionMs,
+                continuousPositionMs: continuousPositionMs,
                 active: true,
                 activeColor: LyricSpeakerPalette.activeColor(speaker: row.speaker, settings: speakerColors),
                 alignment: .center,
@@ -4652,7 +4655,7 @@ private struct EnumeratedRandomAccessCollection<Base: RandomAccessCollection>: R
 struct LyricsTimelineView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var animatedCenterIndex: Double?
@@ -4662,6 +4665,7 @@ struct LyricsTimelineView: View {
         let _ = debugProbeCount(.timelineBody)
 #endif
         let position = model.adjustedPositionMs
+        let continuousPosition = model.adjustedContinuousPositionMs
         let timelineContext = model.timelineContext
         let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
             context: timelineContext,
@@ -4755,6 +4759,7 @@ struct LyricsTimelineView: View {
                                 displayDistance: displayDistance,
                                 progress: lineActive ? model.progress(for: line) : 0,
                                 positionMs: visualState.renderPositionMs,
+                                continuousPositionMs: visualState.animating ? continuousPosition : nil,
                                 alignment: settings.lyricsTextAlignment,
                                 pronunciationLoading: model.lyricsSupplementPronunciationLoading,
                                 translationLoading: model.lyricsSupplementTranslationLoading,
@@ -4864,7 +4869,7 @@ private struct LyricsProviderAttribution: View {
 private struct LyricsTimelineScrollView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the 60 Hz playback clock driving model.nowPositionMs.
+    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
     @EnvironmentObject private var playbackClock: PlaybackClock
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var autoScrollPaused = false
@@ -6013,6 +6018,8 @@ struct LyricsLineView: View, Equatable {
     var displayDistance: Double
     var progress: Double
     var positionMs: Int64
+    /// Set only while the row follows the clock (see SyllableKaraokeText.continuousPositionMs).
+    var continuousPositionMs: Double? = nil
     var alignment: String
     var pronunciationLoading: Bool
     var translationLoading: Bool
@@ -6032,6 +6039,7 @@ struct LyricsLineView: View, Equatable {
             && lhs.displayDistance == rhs.displayDistance
             && lhs.progress == rhs.progress
             && lhs.positionMs == rhs.positionMs
+            && lhs.continuousPositionMs == rhs.continuousPositionMs
             && lhs.alignment == rhs.alignment
             && lhs.pronunciationLoading == rhs.pronunciationLoading
             && lhs.translationLoading == rhs.translationLoading
@@ -6134,6 +6142,7 @@ struct LyricsLineView: View, Equatable {
                             startTimeMs: part.startTimeMs,
                             endTimeMs: part.endTimeMs,
                             positionMs: positionMs,
+                            continuousPositionMs: continuousPositionMs,
                             active: partAnimating,
                             completedColorOpacity: completedColorOpacity,
                             activeColor: vocalPartActiveColor(part),
@@ -6165,6 +6174,7 @@ struct LyricsLineView: View, Equatable {
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
+                continuousPositionMs: continuousPositionMs,
                 active: animationActive,
                 completedColorOpacity: completedColorOpacity,
                 activeColor: lineActiveColor,
@@ -6187,6 +6197,7 @@ struct LyricsLineView: View, Equatable {
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
+                continuousPositionMs: continuousPositionMs,
                 active: animationActive,
                 completedColorOpacity: completedColorOpacity,
                 activeColor: lineActiveColor,
@@ -6210,6 +6221,7 @@ struct LyricsLineView: View, Equatable {
                 startTimeMs: line.startTimeMs,
                 endTimeMs: line.endTimeMs,
                 positionMs: positionMs,
+                continuousPositionMs: continuousPositionMs,
                 active: animationActive,
                 completedColorOpacity: completedColorOpacity,
                 activeColor: lineActiveColor,
@@ -6414,6 +6426,10 @@ struct SyllableKaraokeText: View {
     var startTimeMs: Int64
     var endTimeMs: Int64
     var positionMs: Int64
+    /// Unrounded position for the frame being painted. Discrete glyph states (pending, active,
+    /// done) still come from positionMs; the fill edge and bounce follow this value so they
+    /// advance on every display frame. nil (PiP, previews) paints from positionMs.
+    var continuousPositionMs: Double? = nil
     var active: Bool
     var completedColorOpacity: CGFloat = 1
     var activeColor: Color
@@ -6542,7 +6558,7 @@ struct SyllableKaraokeText: View {
         if DebugFrameProbe.shared.recording, !timedSegments.isEmpty {
             DebugFrameProbe.shared.recordFill(
                 singleLine: singleLine, active: active, lineStart: startTimeMs, lineEnd: endTimeMs,
-                position: Double(positionMs),
+                position: paintPositionMs,
                 fill: timedSegments.reduce(0) { $0 + Double($1.fill) },
                 bounce: timedSegments.map { Double($0.bounceOffsetY) }.min() ?? 0
             )
@@ -6773,7 +6789,11 @@ struct SyllableKaraokeText: View {
         if positionMs <= startTimeMs || endTimeMs <= startTimeMs {
             return 0
         }
-        return min(1, max(0, CGFloat(positionMs - startTimeMs) / CGFloat(endTimeMs - startTimeMs)))
+        return min(1, max(0, CGFloat(paintPositionMs - Double(startTimeMs)) / CGFloat(endTimeMs - startTimeMs)))
+    }
+
+    private var paintPositionMs: Double {
+        continuousPositionMs ?? Double(positionMs)
     }
 
     private var preparedKaraoke: KaraokeRenderPreparationCache.Value {
@@ -6804,7 +6824,7 @@ struct SyllableKaraokeText: View {
 
     private func karaokeBounce(profile: KaraokeMotionProfile?) -> KaraokeBounceMetrics {
         guard bounceEnabled, !accessibilityReduceMotion, let profile else { return .idle }
-        let values = profile.values(positionMs: Double(positionMs), textSize: Double(bounceTextSize))
+        let values = profile.values(positionMs: paintPositionMs, textSize: Double(bounceTextSize))
         return KaraokeBounceMetrics(offsetY: CGFloat(values.offsetY), scale: CGFloat(values.scale))
     }
 
