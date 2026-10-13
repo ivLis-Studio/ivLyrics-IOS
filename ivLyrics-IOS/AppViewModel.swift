@@ -871,7 +871,7 @@ final class AppViewModel: ObservableObject {
         initialSetupPresented = false
         lyricsLoadingProviderName = ""
         currentTrack = TrackSnapshot(
-            title: DebugKaraokeFixture.title,
+            title: environment["IVLYRICS_DEBUG_FIXTURE_TITLE"] ?? DebugKaraokeFixture.title,
             artist: DebugKaraokeFixture.artist,
             album: "DEBUG",
             packageName: "ios.debug-fixture",

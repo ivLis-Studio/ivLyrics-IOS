@@ -42,6 +42,9 @@ struct VinylPlayerModeView: View {
                 culturalAnnotationsVisible: settings.culturalAnnotationsEnabled
             )
             TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !spinning || !effectiveAnimationsEnabled)) { timeline in
+#if DEBUG && os(iOS)
+                let _ = debugProbeTimeline(.vinylSceneTick, timeline.date)
+#endif
                 scene(
                     geometry: geometry,
                     spinDegrees: accessibilityReduceMotion ? spinBaseDegrees : spinDegrees(at: timeline.date)

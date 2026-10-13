@@ -41,6 +41,9 @@ private struct AndroidSlidingMetadataText: View {
             let overflowing = textWidth > availableWidth + 0.5
 
             TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !overflowing)) { timeline in
+#if DEBUG && os(iOS)
+                let _ = debugProbeTimeline(.marqueeTick, timeline.date)
+#endif
                 Text(text)
                     .font(typography.font(slotId: slotId, baseSize: baseSize))
                     .foregroundStyle(color)
@@ -4365,6 +4368,9 @@ private struct MainLyricPreviewRowView: View {
 private struct MainLyricPreviewInterludeIcon: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+#if DEBUG && os(iOS)
+            let _ = debugProbeTimeline(.previewInterludeTick, timeline.date)
+#endif
             let nowMs = timeline.date.timeIntervalSinceReferenceDate * 1_000
             HStack(spacing: 4) {
                 ForEach(0..<4, id: \.self) { index in
@@ -4382,6 +4388,9 @@ private struct MainLyricPreviewLoadingSkeleton: View {
     @EnvironmentObject private var settings: AppSettings
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+#if DEBUG && os(iOS)
+            let _ = debugProbeTimeline(.previewSkeletonTick, timeline.date)
+#endif
             let nowMs = timeline.date.timeIntervalSinceReferenceDate * 1_000
             VStack(spacing: 6.6) {
                 ForEach(Array([0.54, 0.78, 0.42].enumerated()), id: \.offset) { index, widthFactor in
@@ -4407,6 +4416,9 @@ private struct LyricsLoadingSkeleton: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+#if DEBUG && os(iOS)
+            let _ = debugProbeTimeline(.lyricsSkeletonTick, timeline.date)
+#endif
             let nowMs = timeline.date.timeIntervalSinceReferenceDate * 1_000
             VStack(alignment: .leading, spacing: 20) {
                 ForEach(Array(widths.enumerated()), id: \.offset) { index, widthFactor in
@@ -6140,6 +6152,9 @@ struct LyricsInterludeView: View {
 
     private var interludeBars: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !active)) { timeline in
+#if DEBUG && os(iOS)
+            let _ = debugProbeTimeline(.interludeBarsTick, timeline.date)
+#endif
             let nowMs = timeline.date.timeIntervalSinceReferenceDate * 1_000
             HStack(spacing: 3.8) {
                 ForEach(0..<4, id: \.self) { index in

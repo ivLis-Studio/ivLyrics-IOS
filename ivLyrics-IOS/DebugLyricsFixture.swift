@@ -8,6 +8,7 @@ import UIKit
 /// DEBUG-only timed karaoke track for simulator QA, where Spotify cannot play.
 /// IVLYRICS_DEBUG_FIXTURE=1 loads it through the real model, display clock and renderers.
 /// IVLYRICS_DEBUG_FIXTURE_START_MS selects the segment; IVLYRICS_DEBUG_FIXTURE_PAUSED=1 freezes it.
+/// IVLYRICS_DEBUG_FIXTURE_TITLE replaces the title (a long one exercises the main-page marquee).
 enum DebugKaraokeFixture {
     static let title = "ivLyrics Motion Fixture"
     static let artist = "ivLyrics QA"
@@ -140,6 +141,12 @@ func debugProbeCount(_ counter: DebugFrameProbe.Counter) {
     DebugFrameProbe.shared.count(counter)
 }
 
+/// Counts one evaluation of a time-driven TimelineView and stores the date it drew.
+@MainActor
+func debugProbeTimeline(_ counter: DebugFrameProbe.Counter, _ date: Date) {
+    DebugFrameProbe.shared.recordTimeline(counter, date: date)
+}
+
 /// DEBUG-only frame cadence probe (IVLYRICS_DEBUG_FRAME_PROBE=1). After
 /// IVLYRICS_DEBUG_PROBE_DELAY_S it records IVLYRICS_DEBUG_PROBE_DURATION_S seconds of
 /// display-link frames, main-thread awake time per frame, the lyric scroll offset and every
@@ -151,7 +158,10 @@ final class DebugFrameProbe: NSObject {
     /// Per-frame evaluation counters; the frame record stores the counts since the previous frame.
     enum Counter: Int, CaseIterable {
         case timelineBody, lineBody, karaokeBody, glyphBody, flowLayoutUpdate, flowLayoutMake,
-             preparationMiss, previewBody, scrollBody
+             preparationMiss, previewBody, scrollBody,
+             // Time-driven decoration TimelineViews (see debugProbeTimeline).
+             marqueeTick, previewInterludeTick, previewSkeletonTick, lyricsSkeletonTick,
+             interludeBarsTick, vinylSceneTick
     }
 
     private struct FrameRecord {
@@ -190,6 +200,14 @@ final class DebugFrameProbe: NSObject {
         var callbackSampled: Double
     }
 
+    /// One TimelineView content evaluation: when it ran and the date it drew, both on the
+    /// media clock of the frame records.
+    private struct TimelineRecord {
+        var time: Double
+        var site: Int
+        var date: Double
+    }
+
     private(set) var recording = false
     private var link: CADisplayLink?
     private var observers: [CFRunLoopObserver] = []
@@ -198,6 +216,7 @@ final class DebugFrameProbe: NSObject {
     private var fills: [FillRecord] = []
     private var offsets: [OffsetRecord] = []
     private var clocks: [ClockRecord] = []
+    private var timelines: [TimelineRecord] = []
     private var events: [[String: Any]] = []
     private var cpuStart = (user: 0.0, system: 0.0)
     private var startTime = 0.0
@@ -249,6 +268,14 @@ final class DebugFrameProbe: NSObject {
                                   callbackSampled: callbackSampled))
     }
 
+    func recordTimeline(_ counter: Counter, date: Date) {
+        guard recording else { return }
+        counters[counter.rawValue] += 1
+        let now = CACurrentMediaTime()
+        let mediaDate = now + date.timeIntervalSince(Date())
+        timelines.append(TimelineRecord(time: now, site: counter.rawValue, date: mediaDate))
+    }
+
     func recordEvent(_ kind: String, _ values: [String: Any] = [:]) {
         guard recording else { return }
         var event = values
@@ -262,6 +289,7 @@ final class DebugFrameProbe: NSObject {
         fills.reserveCapacity(40_000)
         offsets.reserveCapacity(40_000)
         clocks.reserveCapacity(6_000)
+        timelines.reserveCapacity(40_000)
         cpuStart = Self.cpuTimes()
         startTime = CACurrentMediaTime()
         // DisplayRefreshClock passes CADisplayLink.timestamp as playback uptime.
@@ -339,6 +367,7 @@ final class DebugFrameProbe: NSObject {
             "offsets": offsets.map { [number($0.time), $0.relativeIndex, number($0.offset)] },
             "clocks": clocks.map { [number($0.callback), number($0.frame), number($0.painted),
                                    number($0.callbackSampled)] },
+            "timelines": timelines.map { [number($0.time), $0.site, number($0.date)] },
             "events": events
         ]
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
