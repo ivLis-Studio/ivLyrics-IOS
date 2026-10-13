@@ -162,6 +162,10 @@ struct IvLyricsIOSApp: App {
 
 struct ContentView: View {
     private static let lyricsMetaTipShownKey = "lyrics_meta_menu_tip_shown"
+    /// Never advances. The covered main page observes it instead of the live clock.
+    private static let coveredPagePlaybackClock = PlaybackClock()
+    /// Longer than the covering transitions (lyrics page 0.33s, vinyl 0.36-0.42s).
+    private static let coveredPageFreezeDelay: TimeInterval = 0.6
 
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
@@ -180,6 +184,8 @@ struct ContentView: View {
     @State private var lyricsMetaTipToken = UUID()
     @State private var inAppBrowserDragOffset: CGFloat = 0
     @State private var vinylModeVisible = false
+    @State private var mainPageFrozen = false
+    @State private var mainPageCoverToken = UUID()
 
     var body: some View {
         GeometryReader { geometry in
@@ -211,6 +217,9 @@ struct ContentView: View {
             }
             .onChange(of: settings.keepScreenOn) { _, enabled in
                 applyKeepScreenOn(enabled)
+            }
+            .onChange(of: mainPageCovered(isLandscape: isLandscape)) { _, covered in
+                updateMainPageFreeze(covered: covered)
             }
             .onChange(of: geometry.size.height) { _, height in
                 lyricsPageAnimationHeight = max(1, height)
@@ -291,6 +300,14 @@ struct ContentView: View {
                 isLandscape: isLandscape,
                 size: size,
                 safeAreaInsets: safeAreaInsets
+            )
+            // The portrait main page stays mounted (artwork, marquee and preview state) while the
+            // lyrics page or vinyl mode covers it, but stops repainting on every display frame.
+            // The live clock returns in the same update that starts uncovering it.
+            .environmentObject(
+                mainPageFrozen && mainPageCovered(isLandscape: isLandscape)
+                    ? Self.coveredPagePlaybackClock
+                    : model.playbackClock
             )
             .opacity(vinylModeVisible ? 0 : 1)
             .scaleEffect(vinylModeVisible ? 0.985 : 1)
@@ -375,6 +392,27 @@ struct ContentView: View {
     ) -> CGFloat {
         guard !isLandscape, lyricsPageVisible else { return screenHeight }
         return min(screenHeight, max(0, lyricsPageDragOffset - safeAreaTop))
+    }
+
+    /// Portrait only: the landscape pane shows the lyric list itself, and holding it would turn
+    /// the vinyl dismissal into a catch-up scroll.
+    private func mainPageCovered(isLandscape: Bool) -> Bool {
+        guard !isLandscape else { return false }
+        return vinylModeVisible || (lyricsPageVisible && lyricsPageDragOffset == 0)
+    }
+
+    private func updateMainPageFreeze(covered: Bool) {
+        let token = UUID()
+        mainPageCoverToken = token
+        guard covered else {
+            mainPageFrozen = false
+            return
+        }
+        // The covering transition still shows the page; hold it only once fully covered.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.coveredPageFreezeDelay) {
+            guard mainPageCoverToken == token else { return }
+            mainPageFrozen = true
+        }
     }
 
     @ViewBuilder
@@ -4732,7 +4770,12 @@ struct LyricsTimelineView: View {
                 let speakerColors = settings.speakerColorSettings()
                 ForEach(EnumeratedRandomAccessCollection(items), id: \.element.id) { displayIndex, item in
                     let itemActive = item.id == activeItemID
-                    let displayDistance = abs(Double(displayIndex) - visualCenterIndex)
+                    // Colors stop changing past maximumEffectiveDistance, so farther rows keep
+                    // equal inputs and skip re-rendering when the center moves.
+                    let displayDistance = min(
+                        LyricSpeakerPalette.maximumEffectiveDistance,
+                        abs(Double(displayIndex) - visualCenterIndex)
+                    )
                     Group {
                         switch item {
                         case .line(let index, let line, _):
@@ -7836,6 +7879,10 @@ private struct KaraokeDebugPreview: View {
 #endif
 
 enum LyricSpeakerPalette {
+    /// Every distance-based lyric color is constant beyond this distance: inactive text clamps
+    /// at 2.6 (also after a vocal part's +0.45), supplements at 2.8, interlude bars at 2.6.
+    static let maximumEffectiveDistance = 2.8
+
     private struct ResolutionCacheKey: Hashable {
         var speaker: String
         var speakerColor: String
