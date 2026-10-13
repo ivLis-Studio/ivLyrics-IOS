@@ -334,6 +334,15 @@ final class AppViewModel: ObservableObject {
     /// Discrete lyric state keeps using whole milliseconds; only continuously painted values
     /// (karaoke fill edge and bounce) read this, so they advance by exactly one frame per frame.
     private(set) var nowContinuousPositionMs: Double = 0
+    /// Uptime of the display frame being prepared (its presentation time in the foreground).
+    private(set) var playbackFrameUptime: TimeInterval = ProcessInfo.processInfo.systemUptime
+    private var lyricsFrameUpdatesUntilUptime: TimeInterval = 0
+
+    /// Lyric line travel is painted from the playback clock. While playback is paused the clock
+    /// stops publishing, so a travel in flight asks for frame updates until it lands.
+    func keepLyricsFramesUpdating(until uptime: TimeInterval) {
+        lyricsFrameUpdatesUntilUptime = max(lyricsFrameUpdatesUntilUptime, uptime)
+    }
     @Published var trackOffsetMs: Int = 0 {
         didSet {
             let clamped = Self.clampSyncOffset(trackOffsetMs)
@@ -4257,6 +4266,7 @@ final class AppViewModel: ObservableObject {
     /// (background PiP timer, other platforms) the clock is sampled when called.
     private func refreshPlaybackClock(frameUptime: TimeInterval? = nil) {
         let uptime = frameUptime ?? ProcessInfo.processInfo.systemUptime
+        playbackFrameUptime = uptime
         let position = currentTrack?.positionNow(uptime: uptime) ?? 0
         if let track = currentTrack {
             updateSpotifyDJLyricsTimeline(
@@ -4265,7 +4275,11 @@ final class AppViewModel: ObservableObject {
             )
         }
         nowContinuousPositionMs = currentTrack?.continuousPositionMs(uptime: uptime) ?? 0
-        if position != nowPositionMs { nowPositionMs = position }
+        if position != nowPositionMs {
+            nowPositionMs = position
+        } else if uptime < lyricsFrameUpdatesUntilUptime {
+            playbackClock.objectWillChange.send()
+        }
         // PiP renders at its own cadence. Avoid rebuilding settings and the inactive
         // priming frame for every foreground glyph update, including 120Hz displays.
         let pipInterval = pictureInPictureController.isEngaged ? 1.0 / 30.0 : 1.0

@@ -4659,6 +4659,8 @@ struct LyricsTimelineView: View {
     @EnvironmentObject private var playbackClock: PlaybackClock
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var animatedCenterIndex: Double?
+    /// Owned by LyricsTimelineScrollView; nil where the list does not scroll.
+    var travelCascade: LyricsTravelCascade? = nil
 
     var body: some View {
 #if DEBUG && os(iOS)
@@ -4666,6 +4668,7 @@ struct LyricsTimelineView: View {
 #endif
         let position = model.adjustedPositionMs
         let continuousPosition = model.adjustedContinuousPositionMs
+        let frameUptime = model.playbackFrameUptime
         let timelineContext = model.timelineContext
         let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
             context: timelineContext,
@@ -4779,9 +4782,17 @@ struct LyricsTimelineView: View {
                         }
                     }
                     .id(item.id)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(LyricsTravelCascade.coordinateSpace))
+                    } action: { frame in
+                        travelCascade?.rowFrames[item.id] = frame
+                    }
+                    .offset(y: cascadeOffset(itemID: item.id, displayIndex: displayIndex,
+                                             anchorIndex: targetDisplayIndex, at: frameUptime))
                 }
             }
         }
+        .coordinateSpace(.named(LyricsTravelCascade.coordinateSpace))
         .onAppear {
             animatedCenterIndex = Double(targetDisplayIndex)
         }
@@ -4804,6 +4815,17 @@ struct LyricsTimelineView: View {
                 animatedCenterIndex = next
             }
         }
+    }
+
+    private func cascadeOffset(itemID: String, displayIndex: Int, anchorIndex: Int, at uptime: TimeInterval) -> CGFloat {
+        guard let travelCascade else { return 0 }
+        let offset = travelCascade.offset(itemID: itemID, at: uptime)
+#if DEBUG && os(iOS)
+        if offset != 0 {
+            DebugFrameProbe.shared.recordOffset(relativeIndex: displayIndex - anchorIndex, offset: Double(offset))
+        }
+#endif
+        return offset
     }
 }
 
@@ -4875,6 +4897,7 @@ private struct LyricsTimelineScrollView: View {
     @State private var autoScrollPaused = false
     @State private var lastScrolledTargetID: String?
     @State private var autoScrollResumeTask: Task<Void, Never>?
+    @State private var travelCascade = LyricsTravelCascade()
 
     var topPadding: CGFloat = 0
     var bottomPadding: CGFloat = 0
@@ -4911,7 +4934,7 @@ private struct LyricsTimelineScrollView: View {
                                 Color.clear
                                     .frame(height: topEdgeInset(for: geometry.size.height))
                             }
-                            LyricsTimelineView()
+                            LyricsTimelineView(travelCascade: travelCascade)
                                 .padding(.top, topPadding)
                                 .padding(.bottom, bottomPadding)
                                 .padding(.leading, horizontalPadding)
@@ -5044,30 +5067,121 @@ private struct LyricsTimelineScrollView: View {
     private func scrollToTarget(_ targetID: String?, proxy: ScrollViewProxy, animated: Bool, force: Bool = false) {
         guard let targetID else { return }
         guard force || lastScrolledTargetID != targetID else { return }
+        let previousTargetID = lastScrolledTargetID
         lastScrolledTargetID = targetID
 #if DEBUG && os(iOS)
         DebugFrameProbe.shared.recordEvent("travel", ["target": targetID, "animated": animated, "force": force])
 #endif
+        let anchorY = min(1, max(0, centerAnchorY))
         let action = {
             proxy.scrollTo(
                 targetID,
-                anchor: UnitPoint(x: 0.5, y: min(1, max(0, centerAnchorY)))
+                anchor: UnitPoint(x: 0.5, y: anchorY)
             )
         }
-        if animated && !accessibilityReduceMotion {
-            let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
-                context: model.timelineContext,
-                positionMs: model.adjustedPositionMs,
-                trackDurationMs: model.lyricsDurationMs,
-                autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
-            )
-            let duration = displaySnapshot.firstIndex(id: targetID).map {
-                LyricsMotion.centeringDuration(items: displaySnapshot.items, targetIndex: $0)
-            } ?? LyricsMotion.defaultCenteringDuration
-            withAnimation(LyricsMotion.centering(duration: duration), action)
-        } else {
+        guard animated && !accessibilityReduceMotion else {
             action()
+            return
         }
+        let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
+            context: model.timelineContext,
+            positionMs: model.adjustedPositionMs,
+            trackDurationMs: model.lyricsDurationMs,
+            autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
+        )
+        let targetIndex = displaySnapshot.firstIndex(id: targetID)
+        let windowMs = targetIndex.flatMap {
+            LyricsTravelMotion.windowMs(items: displaySnapshot.items, targetIndex: $0)
+        }
+        // A line that is replaced within 80ms moves without travel, like the PC renderer.
+        guard !LyricsTravelMotion.skipsMotion(windowMs: windowMs) else {
+            action()
+            return
+        }
+        let timing = LyricsTravelMotion.timing(windowMs: windowMs)
+        // Only a one-row advance cascades. Seeks, jumps, focus requests and manual-scroll
+        // returns (force) move every row together on the scroll alone.
+        if !force, let previousTargetID, let targetIndex,
+           displaySnapshot.firstIndex(id: previousTargetID) == targetIndex - 1,
+           let distance = travelCascade.anchorDistance(from: previousTargetID, to: targetID, anchorY: anchorY),
+           distance > 0.5 {
+            let startUptime = model.playbackFrameUptime
+            travelCascade.begin(
+                startUptime: startUptime,
+                distance: distance,
+                timing: timing,
+                rowsBelow: displaySnapshot.items.dropFirst(targetIndex + 1).prefix(32).map(\.id)
+            )
+            model.keepLyricsFramesUpdating(until: startUptime + timing.totalMs / 1_000)
+        }
+        // ScrollView honors SwiftUI's built-in springs (not CustomAnimation) for scrollTo.
+        // bounce 0 is the same critically damped curve (omega = k / duration); a retargeted
+        // scroll keeps its velocity.
+        withAnimation(.spring(duration: LyricsTravelMotion.springResponseSeconds(timing), bounce: 0), action)
+    }
+}
+
+extension LyricsTravelMotion {
+    /// Time from this row's travel to the next row's (the same window LyricsMotion uses).
+    static func windowMs(items: [LyricsTimelineDisplayItem], targetIndex: Int) -> Double? {
+        guard items.indices.contains(targetIndex) else { return nil }
+        let targetStart = items[targetIndex].startTimeMs
+        guard let nextStart = items.dropFirst(targetIndex + 1)
+            .lazy
+            .map(\.startTimeMs)
+            .first(where: { $0 > targetStart }) else {
+            return nil
+        }
+        return Double(nextStart - targetStart)
+    }
+}
+
+/// The lyric scroll carries every row on the travel spring. A row below the anchor adds
+/// distance * (p(t) - p(t - delay)), so it replays the anchor's travel 'delay' later and ends at
+/// exactly zero offset; overlapping travels add up. Plain reference type: rows read it while
+/// the playback clock repaints them, so it never invalidates a view by itself.
+final class LyricsTravelCascade {
+    static let coordinateSpace = "ivlyrics-lyrics-travel"
+
+    private struct Travel {
+        var startUptime: TimeInterval
+        var distance: Double
+        var durationMs: Double
+        var endMs: Double
+        var delays: [String: Double]
+    }
+
+    private var travels: [Travel] = []
+    /// Row layout frames in the scroll content; scrolling and cascade offsets do not change them.
+    var rowFrames: [String: CGRect] = [:]
+
+    /// Content-offset change of scrollTo(_:anchor:) from one row to the next.
+    func anchorDistance(from previousID: String, to targetID: String, anchorY: CGFloat) -> Double? {
+        guard let from = rowFrames[previousID], let to = rowFrames[targetID] else { return nil }
+        return Double((to.minY + to.height * anchorY) - (from.minY + from.height * anchorY))
+    }
+
+    func begin(startUptime: TimeInterval, distance: Double, timing: LyricsTravelMotion.Timing, rowsBelow: [String]) {
+        travels.removeAll { (startUptime - $0.startUptime) * 1_000 >= $0.endMs }
+        var delays: [String: Double] = [:]
+        for (offset, id) in rowsBelow.enumerated() {
+            delays[id] = LyricsTravelMotion.delayMs(rowsBelowAnchor: offset + 1, timing: timing)
+        }
+        travels.append(Travel(startUptime: startUptime, distance: distance, durationMs: timing.durationMs,
+                              endMs: timing.totalMs, delays: delays))
+    }
+
+    func offset(itemID: String, at uptime: TimeInterval) -> CGFloat {
+        guard !travels.isEmpty else { return 0 }
+        var total = 0.0
+        for travel in travels {
+            guard let delay = travel.delays[itemID], delay > 0 else { continue }
+            let elapsed = (uptime - travel.startUptime) * 1_000
+            guard elapsed > 0, elapsed < travel.durationMs + delay else { continue }
+            total += travel.distance * (LyricsTravelMotion.progress(elapsed / travel.durationMs)
+                - LyricsTravelMotion.progress((elapsed - delay) / travel.durationMs))
+        }
+        return CGFloat(total)
     }
 }
 
