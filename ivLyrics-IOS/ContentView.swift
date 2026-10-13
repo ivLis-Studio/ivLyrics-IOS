@@ -647,6 +647,21 @@ struct ContentView: View {
                 presentVinylMode()
             }
         }
+        // Uncover the main page after a delay to verify it resumes the live clock immediately.
+        if let rawDelay = environment["IVLYRICS_DEBUG_REVEAL_MAIN_AFTER_S"], let delay = Double(rawDelay) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+#if os(iOS)
+                DebugFrameProbe.shared.recordEvent("revealMain")
+#endif
+                if vinylModeVisible {
+                    withAnimation(.timingCurve(0.22, 0.74, 0.28, 1, duration: 0.36)) {
+                        vinylModeVisible = false
+                    }
+                } else if lyricsPageVisible {
+                    lyricsPageDragOffset = 240
+                }
+            }
+        }
 #if os(iOS)
         DebugFrameProbe.shared.scheduleFromEnvironment()
 #endif

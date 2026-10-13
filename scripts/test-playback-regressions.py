@@ -26,6 +26,19 @@ cloud_merge_end = settings_source.index("\n\n        let loaded = AppSettings(de
 motion_start = source.index("private enum LyricsMotion {")
 motion_end = source.index("private struct LyricsTimelineEdgeFadeMask:", motion_start)
 motion = source[motion_start:motion_end].replace("private enum LyricsMotion", "enum LyricsMotion")
+# Every distance-based lyric color must stop changing at LyricSpeakerPalette.maximumEffectiveDistance,
+# because LyricsTimelineView clamps the distance it hands to rows (farther rows skip re-rendering).
+import re
+palette = source[source.index("enum LyricSpeakerPalette {"):source.index("private static func speakerResolution(")]
+interlude = source[source.index("struct LyricsInterludeView: View {"):source.index("struct LyricsLineView: View, Equatable {")]
+saturation = float(re.search(r"static let maximumEffectiveDistance = ([0-9.]+)", palette).group(1))
+clamps = [float(value) for value in re.findall(r"min\(([0-9.]+), max\(0, (?:distance|displayDistance)\)\)", palette + interlude)]
+assert len(clamps) == 3 and max(clamps) <= saturation, f"distance clamps {clamps} exceed {saturation}"
+assert "LyricSpeakerPalette.maximumEffectiveDistance," in source, "rows no longer receive the clamped distance"
+# TrackSnapshot (Foundation only) proves the continuous frame position rounds to the discrete one.
+models_source = (ROOT / "ivLyrics-IOS/Models.swift").read_text()
+track_start = models_source.index("struct TrackSnapshot: Equatable, Hashable, Sendable {")
+track_snapshot = models_source[track_start:models_source.index("\n}\n", track_start) + 3]
 # Compare against the shipped eager search while executing the production curve.
 baseline_motion = subprocess.check_output(
     ["git", "show", "4e3c721:ivLyrics-IOS/ContentView.swift"], cwd=ROOT, text=True
@@ -60,6 +73,7 @@ struct LyricsTimelineDisplayItem {
 struct LyricsLine { struct Syllable: Equatable { var text: String; var startTimeMs: Int64; var endTimeMs: Int64 } }
 struct CulturalAnnotation: Equatable { var note: String }
 enum KaraokeSyllableTimingNormalizer { struct FillTiming { var startTimeMs: Int64; var endTimeMs: Int64 } }
+extension String { var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) } }
 '''
 ruby_source = (ROOT / "ivLyrics-IOS/FuriganaRepository.swift").read_text()
 fixtures += "enum FuriganaRepository {\n" + ruby_source[
@@ -269,11 +283,93 @@ near(SpotifyPlaybackRetryPolicy.retryAfterSeconds("600")!, 600, "Long server ret
 check(SpotifyPlaybackRetryPolicy.retryAfterSeconds("invalid") == nil, "Malformed retry header uses caller fallback")
 check(SpotifyPlaybackRetryPolicy.retryAfterSeconds("nan") == nil, "Non-finite retry header is rejected")
 near(SpotifyPlaybackRetryPolicy.retryAfterSeconds("Thu, 01 Jan 1970 00:01:00 GMT", now: Date(timeIntervalSince1970: 0))!, 60, "HTTP-date retry headers are supported")
+// Line travel: reference values from the PC renderer (ivLyrics Pages.js getLyricsLineMotionProgress,
+// getAdaptiveLyricsCenteringTiming and getLyricsLineStaggerDelay evaluated in Node).
+for (u, expected) in [(0.02, 0.010233939081065192), (0.05, 0.05523692242924416), (0.1, 0.1741773783809589),
+                      (0.224, 0.5028819012309906), (0.5, 0.8924864799261879), (0.839, 0.9911676297023698),
+                      (0.885, 0.9946687459158312), (0.97, 0.9989647532275305)] {
+    near(LyricsTravelMotion.progress(u), expected, "PC travel spring", tolerance: 1e-12)
+}
+check(LyricsTravelMotion.progress(0) == 0 && LyricsTravelMotion.progress(1) == 1, "Travel lands exactly at its target")
+check(LyricsTravelMotion.slope(0) == 0 && LyricsTravelMotion.slope(0.001) < 0.06, "A row at rest leaves with zero velocity")
+var travelPrevious = 0.0
+for step in 1...1_000 {
+    let value = LyricsTravelMotion.progress(Double(step) / 1_000)
+    check(value >= travelPrevious && value <= 1, "Travel never reverses or overshoots")
+    travelPrevious = value
+}
+let pcTimings: [(Double?, Double, Double, Double)] = [
+    (nil, 560, 50, 260), (2_000, 560, 50, 260), (820, 544, 48.536585365853654, 252),
+    (600, 393, 35.12195121951219, 182.6341463414634), (440, 284, 25.365853658536587, 131.90243902439025),
+    (300, 188, 16.82926829268293, 87.51219512195122), (104, 55, 4.878048780487805, 25), (90, 55, 4.878048780487805, 25)
+]
+for (window, duration, stagger, maxStagger) in pcTimings {
+    let timing = LyricsTravelMotion.timing(windowMs: window)
+    near(timing.durationMs, duration, "PC travel duration")
+    near(timing.staggerMs, stagger, "PC cascade step")
+    near(timing.maxStaggerMs, maxStagger, "PC cascade cap")
+}
+for (index, delay) in [(-2, 0.0), (0, 0), (1, 50), (2, 97.61904761904758), (3, 142.97052154195012), (4, 186.16240146852385),
+                       (5, 227.29752520811795), (6, 260), (8, 260), (12, 260)] {
+    near(LyricsTravelMotion.delayMs(rowsBelowAnchor: index, timing: LyricsTravelMotion.defaultTiming), delay, "PC cascade delay")
+}
+let rapidTiming = LyricsTravelMotion.timing(windowMs: 300)
+for (index, delay) in [(1, 16.82926829268293), (2, 32.85714285714285), (3, 48.12178529948566), (6, 87.51219512195122)] {
+    near(LyricsTravelMotion.delayMs(rowsBelowAnchor: index, timing: rapidTiming), delay, "Rapid lines scale the cascade")
+}
+check(LyricsTravelMotion.skipsMotion(windowMs: 79) && !LyricsTravelMotion.skipsMotion(windowMs: 80)
+      && !LyricsTravelMotion.skipsMotion(windowMs: nil), "Lines replaced within 80ms move without travel")
+for window in stride(from: 80.0, through: 2_000, by: 7) {
+    let timing = LyricsTravelMotion.timing(windowMs: window)
+    check(timing.totalMs <= max(80, window - 24), "Travel and cascade settle before the next line")
+}
+let springResponse = LyricsTravelMotion.springResponseSeconds(LyricsTravelMotion.defaultTiming)
+near(springResponse, 0.56 * 2 * Double.pi / 7.5, "Scroll spring response")
+var springGap = 0.0
+for step in 0...560 {
+    let seconds = Double(step) / 1_000
+    let omega = 2 * Double.pi / springResponse
+    let swiftUISpring = 1 - (1 + omega * seconds) * exp(-omega * seconds)
+    springGap = max(springGap, abs(swiftUISpring - LyricsTravelMotion.progress(seconds / 0.56)))
+}
+// 1 - (1 + k)e^-k = 0.99530: the unnormalized spring trails the PC curve by at most 0.47% of the travel.
+check(springGap < 0.0048, "SwiftUI spring(bounce: 0) follows the PC travel within its normalization")
+// Continuous frame position: rounds to the discrete position and advances one frame per frame.
+for speed in [1.0, 0.85, 1.25] {
+    for start in [Int64(0), 1_234, 99_999] {
+        let track = TrackSnapshot(title: "t", artist: "a", durationMs: 200_000, positionMs: start,
+                                  lastPositionUpdateUptime: 1_000, playbackSpeed: speed, playing: true)
+        for frame in 0..<1_200 {
+            let uptime = 1_000 + Double(frame) / 120
+            check(Int64(track.continuousPositionMs(uptime: uptime).rounded()) == track.positionNow(uptime: uptime),
+                  "Continuous position rounds to the discrete position")
+        }
+    }
+}
+let playing120 = TrackSnapshot(title: "t", artist: "a", durationMs: 200_000, positionMs: 5_000,
+                               lastPositionUpdateUptime: 1_000, playing: true)
+var wholeSteps = Set<Int64>()
+var continuousSteps: [Double] = []
+for frame in 1..<240 {
+    let previous = 1_000 + Double(frame - 1) / 120
+    let current = 1_000 + Double(frame) / 120
+    wholeSteps.insert(playing120.positionNow(uptime: current) - playing120.positionNow(uptime: previous))
+    continuousSteps.append(playing120.continuousPositionMs(uptime: current) - playing120.continuousPositionMs(uptime: previous))
+}
+check(wholeSteps == [8, 9], "Whole milliseconds alternate 8/9ms steps at 120Hz")
+check(continuousSteps.allSatisfy { abs($0 - 1_000.0 / 120) < 1e-6 }, "The fill clock advances exactly one 120Hz frame per frame")
+let pausedTrack = TrackSnapshot(title: "t", artist: "a", durationMs: 200_000, positionMs: 12_345,
+                                lastPositionUpdateUptime: 1_000, playing: false)
+check(pausedTrack.continuousPositionMs(uptime: 5_000) == Double(pausedTrack.positionNow(uptime: 5_000)),
+      "Paused frames paint the same position as before")
+let endedTrack = TrackSnapshot(title: "t", artist: "a", durationMs: 10_000, positionMs: 9_990,
+                               lastPositionUpdateUptime: 1_000, playing: true)
+check(endedTrack.continuousPositionMs(uptime: 1_005) == 10_000, "Continuous position stops at the track end")
 print("PLAYBACK_REGRESSIONS_PASSED assertions=\(assertions)")
 '''
 with tempfile.TemporaryDirectory(prefix="ivlyrics-ios-regression-") as path:
     work = Path(path)
-    (work / "main.swift").write_text(fixtures + motion + baseline_motion + settings_probe + cache + checks)
-    sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", ROOT / "ivLyrics-IOS/BoundedLRUCache.swift", ROOT / "ivLyrics-IOS/SpotifyPlaybackRetryPolicy.swift", work / "main.swift"]
+    (work / "main.swift").write_text(fixtures + track_snapshot + motion + baseline_motion + settings_probe + cache + checks)
+    sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", ROOT / "ivLyrics-IOS/BoundedLRUCache.swift", ROOT / "ivLyrics-IOS/SpotifyPlaybackRetryPolicy.swift", ROOT / "ivLyrics-IOS/LyricsTravelMotion.swift", work / "main.swift"]
     subprocess.run(["xcrun", "swiftc", *map(str, sources), "-o", str(work / "regression")], check=True)
     subprocess.run([str(work / "regression")], check=True)
