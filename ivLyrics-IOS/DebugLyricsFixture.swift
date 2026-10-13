@@ -181,7 +181,7 @@ final class DebugFrameProbe: NSObject {
              // Time-driven decoration TimelineViews (see debugProbeTimeline).
              marqueeTick, previewInterludeTick, previewSkeletonTick, lyricsSkeletonTick,
              interludeBarsTick, vinylSceneTick,
-             vinylTonearmBody, vinylDiscTick
+             vinylTonearmBody, vinylDiscTick, vinylSceneBody
     }
 
     private struct FrameRecord {

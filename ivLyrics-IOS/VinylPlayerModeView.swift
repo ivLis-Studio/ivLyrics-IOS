@@ -8,8 +8,8 @@ import UIKit
 struct VinylPlayerModeView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Keeps the tonearm and active lyric renderer synchronized with the shared playback clock.
-    @EnvironmentObject private var playbackClock: PlaybackClock
+    // The scene does not observe the playback clock: the tonearm layer and the lyric panel do,
+    // so a clock tick re-renders only them, and a spin tick re-renders only the records.
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Binding var isPresented: Bool
 
@@ -28,7 +28,6 @@ struct VinylPlayerModeView: View {
     @State private var spinToken = UUID()
     @State private var accentColors: [String: Color] = [:]
     @State private var artworkImages: [String: UIImage] = [:]
-    @GestureState private var tonearmDragState: VinylTonearmDragState?
 
     var body: some View {
         GeometryReader { proxy in
@@ -41,19 +40,15 @@ struct VinylPlayerModeView: View {
                 lyricsVisible: settings.vinylLyricsEnabled,
                 culturalAnnotationsVisible: settings.culturalAnnotationsEnabled
             )
+            // The scene is built here, once per scene change, and handed to the spin timeline as a
+            // value. A spin tick only updates vinylSpinDate, which only the records read: every record
+            // draws the timeline's one date per frame, as before, and nothing else re-evaluates.
+            let records = scene(geometry: geometry)
             TimelineView(.animation(paused: !spinning || !effectiveAnimationsEnabled)) { timeline in
 #if DEBUG && os(iOS)
                 let _ = debugProbeTimeline(.vinylSceneTick, timeline.date)
-                let _ = debugProbeSpin(
-                    disc: 0, date: timeline.date,
-                    angle: accessibilityReduceMotion ? spinBaseDegrees : spinDegrees(at: timeline.date),
-                    origin: spinOrigin, base: spinBaseDegrees, spinning: spinning
-                )
 #endif
-                scene(
-                    geometry: geometry,
-                    spinDegrees: accessibilityReduceMotion ? spinBaseDegrees : spinDegrees(at: timeline.date)
-                )
+                records.environment(\.vinylSpinDate, timeline.date)
             }
 
             if settings.vinylLyricsEnabled {
@@ -112,22 +107,23 @@ struct VinylPlayerModeView: View {
     }
 
     @ViewBuilder
-    private func scene(geometry: VinylSceneGeometry, spinDegrees: Double) -> some View {
+    private func scene(geometry: VinylSceneGeometry) -> some View {
+#if DEBUG && os(iOS)
+        let _ = debugProbeCount(.vinylSceneBody)
+#endif
         if let displayedTrack {
             ZStack(alignment: .topLeading) {
                 if incomingTrack != nil {
                     outgoingLayers(
                         track: displayedTrack,
-                        geometry: geometry,
-                        spinDegrees: spinDegrees
+                        geometry: geometry
                     )
-                    incomingLayers(geometry: geometry, spinDegrees: spinDegrees)
+                    incomingLayers(geometry: geometry)
                 } else {
                     let frontRecordProgress = vinylSmoothStep(0.54, 0.76, playProgress)
-                    disc(
+                    spinningDisc(
                         track: displayedTrack,
                         frame: geometry.record,
-                        rotation: spinDegrees,
                         interactive: true
                     )
                     .zIndex(0)
@@ -141,10 +137,9 @@ struct VinylPlayerModeView: View {
                     .zIndex(1)
 
                     if frontRecordProgress > 0 {
-                        disc(
+                        spinningDisc(
                             track: displayedTrack,
                             frame: geometry.record,
-                            rotation: spinDegrees,
                             interactive: frontRecordProgress > 0.04
                         )
                         .opacity(frontRecordProgress)
@@ -152,7 +147,12 @@ struct VinylPlayerModeView: View {
                     }
                 }
 
-                tonearm(geometry: geometry)
+                VinylTonearmLayer(
+                    geometry: geometry,
+                    incomingTrackPresent: incomingTrack != nil,
+                    trackTransitionProgress: trackTransitionProgress,
+                    tonearmEngagement: tonearmEngagement
+                )
                     .allowsHitTesting(incomingTrack == nil)
                     .zIndex(8)
             }
@@ -163,8 +163,7 @@ struct VinylPlayerModeView: View {
     @ViewBuilder
     private func outgoingLayers(
         track: TrackSnapshot,
-        geometry: VinylSceneGeometry,
-        spinDegrees: Double
+        geometry: VinylSceneGeometry
     ) -> some View {
         let sleevePhase = vinylSmoothStep(
             VinylSequence.trackRecordCleared,
@@ -189,10 +188,9 @@ struct VinylPlayerModeView: View {
             departProgress: departPhase
         )
 
-        disc(
+        spinningDisc(
             track: track,
             frame: outgoingRecord,
-            rotation: spinDegrees,
             interactive: false
         )
         .opacity(opacity)
@@ -209,7 +207,7 @@ struct VinylPlayerModeView: View {
     }
 
     @ViewBuilder
-    private func incomingLayers(geometry: VinylSceneGeometry, spinDegrees: Double) -> some View {
+    private func incomingLayers(geometry: VinylSceneGeometry) -> some View {
         if let incomingTrack {
             let coverPhase = vinylSmoothStep(
                 VinylSequence.trackAlbumDeparted,
@@ -231,10 +229,9 @@ struct VinylPlayerModeView: View {
                 progress: recordPhase
             )
 
-            disc(
+            spinningDisc(
                 track: incomingTrack,
                 frame: incomingRecord,
-                rotation: spinDegrees,
                 interactive: false
             )
             .opacity(recordPhase * (1 - raisePhase))
@@ -249,10 +246,9 @@ struct VinylPlayerModeView: View {
             .opacity(coverPhase)
             .zIndex(4)
 
-            disc(
+            spinningDisc(
                 track: incomingTrack,
                 frame: incomingRecord,
-                rotation: spinDegrees,
                 interactive: false
             )
             .opacity(recordPhase * raisePhase)
@@ -279,6 +275,25 @@ struct VinylPlayerModeView: View {
             .accessibilityLabel(settings.t("vinyl.close_hint"))
             .accessibilityHint(settings.t("vinyl.tmi_hint"))
             .accessibilityAddTraits(closeEnabled ? .isButton : [])
+    }
+
+    /// A record at the spin timeline's date (spinDegrees(at:) as before); a spin tick re-renders it.
+    private func spinningDisc(track: TrackSnapshot, frame: CGRect, interactive: Bool) -> some View {
+        VinylSpinDateReader { date in
+#if DEBUG && os(iOS)
+            let _ = debugProbeSpin(
+                disc: 1, date: date,
+                angle: accessibilityReduceMotion ? spinBaseDegrees : spinDegrees(at: date),
+                origin: spinOrigin, base: spinBaseDegrees, spinning: spinning
+            )
+#endif
+            disc(
+                track: track,
+                frame: frame,
+                rotation: accessibilityReduceMotion ? spinBaseDegrees : spinDegrees(at: date),
+                interactive: interactive
+            )
+        }
     }
 
     private func disc(
@@ -318,197 +333,6 @@ struct VinylPlayerModeView: View {
                     if enabled { close() }
                 }
             }
-    }
-
-    private func tonearm(geometry: VinylSceneGeometry) -> some View {
-        let style = AppSettings.normalizeVinylTonearmStyle(settings.vinylTonearmStyle)
-        let finish = AppSettings.normalizeVinylTonearmFinish(settings.vinylTonearmFinish)
-        let sizeScale = CGFloat(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent)) / 100
-        let linear = style == AppSettings.vinylTonearmStyleLinear
-        let trackParkProgress = incomingTrack == nil
-            ? 1
-            : 1 - vinylSmoothStep(0, VinylSequence.trackRecordSleeved, trackTransitionProgress)
-        let engagement = Double(tonearmEngagement * trackParkProgress)
-        let parkedProgress = linear
-            ? VinylTonearmGeometry.linearParkProgress
-            : VinylTonearmGeometry.progress(forRotation: VinylTonearmGeometry.parkDegrees)
-        let progress = tonearmDragState?.progress
-            ?? vinylLerp(parkedProgress, playbackProgress, engagement)
-        let rotation = tonearmDragState?.rotation
-            ?? vinylLerp(
-                VinylTonearmGeometry.parkDegrees,
-                VinylTonearmGeometry.rotation(for: playbackProgress),
-                engagement
-            )
-        let points = VinylTonearmGeometry.points(
-            record: geometry.record,
-            rotation: rotation,
-            style: style,
-            sizeScale: sizeScale,
-            progress: progress
-        )
-#if DEBUG && os(iOS)
-        debugProbeTonearm(rotation: rotation, progress: progress, engagement: engagement,
-                          playbackProgress: playbackProgress, dragging: tonearmDragState != nil)
-#endif
-
-        return ZStack(alignment: .topLeading) {
-            Canvas { context, _ in
-                VinylTonearmArtwork.draw(
-                    context: context,
-                    record: geometry.record,
-                    rotation: rotation,
-                    progress: progress,
-                    style: style,
-                    finish: finish,
-                    sizeScale: sizeScale
-                )
-            }
-            .allowsHitTesting(false)
-
-            Color.clear
-                .frame(width: 68, height: 68)
-                .contentShape(Circle())
-                .position(points.head)
-                .gesture(tonearmDragGesture(geometry: geometry, style: style, sizeScale: sizeScale))
-                .accessibilityElement()
-                .accessibilityLabel(settings.t("vinyl.tonearm_hint"))
-                .accessibilityAdjustableAction { direction in
-                    let delta = max(5_000, model.durationMs / 20)
-                    switch direction {
-                    case .increment:
-                        model.seek(toPlaybackPositionMs: min(model.durationMs, model.nowPositionMs + delta))
-                    case .decrement:
-                        model.seek(toPlaybackPositionMs: max(0, model.nowPositionMs - delta))
-                    @unknown default:
-                        break
-                    }
-                }
-        }
-        .frame(width: geometry.container.width, height: geometry.container.height)
-    }
-
-    private func tonearmDragGesture(
-        geometry: VinylSceneGeometry,
-        style: String,
-        sizeScale: CGFloat
-    ) -> some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .named(VinylCoordinateSpace.name))
-            .updating($tonearmDragState) { value, state, _ in
-                state = updatedTonearmDragState(
-                    location: value.location,
-                    startLocation: value.startLocation,
-                    record: geometry.record,
-                    style: style,
-                    sizeScale: sizeScale,
-                    existing: state
-                )
-            }
-            .onEnded { value in
-                let drag = updatedTonearmDragState(
-                    location: value.location,
-                    startLocation: value.startLocation,
-                    record: geometry.record,
-                    style: style,
-                    sizeScale: sizeScale,
-                    existing: tonearmDragState
-                )
-                let moved = hypot(
-                    value.location.x - value.startLocation.x,
-                    value.location.y - value.startLocation.y
-                ) > 18
-                let ejected = drag.seeking && (
-                    (drag.linear
-                        ? drag.rawProgress <= VinylTonearmGeometry.linearEjectProgress
-                        : drag.rawRotation <= VinylTonearmGeometry.ejectDegrees)
-                        || moved && !geometry.record.contains(value.location)
-                )
-                performHaptic(ejected ? .rigid : .light)
-                if ejected {
-                    model.pausePlayback()
-                    return
-                }
-                if drag.seeking {
-                    guard model.durationMs > 0 else { return }
-                    model.seek(toPlaybackPositionMs: Int64((Double(model.durationMs) * drag.progress).rounded()))
-                } else if (drag.linear
-                            ? drag.progress >= VinylTonearmGeometry.linearCuePlayProgress
-                            : drag.rotation >= VinylTonearmGeometry.cuePlayDegrees),
-                          model.currentTrack?.playing != true {
-                    model.togglePlayback()
-                }
-            }
-    }
-
-    private func updatedTonearmDragState(
-        location: CGPoint,
-        startLocation: CGPoint,
-        record: CGRect,
-        style: String,
-        sizeScale: CGFloat,
-        existing: VinylTonearmDragState?
-    ) -> VinylTonearmDragState {
-        let linear = style == AppSettings.vinylTonearmStyleLinear
-        var next = existing ?? {
-            let seeking = model.currentTrack?.playing == true
-            if linear {
-                let initialProgress = seeking ? playbackProgress : VinylTonearmGeometry.linearParkProgress
-                return VinylTonearmDragState(
-                    seeking: seeking,
-                    linear: true,
-                    pointerOffset: initialProgress - VinylTonearmGeometry.linearPointerProgress(
-                        startLocation,
-                        record: record,
-                        sizeScale: sizeScale
-                    ),
-                    rotation: VinylTonearmGeometry.rotation(for: initialProgress),
-                    rawRotation: VinylTonearmGeometry.rotation(for: initialProgress),
-                    progress: initialProgress,
-                    rawProgress: initialProgress
-                )
-            }
-            let initialRotation = seeking
-                ? VinylTonearmGeometry.rotation(for: playbackProgress)
-                : VinylTonearmGeometry.parkDegrees
-            return VinylTonearmDragState(
-                seeking: seeking,
-                linear: false,
-                pointerOffset: initialRotation - VinylTonearmGeometry.pointerAngle(startLocation, record: record),
-                rotation: initialRotation,
-                rawRotation: initialRotation,
-                progress: VinylTonearmGeometry.progress(forRotation: initialRotation),
-                rawProgress: VinylTonearmGeometry.progress(forRotation: initialRotation)
-            )
-        }()
-        if next.linear {
-            let candidate = VinylTonearmGeometry.linearPointerProgress(
-                location,
-                record: record,
-                sizeScale: sizeScale
-            ) + next.pointerOffset
-            next.rawProgress = candidate
-            next.progress = next.seeking
-                ? max(VinylTonearmGeometry.linearParkProgress, min(1, candidate))
-                : max(VinylTonearmGeometry.linearParkProgress, min(0, candidate))
-            next.rotation = VinylTonearmGeometry.rotation(for: next.progress)
-            next.rawRotation = next.rotation
-            return next
-        }
-        var candidate = VinylTonearmGeometry.pointerAngle(location, record: record) + next.pointerOffset
-        while candidate - next.rotation > 180 { candidate -= 360 }
-        while candidate - next.rotation < -180 { candidate += 360 }
-        next.rawRotation = candidate
-        next.rotation = next.seeking
-            ? max(VinylTonearmGeometry.parkDegrees, min(VinylTonearmGeometry.endDegrees, candidate))
-            : max(VinylTonearmGeometry.parkDegrees, min(VinylTonearmGeometry.startDegrees, candidate))
-        next.progress = VinylTonearmGeometry.progress(forRotation: next.rotation)
-        next.rawProgress = next.progress
-        return next
-    }
-
-    private var playbackProgress: Double {
-        guard model.durationMs > 0 else { return 0 }
-        return max(0, min(1, Double(model.nowPositionMs) / Double(model.durationMs)))
     }
 
     private var loadingIndicatorText: String? {
@@ -821,6 +645,242 @@ struct VinylPlayerModeView: View {
 
     private var effectiveAnimationsEnabled: Bool {
         settings.vinylAnimationsEnabled && !accessibilityReduceMotion
+    }
+
+    private func performHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+#if os(iOS)
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+#endif
+    }
+}
+
+private struct VinylSpinDateKey: EnvironmentKey {
+    static let defaultValue = Date.distantPast
+}
+
+private extension EnvironmentValues {
+    /// The vinyl spin timeline's date for the current frame; only the records read it.
+    var vinylSpinDate: Date {
+        get { self[VinylSpinDateKey.self] }
+        set { self[VinylSpinDateKey.self] = newValue }
+    }
+}
+
+/// Re-renders its content with the spin timeline's date: the only views a spin tick updates.
+private struct VinylSpinDateReader<Content: View>: View {
+    @Environment(\.vinylSpinDate) private var spinDate
+    @ViewBuilder let content: (Date) -> Content
+
+    var body: some View {
+        content(spinDate)
+    }
+}
+
+/// The tonearm is the one part of the vinyl scene that follows the playback position. It observes
+/// the playback clock itself, so each clock tick re-renders the tonearm alone instead of the whole
+/// scene (records, cover and their geometry). Drawing, drag and seek code is unchanged.
+private struct VinylTonearmLayer: View {
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var model: AppViewModel
+    // Subscribed (not read directly) so the tonearm follows the display-rate playback clock
+    // driving model.nowPositionMs.
+    @EnvironmentObject private var playbackClock: PlaybackClock
+    @GestureState private var tonearmDragState: VinylTonearmDragState?
+
+    let geometry: VinylSceneGeometry
+    let incomingTrackPresent: Bool
+    let trackTransitionProgress: CGFloat
+    let tonearmEngagement: CGFloat
+
+    var body: some View {
+        let style = AppSettings.normalizeVinylTonearmStyle(settings.vinylTonearmStyle)
+        let finish = AppSettings.normalizeVinylTonearmFinish(settings.vinylTonearmFinish)
+        let sizeScale = CGFloat(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent)) / 100
+        let linear = style == AppSettings.vinylTonearmStyleLinear
+        let trackParkProgress = !incomingTrackPresent
+            ? 1
+            : 1 - vinylSmoothStep(0, VinylSequence.trackRecordSleeved, trackTransitionProgress)
+        let engagement = Double(tonearmEngagement * trackParkProgress)
+        let parkedProgress = linear
+            ? VinylTonearmGeometry.linearParkProgress
+            : VinylTonearmGeometry.progress(forRotation: VinylTonearmGeometry.parkDegrees)
+        let progress = tonearmDragState?.progress
+            ?? vinylLerp(parkedProgress, playbackProgress, engagement)
+        let rotation = tonearmDragState?.rotation
+            ?? vinylLerp(
+                VinylTonearmGeometry.parkDegrees,
+                VinylTonearmGeometry.rotation(for: playbackProgress),
+                engagement
+            )
+        let points = VinylTonearmGeometry.points(
+            record: geometry.record,
+            rotation: rotation,
+            style: style,
+            sizeScale: sizeScale,
+            progress: progress
+        )
+#if DEBUG && os(iOS)
+        debugProbeTonearm(rotation: rotation, progress: progress, engagement: engagement,
+                          playbackProgress: playbackProgress, dragging: tonearmDragState != nil)
+#endif
+
+        return ZStack(alignment: .topLeading) {
+            Canvas { context, _ in
+                VinylTonearmArtwork.draw(
+                    context: context,
+                    record: geometry.record,
+                    rotation: rotation,
+                    progress: progress,
+                    style: style,
+                    finish: finish,
+                    sizeScale: sizeScale
+                )
+            }
+            .allowsHitTesting(false)
+
+            Color.clear
+                .frame(width: 68, height: 68)
+                .contentShape(Circle())
+                .position(points.head)
+                .gesture(tonearmDragGesture(geometry: geometry, style: style, sizeScale: sizeScale))
+                .accessibilityElement()
+                .accessibilityLabel(settings.t("vinyl.tonearm_hint"))
+                .accessibilityAdjustableAction { direction in
+                    let delta = max(5_000, model.durationMs / 20)
+                    switch direction {
+                    case .increment:
+                        model.seek(toPlaybackPositionMs: min(model.durationMs, model.nowPositionMs + delta))
+                    case .decrement:
+                        model.seek(toPlaybackPositionMs: max(0, model.nowPositionMs - delta))
+                    @unknown default:
+                        break
+                    }
+                }
+        }
+        .frame(width: geometry.container.width, height: geometry.container.height)
+    }
+
+    private func tonearmDragGesture(
+        geometry: VinylSceneGeometry,
+        style: String,
+        sizeScale: CGFloat
+    ) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(VinylCoordinateSpace.name))
+            .updating($tonearmDragState) { value, state, _ in
+                state = updatedTonearmDragState(
+                    location: value.location,
+                    startLocation: value.startLocation,
+                    record: geometry.record,
+                    style: style,
+                    sizeScale: sizeScale,
+                    existing: state
+                )
+            }
+            .onEnded { value in
+                let drag = updatedTonearmDragState(
+                    location: value.location,
+                    startLocation: value.startLocation,
+                    record: geometry.record,
+                    style: style,
+                    sizeScale: sizeScale,
+                    existing: tonearmDragState
+                )
+                let moved = hypot(
+                    value.location.x - value.startLocation.x,
+                    value.location.y - value.startLocation.y
+                ) > 18
+                let ejected = drag.seeking && (
+                    (drag.linear
+                        ? drag.rawProgress <= VinylTonearmGeometry.linearEjectProgress
+                        : drag.rawRotation <= VinylTonearmGeometry.ejectDegrees)
+                        || moved && !geometry.record.contains(value.location)
+                )
+                performHaptic(ejected ? .rigid : .light)
+                if ejected {
+                    model.pausePlayback()
+                    return
+                }
+                if drag.seeking {
+                    guard model.durationMs > 0 else { return }
+                    model.seek(toPlaybackPositionMs: Int64((Double(model.durationMs) * drag.progress).rounded()))
+                } else if (drag.linear
+                            ? drag.progress >= VinylTonearmGeometry.linearCuePlayProgress
+                            : drag.rotation >= VinylTonearmGeometry.cuePlayDegrees),
+                          model.currentTrack?.playing != true {
+                    model.togglePlayback()
+                }
+            }
+    }
+
+    private func updatedTonearmDragState(
+        location: CGPoint,
+        startLocation: CGPoint,
+        record: CGRect,
+        style: String,
+        sizeScale: CGFloat,
+        existing: VinylTonearmDragState?
+    ) -> VinylTonearmDragState {
+        let linear = style == AppSettings.vinylTonearmStyleLinear
+        var next = existing ?? {
+            let seeking = model.currentTrack?.playing == true
+            if linear {
+                let initialProgress = seeking ? playbackProgress : VinylTonearmGeometry.linearParkProgress
+                return VinylTonearmDragState(
+                    seeking: seeking,
+                    linear: true,
+                    pointerOffset: initialProgress - VinylTonearmGeometry.linearPointerProgress(
+                        startLocation,
+                        record: record,
+                        sizeScale: sizeScale
+                    ),
+                    rotation: VinylTonearmGeometry.rotation(for: initialProgress),
+                    rawRotation: VinylTonearmGeometry.rotation(for: initialProgress),
+                    progress: initialProgress,
+                    rawProgress: initialProgress
+                )
+            }
+            let initialRotation = seeking
+                ? VinylTonearmGeometry.rotation(for: playbackProgress)
+                : VinylTonearmGeometry.parkDegrees
+            return VinylTonearmDragState(
+                seeking: seeking,
+                linear: false,
+                pointerOffset: initialRotation - VinylTonearmGeometry.pointerAngle(startLocation, record: record),
+                rotation: initialRotation,
+                rawRotation: initialRotation,
+                progress: VinylTonearmGeometry.progress(forRotation: initialRotation),
+                rawProgress: VinylTonearmGeometry.progress(forRotation: initialRotation)
+            )
+        }()
+        if next.linear {
+            let candidate = VinylTonearmGeometry.linearPointerProgress(
+                location,
+                record: record,
+                sizeScale: sizeScale
+            ) + next.pointerOffset
+            next.rawProgress = candidate
+            next.progress = next.seeking
+                ? max(VinylTonearmGeometry.linearParkProgress, min(1, candidate))
+                : max(VinylTonearmGeometry.linearParkProgress, min(0, candidate))
+            next.rotation = VinylTonearmGeometry.rotation(for: next.progress)
+            next.rawRotation = next.rotation
+            return next
+        }
+        var candidate = VinylTonearmGeometry.pointerAngle(location, record: record) + next.pointerOffset
+        while candidate - next.rotation > 180 { candidate -= 360 }
+        while candidate - next.rotation < -180 { candidate += 360 }
+        next.rawRotation = candidate
+        next.rotation = next.seeking
+            ? max(VinylTonearmGeometry.parkDegrees, min(VinylTonearmGeometry.endDegrees, candidate))
+            : max(VinylTonearmGeometry.parkDegrees, min(VinylTonearmGeometry.startDegrees, candidate))
+        next.progress = VinylTonearmGeometry.progress(forRotation: next.rotation)
+        next.rawProgress = next.progress
+        return next
+    }
+
+    private var playbackProgress: Double {
+        guard model.durationMs > 0 else { return 0 }
+        return max(0, min(1, Double(model.nowPositionMs) / Double(model.durationMs)))
     }
 
     private func performHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
