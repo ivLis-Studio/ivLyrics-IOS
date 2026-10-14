@@ -88,6 +88,41 @@ if ! xcrun vtool -show-build "$EXECUTABLE_PATH" | grep -Eq 'platform[[:space:]]+
     exit 1
 fi
 
+# Succeeds when version $1 is at most version $2 (for example 16.4 and 17.0).
+version_at_most() {
+    local IFS=.
+    local -a left=($1) right=($2)
+    local index
+    for index in 0 1 2; do
+        local a="${left[index]:-0}" b="${right[index]:-0}"
+        if (( 10#$a < 10#$b )); then return 0; fi
+        if (( 10#$a > 10#$b )); then return 1; fi
+    done
+    return 0
+}
+
+minimum_ios() {
+    xcrun vtool -show-build "$1" | awk '$1 == "minos" && !found { print $2; found = 1 }'
+}
+
+# Every framework the app links (such as the Local AI engine) must ship inside it and support
+# the app's minimum iOS, or the app would quit at launch.
+APP_MINIMUM_IOS="$(minimum_ios "$EXECUTABLE_PATH")"
+while IFS= read -r dependency; do
+    library="${APP_PATH}/Frameworks/${dependency#@rpath/}"
+    if [[ ! -f "$library" ]]; then
+        echo "A linked library is not embedded in the app: ${dependency}" >&2
+        exit 1
+    fi
+    library_minimum_ios="$(minimum_ios "$library")"
+    if [[ -n "$APP_MINIMUM_IOS" && -n "$library_minimum_ios" ]] \
+        && ! version_at_most "$library_minimum_ios" "$APP_MINIMUM_IOS"; then
+        echo "${dependency} needs iOS ${library_minimum_ios}, newer than the app's iOS ${APP_MINIMUM_IOS}." >&2
+        exit 1
+    fi
+    echo "Embedded ${dependency} (iOS ${library_minimum_ios:-?}+, app iOS ${APP_MINIMUM_IOS:-?}+)"
+done < <(xcrun otool -L "$EXECUTABLE_PATH" | awk 'NR > 1 && $1 ~ /^@rpath\// { print $1 }' | sort -u)
+
 mkdir -p "${PACKAGE_DIR}/Payload"
 ditto --norsrc --noextattr --noqtn --noacl \
     "$APP_PATH" "${PACKAGE_DIR}/Payload/${PRODUCT_NAME}.app"
