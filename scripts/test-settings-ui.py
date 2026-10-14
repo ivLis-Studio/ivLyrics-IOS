@@ -304,22 +304,24 @@ checks = r'''
         }
         for slow in ["slow-error", "slow-success"] {
             let p = Probe(); p.inputTitle = slow; p.searchManualCandidates()
-            try await Task.sleep(for: .milliseconds(5))
+            let oldTask = p.manualTask
             p.inputTitle = "fresh"; p.searchManualCandidates()
-            try await Task.sleep(for: .milliseconds(150))
+            let currentTask = p.manualTask
+            await oldTask?.value
+            await currentTask?.value
             check(p.manualCandidates == ["fresh"], "Late cancelled completion cannot replace new results")
             check(!p.searchingManualCandidates, "Latest request clears busy state")
             check(p.toasts.isEmpty, "Cancellation must not emit an error toast")
         }
         let empty = Probe(); empty.inputTitle = "slow-error"; empty.searchManualCandidates()
-        try await Task.sleep(for: .milliseconds(5))
+        let canceledTask = empty.manualTask
         empty.inputTitle = ""; empty.searchManualCandidates()
-        try await Task.sleep(for: .milliseconds(150))
+        await canceledTask?.value
         check(empty.manualCandidates.isEmpty && !empty.searchingManualCandidates, "Empty search cancels previous request")
         check(empty.manualLrclibStatus == "lyrics.lrclib_search.empty_title" && empty.toasts.isEmpty, "Cancelled error cannot replace empty-state feedback")
         let moved = Probe(); moved.inputTitle = "slow-success"; moved.searchManualCandidates()
         moved.currentTrackKey = "replacement"
-        try await Task.sleep(for: .milliseconds(150))
+        await moved.manualTask?.value
         check(moved.manualCandidates.isEmpty && !moved.searchingManualCandidates, "Track change rejects stale results and releases busy state")
         print("Settings UI regression: native target/isolation checks and \(count) async-search checks passed")
     }
