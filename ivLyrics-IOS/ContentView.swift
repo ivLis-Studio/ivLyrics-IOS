@@ -22,7 +22,15 @@ private struct OriginalLyricsVisibleKey: EnvironmentKey {
     static let defaultValue = true
 }
 
+private struct InterludeMotionEnabledKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 extension EnvironmentValues {
+    var interludeMotionEnabled: Bool {
+        get { self[InterludeMotionEnabledKey.self] }
+        set { self[InterludeMotionEnabledKey.self] = newValue }
+    }
     var originalLyricsVisible: Bool {
         get { self[OriginalLyricsVisibleKey.self] }
         set { self[OriginalLyricsVisibleKey.self] = newValue }
@@ -3815,6 +3823,9 @@ struct MainLyricPreviewPanel: View {
     var chromeless = false
     var typographyOverride: AppSettings.TypographySettings? = nil
     var showsCulturalAnnotations = false
+    var animationsEnabled = true
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @State private var interludeTransition = InterludeTransition()
     @State private var emptyLyricsPreviewKey = ""
     @State private var hiddenEmptyLyricsPreviewKey = ""
     @State private var emptyLyricsPreviewToken = UUID()
@@ -3847,6 +3858,24 @@ struct MainLyricPreviewPanel: View {
                 }
             }
         }
+        .environment(\.interludeMotionEnabled, smoothInterludeMotion)
+        .overlay {
+            if let outgoing = interludeTransition.outgoing {
+                InterludeExitOverlay(startedAt: outgoing.startedAt) {
+                    MainLyricPreviewRowView(row: .interlude(interludeLabel(outgoing.segment.kind)), positionMs: model.adjustedPositionMs, typographyOverride: typographyOverride)
+                }
+            }
+        }
+        .task(id: interludeTransition.outgoing) {
+            guard let outgoing = interludeTransition.outgoing else { return }
+            try? await Task.sleep(for: .seconds(InterludeTransition.exitSeconds))
+            guard !Task.isCancelled, interludeTransition.outgoing == outgoing else { return }
+            interludeTransition.outgoing = nil
+        }
+        .onChange(of: previewInterlude, initial: true) { _, next in updateInterlude(next) }
+        .onChange(of: model.currentTrackKey) { _, _ in updateInterlude(previewInterlude) }
+        .onChange(of: model.lyricsResult.lines) { _, _ in interludeTransition = InterludeTransition(); updateInterlude(previewInterlude) }
+        .onChange(of: smoothInterludeMotion) { _, _ in updateInterlude(previewInterlude) }
         .onAppear {
             updateEmptyLyricsPreviewTimer(for: emptyLyricsPreviewCandidateKey)
         }
@@ -3855,7 +3884,26 @@ struct MainLyricPreviewPanel: View {
         }
         .onDisappear {
             resetEmptyLyricsPreviewTimer()
+            interludeTransition = InterludeTransition()
         }
+    }
+
+    private var smoothInterludeMotion: Bool {
+        animationsEnabled && settings.syncedLyricsKaraokeAnimationEnabled && !accessibilityReduceMotion
+    }
+
+    private var previewInterlude: InterludeTransition.Segment? {
+        guard settings.previewItems != AppSettings.previewItemNone,
+              LyricsTimelineDisplayBuilder.activeLineIndices(context: model.timelineContext, positionMs: model.adjustedPositionMs).isEmpty,
+              let item = LyricsTimelineDisplayBuilder.previewItem(context: model.timelineContext, positionMs: model.adjustedPositionMs,
+                  trackDurationMs: model.lyricsDurationMs, autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled),
+              case .interlude(let info) = item else { return nil }
+        return .init(id: item.id, startMs: info.startTimeMs, endMs: info.endTimeMs, kind: info.kind, automatic: info.automatic)
+    }
+
+    private func updateInterlude(_ next: InterludeTransition.Segment?) {
+        interludeTransition.update(next: next, positionMs: model.adjustedPositionMs, now: Date().timeIntervalSinceReferenceDate,
+                                  scope: model.currentTrackKey, enabled: smoothInterludeMotion && settings.previewItems != AppSettings.previewItemNone)
     }
 
     private var reservedContentHeight: CGFloat {
@@ -3895,7 +3943,10 @@ struct MainLyricPreviewPanel: View {
 
         switch entry {
         case .interlude(let info):
-            return [MainLyricPreviewRow.interlude(interludeLabel(info.kind))]
+            var row = MainLyricPreviewRow.interlude(interludeLabel(info.kind))
+            row.lineStartTimeMs = info.startTimeMs
+            row.lineEndTimeMs = info.endTimeMs
+            return [row]
         case .line(let lineIndex, let line, _):
             return previewRows(for: line, lineIndex: lineIndex, previewItems: previewItems)
         }
@@ -4319,6 +4370,8 @@ private struct MainLyricPreviewRowView: View {
     var continuousPositionMs: Double? = nil
     var typographyOverride: AppSettings.TypographySettings? = nil
     @State private var contentWidth: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.interludeMotionEnabled) private var interludeMotionEnabled
 
     var body: some View {
         switch row.type {
@@ -4332,6 +4385,8 @@ private struct MainLyricPreviewRowView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .center)
+            .opacity(InterludeTransition.entryOpacity(positionMs: continuousPositionMs ?? Double(positionMs), startMs: row.lineStartTimeMs,
+                                                      enabled: interludeMotionEnabled && !accessibilityReduceMotion))
         case .loading:
             MainLyricPreviewLoadingSkeleton()
             .frame(maxWidth: .infinity, alignment: .center)
@@ -4466,6 +4521,8 @@ private struct MainLyricPreviewRowView: View {
 }
 
 private struct MainLyricPreviewInterludeIcon: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.interludeMotionEnabled) private var interludeMotionEnabled
     @Environment(\.coveredPageDecorationsPaused) private var coveredPageDecorationsPaused
     @Environment(\.playbackAdvancing) private var playbackAdvancing
 
@@ -4473,7 +4530,7 @@ private struct MainLyricPreviewInterludeIcon: View {
         // Display rate while playback runs; the previous 1/60 s cadence while it is paused.
         TimelineView(.animation(
             minimumInterval: playbackAdvancing ? nil : 1.0 / 60.0,
-            paused: coveredPageDecorationsPaused
+            paused: coveredPageDecorationsPaused || accessibilityReduceMotion || !interludeMotionEnabled || !playbackAdvancing
         )) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.previewInterludeTick, timeline.date)
@@ -4483,7 +4540,8 @@ private struct MainLyricPreviewInterludeIcon: View {
                 ForEach(0..<4, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 2)
                         .fill(.white.opacity(0.62))
-                        .frame(width: 4, height: interludeBarHeight(index: index, nowMs: nowMs, minimum: 7, maximum: 19))
+                        .frame(width: 4, height: accessibilityReduceMotion || !interludeMotionEnabled
+                            ? 11 : interludeBarHeight(index: index, nowMs: nowMs, minimum: 7, maximum: 19))
                 }
             }
         }
@@ -4842,6 +4900,7 @@ struct LyricsTimelineView: View {
     @State private var animatedCenterIndex: Double?
     /// Owned by LyricsTimelineScrollView; nil where the list does not scroll.
     var travelCascade: LyricsTravelCascade? = nil
+    var onInterludeFrame: ((String, CGRect) -> Void)? = nil
 
     var body: some View {
 #if DEBUG && os(iOS)
@@ -4965,6 +5024,9 @@ struct LyricsTimelineView: View {
                                 showLabel: settings.interludeLabelsEnabled,
                                 alignment: settings.lyricsTextAlignment
                             )
+                            .onGeometryChange(for: CGRect.self) { proxy in
+                                proxy.frame(in: .named("lyrics-interlude-viewport"))
+                            } action: { frame in onInterludeFrame?(item.id, frame) }
                         }
                     }
                     .id(item.id)
@@ -5074,6 +5136,28 @@ private struct LyricsProviderAttribution: View {
     }
 }
 
+/// Geometry is sampled without publishing changes on every scroll/display frame.
+private final class InterludeFrameStore {
+    var id = ""
+    var frame = CGRect.zero
+}
+
+private struct InterludeExitOverlay<Content: View>: View {
+    let startedAt: TimeInterval
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let appearance = InterludeTransition.exitAppearance(elapsed: timeline.date.timeIntervalSinceReferenceDate - startedAt)
+            content()
+                .opacity(appearance.opacity)
+                .scaleEffect(appearance.scale)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 private struct LyricsTimelineScrollView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
@@ -5084,6 +5168,9 @@ private struct LyricsTimelineScrollView: View {
     @State private var lastScrolledTargetID: String?
     @State private var autoScrollResumeTask: Task<Void, Never>?
     @State private var travelCascade = LyricsTravelCascade()
+    @State private var interludeFrameStore = InterludeFrameStore()
+    @State private var interludeTransition = InterludeTransition()
+    @State private var outgoingInterludeFrame = CGRect.zero
 
     var topPadding: CGFloat = 0
     var bottomPadding: CGFloat = 0
@@ -5120,7 +5207,10 @@ private struct LyricsTimelineScrollView: View {
                                 Color.clear
                                     .frame(height: topEdgeInset(for: geometry.size.height))
                             }
-                            LyricsTimelineView(travelCascade: travelCascade)
+                            LyricsTimelineView(travelCascade: travelCascade, onInterludeFrame: { id, frame in
+                                interludeFrameStore.id = id
+                                interludeFrameStore.frame = frame
+                            })
                                 .padding(.top, topPadding)
                                 .padding(.bottom, bottomPadding)
                                 .padding(.leading, horizontalPadding)
@@ -5177,6 +5267,54 @@ private struct LyricsTimelineScrollView: View {
                     }
                 }
             }
+        }
+        .coordinateSpace(name: "lyrics-interlude-viewport")
+        .overlay(alignment: .topLeading) {
+            if let outgoing = interludeTransition.outgoing, !outgoingInterludeFrame.isEmpty {
+                InterludeExitOverlay(startedAt: outgoing.startedAt) {
+                    LyricsInterludeView(
+                        info: .init(startTimeMs: outgoing.segment.startMs, endTimeMs: outgoing.segment.endMs, kind: outgoing.segment.kind, automatic: outgoing.segment.automatic),
+                        active: true, displayDistance: 0, showLabel: settings.interludeLabelsEnabled, alignment: settings.lyricsTextAlignment,
+                        isExitOverlay: true
+                    )
+                }
+                .frame(width: outgoingInterludeFrame.width, height: outgoingInterludeFrame.height)
+                .position(x: outgoingInterludeFrame.midX, y: outgoingInterludeFrame.midY)
+            }
+        }
+        .clipped()
+        .task(id: interludeTransition.outgoing) {
+            guard let outgoing = interludeTransition.outgoing else { return }
+            try? await Task.sleep(for: .seconds(InterludeTransition.exitSeconds))
+            guard !Task.isCancelled, interludeTransition.outgoing == outgoing else { return }
+            interludeTransition.outgoing = nil
+        }
+        .onChange(of: activeInterlude, initial: true) { _, next in updateInterlude(next) }
+        .onChange(of: model.currentTrackKey) { _, _ in updateInterlude(activeInterlude) }
+        .onChange(of: model.lyricsResult.lines) { _, _ in interludeTransition = InterludeTransition(); updateInterlude(activeInterlude) }
+        .onChange(of: smoothInterludeMotion) { _, _ in updateInterlude(activeInterlude) }
+        .onDisappear { interludeTransition = InterludeTransition() }
+    }
+
+    private var smoothInterludeMotion: Bool {
+        settings.syncedLyricsKaraokeAnimationEnabled && !accessibilityReduceMotion
+    }
+
+    private var activeInterlude: InterludeTransition.Segment? {
+        guard let item = LyricsTimelineDisplayBuilder.previewItem(context: model.timelineContext, positionMs: model.adjustedPositionMs,
+                  trackDurationMs: model.lyricsDurationMs, autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled),
+              case .interlude(let info) = item else { return nil }
+        return .init(id: item.id, startMs: info.startTimeMs, endMs: info.endTimeMs, kind: info.kind, automatic: info.automatic)
+    }
+
+    private func updateInterlude(_ next: InterludeTransition.Segment?) {
+        let previous = interludeTransition.active
+        let frame = interludeFrameStore.frame
+        let frameID = interludeFrameStore.id
+        interludeTransition.update(next: next, positionMs: model.adjustedPositionMs, now: Date().timeIntervalSinceReferenceDate,
+                                  scope: model.currentTrackKey, enabled: smoothInterludeMotion)
+        if let outgoing = interludeTransition.outgoing, outgoing.segment == previous {
+            outgoingInterludeFrame = frameID == outgoing.segment.id ? frame : .zero
         }
     }
 
@@ -6240,11 +6378,13 @@ struct LyricsInterludeView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.playbackAdvancing) private var playbackAdvancing
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     var info: InterludeInfo
     var active: Bool
     var displayDistance: Double
     var showLabel: Bool
     var alignment: String
+    var isExitOverlay = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -6260,6 +6400,8 @@ struct LyricsInterludeView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+        .opacity(InterludeTransition.entryOpacity(positionMs: model.adjustedContinuousPositionMs, startMs: info.startTimeMs,
+            enabled: !isExitOverlay && settings.syncedLyricsKaraokeAnimationEnabled && !accessibilityReduceMotion))
         .accessibilityLabel(label)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -6269,7 +6411,8 @@ struct LyricsInterludeView: View {
 
     private var interludeBars: some View {
         // Display rate while playback runs; the previous 1/60 s cadence while it is paused.
-        TimelineView(.animation(minimumInterval: playbackAdvancing ? nil : 1.0 / 60.0, paused: !active)) { timeline in
+        TimelineView(.animation(minimumInterval: playbackAdvancing ? nil : 1.0 / 60.0,
+                                paused: !active || !playbackAdvancing || accessibilityReduceMotion || !settings.syncedLyricsKaraokeAnimationEnabled)) { timeline in
 #if DEBUG && os(iOS)
             let _ = debugProbeTimeline(.interludeBarsTick, timeline.date)
 #endif
@@ -6280,7 +6423,7 @@ struct LyricsInterludeView: View {
                         .fill(interludeColor)
                         .frame(
                             width: 3.2,
-                            height: active
+                            height: active && !accessibilityReduceMotion && settings.syncedLyricsKaraokeAnimationEnabled
                                 ? interludeBarHeight(index: index, nowMs: nowMs, minimum: 7, maximum: 23)
                                 : 11
                         )

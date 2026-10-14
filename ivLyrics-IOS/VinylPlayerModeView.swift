@@ -56,7 +56,8 @@ struct VinylPlayerModeView: View {
                 MainLyricPreviewPanel(
                     chromeless: true,
                     typographyOverride: settings.typographySettings().forVinylPreview,
-                    showsCulturalAnnotations: true
+                    showsCulturalAnnotations: true,
+                    animationsEnabled: settings.vinylAnimationsEnabled
                 )
                     .frame(
                         width: max(0, proxy.size.width - (geometry.isLandscape ? 64 : 32)),
