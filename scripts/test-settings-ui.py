@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Check native UI-test wiring/isolation and execute the real manual-search cancellation path.
+"""Check native UI-test wiring/isolation, fixture initialization and real manual-search cancellation.
 
 This is NOT screenshot acceptance. SettingsLayoutUITests must be run on an iPhone
 Simulator through the shared ivLyrics-IOS scheme for rendered layout evidence.
 """
 from pathlib import Path
 import json
+import re
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -57,6 +58,13 @@ for file, marker in [("SpotifyUserPlaybackService.swift", "override init()"), ("
 init = declaration(model, "init(settings: AppSettings)")
 assert init.index("if DebugSettingsUIHarness.enabled") < init.index('defaults.string(forKey: "manual_track_title")')
 assert init.index("if DebugSettingsUIHarness.enabled") < init.index("startBluetoothRouteMonitoring()")
+# Preserve the production defaults path; only the explicit Debug fixture is seeded.
+normal_init = init.split("#endif", 1)[1]
+for field, key in {
+    "inputTitle": "title", "inputArtist": "artist", "inputAlbum": "album",
+    "inputDuration": "duration", "inputSpotifyId": "spotify_id", "inputIsrc": "isrc",
+}.items():
+    assert f'{field} = defaults.string(forKey: "manual_track_{key}") ?? ""' in normal_init
 switch = declaration(controls, "struct SettingsSwitchStyle:")
 assert ".toggleStyle(.switch)" in switch and "Button {" not in switch and ".frame(minHeight: 44)" in switch
 assert "height: 44" in declaration(controls, "func sizeThatFits(")
@@ -66,6 +74,80 @@ assert 'settings.t("tmi.regenerate")' not in popup
 assert 'Color.black.opacity(0.56)' in popup and 'scrollableContentHeight' not in popup
 assert "attachment.lifetime = .keepAlways" in ui_tests and "app.screenshot()" in ui_tests
 assert "XCTAssertGreaterThanOrEqual(element.frame.height, 44" in ui_tests
+
+# Compile the actual Debug initializer prefix with native Combine @Published.
+# Pull every required input declaration from production so a newly added input
+# cannot silently escape the fixture's definite-initialization regression.
+input_declarations = re.findall(r"^    @Published var input\w+: [^\n=]+$", model, re.MULTILINE)
+assert len(input_declarations) >= 6
+fixture_init = init.split("#endif", 1)[0] + '#endif\n        fatalError("Fixture-only probe")\n    }'
+initialization_prelude = r'''
+import Combine
+import Foundation
+struct AppSettings {
+    func globalSyncOffsetMs() -> Int { 37 }
+    func t(_ key: String) -> String { key }
+}
+enum DebugSettingsUIHarness { static let enabled = true }
+enum AppStatus { case idle, loaded }
+struct TrackSnapshot: Equatable {
+    let title, artist, album, mediaId: String
+    let durationMs, positionMs: Int64
+    let playing: Bool
+}
+struct LyricsLine: Equatable {
+    let startTimeMs, endTimeMs: Int64
+    let text, pronunciationText, translationText: String
+}
+struct LyricsResult: Equatable {
+    let lines: [LyricsLine]
+    let providerLabel, detail: String
+    let karaoke: Bool
+    let providerId: String
+    static func empty(_ text: String) -> Self {
+        Self(lines: [], providerLabel: "", detail: text, karaoke: false, providerId: "")
+    }
+}
+@MainActor final class InitializationProbe: ObservableObject {
+    let settings: AppSettings
+    @Published private(set) var currentTrack: TrackSnapshot?
+    @Published private(set) var lyricsResult = LyricsResult.empty("")
+    @Published private(set) var baseLyricsResult = LyricsResult.empty("")
+    @Published private(set) var status: AppStatus = .idle
+    @Published var globalOffsetMs = 0
+    @Published private(set) var manualLrclibStatus = ""
+    @Published private(set) var updateStatus = ""
+'''
+initialization_checks = r'''
+}
+@main struct InitializationChecks {
+    @MainActor static func main() {
+        let model = InitializationProbe(settings: AppSettings())
+        guard let track = model.currentTrack else { fatalError("Missing fixture track") }
+        precondition(model.inputTitle == track.title && model.inputArtist == track.artist)
+        precondition(model.inputAlbum == track.album && model.inputDuration == "180")
+        precondition(model.inputSpotifyId.isEmpty && model.inputIsrc.isEmpty)
+        precondition(!track.playing && model.status == .loaded)
+        precondition(!model.lyricsResult.lines.isEmpty && model.baseLyricsResult == model.lyricsResult)
+        precondition(model.globalOffsetMs == 37)
+        precondition(model.manualLrclibStatus == "lyrics.lrclib_search.ready")
+        precondition(model.updateStatus == "update.status_idle")
+        print("Settings UI regression: native Combine Debug initializer and all required inputs passed")
+    }
+}
+'''
+with tempfile.TemporaryDirectory(prefix="ivlyrics-settings-init-") as temp:
+    path = Path(temp)
+    source = initialization_prelude + "\n".join(input_declarations) + "\n" + fixture_init + initialization_checks
+    (path / "Initialization.swift").write_text(source)
+    subprocess.run(["xcrun", "swiftc", "-D", "DEBUG", "-parse-as-library", str(path / "Initialization.swift"), "-o", str(path / "initialization")], check=True)
+    subprocess.run([str(path / "initialization")], check=True)
+    # A canary proves this is a definite-initialization check, not only parsing.
+    missing_input = source.replace("inputDuration = String(track.durationMs / 1_000)", "// Deliberately omit inputDuration", 1)
+    assert missing_input != source
+    (path / "MissingInput.swift").write_text(missing_input)
+    rejected = subprocess.run(["xcrun", "swiftc", "-D", "DEBUG", "-parse-as-library", "-c", str(path / "MissingInput.swift"), "-o", str(path / "missing.o")], capture_output=True, text=True)
+    assert rejected.returncode != 0 and "inputDuration" in rejected.stderr, rejected.stderr or "Missing input unexpectedly compiled"
 
 method = declaration(model, "func searchManualCandidates()")
 prelude = r'''

@@ -497,8 +497,14 @@ final class AppViewModel: ObservableObject {
             let track = TrackSnapshot(title: "A deliberately long track title with 日本語 and 한국어 for narrow-screen layout",
                                       artist: "Offline artist with a long translated name", album: "Fixture album",
                                       mediaId: "", durationMs: 180_000, positionMs: 2_000, playing: false)
+            // Complete definite initialization before reading any @Published property.
+            inputTitle = track.title
+            inputArtist = track.artist
+            inputAlbum = track.album
+            inputDuration = String(track.durationMs / 1_000)
+            inputSpotifyId = ""
+            inputIsrc = ""
             currentTrack = track
-            inputTitle = track.title; inputArtist = track.artist
             let line = LyricsLine(startTimeMs: 0, endTimeMs: 20_000, text: "静かな夜に歌う",
                                   pronunciationText: "shizukana yoru ni utau",
                                   translationText: "An intentionally long translated lyric used to inspect native controls, safe areas and text wrapping without any account or network request.")
