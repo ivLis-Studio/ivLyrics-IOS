@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.22",
+          "buildVersion": "61",
+          "date": "2026-10-14",
+          "localizedDescription": "v1.3.22는 설정 화면과 가사 메타데이터 팝업의 네이티브 iOS 상호작용 및 레이아웃을 개선합니다. 작은 화면, 긴 번역 문자열, 스크롤, 키보드, 검색 포커스 같은 상황에서 컨트롤을 더 안정적으로 사용할 수 있으며, 관련 UI 계약을 자동 검증하는 테스트와 배포 검사도 강화했습니다.\n\nv1.3.22 improves native iOS interaction and layout behavior in Settings and the lyrics metadata popup. Controls are more reliable in situations involving small screens, long localized text, scrolling, the keyboard, and search focus, while automated UI contract checks and release validation have also been strengthened.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.22/ivLyrics-IOS-v1.3.22-unsigned.ipa",
+          "size": 11043016,
+          "sha256": "491425e94efeb201c585451d349897f19f5c4e02bf904579f58261f0187c511e",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.21",
           "buildVersion": "60",
           "date": "2026-10-14",
