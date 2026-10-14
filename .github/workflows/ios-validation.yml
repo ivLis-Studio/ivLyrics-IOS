@@ -78,6 +78,7 @@ jobs:
           python3 scripts/test-appearance.py
           python3 scripts/test-vinyl.py
           python3 scripts/test-interlude.py
+          python3 scripts/test-settings-ui.py
 
       - name: Run static analyzer
         run: |
