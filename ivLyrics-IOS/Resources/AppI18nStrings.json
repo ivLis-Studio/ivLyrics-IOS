@@ -812,7 +812,13 @@
     "setting.lyrics_not_found_notice": "가사를 찾지 못했다는 안내 표시",
     "video_aspect.fit": "맞춤",
     "video_aspect.fill": "채우기",
-    "video_aspect.stretch": "늘리기"
+    "video_aspect.stretch": "늘리기",
+    "vinyl.settings.track_change_animations": "곡 변경 애니메이션",
+    "vinyl.settings.track_change_animations_desc": "곡이 바뀔 때 커버와 레코드가 이동합니다. 끄더라도 레코드는 계속 회전합니다.",
+    "vinyl.settings.rotation_speed": "레코드 회전 속도",
+    "vinyl.settings.rotation_speed_desc": "100%가 기본 속도입니다. 속도를 바꿔도 현재 회전 각도는 유지됩니다.",
+    "setting.simplify_title": "곡 제목 간소화",
+    "setting.simplify_title_desc": "곡 제목의 괄호 안 부가 정보를 숨깁니다. LP 라벨에도 적용됩니다."
   },
   "en": {
     "section.account": "Account",
@@ -1627,7 +1633,13 @@
     "setting.lyrics_not_found_notice": "Show lyrics not found notice",
     "video_aspect.fit": "Fit",
     "video_aspect.fill": "Fill",
-    "video_aspect.stretch": "Stretch"
+    "video_aspect.stretch": "Stretch",
+    "vinyl.settings.track_change_animations": "Track change animation",
+    "vinyl.settings.track_change_animations_desc": "Move the sleeve and record when the track changes. The record keeps spinning when this is off.",
+    "vinyl.settings.rotation_speed": "Record rotation speed",
+    "vinyl.settings.rotation_speed_desc": "100% is the default speed. Changing the speed preserves the current angle.",
+    "setting.simplify_title": "Simplify track titles",
+    "setting.simplify_title_desc": "Hide bracketed notes in track titles, including on LP labels."
   },
   "zh-CN": {
     "section.account": "账户",
@@ -2442,7 +2454,13 @@
     "setting.lyrics_not_found_notice": "显示未找到歌词提示",
     "video_aspect.fit": "适应",
     "video_aspect.fill": "填充",
-    "video_aspect.stretch": "拉伸"
+    "video_aspect.stretch": "拉伸",
+    "vinyl.settings.track_change_animations": "切歌动画",
+    "vinyl.settings.track_change_animations_desc": "切歌时移动封套和唱片。关闭后唱片仍会旋转。",
+    "vinyl.settings.rotation_speed": "唱片旋转速度",
+    "vinyl.settings.rotation_speed_desc": "100% 为默认速度。调整速度时保留当前角度。",
+    "setting.simplify_title": "简化歌曲标题",
+    "setting.simplify_title_desc": "隐藏标题中的括号备注，也适用于黑胶标签。"
   },
   "zh-TW": {
     "section.account": "帳戶",
@@ -3257,7 +3275,13 @@
     "setting.lyrics_not_found_notice": "顯示找不到歌詞的提示",
     "video_aspect.fit": "符合",
     "video_aspect.fill": "填滿",
-    "video_aspect.stretch": "延展"
+    "video_aspect.stretch": "延展",
+    "vinyl.settings.track_change_animations": "切換歌曲動畫",
+    "vinyl.settings.track_change_animations_desc": "切換歌曲時移動封套和唱片。關閉後唱片仍會旋轉。",
+    "vinyl.settings.rotation_speed": "唱片旋轉速度",
+    "vinyl.settings.rotation_speed_desc": "100% 為預設速度。調整速度時保留目前角度。",
+    "setting.simplify_title": "簡化歌曲標題",
+    "setting.simplify_title_desc": "隱藏標題中的括號備註，也適用於黑膠標籤。"
   },
   "ja": {
     "section.account": "アカウント",
@@ -4072,7 +4096,13 @@
     "setting.lyrics_not_found_notice": "歌詞が見つからない場合の案内を表示",
     "video_aspect.fit": "全体を表示",
     "video_aspect.fill": "画面を埋める",
-    "video_aspect.stretch": "引き伸ばす"
+    "video_aspect.stretch": "引き伸ばす",
+    "vinyl.settings.track_change_animations": "曲変更のアニメーション",
+    "vinyl.settings.track_change_animations_desc": "曲が変わるときにジャケットとレコードを動かします。オフでもレコードは回転し続けます。",
+    "vinyl.settings.rotation_speed": "レコードの回転速度",
+    "vinyl.settings.rotation_speed_desc": "100%が標準速度です。速度を変えても現在の角度を保ちます。",
+    "setting.simplify_title": "曲名を簡略化",
+    "setting.simplify_title_desc": "曲名の括弧内の補足を非表示にします。LPラベルにも適用されます。"
   },
   "hi": {
     "section.account": "खाता",
@@ -4887,7 +4917,13 @@
     "setting.lyrics_not_found_notice": "बोल न मिलने की सूचना दिखाएँ",
     "video_aspect.fit": "पूरा दिखाएँ",
     "video_aspect.fill": "स्क्रीन भरें",
-    "video_aspect.stretch": "खींचें"
+    "video_aspect.stretch": "खींचें",
+    "vinyl.settings.track_change_animations": "गीत बदलने का ऐनिमेशन",
+    "vinyl.settings.track_change_animations_desc": "गीत बदलने पर कवर और रिकॉर्ड को चलाएँ। इसे बंद करने पर भी रिकॉर्ड घूमता रहता है।",
+    "vinyl.settings.rotation_speed": "रिकॉर्ड घूमने की गति",
+    "vinyl.settings.rotation_speed_desc": "100% डिफ़ॉल्ट गति है। गति बदलने पर मौजूदा कोण बना रहता है।",
+    "setting.simplify_title": "गीत के शीर्षक सरल करें",
+    "setting.simplify_title_desc": "गीत के शीर्षक में कोष्ठक वाली टिप्पणियाँ छिपाएँ, LP लेबल पर भी।"
   },
   "es": {
     "section.account": "Cuenta",
@@ -5702,7 +5738,13 @@
     "setting.lyrics_not_found_notice": "Mostrar aviso de letra no encontrada",
     "video_aspect.fit": "Ajustar",
     "video_aspect.fill": "Rellenar",
-    "video_aspect.stretch": "Estirar"
+    "video_aspect.stretch": "Estirar",
+    "vinyl.settings.track_change_animations": "Animación al cambiar de canción",
+    "vinyl.settings.track_change_animations_desc": "Mueve la funda y el disco al cambiar de canción. El disco sigue girando si se desactiva.",
+    "vinyl.settings.rotation_speed": "Velocidad de giro del disco",
+    "vinyl.settings.rotation_speed_desc": "100% es la velocidad predeterminada. Al cambiarla se conserva el ángulo actual.",
+    "setting.simplify_title": "Simplificar títulos",
+    "setting.simplify_title_desc": "Oculta las notas entre paréntesis en los títulos, también en las etiquetas LP."
   },
   "fr": {
     "section.account": "Compte",
@@ -6517,7 +6559,13 @@
     "setting.lyrics_not_found_notice": "Afficher l’avis de paroles introuvables",
     "video_aspect.fit": "Ajuster",
     "video_aspect.fill": "Remplir",
-    "video_aspect.stretch": "Étirer"
+    "video_aspect.stretch": "Étirer",
+    "vinyl.settings.track_change_animations": "Animation au changement de titre",
+    "vinyl.settings.track_change_animations_desc": "Déplace la pochette et le disque au changement de titre. Le disque continue de tourner si cette option est désactivée.",
+    "vinyl.settings.rotation_speed": "Vitesse de rotation du disque",
+    "vinyl.settings.rotation_speed_desc": "100 % est la vitesse par défaut. Changer la vitesse conserve l’angle actuel.",
+    "setting.simplify_title": "Simplifier les titres",
+    "setting.simplify_title_desc": "Masque les notes entre parenthèses dans les titres, y compris sur les étiquettes LP."
   },
   "ar": {
     "section.account": "الحساب",
@@ -7332,7 +7380,13 @@
     "setting.lyrics_not_found_notice": "عرض تنبيه عدم العثور على الكلمات",
     "video_aspect.fit": "احتواء",
     "video_aspect.fill": "ملء",
-    "video_aspect.stretch": "تمديد"
+    "video_aspect.stretch": "تمديد",
+    "vinyl.settings.track_change_animations": "حركة تبديل الأغنية",
+    "vinyl.settings.track_change_animations_desc": "تحريك الغلاف والأسطوانة عند تبديل الأغنية. تستمر الأسطوانة بالدوران عند تعطيل هذا الخيار.",
+    "vinyl.settings.rotation_speed": "سرعة دوران الأسطوانة",
+    "vinyl.settings.rotation_speed_desc": "100% هي السرعة الافتراضية. تغيير السرعة يحافظ على الزاوية الحالية.",
+    "setting.simplify_title": "تبسيط عناوين الأغاني",
+    "setting.simplify_title_desc": "إخفاء الملاحظات بين الأقواس في عناوين الأغاني، بما فيها ملصقات الأسطوانة."
   },
   "fa": {
     "section.account": "حساب",
@@ -8147,7 +8201,13 @@
     "setting.lyrics_not_found_notice": "نمایش پیام پیدا نشدن متن آهنگ",
     "video_aspect.fit": "جا دادن",
     "video_aspect.fill": "پر کردن",
-    "video_aspect.stretch": "کشیدن"
+    "video_aspect.stretch": "کشیدن",
+    "vinyl.settings.track_change_animations": "پویانمایی تغییر آهنگ",
+    "vinyl.settings.track_change_animations_desc": "هنگام تغییر آهنگ، جلد و صفحه حرکت می‌کنند. با خاموش کردن این گزینه، صفحه همچنان می‌چرخد.",
+    "vinyl.settings.rotation_speed": "سرعت چرخش صفحه",
+    "vinyl.settings.rotation_speed_desc": "100% سرعت پیش‌فرض است. تغییر سرعت، زاویه فعلی را حفظ می‌کند.",
+    "setting.simplify_title": "ساده‌سازی عنوان آهنگ‌ها",
+    "setting.simplify_title_desc": "توضیحات داخل پرانتز در عنوان آهنگ‌ها و برچسب‌های صفحه پنهان می‌شوند."
   },
   "de": {
     "section.account": "Konto",
@@ -8962,7 +9022,13 @@
     "setting.lyrics_not_found_notice": "Hinweis auf fehlenden Liedtext anzeigen",
     "video_aspect.fit": "Einpassen",
     "video_aspect.fill": "Ausfüllen",
-    "video_aspect.stretch": "Strecken"
+    "video_aspect.stretch": "Strecken",
+    "vinyl.settings.track_change_animations": "Animation beim Titelwechsel",
+    "vinyl.settings.track_change_animations_desc": "Bewegt Hülle und Platte beim Titelwechsel. Die Platte dreht sich auch bei deaktivierter Option weiter.",
+    "vinyl.settings.rotation_speed": "Drehgeschwindigkeit der Platte",
+    "vinyl.settings.rotation_speed_desc": "100 % ist die Standardgeschwindigkeit. Beim Ändern bleibt der aktuelle Winkel erhalten.",
+    "setting.simplify_title": "Titel vereinfachen",
+    "setting.simplify_title_desc": "Blendet Klammerzusätze in Titeln aus, auch auf LP-Etiketten."
   },
   "ru": {
     "section.account": "Аккаунт",
@@ -9777,7 +9843,13 @@
     "setting.lyrics_not_found_notice": "Показывать уведомление об отсутствии текста",
     "video_aspect.fit": "Вписать",
     "video_aspect.fill": "Заполнить",
-    "video_aspect.stretch": "Растянуть"
+    "video_aspect.stretch": "Растянуть",
+    "vinyl.settings.track_change_animations": "Анимация смены песни",
+    "vinyl.settings.track_change_animations_desc": "Перемещает конверт и пластинку при смене песни. При отключении пластинка продолжает вращаться.",
+    "vinyl.settings.rotation_speed": "Скорость вращения пластинки",
+    "vinyl.settings.rotation_speed_desc": "100% — скорость по умолчанию. При изменении скорости сохраняется текущий угол.",
+    "setting.simplify_title": "Упрощать названия песен",
+    "setting.simplify_title_desc": "Скрывает примечания в скобках в названиях, в том числе на этикетках LP."
   },
   "sv": {
     "section.account": "Konto",
@@ -10592,7 +10664,13 @@
     "setting.lyrics_not_found_notice": "Visa meddelande om saknad låttext",
     "video_aspect.fit": "Anpassa",
     "video_aspect.fill": "Fyll",
-    "video_aspect.stretch": "Sträck ut"
+    "video_aspect.stretch": "Sträck ut",
+    "vinyl.settings.track_change_animations": "Animation vid låtbyte",
+    "vinyl.settings.track_change_animations_desc": "Flytta omslaget och skivan när låten byts. Skivan fortsätter snurra när detta är avstängt.",
+    "vinyl.settings.rotation_speed": "Skivans rotationshastighet",
+    "vinyl.settings.rotation_speed_desc": "100 % är standardhastigheten. En ändring bevarar den aktuella vinkeln.",
+    "setting.simplify_title": "Förenkla låttitlar",
+    "setting.simplify_title_desc": "Dölj anmärkningar inom parentes i låttitlar, även på LP-etiketter."
   },
   "pt": {
     "section.account": "Conta",
@@ -11407,7 +11485,13 @@
     "setting.lyrics_not_found_notice": "Mostrar aviso de letra não encontrada",
     "video_aspect.fit": "Ajustar",
     "video_aspect.fill": "Preencher",
-    "video_aspect.stretch": "Esticar"
+    "video_aspect.stretch": "Esticar",
+    "vinyl.settings.track_change_animations": "Animação ao mudar de faixa",
+    "vinyl.settings.track_change_animations_desc": "Move a capa e o disco ao mudar de faixa. O disco continua a rodar quando esta opção está desativada.",
+    "vinyl.settings.rotation_speed": "Velocidade de rotação do disco",
+    "vinyl.settings.rotation_speed_desc": "100% é a velocidade predefinida. A mudança preserva o ângulo atual.",
+    "setting.simplify_title": "Simplificar títulos",
+    "setting.simplify_title_desc": "Oculta notas entre parênteses nos títulos, incluindo nas etiquetas LP."
   },
   "bn": {
     "section.account": "অ্যাকাউন্ট",
@@ -12222,7 +12306,13 @@
     "setting.lyrics_not_found_notice": "গানের কথা না পাওয়ার বার্তা দেখান",
     "video_aspect.fit": "মানানসই",
     "video_aspect.fill": "পূর্ণ করুন",
-    "video_aspect.stretch": "প্রসারিত করুন"
+    "video_aspect.stretch": "প্রসারিত করুন",
+    "vinyl.settings.track_change_animations": "গান বদলের অ্যানিমেশন",
+    "vinyl.settings.track_change_animations_desc": "গান বদলালে প্রচ্ছদ ও রেকর্ড নড়ে। এটি বন্ধ থাকলেও রেকর্ড ঘুরতে থাকে।",
+    "vinyl.settings.rotation_speed": "রেকর্ড ঘোরার গতি",
+    "vinyl.settings.rotation_speed_desc": "100% হলো ডিফল্ট গতি। গতি বদলালেও বর্তমান কোণ বজায় থাকে।",
+    "setting.simplify_title": "গানের শিরোনাম সরল করুন",
+    "setting.simplify_title_desc": "গানের শিরোনামের বন্ধনীর মন্তব্য লুকান, LP লেবেলেও।"
   },
   "cs": {
     "section.account": "Účet",
@@ -13037,7 +13127,13 @@
     "setting.lyrics_not_found_notice": "Zobrazit upozornění na nenalezený text",
     "video_aspect.fit": "Přizpůsobit",
     "video_aspect.fill": "Vyplnit",
-    "video_aspect.stretch": "Roztáhnout"
+    "video_aspect.stretch": "Roztáhnout",
+    "vinyl.settings.track_change_animations": "Animace při změně skladby",
+    "vinyl.settings.track_change_animations_desc": "Při změně skladby pohybuje obalem a deskou. Po vypnutí se deska stále otáčí.",
+    "vinyl.settings.rotation_speed": "Rychlost otáčení desky",
+    "vinyl.settings.rotation_speed_desc": "100 % je výchozí rychlost. Změna rychlosti zachová aktuální úhel.",
+    "setting.simplify_title": "Zjednodušit názvy skladeb",
+    "setting.simplify_title_desc": "Skryje poznámky v závorkách v názvech skladeb, včetně štítků LP."
   },
   "it": {
     "section.account": "Account",
@@ -13852,7 +13948,13 @@
     "setting.lyrics_not_found_notice": "Mostra avviso di testo non trovato",
     "video_aspect.fit": "Adatta",
     "video_aspect.fill": "Riempi",
-    "video_aspect.stretch": "Estendi"
+    "video_aspect.stretch": "Estendi",
+    "vinyl.settings.track_change_animations": "Animazione al cambio di brano",
+    "vinyl.settings.track_change_animations_desc": "Muove la custodia e il disco al cambio di brano. Il disco continua a girare quando l’opzione è disattivata.",
+    "vinyl.settings.rotation_speed": "Velocità di rotazione del disco",
+    "vinyl.settings.rotation_speed_desc": "100% è la velocità predefinita. Cambiare velocità mantiene l’angolo attuale.",
+    "setting.simplify_title": "Semplifica i titoli",
+    "setting.simplify_title_desc": "Nasconde le note tra parentesi nei titoli, anche sulle etichette LP."
   },
   "th": {
     "section.account": "บัญชี",
@@ -14667,7 +14769,13 @@
     "setting.lyrics_not_found_notice": "แสดงข้อความเมื่อไม่พบเนื้อเพลง",
     "video_aspect.fit": "พอดี",
     "video_aspect.fill": "เต็มจอ",
-    "video_aspect.stretch": "ยืด"
+    "video_aspect.stretch": "ยืด",
+    "vinyl.settings.track_change_animations": "แอนิเมชันเมื่อเปลี่ยนเพลง",
+    "vinyl.settings.track_change_animations_desc": "ขยับซองและแผ่นเมื่อเปลี่ยนเพลง แผ่นยังคงหมุนเมื่อปิดตัวเลือกนี้",
+    "vinyl.settings.rotation_speed": "ความเร็วการหมุนแผ่น",
+    "vinyl.settings.rotation_speed_desc": "100% คือความเร็วเริ่มต้น การเปลี่ยนความเร็วยังคงรักษามุมปัจจุบัน",
+    "setting.simplify_title": "ย่อชื่อเพลง",
+    "setting.simplify_title_desc": "ซ่อนข้อความในวงเล็บของชื่อเพลง รวมถึงบนฉลากแผ่น LP"
   },
   "vi": {
     "section.account": "Tài khoản",
@@ -15482,7 +15590,13 @@
     "setting.lyrics_not_found_notice": "Hiện thông báo không tìm thấy lời",
     "video_aspect.fit": "Vừa khung",
     "video_aspect.fill": "Lấp đầy",
-    "video_aspect.stretch": "Kéo giãn"
+    "video_aspect.stretch": "Kéo giãn",
+    "vinyl.settings.track_change_animations": "Hiệu ứng khi đổi bài",
+    "vinyl.settings.track_change_animations_desc": "Di chuyển bìa và đĩa khi đổi bài. Đĩa vẫn quay khi tắt tùy chọn này.",
+    "vinyl.settings.rotation_speed": "Tốc độ quay đĩa",
+    "vinyl.settings.rotation_speed_desc": "100% là tốc độ mặc định. Đổi tốc độ vẫn giữ góc hiện tại.",
+    "setting.simplify_title": "Rút gọn tên bài hát",
+    "setting.simplify_title_desc": "Ẩn ghi chú trong ngoặc ở tên bài hát, cả trên nhãn đĩa LP."
   },
   "id": {
     "section.account": "Akun",
@@ -16297,7 +16411,13 @@
     "setting.lyrics_not_found_notice": "Tampilkan pemberitahuan lirik tidak ditemukan",
     "video_aspect.fit": "Sesuaikan",
     "video_aspect.fill": "Isi",
-    "video_aspect.stretch": "Regangkan"
+    "video_aspect.stretch": "Regangkan",
+    "vinyl.settings.track_change_animations": "Animasi pergantian lagu",
+    "vinyl.settings.track_change_animations_desc": "Gerakkan sampul dan piringan saat lagu berganti. Piringan tetap berputar jika opsi ini dimatikan.",
+    "vinyl.settings.rotation_speed": "Kecepatan putaran piringan",
+    "vinyl.settings.rotation_speed_desc": "100% adalah kecepatan bawaan. Perubahan kecepatan mempertahankan sudut saat ini.",
+    "setting.simplify_title": "Sederhanakan judul lagu",
+    "setting.simplify_title_desc": "Sembunyikan catatan dalam tanda kurung pada judul lagu, termasuk label LP."
   },
   "ms": {
     "section.account": "Akaun",
@@ -17112,7 +17232,13 @@
     "setting.lyrics_not_found_notice": "Tunjukkan notis lirik tidak ditemui",
     "video_aspect.fit": "Muat",
     "video_aspect.fill": "Isi",
-    "video_aspect.stretch": "Regang"
+    "video_aspect.stretch": "Regang",
+    "vinyl.settings.track_change_animations": "Animasi pertukaran lagu",
+    "vinyl.settings.track_change_animations_desc": "Gerakkan kulit dan rekod apabila lagu bertukar. Rekod terus berputar apabila pilihan ini dimatikan.",
+    "vinyl.settings.rotation_speed": "Kelajuan putaran rekod",
+    "vinyl.settings.rotation_speed_desc": "100% ialah kelajuan lalai. Perubahan kelajuan mengekalkan sudut semasa.",
+    "setting.simplify_title": "Ringkaskan tajuk lagu",
+    "setting.simplify_title_desc": "Sembunyikan nota dalam kurungan pada tajuk lagu, termasuk label LP."
   },
   "tr": {
     "section.account": "Hesap",
@@ -17927,6 +18053,12 @@
     "setting.lyrics_not_found_notice": "Söz bulunamadı bildirimini göster",
     "video_aspect.fit": "Sığdır",
     "video_aspect.fill": "Doldur",
-    "video_aspect.stretch": "Uzat"
+    "video_aspect.stretch": "Uzat",
+    "vinyl.settings.track_change_animations": "Şarkı değişimi animasyonu",
+    "vinyl.settings.track_change_animations_desc": "Şarkı değiştiğinde kılıfı ve plağı hareket ettirir. Bu seçenek kapalıyken plak dönmeye devam eder.",
+    "vinyl.settings.rotation_speed": "Plak dönme hızı",
+    "vinyl.settings.rotation_speed_desc": "Varsayılan hız %100’dür. Hız değişince geçerli açı korunur.",
+    "setting.simplify_title": "Şarkı adlarını sadeleştir",
+    "setting.simplify_title_desc": "Şarkı adlarındaki parantez içi notları LP etiketlerinde de gizler."
   }
 }

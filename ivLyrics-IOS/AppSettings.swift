@@ -81,6 +81,7 @@ final class AppSettings: ObservableObject {
         "background_solid_color", "background_video_scale", "lyrics_provider_order_v1",
         "background_video_fallback", "background_video_aspect", "background_video_edge_to_edge",
         "title_tap_action", "landscape_original_lyrics", "landscape_artwork", "lyrics_not_found_notice",
+        "vinyl_track_change_animations", "vinyl_rotation_speed_percent", "simplify_title",
         "lyrics_provider_enabled_v1", "lyrics_provider_types_v1", "lyrics_prefer_sync_data_provider",
         "lyrics_prefer_type_over_provider", "typography_settings_v1", "speaker_color_settings_v1",
         "global_sync_offset_ms"
@@ -298,6 +299,9 @@ final class AppSettings: ObservableObject {
     @Published var vinylAlbumSizePercent: Int { didSet { set("vinyl_album_size_percent", Self.clampVinylSizePercent(vinylAlbumSizePercent)) } }
     @Published var vinylRecordSizePercent: Int { didSet { set("vinyl_record_size_percent", Self.clampVinylSizePercent(vinylRecordSizePercent)) } }
     @Published var vinylAnimationsEnabled: Bool { didSet { set("vinyl_animations_enabled", vinylAnimationsEnabled) } }
+    @Published var vinylTrackChangeAnimationsEnabled: Bool { didSet { set("vinyl_track_change_animations", vinylTrackChangeAnimationsEnabled) } }
+    @Published var vinylRotationSpeedPercent: Int { didSet { set("vinyl_rotation_speed_percent", VinylMotionPolicy.speedPercent(vinylRotationSpeedPercent)) } }
+    @Published var simplifyTitleEnabled: Bool { didSet { set("simplify_title", simplifyTitleEnabled) } }
     @Published var vinylCenterRotationEnabled: Bool { didSet { set("vinyl_center_rotation_enabled", vinylCenterRotationEnabled) } }
     @Published var vinylLyricsEnabled: Bool { didSet { set("vinyl_lyrics_enabled", vinylLyricsEnabled) } }
     @Published var vinylTonearmStyle: String { didSet { set("vinyl_tonearm_style", Self.normalizeVinylTonearmStyle(vinylTonearmStyle)) } }
@@ -413,6 +417,9 @@ final class AppSettings: ObservableObject {
         vinylAlbumSizePercent = Self.clampVinylSizePercent(defaults.object(forKey: "vinyl_album_size_percent") as? Int ?? 100)
         vinylRecordSizePercent = Self.clampVinylSizePercent(defaults.object(forKey: "vinyl_record_size_percent") as? Int ?? 100)
         vinylAnimationsEnabled = defaults.object(forKey: "vinyl_animations_enabled") as? Bool ?? true
+        vinylTrackChangeAnimationsEnabled = defaults.object(forKey: "vinyl_track_change_animations") as? Bool ?? true
+        vinylRotationSpeedPercent = VinylMotionPolicy.speedPercent(defaults.object(forKey: "vinyl_rotation_speed_percent") as? Int ?? 100)
+        simplifyTitleEnabled = defaults.object(forKey: "simplify_title") as? Bool ?? false
         vinylCenterRotationEnabled = defaults.object(forKey: "vinyl_center_rotation_enabled") as? Bool ?? true
         vinylLyricsEnabled = defaults.object(forKey: "vinyl_lyrics_enabled") as? Bool ?? true
         vinylTonearmStyle = Self.normalizeVinylTonearmStyle(defaults.string(forKey: "vinyl_tonearm_style") ?? Self.vinylTonearmStyleS)
@@ -529,6 +536,9 @@ final class AppSettings: ObservableObject {
         vinylAlbumSizePercent = loaded.vinylAlbumSizePercent
         vinylRecordSizePercent = loaded.vinylRecordSizePercent
         vinylAnimationsEnabled = loaded.vinylAnimationsEnabled
+        vinylTrackChangeAnimationsEnabled = loaded.vinylTrackChangeAnimationsEnabled
+        vinylRotationSpeedPercent = loaded.vinylRotationSpeedPercent
+        simplifyTitleEnabled = loaded.simplifyTitleEnabled
         vinylCenterRotationEnabled = loaded.vinylCenterRotationEnabled
         vinylLyricsEnabled = loaded.vinylLyricsEnabled
         vinylTonearmStyle = loaded.vinylTonearmStyle

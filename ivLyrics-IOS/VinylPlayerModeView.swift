@@ -25,6 +25,7 @@ struct VinylPlayerModeView: View {
     @State private var spinBaseDegrees: Double = 0
     @State private var spinOrigin = Date()
     @State private var spinning = false
+    @State private var spinSpeedPercent = 100
     @State private var spinToken = UUID()
     @State private var accentColors: [String: Color] = [:]
     @State private var artworkImages: [String: UIImage] = [:]
@@ -96,6 +97,26 @@ struct VinylPlayerModeView: View {
         }
         .onChange(of: settings.vinylAnimationsEnabled) { _, enabled in
             updateAnimationPreference(enabled && !accessibilityReduceMotion)
+        }
+        .onChange(of: settings.vinylTrackChangeAnimationsEnabled) { _, enabled in
+            if !enabled {
+                trackTransitionToken = UUID()
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    displayedTrack = model.currentTrack
+                    incomingTrack = nil
+                    trackTransitionProgress = 0
+                    outgoingRecordBehindSleeve = false
+                    tonearmEngagement = model.currentTrack?.playing == true ? 1 : 0
+                }
+                if let track = model.currentTrack { loadAccent(for: track) }
+            }
+        }
+        .onChange(of: settings.vinylRotationSpeedPercent) { _, speed in
+            // Capture the angle at the previous speed before changing the rate.
+            freezeSpin(at: Date())
+            spinSpeedPercent = VinylMotionPolicy.speedPercent(speed)
         }
         .onChange(of: accessibilityReduceMotion) { _, reduceMotion in
             updateAnimationPreference(settings.vinylAnimationsEnabled && !reduceMotion)
@@ -311,6 +332,8 @@ struct VinylPlayerModeView: View {
     ) -> some View {
         VinylDisc(
             track: track,
+            title: track.stableKey == model.currentTrackKey ? model.titleText : VinylMotionPolicy.title(track.title, simplified: settings.simplifyTitleEnabled),
+            artist: track.stableKey == model.currentTrackKey ? model.artistText : track.artist,
             accent: accentColor(for: track),
             centerCounterRotation: settings.vinylCenterRotationEnabled ? 0 : -rotation
         )
@@ -373,6 +396,7 @@ struct VinylPlayerModeView: View {
         tonearmEngagement = 0
         spinning = false
         spinOrigin = Date()
+        spinSpeedPercent = VinylMotionPolicy.speedPercent(settings.vinylRotationSpeedPercent)
         if let displayedTrack {
             loadAccent(for: displayedTrack)
         }
@@ -404,9 +428,13 @@ struct VinylPlayerModeView: View {
             self.displayedTrack = next
             return
         }
-        guard animateChange && effectiveAnimationsEnabled else {
+        trackTransitionToken = UUID()
+        guard animateChange && effectiveAnimationsEnabled && settings.vinylTrackChangeAnimationsEnabled else {
             self.displayedTrack = next
             incomingTrack = nil
+            trackTransitionProgress = 0
+            outgoingRecordBehindSleeve = false
+            loadAccent(for: next)
             return
         }
 
@@ -530,7 +558,7 @@ struct VinylPlayerModeView: View {
         playbackSequenceToken = token
         guard effectiveAnimationsEnabled, animated else {
             freezeSpin(at: Date())
-            spinning = playing
+            spinning = playing && effectiveAnimationsEnabled
             spinOrigin = Date()
             var transaction = Transaction()
             transaction.disablesAnimations = true
@@ -575,6 +603,8 @@ struct VinylPlayerModeView: View {
                 spinning = true
             }
         } else {
+            freezeSpin(at: Date())
+            spinning = false
             let fullSequence = playProgress >= 0.95
             Task { @MainActor in
                 withAnimation(.timingCurve(0.28, 0, 0.34, 1, duration: 0.72)) {
@@ -608,8 +638,8 @@ struct VinylPlayerModeView: View {
     }
 
     private func spinDegrees(at date: Date) -> Double {
-        guard spinning else { return spinBaseDegrees }
-        return (spinBaseDegrees + max(0, date.timeIntervalSince(spinOrigin)) * 9).truncatingRemainder(dividingBy: 360)
+        VinylMotionPolicy.degrees(base: spinBaseDegrees, elapsed: date.timeIntervalSince(spinOrigin),
+                                  spinning: spinning, speedPercent: spinSpeedPercent)
     }
 
     private func freezeSpin(at date: Date) {
@@ -927,6 +957,8 @@ private struct VinylAlbumCover: View {
 
 private struct VinylDisc: View {
     let track: TrackSnapshot
+    let title: String
+    let artist: String
     let accent: Color
     let centerCounterRotation: Double
 
@@ -990,19 +1022,25 @@ private struct VinylDisc: View {
                         fontSize: max(5.5, size * 0.0168)
                     )
 
-                    Text(track.title)
-                        .font(.pretendard(max(10, size * 0.0455), weight: .bold))
+                    Text(title)
+                        .font(.pretendard(max(1, size * 0.0455), weight: .bold))
                         .foregroundStyle(accent)
                         .lineLimit(1)
+                        .truncationMode(.tail)
                         .minimumScaleFactor(0.54)
-                        .frame(width: size * 0.35)
+                        .frame(width: CGFloat(VinylMotionPolicy.labelWidth(recordSize: Double(size))), height: size * 0.055)
+                        .clipped()
+                        .accessibilityLabel(title)
                         .position(x: size * 0.5, y: size * 0.442)
-                    Text(track.artist)
-                        .font(.pretendard(max(7, size * 0.0245), weight: .semibold))
+                    Text(artist)
+                        .font(.pretendard(max(1, size * 0.0245), weight: .semibold))
                         .foregroundStyle(.white.opacity(0.82))
                         .lineLimit(1)
+                        .truncationMode(.tail)
                         .minimumScaleFactor(0.55)
-                        .frame(width: size * 0.35)
+                        .frame(width: CGFloat(VinylMotionPolicy.labelWidth(recordSize: Double(size))), height: size * 0.04)
+                        .clipped()
+                        .accessibilityLabel(artist)
                         .position(x: size * 0.5, y: size * 0.567)
 
                     Circle()
@@ -1016,7 +1054,7 @@ private struct VinylDisc: View {
     }
 
     private var circularLabel: String {
-        let source = track.album.trimmed.isEmpty ? "\(track.title) · \(track.artist)" : track.album
+        let source = track.album.trimmed.isEmpty ? "\(title) · \(artist)" : track.album
         return String(source.prefix(34)).uppercased()
     }
 }

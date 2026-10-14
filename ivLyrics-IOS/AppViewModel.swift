@@ -773,7 +773,8 @@ final class AppViewModel: ObservableObject {
     }
 
     var titleText: String {
-        metadataTranslation?.title.trimmed.isEmpty == false ? metadataTranslation!.title : (currentTrack?.title ?? inputTitle)
+        let title = metadataTranslation?.title.trimmed.isEmpty == false ? metadataTranslation!.title : (currentTrack?.title ?? inputTitle)
+        return VinylMotionPolicy.title(title, simplified: settings.simplifyTitleEnabled)
     }
 
     var artistText: String {

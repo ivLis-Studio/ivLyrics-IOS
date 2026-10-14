@@ -8934,6 +8934,7 @@ struct SettingsView: View {
             (.general, "setting.pronunciation_language"),
             (.general, "setting.pronunciation_notation"),
             (.general, "setting.metadata_translation"),
+            (.general, "setting.simplify_title"),
             (.general, "setting.japanese_furigana"),
             (.general, "setting.main_preview"),
             (.lyrics, "section.player"),
@@ -8972,6 +8973,8 @@ struct SettingsView: View {
             (.player, "vinyl.settings.tonearm_finish"),
             (.player, "vinyl.settings.tonearm_size"),
             (.player, "vinyl.settings.animations"),
+            (.player, "vinyl.settings.track_change_animations"),
+            (.player, "vinyl.settings.rotation_speed"),
             (.player, "vinyl.settings.center_rotation"),
             (.player, "vinyl.settings.lyrics"),
             (.player, "section.typography"),
@@ -9172,6 +9175,7 @@ struct SettingsView: View {
                     description: settings.t("setting.metadata_translation_desc"),
                     binding: metadataTranslationBinding
                 )
+                settingsToggleCard(settings.t("setting.simplify_title"), description: settings.t("setting.simplify_title_desc"), binding: settingsSavedBinding(\.simplifyTitleEnabled))
                 settingsToggleCard(
                     settings.t("setting.japanese_furigana"),
                     description: settings.t("setting.japanese_furigana_desc"),
@@ -9589,6 +9593,13 @@ struct SettingsView: View {
                     description: settings.t("vinyl.settings.animations_desc"),
                     binding: settingsSavedBinding(\.vinylAnimationsEnabled)
                 )
+
+                settingsToggleCard(settings.t("vinyl.settings.track_change_animations"), description: settings.t("vinyl.settings.track_change_animations_desc"), binding: settingsSavedBinding(\.vinylTrackChangeAnimationsEnabled))
+                settingsCard(settings.t("vinyl.settings.rotation_speed"), description: settings.t("vinyl.settings.rotation_speed_desc"), valueText: "\(settings.vinylRotationSpeedPercent)%") {
+                    SettingsSlider(value: Binding(get: { Double(settings.vinylRotationSpeedPercent) }, set: { settings.vinylRotationSpeedPercent = VinylMotionPolicy.speedPercent(Int($0.rounded())) }), in: 25...300, step: 5, onEditingChanged: { editing in
+                        if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
+                    })
+                }
 
                 settingsToggleCard(
                     settings.t("vinyl.settings.center_rotation"),
