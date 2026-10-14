@@ -79,6 +79,8 @@ final class AppSettings: ObservableObject {
         "vinyl_tonearm_style", "vinyl_tonearm_finish", "vinyl_tonearm_size_percent", "background_mode",
         "background_brightness", "background_blur", "background_noise", "background_reduce_motion",
         "background_solid_color", "background_video_scale", "lyrics_provider_order_v1",
+        "background_video_fallback", "background_video_aspect", "background_video_edge_to_edge",
+        "title_tap_action", "landscape_original_lyrics", "landscape_artwork", "lyrics_not_found_notice",
         "lyrics_provider_enabled_v1", "lyrics_provider_types_v1", "lyrics_prefer_sync_data_provider",
         "lyrics_prefer_type_over_provider", "typography_settings_v1", "speaker_color_settings_v1",
         "global_sync_offset_ms"
@@ -283,6 +285,10 @@ final class AppSettings: ObservableObject {
     @Published var keepScreenOn: Bool { didSet { set("keep_screen_on", keepScreenOn) } }
     @Published var landscapeAutoHideControls: Bool { didSet { set("landscape_auto_hide_controls", landscapeAutoHideControls) } }
     @Published var landscapeCenterNoLyrics: Bool { didSet { set("landscape_center_no_lyrics", landscapeCenterNoLyrics) } }
+    @Published var titleTapAction: String { didSet { set("title_tap_action", AppearancePolicy.titleAction(titleTapAction)) } }
+    @Published var landscapeOriginalLyricsEnabled: Bool { didSet { set("landscape_original_lyrics", landscapeOriginalLyricsEnabled) } }
+    @Published var landscapeArtworkEnabled: Bool { didSet { set("landscape_artwork", landscapeArtworkEnabled) } }
+    @Published var lyricsNotFoundNoticeEnabled: Bool { didSet { set("lyrics_not_found_notice", lyricsNotFoundNoticeEnabled) } }
     @Published var pipShowArtwork: Bool { didSet { set("pip_show_artwork", pipShowArtwork) } }
     @Published var pipOrientation: String { didSet { set("pip_orientation", Self.normalizePipOrientation(pipOrientation)) } }
     @Published var pipBackgroundMode: String { didSet { set("pip_background_mode", Self.normalizePipBackgroundMode(pipBackgroundMode)) } }
@@ -304,6 +310,9 @@ final class AppSettings: ObservableObject {
     @Published var backgroundReduceMotionEnabled: Bool { didSet { set("background_reduce_motion", backgroundReduceMotionEnabled); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundSolidColor: String { didSet { set("background_solid_color", Self.normalizeHexColor(backgroundSolidColor, fallback: "#1e3a8a")); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundVideoScale: Int { didSet { set("background_video_scale", Self.clampBackgroundVideoScale(backgroundVideoScale)); bumpBackgroundRevisionIfNeeded() } }
+    @Published var backgroundVideoFallback: String { didSet { set("background_video_fallback", Self.normalizeVideoFallback(backgroundVideoFallback)); bumpBackgroundRevisionIfNeeded() } }
+    @Published var backgroundVideoAspect: String { didSet { set("background_video_aspect", AppearancePolicy.videoAspect(backgroundVideoAspect)); bumpBackgroundRevisionIfNeeded() } }
+    @Published var backgroundVideoEdgeToEdge: Bool { didSet { set("background_video_edge_to_edge", backgroundVideoEdgeToEdge); bumpBackgroundRevisionIfNeeded() } }
     @Published var spotifyClientId: String { didSet { set("spotify_client_id", spotifyClientId) } }
     @Published var spotifyClientSecret: String { didSet { setSecure("spotify_client_secret", spotifyClientSecret) } }
     @Published var spotifyWebAPIEnabled: Bool { didSet { set("spotify_web_api_enabled", spotifyWebAPIEnabled) } }
@@ -391,6 +400,10 @@ final class AppSettings: ObservableObject {
         keepScreenOn = defaults.object(forKey: "keep_screen_on") as? Bool ?? false
         landscapeAutoHideControls = defaults.object(forKey: "landscape_auto_hide_controls") as? Bool ?? true
         landscapeCenterNoLyrics = defaults.object(forKey: "landscape_center_no_lyrics") as? Bool ?? true
+        titleTapAction = AppearancePolicy.titleAction(defaults.string(forKey: "title_tap_action"))
+        landscapeOriginalLyricsEnabled = defaults.object(forKey: "landscape_original_lyrics") as? Bool ?? true
+        landscapeArtworkEnabled = defaults.object(forKey: "landscape_artwork") as? Bool ?? true
+        lyricsNotFoundNoticeEnabled = defaults.object(forKey: "lyrics_not_found_notice") as? Bool ?? true
         pipShowArtwork = defaults.object(forKey: "pip_show_artwork") as? Bool ?? true
         pipOrientation = Self.normalizePipOrientation(defaults.string(forKey: "pip_orientation") ?? Self.pipOrientationSquare)
         pipBackgroundMode = Self.normalizePipBackgroundMode(defaults.string(forKey: "pip_background_mode") ?? Self.pipBackgroundCover)
@@ -412,6 +425,9 @@ final class AppSettings: ObservableObject {
         backgroundReduceMotionEnabled = defaults.object(forKey: "background_reduce_motion") as? Bool ?? false
         backgroundSolidColor = Self.normalizeHexColor(defaults.string(forKey: "background_solid_color") ?? "#1e3a8a", fallback: "#1e3a8a")
         backgroundVideoScale = Self.clampBackgroundVideoScale(defaults.object(forKey: "background_video_scale") as? Int ?? 100)
+        backgroundVideoFallback = Self.normalizeVideoFallback(defaults.string(forKey: "background_video_fallback"))
+        backgroundVideoAspect = AppearancePolicy.videoAspect(defaults.string(forKey: "background_video_aspect"))
+        backgroundVideoEdgeToEdge = defaults.object(forKey: "background_video_edge_to_edge") as? Bool ?? true
         spotifyClientId = defaults.string(forKey: "spotify_client_id") ?? ""
         spotifyClientSecret = SecureStringStore.shared.migratedString(
             forKey: "spotify_client_secret",
@@ -500,6 +516,10 @@ final class AppSettings: ObservableObject {
         keepScreenOn = loaded.keepScreenOn
         landscapeAutoHideControls = loaded.landscapeAutoHideControls
         landscapeCenterNoLyrics = loaded.landscapeCenterNoLyrics
+        titleTapAction = loaded.titleTapAction
+        landscapeOriginalLyricsEnabled = loaded.landscapeOriginalLyricsEnabled
+        landscapeArtworkEnabled = loaded.landscapeArtworkEnabled
+        lyricsNotFoundNoticeEnabled = loaded.lyricsNotFoundNoticeEnabled
         pipShowArtwork = loaded.pipShowArtwork
         pipOrientation = loaded.pipOrientation
         pipBackgroundMode = loaded.pipBackgroundMode
@@ -521,6 +541,9 @@ final class AppSettings: ObservableObject {
         backgroundReduceMotionEnabled = loaded.backgroundReduceMotionEnabled
         backgroundSolidColor = loaded.backgroundSolidColor
         backgroundVideoScale = loaded.backgroundVideoScale
+        backgroundVideoFallback = loaded.backgroundVideoFallback
+        backgroundVideoAspect = loaded.backgroundVideoAspect
+        backgroundVideoEdgeToEdge = loaded.backgroundVideoEdgeToEdge
         lyricsProviderOrder = loaded.lyricsProviderOrder
         lyricsProviderEnabled = loaded.lyricsProviderEnabled
         lyricsProviderTypes = loaded.lyricsProviderTypes
@@ -856,7 +879,10 @@ final class AppSettings: ObservableObject {
             noise: backgroundNoiseEnabled,
             reduceMotion: backgroundReduceMotionEnabled,
             solidColor: backgroundSolidColor,
-            videoScale: backgroundVideoScale
+            videoScale: backgroundVideoScale,
+            videoFallback: backgroundVideoFallback,
+            videoAspect: backgroundVideoAspect,
+            videoEdgeToEdge: backgroundVideoEdgeToEdge
         )
     }
 
@@ -1503,6 +1529,10 @@ final class AppSettings: ObservableObject {
         return backgroundGradient
     }
 
+    static func normalizeVideoFallback(_ mode: String?) -> String {
+        [backgroundGradient, backgroundBlurGradient, backgroundSolid].contains(mode ?? "") ? mode! : backgroundBlurGradient
+    }
+
     static func normalizeLyricsAlignment(_ alignment: String?) -> String {
         let value = (alignment ?? "").trimmed.lowercased()
         if value == "center" || value == "right" {
@@ -1747,7 +1777,10 @@ final class AppSettings: ObservableObject {
             noise: settings.noise,
             reduceMotion: settings.reduceMotion,
             solidColor: settings.solidColor,
-            videoScale: settings.videoScale
+            videoScale: settings.videoScale,
+            videoFallback: settings.videoFallback,
+            videoAspect: settings.videoAspect,
+            videoEdgeToEdge: settings.videoEdgeToEdge
         )
         return [
             "mode": safe.mode,
@@ -1756,7 +1789,10 @@ final class AppSettings: ObservableObject {
             "noise": safe.noise,
             "reduceMotion": safe.reduceMotion,
             "solidColor": safe.solidColor,
-            "videoScale": safe.videoScale
+            "videoScale": safe.videoScale,
+            "videoFallback": safe.videoFallback,
+            "videoAspect": safe.videoAspect,
+            "videoEdgeToEdge": safe.videoEdgeToEdge
         ]
     }
 
@@ -1768,7 +1804,10 @@ final class AppSettings: ObservableObject {
             noise: object["noise"] as? Bool ?? fallback.noise,
             reduceMotion: object["reduceMotion"] as? Bool ?? fallback.reduceMotion,
             solidColor: object["solidColor"] as? String ?? fallback.solidColor,
-            videoScale: object["videoScale"] as? Int ?? fallback.videoScale
+            videoScale: object["videoScale"] as? Int ?? fallback.videoScale,
+            videoFallback: object["videoFallback"] as? String ?? fallback.videoFallback,
+            videoAspect: object["videoAspect"] as? String ?? fallback.videoAspect,
+            videoEdgeToEdge: object["videoEdgeToEdge"] as? Bool ?? fallback.videoEdgeToEdge
         )
     }
 
@@ -2099,8 +2138,12 @@ final class AppSettings: ObservableObject {
         var reduceMotion: Bool
         var solidColor: String
         var videoScale: Int
+        var videoFallback: String
+        var videoAspect: String
+        var videoEdgeToEdge: Bool
 
-        init(mode: String, brightness: Int, blur: Int, noise: Bool, reduceMotion: Bool, solidColor: String, videoScale: Int) {
+        init(mode: String, brightness: Int, blur: Int, noise: Bool, reduceMotion: Bool, solidColor: String, videoScale: Int,
+             videoFallback: String = AppSettings.backgroundBlurGradient, videoAspect: String = "fill", videoEdgeToEdge: Bool = true) {
             self.mode = AppSettings.normalizeBackgroundMode(mode)
             self.brightness = min(100, max(0, brightness))
             self.blur = min(100, max(0, blur))
@@ -2108,6 +2151,9 @@ final class AppSettings: ObservableObject {
             self.reduceMotion = reduceMotion
             self.solidColor = AppSettings.normalizeHexColor(solidColor, fallback: "#1e3a8a")
             self.videoScale = AppSettings.clampBackgroundVideoScale(videoScale)
+            self.videoFallback = AppSettings.normalizeVideoFallback(videoFallback)
+            self.videoAspect = AppearancePolicy.videoAspect(videoAspect)
+            self.videoEdgeToEdge = videoEdgeToEdge
         }
     }
 

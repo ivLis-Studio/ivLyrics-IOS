@@ -1343,7 +1343,9 @@ actor LyricsRepository {
             lastPositionUpdate: Date(),
             playbackSpeed: track.playbackSpeed,
             playing: track.playing,
-            artworkURL: match.artworkURL ?? track.artworkURL
+            artworkURL: match.artworkURL ?? track.artworkURL,
+            albumURI: track.albumURI,
+            playbackContextURI: track.playbackContextURI
         )
     }
 

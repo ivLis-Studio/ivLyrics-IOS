@@ -120,6 +120,8 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
     var title: String
     var artist: String
     var album: String
+    var albumURI: String
+    var playbackContextURI: String
     var packageName: String
     var mediaId: String
     var isrc: String
@@ -148,11 +150,15 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
         lastPositionUpdateUptime: TimeInterval? = nil,
         playbackSpeed: Double = 1,
         playing: Bool = false,
-        artworkURL: URL? = nil
+        artworkURL: URL? = nil,
+        albumURI: String = "",
+        playbackContextURI: String = ""
     ) {
         self.title = title.trimmed
         self.artist = artist.trimmed
         self.album = album.trimmed
+        self.albumURI = albumURI.trimmed
+        self.playbackContextURI = playbackContextURI.trimmed
         self.packageName = packageName.trimmed
         self.mediaId = Self.normalizedSpotifyMediaId(mediaId)
         self.isrc = Self.normalizeIsrc(isrc)
@@ -224,6 +230,8 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
             && lhs.title == rhs.title
             && lhs.artist == rhs.artist
             && lhs.album == rhs.album
+            && lhs.albumURI == rhs.albumURI
+            && lhs.playbackContextURI == rhs.playbackContextURI
             && lhs.packageName == rhs.packageName
             && lhs.mediaId == rhs.mediaId
             && lhs.artworkURL == rhs.artworkURL
@@ -233,6 +241,8 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
         hasher.combine(title)
         hasher.combine(artist)
         hasher.combine(album)
+        hasher.combine(albumURI)
+        hasher.combine(playbackContextURI)
         hasher.combine(packageName)
         hasher.combine(mediaId)
         hasher.combine(durationMs)

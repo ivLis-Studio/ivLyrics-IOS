@@ -43,7 +43,7 @@ enum SpotifyQueueResponseParser {
     }
 
     private struct Artist: Decodable { var name: String }
-    private struct Album: Decodable { var name: String?; var images: [Image]? }
+    private struct Album: Decodable { var name: String?; var images: [Image]?; var uri: String? }
     private struct Image: Decodable { var url: String; var width: Int? }
     private struct ExternalIDs: Decodable { var isrc: String? }
 
@@ -92,7 +92,8 @@ enum SpotifyQueueResponseParser {
             durationMs: item.durationMs ?? 0,
             positionMs: 0,
             playing: false,
-            artworkURL: artworkURL
+            artworkURL: artworkURL,
+            albumURI: item.album?.uri ?? ""
         )
         return track.hasUsableMetadata ? track : nil
     }
@@ -800,7 +801,9 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
             lastPositionUpdate: Date(),
             playbackSpeed: 1,
             playing: boolValue(root["is_playing"]),
-            artworkURL: image
+            artworkURL: image,
+            albumURI: stringValue(albumObject?["uri"]),
+            playbackContextURI: stringValue((root["context"] as? [String: Any])?["uri"])
         )
     }
 

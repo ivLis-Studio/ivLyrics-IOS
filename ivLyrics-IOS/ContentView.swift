@@ -18,7 +18,15 @@ private struct PlaybackAdvancingKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct OriginalLyricsVisibleKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 extension EnvironmentValues {
+    var originalLyricsVisible: Bool {
+        get { self[OriginalLyricsVisibleKey.self] }
+        set { self[OriginalLyricsVisibleKey.self] = newValue }
+    }
     var lyricsSegmentationLocale: String {
         get { self[LyricsSegmentationLocaleKey.self] }
         set { self[LyricsSegmentationLocaleKey.self] = newValue }
@@ -332,7 +340,7 @@ struct ContentView: View {
             LyricsPictureInPictureHostView(controller: model.pictureInPictureController)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(false)
-            PlayerBackgroundView()
+            PlayerBackgroundView(isLandscape: isLandscape)
             primaryContent(
                 isLandscape: isLandscape,
                 size: size,
@@ -598,7 +606,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    model.openSpotifyForCurrentTrack()
+                    model.handleTitleTap()
                 }
                 .onLongPressGesture {
                     performMainMetaHaptic()
@@ -1239,6 +1247,7 @@ private struct AndroidTransportButtonFace: View {
 struct PlayerBackgroundView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
+    var isLandscape = false
 
     var body: some View {
         let background = effectiveBackground
@@ -1256,6 +1265,33 @@ struct PlayerBackgroundView: View {
     @ViewBuilder
     private func backgroundContent(background: AppSettings.BackgroundSettings, date: Date?) -> some View {
         ZStack {
+            if background.mode == AppSettings.backgroundVideo {
+                let fallback = videoFallback(background)
+                backgroundFallback(background: fallback, date: date)
+                if let info = model.youtubeInfo {
+                    YouTubeBackdropSection(info: info, background: background, isLandscape: isLandscape)
+                }
+            } else {
+                backgroundFallback(background: background, date: date)
+            }
+            if background.noise {
+                NoiseOverlay()
+                    .opacity(0.18)
+                    .ignoresSafeArea()
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func videoFallback(_ background: AppSettings.BackgroundSettings) -> AppSettings.BackgroundSettings {
+        var fallback = background
+        fallback.mode = background.videoFallback
+        return fallback
+    }
+
+    @ViewBuilder
+    private func backgroundFallback(background: AppSettings.BackgroundSettings, date: Date?) -> some View {
+        ZStack {
             if background.mode == AppSettings.backgroundGradient, let url = model.currentTrack?.artworkURL {
                 MovingArtworkBlurLayer(
                     url: url,
@@ -1271,16 +1307,8 @@ struct PlayerBackgroundView: View {
             } else {
                 backgroundBase(background: background, date: date)
             }
-            if background.mode == AppSettings.backgroundVideo, let info = model.youtubeInfo {
-                YouTubeBackdropSection(info: info, background: background)
-            }
             if background.mode != AppSettings.backgroundGradient {
                 Color.black.opacity(0.24).ignoresSafeArea()
-            }
-            if background.noise {
-                NoiseOverlay()
-                    .opacity(0.18)
-                    .ignoresSafeArea()
             }
         }
     }
@@ -1308,9 +1336,11 @@ private struct YouTubeBackdropSection: View {
     @EnvironmentObject private var playbackClock: PlaybackClock
     var info: YouTubeVideoInfo
     var background: AppSettings.BackgroundSettings
+    var isLandscape: Bool
+    @State private var videoVisible = false
 
     var body: some View {
-        Group {
+        ZStack {
             YouTubeBackdropView(
                 info: info,
                 playerSeconds: model.youtubePlayerSeconds,
@@ -1322,13 +1352,14 @@ private struct YouTubeBackdropSection: View {
                 autoMatchedUnknownCaptionStart: info.isAutoMatchedUnknownCaptionStart,
                 brightness: background.brightness,
                 blur: background.blur,
-                videoScale: background.videoScale
+                videoScale: background.videoScale,
+                videoAspect: background.videoAspect,
+                videoVisible: $videoVisible
             )
             .blur(radius: youtubeBackgroundBlurRadius(background.blur))
-            .ignoresSafeArea()
-            Color.black.opacity(youtubeBackgroundDimOpacity(background.brightness))
-                .ignoresSafeArea()
+            Color.black.opacity(videoVisible ? AppearancePolicy.videoDimOpacity(background.brightness) : 0)
         }
+        .ignoresSafeArea(.container, edges: background.videoEdgeToEdge || !isLandscape ? .all : [])
     }
 }
 
@@ -1473,11 +1504,6 @@ private func animatedBackgroundValue(seconds: Double, speed: Double, phase: Doub
 private func youtubeBackgroundBlurRadius(_ blur: Int) -> CGFloat {
     let effectiveBlur = min(200, max(0, blur * 2))
     return effectiveBlur <= 0 ? 0 : min(36, CGFloat(effectiveBlur) * 0.16)
-}
-
-private func youtubeBackgroundDimOpacity(_ brightness: Int) -> Double {
-    let alpha = max(42, min(220, Int((214.0 - Double(brightness) * 1.28).rounded())))
-    return Double(alpha) / 255.0
 }
 
 private struct ToastBanner: View {
@@ -1790,7 +1816,7 @@ private struct LyricsPageOverlay: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    model.openSpotifyForCurrentTrack()
+                    model.handleTitleTap()
                 }
                 .onLongPressGesture {
                     openMetaMenu(.language)
@@ -2343,8 +2369,10 @@ private struct LandscapePlayerPane: View {
         let typography = settings.typographySettings()
         AndroidLandscapePlayerLayout(tablet: containerSize.width > 900) {
             VStack(spacing: metadataSpacing) {
-                LandscapeArtworkView(size: artworkSize, onTap: onOpenVinyl)
-                    .scaleEffect(controlsVisible ? 1 : 1.08)
+                if settings.landscapeArtworkEnabled {
+                    LandscapeArtworkView(size: artworkSize, onTap: onOpenVinyl)
+                        .scaleEffect(controlsVisible ? 1 : 1.08)
+                }
                 VStack(spacing: 4) {
                     Text(model.titleText.trimmed.isEmpty ? settings.t("label.no_current_track") : model.titleText)
                         .font(typography.font(slotId: AppSettings.typoMainTitle, baseSize: 23))
@@ -2357,6 +2385,8 @@ private struct LandscapePlayerPane: View {
                         .truncationMode(.tail)
                 }
                 .shadow(color: .black.opacity(0.45), radius: 3, y: 1)
+                .contentShape(Rectangle())
+                .onTapGesture { model.handleTitleTap() }
             }
             .offset(y: controlsVisible ? 0 : hiddenHeroOffset)
 
@@ -2640,6 +2670,7 @@ private struct LandscapeCommandBar: View {
 
 private struct LandscapeLyricsPane: View {
     @EnvironmentObject private var model: AppViewModel
+    @EnvironmentObject private var settings: AppSettings
 
     var body: some View {
         LyricsTimelineScrollView(
@@ -2648,6 +2679,7 @@ private struct LandscapeLyricsPane: View {
             trailingPadding: 8,
             centerEmptyContent: true
         )
+        .environment(\.originalLyricsVisible, settings.landscapeOriginalLyricsEnabled)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .bottom) {
             LyricsProviderAttribution(includesSyncContributors: true)
@@ -3874,6 +3906,7 @@ struct MainLyricPreviewPanel: View {
         if model.status == .loading || isLoadingLyricsPreview(detail) {
             return [.loading(model.lyricsLoadingText)]
         }
+        guard settings.lyricsNotFoundNoticeEnabled else { return [] }
         if hiddenEmptyLyricsPreviewKey == buildEmptyLyricsPreviewKey(detail: detail) {
             return []
         }
@@ -4865,7 +4898,7 @@ struct LyricsTimelineView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
-                } else {
+                } else if settings.lyricsNotFoundNoticeEnabled {
                     Text(model.lyricsResult.detail)
                         .font(.body.weight(.medium))
                         .foregroundStyle(.white.opacity(0.76))
@@ -6280,6 +6313,7 @@ struct LyricsInterludeView: View {
 
 struct LyricsLineView: View, Equatable {
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.originalLyricsVisible) private var originalLyricsVisible
     var lineIndex: Int
     var line: LyricsLine
     var originalText: String
@@ -6405,6 +6439,7 @@ struct LyricsLineView: View, Equatable {
                         && positionMs >= part.startTimeMs
                         && positionMs < max(part.endTimeMs, part.startTimeMs) + 820
                     VStack(alignment: stackAlignment, spacing: 2) {
+                        if originalLyricsVisible {
                         SyllableKaraokeText(
                             text: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part),
                             rubyText: settings.japaneseFuriganaEnabled ? part.furiganaText : "",
@@ -6429,6 +6464,7 @@ struct LyricsLineView: View, Equatable {
                             effectRowSeed: index
                         )
                         .id(LyricsTimelineDisplayBuilder.vocalPartTargetID(lineIndex: lineIndex, line: line, partIndex: index))
+                        }
                         if useVocalPartSupplements {
                             vocalPartSupplements(part, active: partActive)
                         }
@@ -6436,7 +6472,7 @@ struct LyricsLineView: View, Equatable {
                     .padding(.top, vocalPartTopSpacing(index: index, parts: displayVocalParts))
                 }
             }
-        } else if shouldRenderTimedKaraoke {
+        } else if originalLyricsVisible, shouldRenderTimedKaraoke {
             SyllableKaraokeText(
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
@@ -6459,7 +6495,7 @@ struct LyricsLineView: View, Equatable {
                 bounceEnabled: settings.karaokeBounceEffectEnabled,
                 bounceTextSize: typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: active ? 25 : 21)
             )
-        } else if settings.syncedLyricsKaraokeAnimationEnabled {
+        } else if originalLyricsVisible, settings.syncedLyricsKaraokeAnimationEnabled {
             SyllableKaraokeText(
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
@@ -6483,7 +6519,7 @@ struct LyricsLineView: View, Equatable {
                 bounceTextSize: typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: active ? 25 : 21),
                 syntheticTimingEnabled: true
             )
-        } else {
+        } else if originalLyricsVisible {
             SyllableKaraokeText(
                 text: originalText.isEmpty ? " " : originalText,
                 rubyText: settings.japaneseFuriganaEnabled ? line.furiganaText : "",
@@ -8918,6 +8954,10 @@ struct SettingsView: View {
             (.player, "setting.keep_screen_on"),
             (.player, "setting.landscape_auto_hide"),
             (.player, "setting.landscape_center_no_lyrics"),
+            (.player, "setting.title_tap_action"),
+            (.player, "setting.landscape_original_lyrics"),
+            (.player, "setting.landscape_artwork"),
+            (.player, "setting.lyrics_not_found_notice"),
             (.player, "section.pip"),
             (.player, "setting.pip_show_artwork"),
             (.player, "setting.pip_background"),
@@ -8969,6 +9009,9 @@ struct SettingsView: View {
             (.appearance, "setting.brightness"),
             (.appearance, "setting.blur"),
             (.appearance, "setting.video_scale"),
+            (.appearance, "setting.video_fallback"),
+            (.appearance, "setting.video_aspect"),
+            (.appearance, "setting.video_edge_to_edge"),
             (.appearance, "setting.noise"),
             (.appearance, "setting.reduce_motion"),
             (.appearance, "field.solid_color"),
@@ -9322,6 +9365,18 @@ struct SettingsView: View {
     private var playerSettingsPage: some View {
         VStack(alignment: .leading, spacing: 26) {
             settingsSection(settings.t("section.player")) {
+                settingsCard(settings.t("setting.title_tap_action")) {
+                    Picker(settings.t("setting.title_tap_action"), selection: $settings.titleTapAction) {
+                        Text(settings.t("title_action.disabled")).tag("disabled")
+                        Text(settings.t("title_action.track")).tag("track")
+                        Text(settings.t("title_action.album")).tag("album")
+                        Text(settings.t("title_action.context")).tag("context")
+                    }
+                    .pickerStyle(.menu)
+                }
+                settingsToggleCard(settings.t("setting.landscape_original_lyrics"), description: settings.t("setting.landscape_original_lyrics_desc"), binding: settingsSavedBinding(\.landscapeOriginalLyricsEnabled))
+                settingsToggleCard(settings.t("setting.landscape_artwork"), binding: settingsSavedBinding(\.landscapeArtworkEnabled))
+                settingsToggleCard(settings.t("setting.lyrics_not_found_notice"), binding: settingsSavedBinding(\.lyricsNotFoundNoticeEnabled))
                 settingsToggleCard(
                     settings.t("setting.keep_screen_on"),
                     description: settings.t("setting.keep_screen_on_desc"),
@@ -10040,6 +10095,7 @@ struct SettingsView: View {
                     ]
                 )
             }
+            videoAppearanceSettings(fallback: $settings.backgroundVideoFallback, aspect: $settings.backgroundVideoAspect, edgeToEdge: $settings.backgroundVideoEdgeToEdge)
             settingsCard(settings.t("setting.brightness"), valueText: "\(settings.backgroundBrightness)%") {
                 SettingsSlider(value: Binding(get: { Double(settings.backgroundBrightness) }, set: { settings.backgroundBrightness = Int($0.rounded()) }), in: 0...100, step: 1, onEditingChanged: backgroundSliderEditingChanged)
             }
@@ -10059,6 +10115,23 @@ struct SettingsView: View {
                     onSave: { model.showSavedToast(settings.t("toast.background_saved")) }
                 )
             }
+        }
+    }
+
+    private func videoAppearanceSettings(fallback: Binding<String>, aspect: Binding<String>, edgeToEdge: Binding<Bool>) -> some View {
+        Group {
+            settingsCard(settings.t("setting.video_fallback")) {
+                Picker(settings.t("setting.video_fallback"), selection: fallback) {
+                    Text(settings.t("background.mode.gradient")).tag(AppSettings.backgroundGradient)
+                    Text(settings.t("background.mode.blur_gradient")).tag(AppSettings.backgroundBlurGradient)
+                    Text(settings.t("background.mode.solid")).tag(AppSettings.backgroundSolid)
+                }.pickerStyle(.menu)
+            }
+            settingsCard(settings.t("setting.video_aspect")) {
+                SettingsSegmentedPicker(title: settings.t("setting.video_aspect"), selection: aspect,
+                    options: [("fit", settings.t("video_aspect.fit")), ("fill", settings.t("video_aspect.fill")), ("stretch", settings.t("video_aspect.stretch"))])
+            }
+            settingsToggleCard(settings.t("setting.video_edge_to_edge"), description: settings.t("setting.video_edge_to_edge_desc"), binding: edgeToEdge)
         }
     }
 
@@ -10083,6 +10156,11 @@ struct SettingsView: View {
                         ]
                     )
                 }
+                videoAppearanceSettings(
+                    fallback: Binding(get: { editableTrackBackground.videoFallback }, set: { value in updateTrackBackground { $0.videoFallback = AppSettings.normalizeVideoFallback(value) } }),
+                    aspect: Binding(get: { editableTrackBackground.videoAspect }, set: { value in updateTrackBackground { $0.videoAspect = AppearancePolicy.videoAspect(value) } }),
+                    edgeToEdge: Binding(get: { editableTrackBackground.videoEdgeToEdge }, set: { value in updateTrackBackground { $0.videoEdgeToEdge = value } })
+                )
                 settingsCard(settings.t("setting.brightness"), valueText: "\(Int(trackBackgroundBrightnessBinding.wrappedValue))%") {
                     SettingsSlider(value: trackBackgroundBrightnessBinding, in: 0...100, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
                 }

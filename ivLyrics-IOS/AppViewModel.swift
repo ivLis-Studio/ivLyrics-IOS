@@ -2742,6 +2742,33 @@ final class AppViewModel: ObservableObject {
 #endif
     }
 
+    func handleTitleTap() {
+        switch AppearancePolicy.titleAction(settings.titleTapAction) {
+        case "disabled": return
+        case "album": openSpotifyDestination(currentTrack?.albumURI ?? "")
+        case "context": openSpotifyDestination(currentTrack?.playbackContextURI ?? "")
+        default: openSpotifyForCurrentTrack()
+        }
+    }
+
+    private func openSpotifyDestination(_ uri: String) {
+        guard let destination = AppearancePolicy.spotifyDestination(uri) else {
+            showSavedToast(settings.t("toast.spotify_open_failed"))
+            return
+        }
+#if os(iOS)
+        UIApplication.shared.open(destination.app, options: [:]) { [weak self] opened in
+            guard !opened else { return }
+            UIApplication.shared.open(destination.web, options: [:]) { webOpened in
+                guard !webOpened else { return }
+                Task { @MainActor in self?.showSavedToast(self?.settings.t("toast.spotify_open_failed") ?? "") }
+            }
+        }
+#else
+        inAppBrowserURL = destination.web
+#endif
+    }
+
     func openInAppBrowser(_ url: URL) {
         inAppBrowserURL = url
     }

@@ -270,7 +270,9 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
             positionMs: position,
             playbackSpeed: Double(playerState.playbackSpeed),
             playing: playing,
-            artworkURL: artworkURL(from: track.imageIdentifier)
+            artworkURL: artworkURL(from: track.imageIdentifier),
+            albumURI: track.album.uri,
+            playbackContextURI: contextURI
         )
         return SpotifyPlaybackSnapshot(
             track: snapshotTrack.withPlayback(positionMs: position, playing: playing),

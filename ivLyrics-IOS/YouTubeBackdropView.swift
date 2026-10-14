@@ -45,6 +45,8 @@ struct YouTubeBackdropView: UIViewRepresentable {
     var brightness: Int
     var blur: Int
     var videoScale: Int
+    var videoAspect: String
+    @Binding var videoVisible: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -66,28 +68,36 @@ struct YouTubeBackdropView: UIViewRepresentable {
         view.backgroundColor = .clear
         view.alpha = 0
         view.scrollView.isScrollEnabled = false
-        view.loadHTMLString(Self.html(videoId: info.youtubeVideoId, videoScale: videoScale), baseURL: URL(string: Self.htmlOrigin))
+        view.loadHTMLString(Self.html(videoId: info.youtubeVideoId, videoScale: videoScale, videoAspect: videoAspect), baseURL: URL(string: Self.htmlOrigin))
         context.coordinator.webView = view
         context.coordinator.videoId = info.youtubeVideoId
         context.coordinator.videoScale = videoScale
+        context.coordinator.visibilityChanged = { visible in videoVisible = visible }
         return view
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.visibilityChanged = { visible in videoVisible = visible }
         if context.coordinator.videoId != info.youtubeVideoId {
             context.coordinator.videoId = info.youtubeVideoId
             context.coordinator.videoScale = videoScale
             context.coordinator.playerReady = false
+            context.coordinator.videoPlaying = false
             context.coordinator.visibleState = false
             webView.alpha = 0
-            webView.loadHTMLString(Self.html(videoId: info.youtubeVideoId, videoScale: videoScale), baseURL: URL(string: Self.htmlOrigin))
+            DispatchQueue.main.async { videoVisible = false }
+            webView.loadHTMLString(Self.html(videoId: info.youtubeVideoId, videoScale: videoScale, videoAspect: videoAspect), baseURL: URL(string: Self.htmlOrigin))
         } else if context.coordinator.videoScale != videoScale {
             context.coordinator.videoScale = videoScale
             webView.evaluateJavaScript("document.documentElement.style.setProperty('--video-scale','\(Self.cssScale(videoScale))');")
         }
+        if context.coordinator.videoAspect != videoAspect {
+            context.coordinator.videoAspect = videoAspect
+            webView.evaluateJavaScript("document.documentElement.dataset.videoAspect='\(AppearancePolicy.videoAspect(videoAspect))';")
+        }
         let now = Date().timeIntervalSince1970
         context.coordinator.setPlaybackState(playing: playing)
-        context.coordinator.updateVisibility(for: webView, visible: context.coordinator.playerReady && playing)
+        context.coordinator.updateVisibility(for: webView, visible: context.coordinator.playerReady && context.coordinator.videoPlaying && playing)
         if now - context.coordinator.lastSyncAt > Self.syncIntervalSeconds
             || abs(context.coordinator.lastPlayerSeconds - playerSeconds) > 1.2
             || abs(context.coordinator.lastOffsetSeconds - offsetSeconds) > 0.01
@@ -113,6 +123,9 @@ struct YouTubeBackdropView: UIViewRepresentable {
         weak var webView: WKWebView?
         var videoId = ""
         var videoScale = 100
+        var videoAspect = "fill"
+        var videoPlaying = false
+        var visibilityChanged: (Bool) -> Void = { _ in }
         var lastSyncAt: TimeInterval = 0
         var lastPlayerSeconds: Double = 0
         var lastOffsetSeconds: Double = 0
@@ -135,6 +148,7 @@ struct YouTubeBackdropView: UIViewRepresentable {
         func updateVisibility(for webView: WKWebView?, visible: Bool) {
             guard visibleState != visible else { return }
             visibleState = visible
+            DispatchQueue.main.async { [weak self] in self?.visibilityChanged(visible) }
             guard let target = webView ?? self.webView else { return }
             UIView.animate(withDuration: visible ? 0.28 : 0.18) {
                 target.alpha = visible ? 1 : 0
@@ -145,11 +159,25 @@ struct YouTubeBackdropView: UIViewRepresentable {
             guard message.name == "ivLyricsYouTube" else { return }
             if (message.body as? String) == "ready" {
                 playerReady = true
-                updateVisibility(for: webView, visible: playing)
                 if !playing {
                     pausePlayer()
                 }
+            } else if (message.body as? String) == "playing" {
+                videoPlaying = true
+                updateVisibility(for: webView, visible: playing)
+            } else if (message.body as? String) == "failed" {
+                videoPlaying = false
+                updateVisibility(for: webView, visible: false)
             }
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            videoPlaying = false
+            updateVisibility(for: webView, visible: false)
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            self.webView(webView, didFail: navigation, withError: error)
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -158,11 +186,11 @@ struct YouTubeBackdropView: UIViewRepresentable {
         }
     }
 
-    private static func html(videoId: String, videoScale: Int) -> String {
+    private static func html(videoId: String, videoScale: Int, videoAspect: String) -> String {
         let safeVideoId = jsSingleQuotedContent(videoId)
         return #"""
         <!doctype html>
-        <html>
+        <html data-video-aspect="\#(AppearancePolicy.videoAspect(videoAspect))">
         <head>
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
@@ -170,6 +198,8 @@ struct YouTubeBackdropView: UIViewRepresentable {
             :root{--video-scale:\#(cssScale(videoScale));}
             #wrap{position:fixed;inset:0;overflow:hidden;background:transparent;}
             #stage{position:absolute;top:50%;left:50%;width:100vw;height:56.25vw;min-width:177.7778vh;min-height:100vh;transform:translate3d(-50%,-50%,0) scale(var(--video-scale));overflow:hidden;background:transparent;transition:transform .18s ease;will-change:transform;}
+            html[data-video-aspect="fit"] #stage{\#(AppearancePolicy.videoStageCSS("fit"))min-width:0;min-height:0;}
+            html[data-video-aspect="stretch"] #stage{\#(AppearancePolicy.videoStageCSS("stretch"))min-width:0;min-height:0;transform:translate3d(-50%,-50%,0) scale(var(--video-scale)) scaleY(var(--stretch-y,1));}
             #player,#stage iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;transform:none!important;pointer-events:none!important;border:0!important;outline:0!important;}
             *{-webkit-tap-highlight-color:transparent!important;user-select:none!important;-webkit-user-select:none!important;}
           </style>
@@ -178,6 +208,9 @@ struct YouTubeBackdropView: UIViewRepresentable {
           <div id="wrap"><div id="stage"><div id="player"></div></div></div>
           <script src="https://www.youtube.com/iframe_api"></script>
           <script>
+            function updateStretch(){document.documentElement.style.setProperty('--stretch-y',String(innerHeight/(innerWidth*9/16)));}
+            updateStretch();addEventListener('resize',updateStretch);
+            function reportVideo(state){try{window.webkit.messageHandlers.ivLyricsYouTube.postMessage(state);}catch(e){}}
             var player=null,ready=false,lastCaptionDisable=0,lastSeekAt=0,lastDesired={videoId:'\#(safeVideoId)',startSeconds:0};
             var adPatterns=[/doubleclick\.net/i,/googlesyndication\.com/i,/googleads\.g\.doubleclick\.net/i,/pagead(?!.*youtube\.com\/iframe)/i,/tpc\.googlesyndication\.com/i,/pubads\.g\.doubleclick\.net/i,/securepubads\.g\.doubleclick\.net/i,/gvt\d+\.com\/ads/i,/manifest\.googlevideo\.com\/api\/manifest\/ads/i,/googlevideo\.com\/videoplayback.*[&?](ctier|oad|adformat)=/i,/googlevideo\.com\/initplayback.*[&?](ctier|oad|adformat)=/i,/youtube\.com\/pagead/i,/youtube\.com\/ptracking/i,/youtube\.com\/api\/stats\/(ads|qoe|watchtime|playback)/i,/youtubei\/v1\/log_event/i,/youtubei\/v1\/player.*adformat/i,/youtube\.com\/get_video_info.*adformat/i,/youtube\.com\/yva_/i,/yt\d?\.ggpht\.com\/ad/i,/ytimg\.com\/.*ad/i,/yt3\.ggpht\.com\/ytc\/.*ad/i,/s0\.2mdn\.net/i,/gstaticadssl\.googleapis\.com/i];
             function isAdUrl(u){try{u=(typeof u==='string'?u:(u&&u.url)||'');return !!u&&adPatterns.some(function(p){return p.test(u);});}catch(e){return false;}}
@@ -195,7 +228,7 @@ struct YouTubeBackdropView: UIViewRepresentable {
             function onYouTubeIframeAPIReady(){player=new YT.Player('player',{host:'https://www.youtube-nocookie.com',videoId:'\#(safeVideoId)',
             playerVars:{autoplay:1,controls:0,disablekb:1,fs:0,rel:0,iv_load_policy:3,cc_load_policy:0,mute:1,playsinline:1,modestbranding:1,autohide:1,showinfo:0,enablecastapi:0,allowfullscreen:0,disable_polymer:1,suppress_ads:1,adformat:'0_0',widget_referrer:'https://xpui.app.spotify.com',origin:'https://xpui.app.spotify.com',fflags:'disable_persistent_ads=true&kevlar_allow_multistep_video_ads=false&enable_desktop_ad_controls=false&html5_disable_ads=true&disable_new_pause_state3_player_ads=true&player_ads_enable_gcf=false&web_player_disable_afa=true&preskip_button_style_ads_backend=false&html5_player_enable_ads_client=false'},
             events:{onReady:function(e){player=e.target;ready=true;sanitizeIframe();try{player.mute();player.playVideo();}catch(x){}disableCaptions();setTimeout(disableCaptions,250);setTimeout(disableCaptions,1000);setTimeout(disableCaptions,2500);try{window.webkit.messageHandlers.ivLyricsYouTube.postMessage('ready');}catch(x){}},
-            onStateChange:function(e){sanitizeIframe();disableCaptions();suppressAds();if(!isAdPlayback())restorePlaybackRate();},onError:function(){reloadDesired();}}});setInterval(function(){if(player&&ready){sanitizeIframe();suppressAds();}},400);}
+            onStateChange:function(e){sanitizeIframe();disableCaptions();suppressAds();if(!isAdPlayback())restorePlaybackRate();if(e.data===1)reportVideo('playing');},onError:function(){reportVideo('failed');}}});setInterval(function(){if(player&&ready){sanitizeIframe();suppressAds();}},400);}
             window.ivLyricsSyncVideo=function(playerSeconds,playing,firstLyricSeconds,offsetSeconds,hasCaption,captionStart,autoUnknown,enabled,allowHardSync){
             if(!enabled||!player||!ready||!player.getPlayerState)return;
             try{var now=Date.now();if(now-lastCaptionDisable>5000){lastCaptionDisable=now;disableCaptions();}
@@ -283,6 +316,8 @@ struct YouTubeBackdropView: View {
     var brightness: Int
     var blur: Int
     var videoScale: Int
+    var videoAspect: String
+    @Binding var videoVisible: Bool
 
     var body: some View {
         EmptyView()
