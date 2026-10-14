@@ -37,73 +37,73 @@ struct LyricsMetaMenuOverlay: View {
     @State private var communityVideos: [YouTubeVideoInfo] = []
     @State private var communityLoading = false
     @State private var communityRequestID = UUID()
+    @State private var communityTask: Task<Void, Never>?
+    @State private var videoSelectionTask: Task<Void, Never>?
+    @State private var videoSelectionID = UUID()
+    @State private var selectingVideo = false
     @State private var dragOffset: CGFloat = 0
     @State private var backgroundColorDraft = ""
     @State private var backgroundColorDraftInvalid = false
     @FocusState private var backgroundColorFieldFocused: Bool
-
-    private var panelTopPadding: CGFloat {
-        min(118, max(88, screenHeight * 0.12))
-    }
-
-    private var scrollableContentHeight: CGFloat {
-        let available = max(220, screenHeight - panelTopPadding - 156)
-        switch selectedTab {
-        case .language:
-            return 0
-        case .sync:
-            return min(available, 520)
-        case .video:
-            return min(available, 460)
-        case .background:
-            return min(available, model.currentTrackKey.isEmpty ? 150 : 540)
-        case .lrclib:
-            return min(available, 460)
-        }
-    }
+    @FocusState private var focusedField: String?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.clear
+        GeometryReader { geometry in
+        ZStack {
+            Color.black.opacity(0.56)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
                     dismiss()
                 }
+                .accessibilityHidden(true)
 
             panel
-                .frame(maxWidth: 430)
-                .padding(.horizontal, 22)
-                .padding(.top, panelTopPadding)
+                .frame(width: min(430, max(0, geometry.size.width - 24)))
+                .frame(maxHeight: min(680, max(0, geometry.size.height - 24)))
                 .offset(y: max(0, dragOffset))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .transition(.opacity.combined(with: .move(edge: .top)))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
+        .accessibilityIdentifier("lyrics.menu.root")
+        .onChange(of: selectedTab) { _, _ in focusedField = nil; backgroundColorFieldFocused = false }
         .onChange(of: model.currentTrackKey) { _, _ in
             communityRequestID = UUID()
+            communityTask?.cancel()
+            videoSelectionTask?.cancel()
+            videoSelectionID = UUID(); selectingVideo = false
             communityVideos = []; communityLoading = false; videoURL = ""; videoError = ""
+        }
+        .onDisappear {
+            communityTask?.cancel(); videoSelectionTask?.cancel()
+            communityRequestID = UUID(); videoSelectionID = UUID()
         }
     }
 
     private var panel: some View {
         VStack(spacing: 0) {
             topRow
-            tabRow
-                .padding(.top, 10)
-
-            if selectedTab == .language {
-                languageTab
-                    .padding(.top, 10)
-            } else {
                 ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Button { openPictureInPicture(); dismiss() } label: {
+                            SettingsActionLabel(title: settings.t("pip.open_lyrics"), systemImage: "pip")
+                                .background(.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(SettingsActionButtonStyle())
                     tabContent
-                        .padding(.bottom, 2)
+                    }
+                    .padding(.bottom, 8)
                 }
+                .accessibilityIdentifier("lyrics.menu.scroll")
                 .scrollIndicators(.visible)
-                .frame(height: scrollableContentHeight)
+                .scrollDismissesKeyboard(.interactively)
                 .padding(.top, 10)
-            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -116,17 +116,26 @@ struct LyricsMetaMenuOverlay: View {
     }
 
     private var topRow: some View {
-        Button {
-            openPictureInPicture()
-            dismiss()
-        } label: {
-            Text(settings.t("pip.open_lyrics"))
-                .font(.pretendard(15, weight: .bold))
-                .frame(maxWidth: .infinity)
-                .frame(height: 40)
-                .background(.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        HStack(spacing: 8) {
+            if dynamicTypeSize.isAccessibilitySize || verticalSizeClass == .compact {
+                Picker(settings.t("settings.title"), selection: $selectedTab) {
+                    ForEach(LyricsMetaMenuTab.allCases) { tab in Text(tabTitle(tab)).tag(tab) }
+                }
+                .pickerStyle(.menu)
+                .font(.body)
+                .tint(.white)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .accessibilityIdentifier("lyrics.menu.sections")
+            } else { tabRow }
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(settings.t("button.close"))
+            .accessibilityIdentifier("lyrics.menu.close")
         }
-        .buttonStyle(.plain)
         .simultaneousGesture(dismissDragGesture)
     }
 
@@ -143,7 +152,8 @@ struct LyricsMetaMenuOverlay: View {
                                 .lineLimit(1)
                                 .padding(.horizontal, 10)
                                 .frame(minWidth: 72)
-                                .frame(height: 38)
+                                .padding(.vertical, 8)
+                                .frame(minHeight: 44)
                                 .foregroundStyle(selectedTab == tab ? Color.black : Color.white)
                                 .background(
                                     selectedTab == tab ? Color.white.opacity(0.96) : Color.white.opacity(0.14),
@@ -151,6 +161,8 @@ struct LyricsMetaMenuOverlay: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
+                        .accessibilityIdentifier("lyrics.menu.tab.\(tab.rawValue)")
                         .id(tab.id)
                     }
                 }
@@ -165,22 +177,14 @@ struct LyricsMetaMenuOverlay: View {
     }
 
     private func scrollSelectedTabIntoView(_ proxy: ScrollViewProxy, animated: Bool) {
-        let target: String
-        switch selectedTab {
-        case .language:
-            target = LyricsMetaMenuTab.language.id
-        case .lrclib:
-            target = LyricsMetaMenuTab.sync.id
-        case .sync, .video, .background:
-            return
-        }
+        let target = selectedTab.id
         DispatchQueue.main.async {
-            if animated {
+            if animated && !reduceMotion {
                 withAnimation(.easeOut(duration: 0.18)) {
-                    proxy.scrollTo(target, anchor: .leading)
+                    proxy.scrollTo(target, anchor: .center)
                 }
             } else {
-                proxy.scrollTo(target, anchor: .leading)
+                proxy.scrollTo(target, anchor: .center)
             }
         }
     }
@@ -218,18 +222,6 @@ struct LyricsMetaMenuOverlay: View {
 
     private var languageTab: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Button {
-                model.saveAiSettingsAndRegenerate()
-                dismiss()
-            } label: {
-                Label(settings.t("tmi.regenerate"), systemImage: "arrow.clockwise")
-                    .font(.pretendard(13, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 40)
-                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
-            .disabled(model.lyricsResult.lines.isEmpty)
-
             Text(languageRuleSummary)
                 .font(.pretendard(12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.82))
@@ -249,20 +241,21 @@ struct LyricsMetaMenuOverlay: View {
                 HStack(spacing: 8) {
                     Text(sourceStatusText)
                         .font(.pretendard(14, weight: .semibold))
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .bold))
                 }
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)
-                .frame(height: 42)
+                .padding(.vertical, 10)
+                .frame(minHeight: 44)
                 .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
             .tint(.white)
 
-            HStack(spacing: 8) {
+            VStack(spacing: 8) {
                 metaToggleCell(
                     settings.t("lyrics.translation"),
                     isOn: selectedRuleTranslationBinding
@@ -284,11 +277,24 @@ struct LyricsMetaMenuOverlay: View {
                     )
                     .font(.pretendard(13, weight: .semibold))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 40)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 44)
                     .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .disabled(model.culturalAnnotationsLoading)
             }
+            Button {
+                focusedField = nil
+                model.saveAiSettingsAndRegenerate()
+                dismiss()
+            } label: {
+                SettingsActionLabel(title: settings.t("button.save_regenerate"), systemImage: "arrow.clockwise", busy: model.lyricsGenerationLoadingText != nil)
+                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(SettingsActionButtonStyle())
+            .disabled(model.lyricsResult.lines.isEmpty || model.lyricsGenerationLoadingText != nil)
+            .accessibilityIdentifier("lyrics.menu.regenerate")
         }
     }
 
@@ -330,52 +336,71 @@ struct LyricsMetaMenuOverlay: View {
             TextField(settings.t("video.url"), text: $videoURL)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(SettingsTextFieldStyle())
                 .foregroundStyle(.primary)
-            HStack {
-                Button(settings.t("button.done")) {
+                .focused($focusedField, equals: "video")
+                .submitLabel(.done)
+                .onSubmit { focusedField = nil }
+                .accessibilityLabel(settings.t("video.url"))
+                .accessibilityIdentifier("lyrics.menu.video.url")
+            SettingsAdaptiveActions {
+                Button {
                     guard let id = YouTubeVideoSelection.extractId(videoURL), let track = model.currentTrack else {
                         videoError = settings.t("video.invalid"); return
                     }
                     videoError = ""
                     let info = YouTubeVideoInfo(isrc: track.isrc, spotifyTrackId: track.trackId, youtubeVideoId: id,
                         youtubeTitle: "", hasCaptionStartTime: false, captionStartTimeSeconds: 0, autoGenerated: false, submitterId: "")
-                    Task { await model.selectTrackVideo(info, trackKey: track.stableKey) }
+                    selectVideo(info, trackKey: track.stableKey)
+                } label: {
+                    SettingsActionLabel(title: settings.t("button.done"), busy: selectingVideo)
+                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
                 }
-                Spacer()
-                Button(settings.t("label.auto")) {
+                .accessibilityIdentifier("lyrics.menu.video.apply")
+                Button {
                     let key = model.currentTrackKey
                     videoURL = ""; videoError = ""
-                    Task { await model.selectTrackVideo(nil, trackKey: key) }
+                    selectVideo(nil, trackKey: key)
+                } label: {
+                    SettingsActionLabel(title: settings.t("label.auto"))
+                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
                 }
             }
-            .disabled(model.currentTrackKey.isEmpty)
-            Button(settings.t("video.community")) {
+            .buttonStyle(SettingsActionButtonStyle())
+            .disabled(model.currentTrackKey.isEmpty || selectingVideo)
+            Button {
                 let key = model.currentTrackKey
                 let requestID = UUID()
+                communityTask?.cancel()
                 communityRequestID = requestID
                 communityLoading = true; videoError = ""; communityVideos = []
-                Task {
+                focusedField = nil
+                communityTask = Task {
                     defer { if communityRequestID == requestID { communityLoading = false } }
                     do {
                         let videos = try await model.communityVideosForCurrentTrack()
-                        guard key == model.currentTrackKey, communityRequestID == requestID else { return }
+                        guard !Task.isCancelled, key == model.currentTrackKey, communityRequestID == requestID else { return }
                         communityVideos = videos
                         if videos.isEmpty { videoError = settings.t("video.empty") }
                     } catch {
-                        guard key == model.currentTrackKey, communityRequestID == requestID else { return }
+                        guard !Task.isCancelled, key == model.currentTrackKey, communityRequestID == requestID else { return }
                         videoError = settings.t("video.failed")
                     }
                 }
+            } label: {
+                SettingsActionLabel(title: settings.t("video.community"), busy: communityLoading)
+                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
             }
-            .disabled(communityLoading || model.currentTrackKey.isEmpty)
-            if communityLoading { ProgressView() }
+            .buttonStyle(SettingsActionButtonStyle())
+            .disabled(communityLoading || selectingVideo || model.currentTrackKey.isEmpty)
             if !videoError.isEmpty { Text(videoError).font(.caption).foregroundStyle(.secondary) }
             ForEach(communityVideos, id: \.youtubeVideoId) { info in
                 Button(info.youtubeTitle.isEmpty ? info.youtubeVideoId : info.youtubeTitle) {
                     let key = model.currentTrackKey
-                    Task { await model.selectTrackVideo(info, trackKey: key) }
+                    selectVideo(info, trackKey: key)
                 }
+                .frame(minHeight: 44)
+                .disabled(selectingVideo)
             }
             offsetBlock(
                 title: settings.t("lyrics.video_sync.title"),
@@ -385,6 +410,19 @@ struct LyricsMetaMenuOverlay: View {
                 setValue: { model.setVideoOffsetMs($0, notify: true) },
                 isDimmed: model.currentTrackKey.isEmpty
             )
+        }
+    }
+
+    private func selectVideo(_ info: YouTubeVideoInfo?, trackKey: String) {
+        focusedField = nil
+        let request = UUID()
+        videoSelectionTask?.cancel()
+        videoSelectionID = request
+        selectingVideo = true
+        videoSelectionTask = Task {
+            defer { if videoSelectionID == request { selectingVideo = false } }
+            guard !Task.isCancelled, trackKey == model.currentTrackKey else { return }
+            await model.selectTrackVideo(info, trackKey: trackKey)
         }
     }
 
@@ -466,7 +504,8 @@ struct LyricsMetaMenuOverlay: View {
                     Text(settings.t("lyrics.background.reset"))
                         .font(.pretendard(13, weight: .semibold))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 42)
+                        .padding(.vertical, 10)
+                        .frame(minHeight: 44)
                         .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -512,15 +551,13 @@ struct LyricsMetaMenuOverlay: View {
             Button {
                 model.searchManualCandidates()
             } label: {
-                Text(settings.t("lyrics.lrclib_search.button"))
+                SettingsActionLabel(title: settings.t("lyrics.lrclib_search.button"), busy: model.searchingManualCandidates)
                     .font(.pretendard(14, weight: .bold))
                     .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 42)
                     .background(.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(model.searchingManualCandidates)
+            .disabled(model.searchingManualCandidates || model.inputTitle.trimmed.isEmpty)
             .opacity(model.searchingManualCandidates ? 0.55 : 1)
             .padding(.top, 10)
 
@@ -544,12 +581,12 @@ struct LyricsMetaMenuOverlay: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(manualLrclibTitleText(candidate))
                                     .font(.pretendard(14, weight: .semibold))
-                                    .lineLimit(1)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 if !manualLrclibArtistAlbumText(candidate).isEmpty {
                                     Text(manualLrclibArtistAlbumText(candidate))
                                         .font(.pretendard(12))
                                         .foregroundStyle(.white.opacity(0.64))
-                                        .lineLimit(1)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                                 Text(manualLrclibMetaText(candidate))
                                     .font(.caption2.monospacedDigit())
@@ -585,7 +622,7 @@ struct LyricsMetaMenuOverlay: View {
                 .font(.pretendard(25, weight: .bold))
                 .monospacedDigit()
                 .frame(maxWidth: .infinity)
-                .frame(height: 54)
+                .frame(minHeight: 54)
                 .background(.white.opacity(34.0 / 255.0), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.top, 4)
 
@@ -598,7 +635,8 @@ struct LyricsMetaMenuOverlay: View {
             }
             .font(.pretendard(13, weight: .semibold))
             .frame(maxWidth: .infinity)
-            .frame(height: 42)
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
             .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .buttonStyle(.plain)
         }
@@ -614,7 +652,8 @@ struct LyricsMetaMenuOverlay: View {
                 .font(.pretendard(13, weight: .semibold))
                 .monospacedDigit()
                 .frame(maxWidth: .infinity)
-                .frame(height: 42)
+                .padding(.vertical, 10)
+                .frame(minHeight: 44)
                 .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .buttonStyle(.plain)
             }
@@ -709,11 +748,12 @@ struct LyricsMetaMenuOverlay: View {
         } label: {
             Text(settings.t(titleKey))
                 .font(.pretendard(13, weight: .semibold))
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(selected ? Color.black : Color.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 46)
+                .padding(.vertical, 10)
+                .frame(minHeight: 44)
                 .background(
                     selected ? Color.white.opacity(0.94) : Color.white.opacity(0.14),
                     in: RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -754,29 +794,31 @@ struct LyricsMetaMenuOverlay: View {
         range: ClosedRange<Double>
     ) -> some View {
         metaSettingGroup(title: title, subtitle: subtitle) {
-            HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 Slider(value: value, in: range, step: 1, onEditingChanged: { editing in
                     if !editing {
                         model.refreshBackgroundForCurrentTrack()
                         model.showSavedToast(settings.t("toast.track_background_saved"))
                     }
                 })
+                .frame(minHeight: 44)
+                .accessibilityLabel(title)
                 .tint(Color(red: 116.0 / 255.0, green: 207.0 / 255.0, blue: 203.0 / 255.0))
                 Text("\(Int(value.wrappedValue.rounded()))%")
                     .font(.pretendard(12, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(.white.opacity(180.0 / 255.0))
-                    .frame(width: 48, alignment: .trailing)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
     private func metaToggleCell(_ title: String, subtitle: String? = nil, isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 10) {
+        Toggle(isOn: isOn) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.pretendard(14, weight: .semibold))
-                    .lineLimit(subtitle == nil ? 1 : 2)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let subtitle, !subtitle.trimmed.isEmpty {
                     Text(subtitle)
                         .font(.pretendard(11))
@@ -785,11 +827,10 @@ struct LyricsMetaMenuOverlay: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: 4)
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(Color(red: 116.0 / 255.0, green: 207.0 / 255.0, blue: 203.0 / 255.0))
         }
+        .toggleStyle(.switch)
+        .tint(Color(red: 116.0 / 255.0, green: 207.0 / 255.0, blue: 203.0 / 255.0))
+        .accessibilityIdentifier("lyrics.menu.toggle.\(title)")
         .padding(.horizontal, subtitle == nil ? 12 : 14)
         .padding(.vertical, subtitle == nil ? 0 : 12)
         .frame(maxWidth: .infinity)
@@ -801,20 +842,21 @@ struct LyricsMetaMenuOverlay: View {
     }
 
     private var backgroundColorControl: some View {
-        HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(settings.t("speaker_color.hex_hint"))
+                .font(.body)
+                .foregroundStyle(.white.opacity(0.76))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 12) {
             ColorPicker("", selection: trackBackgroundColorPickerBinding, supportsOpacity: false)
                 .labelsHidden()
-                .frame(width: 42, height: 42)
+                .frame(width: 44, height: 44)
+                .accessibilityLabel(settings.t("field.solid_color"))
                 .overlay {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(Color(hex: normalizedTrackBackgroundColor))
                         .allowsHitTesting(false)
                 }
-
-            Text(settings.t("speaker_color.hex_hint"))
-                .font(.pretendard(12))
-                .foregroundStyle(.white.opacity(160.0 / 255.0))
-                .frame(maxWidth: .infinity, alignment: .leading)
 
             TextField("#1e3a8a", text: $backgroundColorDraft)
                 .multilineTextAlignment(.center)
@@ -822,13 +864,15 @@ struct LyricsMetaMenuOverlay: View {
                 .autocorrectionDisabled()
                 .font(.pretendard(12, weight: .semibold).monospaced())
                 .foregroundStyle(backgroundColorDraftInvalid ? Color.red : Color.white)
-                .frame(width: 112, height: 42)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .accessibilityLabel(settings.t("field.solid_color"))
                 .background(.white.opacity(38.0 / 255.0), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .focused($backgroundColorFieldFocused)
                 .onChange(of: backgroundColorDraft) { _, value in
                     backgroundColorDraftInvalid = !value.trimmed.isEmpty && !AppSettings.isHexColor(value)
                 }
                 .onSubmit(saveBackgroundColorDraft)
+            }
         }
         .onAppear {
             backgroundColorDraft = normalizedTrackBackgroundColor
@@ -894,8 +938,12 @@ struct LyricsMetaMenuOverlay: View {
                 .font(.pretendard(14))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)
-                .frame(height: 42)
+                .frame(minHeight: 48)
                 .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .focused($focusedField, equals: title)
+                .submitLabel(.done)
+                .onSubmit { focusedField = nil }
+                .accessibilityLabel(title)
         }
         .padding(8)
         .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -932,8 +980,12 @@ struct LyricsMetaMenuOverlay: View {
     }
 
     private func dismiss() {
+        focusedField = nil
+        backgroundColorFieldFocused = false
+        communityTask?.cancel(); videoSelectionTask?.cancel()
+        communityRequestID = UUID(); videoSelectionID = UUID()
         dragOffset = 0
-        withAnimation(.easeOut(duration: 0.18)) {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
             visible = false
         }
     }
