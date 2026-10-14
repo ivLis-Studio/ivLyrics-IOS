@@ -15,6 +15,7 @@ struct VinylPlayerModeView: View {
 
     @State private var displayedTrack: TrackSnapshot?
     @State private var incomingTrack: TrackSnapshot?
+    @State private var labelSnapshots = VinylLabelSnapshots()
     @State private var trackTransitionProgress: CGFloat = 0
     @State private var outgoingRecordBehindSleeve = false
     @State private var trackTransitionToken = UUID()
@@ -92,6 +93,15 @@ struct VinylPlayerModeView: View {
         }
         .onChange(of: model.currentTrack) { _, _ in
             refreshCurrentTrackAsset()
+        }
+        .onChange(of: currentResolvedLabels) { _, _ in
+            rememberCurrentLabels()
+        }
+        .onChange(of: displayedTrack?.stableKey) { _, _ in
+            rememberCurrentLabels()
+        }
+        .onChange(of: incomingTrack?.stableKey) { _, _ in
+            rememberCurrentLabels()
         }
         .onChange(of: model.currentTrack?.playing == true) { _, playing in
             updatePlaying(playing, animated: true)
@@ -331,10 +341,12 @@ struct VinylPlayerModeView: View {
         rotation: Double,
         interactive: Bool
     ) -> some View {
-        VinylDisc(
+        let labels = labelSnapshots.labels(for: track.stableKey, title: track.title,
+                                           artist: track.artist, simplified: settings.simplifyTitleEnabled)
+        return VinylDisc(
             track: track,
-            title: track.stableKey == model.currentTrackKey ? model.titleText : VinylMotionPolicy.title(track.title, simplified: settings.simplifyTitleEnabled),
-            artist: track.stableKey == model.currentTrackKey ? model.artistText : track.artist,
+            title: track.stableKey == model.currentTrackKey ? model.titleText : labels.title,
+            artist: track.stableKey == model.currentTrackKey ? model.artistText : labels.artist,
             accent: accentColor(for: track),
             centerCounterRotation: settings.vinylCenterRotationEnabled ? 0 : -rotation
         )
@@ -390,6 +402,8 @@ struct VinylPlayerModeView: View {
     private func enter() {
         displayedTrack = model.currentTrack
         incomingTrack = nil
+        labelSnapshots = VinylLabelSnapshots()
+        rememberCurrentLabels()
         trackTransitionProgress = 0
         outgoingRecordBehindSleeve = false
         entranceProgress = 0
@@ -421,6 +435,7 @@ struct VinylPlayerModeView: View {
             close()
             return
         }
+        rememberCurrentLabels()
         guard let displayedTrack else {
             self.displayedTrack = next
             return
@@ -528,6 +543,15 @@ struct VinylPlayerModeView: View {
             displayedTrack = current
         }
         loadAccent(for: current)
+    }
+
+    private var currentResolvedLabels: VinylResolvedLabels {
+        .init(trackKey: model.currentTrackKey, title: model.titleText, artist: model.artistText)
+    }
+
+    private func rememberCurrentLabels() {
+        labelSnapshots.update(currentResolvedLabels, retaining:
+            [displayedTrack?.stableKey, incomingTrack?.stableKey].compactMap { $0 })
     }
 
     private func accentColor(for track: TrackSnapshot) -> Color {

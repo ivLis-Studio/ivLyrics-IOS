@@ -86,6 +86,27 @@ check(VinylMotionPolicy.title("(Song)", simplified: true) == "(Song)", "Never lo
 check(VinylMotionPolicy.title("Song (open", simplified: true) == "Song (open", "Unmatched punctuation retained")
 let metadata = MetadataProbe(settings: s, metadataTranslation: .init(title: "번역 제목 (Live)", artist: "번역 아티스트"), currentTrack: .init(title: "raw", artist: "raw artist"))
 check(metadata.titleText == "번역 제목" && metadata.artistText == "번역 아티스트", "Record metadata path uses translated/simplified player labels")
+var labels = VinylLabelSnapshots()
+let a = VinylResolvedLabels(trackKey: "A", title: "번역된 A", artist: "번역 가수 A")
+let b = VinylResolvedLabels(trackKey: "B", title: "번역된 B", artist: "번역 가수 B")
+labels.update(a, retaining: ["A"])
+labels.update(b, retaining: ["A", "B"])
+check(labels.labels(for: "A", title: "Original A", artist: "Original Artist A", simplified: true) == a,
+      "Outgoing record keeps its resolved title and artist after current track changes")
+check(labels.labels(for: "B", title: "Original B", artist: "Original Artist B", simplified: true) == b,
+      "Incoming record uses its own translation, never outgoing metadata")
+let lateB = VinylResolvedLabels(trackKey: "B", title: "Updated B", artist: "Updated Artist B")
+labels.update(lateB, retaining: ["A", "B"])
+check(labels.values["A"] == a && labels.values["B"] == lateB, "Late incoming metadata does not overwrite outgoing labels")
+let c = VinylResolvedLabels(trackKey: "C", title: "Resolved C", artist: "Artist C")
+labels.update(c, retaining: ["A", "B"])
+check(labels.values.count == 3 && labels.values["A"] == a, "Rapid replacement retains only visible records and current track")
+labels.update(c, retaining: ["C"])
+check(labels.values.count == 1 && labels.values["A"] == nil && labels.values["B"] == nil, "Completed handoff releases stale label snapshots")
+check(labels.labels(for: "uncached", title: "Fallback (Live)", artist: "Fallback Artist", simplified: true).title == "Fallback",
+      "Missing snapshots keep the original safe simplification fallback")
+check(labels.labels(for: "uncached", title: "Fallback (Live)", artist: "Fallback Artist", simplified: false).title == "Fallback (Live)",
+      "Fallback respects simplification disabled")
 for size in stride(from: 40.0, through: 600, by: 5) {
     let halfWidth = VinylMotionPolicy.labelWidth(recordSize: size) / 2
     let titleTop = size * (0.5 - 0.442 + 0.055 / 2)
@@ -99,6 +120,8 @@ assert 'animateChange && effectiveAnimationsEnabled && settings.vinylTrackChange
 assert 'spinning = playing && effectiveAnimationsEnabled' in vinyl
 assert 'settings.vinylCenterRotationEnabled ? 0 : -rotation' in vinyl
 assert 'model.titleText' in vinyl and 'model.artistText' in vinyl
+assert '.onChange(of: currentResolvedLabels)' in vinyl and 'labelSnapshots.labels(for: track.stableKey' in vinyl
+assert 'labelSnapshots.update(currentResolvedLabels, retaining:' in vinyl
 assert '.accessibilityLabel(title)' in vinyl and '.accessibilityLabel(artist)' in vinyl
 assert vinyl.count('.clipped()') >= 2
 with tempfile.TemporaryDirectory(prefix="ivlyrics-vinyl-") as temp:
