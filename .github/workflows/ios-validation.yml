@@ -8,8 +8,10 @@ on:
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
+      - 'ivLyrics-IOS/AppViewModel.swift'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
+      - 'scripts/test-settings-ui.py'
       - 'ivLyrics-IOS.xcodeproj/**'
       - '.github/workflows/ios-validation.yml'
   pull_request:
@@ -18,8 +20,10 @@ on:
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
+      - 'ivLyrics-IOS/AppViewModel.swift'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
+      - 'scripts/test-settings-ui.py'
       - 'ivLyrics-IOS.xcodeproj/**'
       - '.github/workflows/ios-validation.yml'
 
