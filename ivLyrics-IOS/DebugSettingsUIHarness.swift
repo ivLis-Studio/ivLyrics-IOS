@@ -8,7 +8,11 @@ enum DebugSettingsUIHarness {
     static let credentialService = "kr.ivlis.ivlyrics.debug-ui.\(UUID().uuidString)"
     static var surface: String { ProcessInfo.processInfo.environment["IVLYRICS_UI_SURFACE"] ?? "settings" }
     static var textSize: DynamicTypeSize {
-        ProcessInfo.processInfo.environment["IVLYRICS_UI_TEXT_SIZE"] == "accessibility3" ? .accessibility3 : .large
+        switch ProcessInfo.processInfo.environment["IVLYRICS_UI_TEXT_SIZE"] {
+        case "accessibility3": return .accessibility3
+        case "accessibility5": return .accessibility5
+        default: return .large
+        }
     }
 }
 

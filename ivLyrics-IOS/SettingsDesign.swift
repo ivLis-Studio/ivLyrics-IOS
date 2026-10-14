@@ -40,6 +40,91 @@ struct SettingsTextFieldStyle: TextFieldStyle {
     }
 }
 
+/// A real native input frame: SwiftUI's plain TextField can expose only its
+/// 22pt text line to accessibility even when an outer layout frame is taller.
+struct SettingsSearchField: UIViewRepresentable {
+    var prompt: String
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeUIView(context: Context) -> UITextField {
+        let field = UITextField()
+        field.borderStyle = .none
+        field.backgroundColor = .clear
+        field.textColor = UIColor(SettingsDesign.text)
+        field.tintColor = UIColor(SettingsDesign.accent)
+        field.font = preferredFont
+        field.adjustsFontForContentSizeCategory = true
+        field.adjustsFontSizeToFitWidth = false
+        field.autocapitalizationType = .none
+        field.autocorrectionType = .no
+        field.returnKeyType = .search
+        field.clearButtonMode = .never
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        field.delegate = context.coordinator
+        field.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingChanged)
+        return field
+    }
+
+    func updateUIView(_ field: UITextField, context: Context) {
+        context.coordinator.parent = self
+        field.placeholder = prompt
+        field.accessibilityLabel = prompt
+        field.accessibilityIdentifier = "settings.search"
+        field.font = preferredFont
+        field.isEnabled = isEnabled
+        if field.text != text { field.text = text }
+        if isFocused && !field.isFirstResponder { field.becomeFirstResponder() }
+        else if !isFocused && field.isFirstResponder { field.resignFirstResponder() }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextField, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 160, height: max(48, preferredFont.lineHeight + 20))
+    }
+
+    private var preferredFont: UIFont {
+        let category: UIContentSizeCategory
+        switch dynamicTypeSize {
+        case .xSmall: category = .extraSmall
+        case .small: category = .small
+        case .medium: category = .medium
+        case .large: category = .large
+        case .xLarge: category = .extraLarge
+        case .xxLarge: category = .extraExtraLarge
+        case .xxxLarge: category = .extraExtraExtraLarge
+        case .accessibility1: category = .accessibilityMedium
+        case .accessibility2: category = .accessibilityLarge
+        case .accessibility3: category = .accessibilityExtraLarge
+        case .accessibility4: category = .accessibilityExtraExtraLarge
+        case .accessibility5: category = .accessibilityExtraExtraExtraLarge
+        @unknown default: category = .large
+        }
+        return UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: category))
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: SettingsSearchField
+        init(_ parent: SettingsSearchField) { self.parent = parent }
+        @objc func changed(_ field: UITextField) { parent.text = field.text ?? "" }
+        func textFieldDidBeginEditing(_ textField: UITextField) {
+            if !parent.isFocused { parent.isFocused = true }
+        }
+        func textFieldDidEndEditing(_ textField: UITextField) {
+            if parent.isFocused { parent.isFocused = false }
+        }
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            parent.isFocused = false
+            textField.resignFirstResponder()
+            return true
+        }
+    }
+}
+
 /// UISlider keeps the native adjustable accessibility behavior and touch handling.
 struct SettingsSlider: UIViewRepresentable {
     @Binding var value: Double

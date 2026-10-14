@@ -11,21 +11,26 @@ final class SettingsLayoutUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
+        if let app, app.exists, (testRun?.failureCount ?? 0) > 0 {
+            capture("failure-\(name)")
+        }
         app?.terminate()
         XCUIDevice.shared.orientation = .portrait
     }
 
     private func launch(_ surface: String = "settings", tab: String = "general", language: String = "en",
-                        landscape: Bool = false, accessibilityText: Bool = false) {
+                        landscape: Bool = false, textSize: String = "large") {
         XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
         app = XCUIApplication()
         app.launchArguments = ["--ivlyrics-ui-test"]
         app.launchEnvironment = ["IVLYRICS_UI_SURFACE": surface, "IVLYRICS_DEBUG_SETTINGS_TAB": tab,
                                  "IVLYRICS_UI_LANGUAGE": language,
-                                 "IVLYRICS_UI_TEXT_SIZE": accessibilityText ? "accessibility3" : "large"]
+                                 "IVLYRICS_UI_TEXT_SIZE": textSize]
         app.launch()
         let marker = app.descendants(matching: .any)[surface == "settings" ? "settings.search" : "lyrics.menu.close"]
-        XCTAssertTrue(marker.waitForExistence(timeout: 10))
+        let ready = marker.waitForExistence(timeout: 10)
+        if !ready { capture("launch-\(surface)-missing-marker") }
+        XCTAssertTrue(ready, "Native launch marker is missing: \(marker)")
         if landscape {
             wait(NSPredicate { _, _ in self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height }, on: app.windows.firstMatch)
         }
@@ -33,11 +38,15 @@ final class SettingsLayoutUITests: XCTestCase {
 
     private func wait(_ predicate: NSPredicate, on element: XCUIElement, timeout: TimeInterval = 5) {
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: timeout), .completed)
+        let result = XCTWaiter.wait(for: [expectation], timeout: timeout)
+        if result != .completed { capture("native-wait-timeout") }
+        XCTAssertEqual(result, .completed)
     }
 
     private func capture(_ name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        // Application-cropped screenshots were malformed after landscape rotation
+        // in CI. Preserve the actual full native display, plus the application's AX tree.
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
@@ -49,19 +58,32 @@ final class SettingsLayoutUITests: XCTestCase {
 
     private func reveal(_ element: XCUIElement, scrollID: String) {
         let scroll = app.scrollViews[scrollID]
-        for _ in 0..<12 {
-            if element.exists && element.isHittable { return }
-            scroll.swipeUp(velocity: .slow)
+        let scrollExists = scroll.waitForExistence(timeout: 4)
+        if !scrollExists { capture("missing-scroll-\(scrollID)") }
+        XCTAssertTrue(scrollExists, "Native scroll container is missing: \(scrollID)")
+        for _ in 0..<24 {
+            let viewport = app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1).intersection(scroll.frame)
+            if element.exists && element.isHittable && viewport.contains(element.frame) { return }
+            // SwiftUI can report isHittable for an off-screen button. Small normal
+            // drags and both directions avoid overshooting it in short landscape viewports.
+            let above = element.exists && element.frame.minY < viewport.minY
+            let start = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: above ? 0.35 : 0.75))
+            let end = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: above ? 0.70 : 0.40))
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
-        XCTAssertTrue(element.exists && element.isHittable, "Control must be reachable by normal scrolling: \(element)")
+        capture("unreachable-in-\(scrollID)")
+        XCTFail("Control must be fully visible and reachable by normal scrolling: \(element)")
     }
 
     private func assertTouchTarget(_ element: XCUIElement, contained: Bool = true, file: StaticString = #filePath, line: UInt = #line) {
+        let frame = app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1)
+        if !element.exists || element.frame.width < 44 || element.frame.height < 44 || !element.isHittable || (contained && !frame.contains(element.frame)) {
+            capture("invalid-touch-target-\(element.exists ? element.identifier : "missing-control")")
+        }
         XCTAssertGreaterThanOrEqual(element.frame.width, 44, file: file, line: line)
         XCTAssertGreaterThanOrEqual(element.frame.height, 44, file: file, line: line)
         XCTAssertTrue(element.isHittable, file: file, line: line)
         if contained {
-            let frame = app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1)
             XCTAssertTrue(frame.contains(element.frame), "Control extends outside the window: \(element.frame)", file: file, line: line)
         }
     }
@@ -82,7 +104,9 @@ final class SettingsLayoutUITests: XCTestCase {
         assertTouchTarget(search)
         XCTAssertGreaterThan(search.frame.width, app.windows.firstMatch.frame.width * 0.5)
         capture("general-portrait")
-        search.tap()
+        // The top edge of the 48pt native input must focus too, not only its text baseline.
+        search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4))
         search.typeText("artist")
         let result = app.buttons["settings.result.setting.metadata_translation"]
         XCTAssertTrue(result.waitForExistence(timeout: 4))
@@ -115,13 +139,16 @@ final class SettingsLayoutUITests: XCTestCase {
     }
 
     func testGeneralLandscapeAccessibilityText() {
-        launch(landscape: true, accessibilityText: true)
+        launch(landscape: true, textSize: "accessibility5")
         assertTouchTarget(app.textFields["settings.search"])
-        capture("general-landscape-AX3")
+        capture("general-landscape-AX5")
         let toggle = app.switches["settings.toggle.metadata"]
         reveal(toggle, scrollID: "settings.scroll")
         assertNativeToggle(toggle)
-        capture("general-landscape-AX3-switch")
+        let before = toggle.value as? String
+        toggle.tap()
+        XCTAssertNotEqual(toggle.value as? String, before)
+        capture("general-landscape-AX5-switch")
     }
 
     func testLanguagePopupPortraitActions() {
@@ -161,17 +188,20 @@ final class SettingsLayoutUITests: XCTestCase {
     }
 
     func testLanguageLandscapeAccessibilityFooterReachable() {
-        launch("language", landscape: true, accessibilityText: true)
+        launch("language", landscape: true, textSize: "accessibility5")
         assertTouchTarget(app.buttons["lyrics.menu.close"])
-        capture("language-popup-landscape-AX3")
+        capture("language-popup-landscape-AX5")
         let action = app.buttons["lyrics.menu.regenerate"]
         reveal(action, scrollID: "lyrics.menu.scroll")
         assertTouchTarget(action)
-        capture("language-popup-landscape-AX3-footer")
+        capture("language-popup-landscape-AX5-footer")
+        action.tap()
+        XCTAssertTrue(app.staticTexts["ui.harness.closed"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["ui.harness.actions"].label, "Actions: 1")
     }
 
     func testVideoLandscapeAccessibilityControlsReachable() {
-        launch("video", landscape: true, accessibilityText: true)
+        launch("video", landscape: true, textSize: "accessibility3")
         assertTouchTarget(app.buttons["lyrics.menu.close"])
         let apply = app.buttons["lyrics.menu.video.apply"]
         reveal(apply, scrollID: "lyrics.menu.scroll")

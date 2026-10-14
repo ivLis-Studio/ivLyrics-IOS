@@ -67,12 +67,22 @@ for field, key in {
     assert f'{field} = defaults.string(forKey: "manual_track_{key}") ?? ""' in normal_init
 switch = declaration(controls, "struct SettingsSwitchStyle:")
 assert ".toggleStyle(.switch)" in switch and "Button {" not in switch and ".frame(minHeight: 44)" in switch
-assert "height: 44" in declaration(controls, "func sizeThatFits(")
-assert 'TextField(settings.t("settings.search")' in content and '"settings.search"' in ui_tests
+assert "height: 44" in declaration(declaration(controls, "struct SettingsSlider:"), "func sizeThatFits(")
+assert 'SettingsSearchField(prompt: settings.t("settings.search")' in content and '"settings.search"' in ui_tests
+native_search = declaration(controls, "struct SettingsSearchField:")
+assert "UITextField()" in native_search and "max(48, preferredFont.lineHeight + 20)" in native_search
+assert "field.adjustsFontSizeToFitWidth = false" in native_search
+assert 'field.accessibilityIdentifier = "settings.search"' in native_search
+assert "func textFieldShouldReturn(" in native_search and "field.resignFirstResponder()" in native_search
+assert '.accessibilityIdentifier("settings.root")' not in declaration(content, "struct SettingsView:")
+assert 'case "accessibility5": return .accessibility5' in harness
+assert ui_tests.count('textSize: "accessibility5"') >= 2
+assert "viewport.contains(element.frame)" in ui_tests and "element.frame.minY < viewport.minY" in ui_tests
 assert '"lyrics.menu.video.apply"' in popup and '"lyrics.menu.regenerate"' in popup
 assert 'settings.t("tmi.regenerate")' not in popup
 assert 'Color.black.opacity(0.56)' in popup and 'scrollableContentHeight' not in popup
-assert "attachment.lifetime = .keepAlways" in ui_tests and "app.screenshot()" in ui_tests
+assert "attachment.lifetime = .keepAlways" in ui_tests and "XCUIScreen.main.screenshot()" in ui_tests
+assert "launch-\\(surface)-missing-marker" in ui_tests and "invalid-touch-target-" in ui_tests
 assert "XCTAssertGreaterThanOrEqual(element.frame.height, 44" in ui_tests
 
 # Compile the actual Debug initializer prefix with native Combine @Published.

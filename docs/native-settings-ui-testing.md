@@ -33,17 +33,24 @@ and exported attachments even when an assertion fails. To focus the run, append
 
 The suite covers General/AI settings, search with the keyboard open and dismissed,
 English/Korean long descriptions, actual toggle changes, Language/Video popup
-actions, portrait, landscape and `DynamicTypeSize.accessibility3`. It checks
+actions, portrait, landscape and `DynamicTypeSize.accessibility3` / `accessibility5`.
+General settings and the Language popup use AX5 in landscape, including actual
+toggle/regeneration actions; the Video landscape case retains AX3 coverage. It checks
 button/input frames against the 44-point minimum and verifies that popup close and
-footer controls remain reachable. A Debug-only non-interactive geometry probe
+footer controls remain fully inside the window. Search asserts the native input's
+own frame and taps near its top edge to verify focus across its height. Reveal
+gestures scroll in either direction and require visibility, not just `isHittable`.
+Screenshots use the full native display to avoid application-cropping artifacts
+after rotation, and launch/assertion failures retain screenshots and AX trees too.
+A Debug-only non-interactive geometry probe
 measures the toggle's real row/wrapper hit area: the native switch's visual knob
 is allowed to retain its normal 31-point height.
 
 Inspect retained images for text overlap, clipping and scrim contrast; frame
 assertions cannot prove every glyph is unclipped. Re-run on another iPhone size
 and on a physical device before calling the visual audit accepted. VoiceOver,
-Switch Control, keyboard layouts and the largest accessibility category also
-deserve device checks.
+Switch Control and keyboard layouts also deserve device checks. Simulator AX5
+coverage does not replace physical-device acceptance.
 
 ## Manual Debug route
 
@@ -59,7 +66,7 @@ xcrun simctl launch booted kr.ivlis.ivlyrics.ios --ivlyrics-ui-test
 Supported surfaces are `settings`, `language`, `video`, `background`, `sync` and
 `lrclib`; settings tab values are `general`, `providers`, `ai`, `appearance`,
 `lyrics`, `player` and `system`. Set
-`SIMCTL_CHILD_IVLYRICS_UI_TEXT_SIZE=accessibility3` for accessibility text, and
+`SIMCTL_CHILD_IVLYRICS_UI_TEXT_SIZE=accessibility3` or `accessibility5` for accessibility text, and
 rotate the Simulator to inspect landscape. The default is English and standard
 Large text. Stable identifiers include:
 

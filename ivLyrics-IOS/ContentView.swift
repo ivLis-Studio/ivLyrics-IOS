@@ -9002,7 +9002,7 @@ struct SettingsView: View {
     @State private var settingsLogsPresented = false
     @State private var selectedTab: SettingsTab = .general
     @State private var settingsSearch = ""
-    @FocusState private var settingsSearchFocused: Bool
+    @State private var settingsSearchFocused = false
     @State private var settingsSearchTarget = ""
     @State private var aiModels: [AIProviderModels.Model] = []
     @State private var aiModelsConfiguration: AIProviderModels.Configuration?
@@ -9050,7 +9050,6 @@ struct SettingsView: View {
         .font(.pretendard(15))
         .tint(SettingsDesign.accent)
         .toggleStyle(SettingsSwitchStyle())
-        .accessibilityIdentifier("settings.root")
         .onChange(of: settingsSearch) { _, query in
             if !query.trimmed.isEmpty { settingsSearchTarget = "" }
         }
@@ -9083,18 +9082,10 @@ struct SettingsView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(SettingsDesign.secondary)
                     .accessibilityHidden(true)
-                TextField(settings.t("settings.search"), text: $settingsSearch)
-                    .font(.body)
-                    .textFieldStyle(.plain)
+                SettingsSearchField(prompt: settings.t("settings.search"), text: $settingsSearch,
+                                    isFocused: $settingsSearchFocused)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .layoutPriority(1)
-                    .focused($settingsSearchFocused)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .onSubmit { settingsSearchFocused = false }
-                    .accessibilityLabel(settings.t("settings.search"))
-                    .accessibilityIdentifier("settings.search")
                 if !settingsSearch.isEmpty {
                     Button { settingsSearch = ""; settingsSearchFocused = true } label: {
                         Image(systemName: "xmark.circle.fill")

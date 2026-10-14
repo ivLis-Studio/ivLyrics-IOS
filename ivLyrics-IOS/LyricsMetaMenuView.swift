@@ -109,8 +109,7 @@ struct LyricsMetaMenuOverlay: View {
         .padding(.vertical, 12)
         .foregroundStyle(.white)
         .background(
-            Color(red: 18.0 / 255.0, green: 20.0 / 255.0, blue: 30.0 / 255.0)
-                .opacity(236.0 / 255.0),
+            Color(red: 18.0 / 255.0, green: 20.0 / 255.0, blue: 30.0 / 255.0),
             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
         )
     }
