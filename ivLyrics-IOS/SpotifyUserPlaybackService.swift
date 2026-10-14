@@ -210,6 +210,9 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
 
     override init() {
         super.init()
+#if DEBUG
+        if DebugSettingsUIHarness.enabled { return }
+#endif
         if defaults.string(forKey: redirectURIKey) != redirectURI {
             clearTokens()
             defaults.set(redirectURI, forKey: redirectURIKey)

@@ -19,7 +19,12 @@ final class CreatorAccountClient {
     private static let discordSessionEndpoint = apiBaseURL + "/user/discord/session"
     private static let privacyEndpoint = apiBaseURL + "/user/creator-profile/privacy"
     private static let logoutEndpoint = apiBaseURL + "/user/logout"
-    private static let keychainService = "kr.ivlis.ivlyrics.creator-account"
+    private static let keychainService: String = {
+#if DEBUG
+        if DebugSettingsUIHarness.enabled { return DebugSettingsUIHarness.credentialService + ".creator" }
+#endif
+        return "kr.ivlis.ivlyrics.creator-account"
+    }()
     private static let keychainAccount = "discord-session"
     private static let deviceUserHashKey = "creator_device_user_hash"
     private static let cloudSaveDeviceIdKey = "cloud_save_device_id"
@@ -28,6 +33,12 @@ final class CreatorAccountClient {
     private var pendingLoginNonce: String?
 
     init(defaults: UserDefaults = .standard) {
+#if DEBUG
+        if DebugSettingsUIHarness.enabled {
+            self.defaults = UserDefaults(suiteName: "ivlyrics-ui-creator-\(UUID().uuidString)")!
+            return
+        }
+#endif
         self.defaults = defaults
     }
 

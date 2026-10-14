@@ -2,7 +2,12 @@ import Foundation
 import Security
 
 final class SecureStringStore: @unchecked Sendable {
-    static let shared = SecureStringStore(service: "kr.ivlis.ivlyrics.secure-settings")
+    static let shared: SecureStringStore = {
+#if DEBUG
+        if DebugSettingsUIHarness.enabled { return SecureStringStore(service: DebugSettingsUIHarness.credentialService) }
+#endif
+        return SecureStringStore(service: "kr.ivlis.ivlyrics.secure-settings")
+    }()
 
     private let service: String
 

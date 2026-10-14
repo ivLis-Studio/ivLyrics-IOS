@@ -110,6 +110,9 @@ actor LyricsRepository {
     }
 
     init() {
+#if DEBUG
+        if DebugSettingsUIHarness.enabled { return }
+#endif
         spotifyAccessToken = SecureStringStore.shared.migratedString(
             forKey: "spotify_token_cache_access_token",
             legacyDefaults: defaults

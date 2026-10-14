@@ -191,16 +191,29 @@ private struct AndroidSlidingMetadataText: View {
 
 @main
 struct IvLyricsIOSApp: App {
-    @StateObject private var settings = AppSettings.shared
-    @StateObject private var viewModel = AppViewModel(settings: .shared)
-
     init() {
         IvLyricsFontLoader.registerPretendard()
-        LocalAIController.shared.start()
     }
 
     var body: some Scene {
         WindowGroup {
+#if DEBUG
+            if DebugSettingsUIHarness.enabled { DebugSettingsUIRoot() }
+            else { ProductionAppRoot() }
+#else
+            ProductionAppRoot()
+#endif
+        }
+    }
+}
+
+private struct ProductionAppRoot: View {
+    @StateObject private var settings = AppSettings.shared
+    @StateObject private var viewModel = AppViewModel(settings: .shared)
+
+    init() { LocalAIController.shared.start() }
+
+    var body: some View {
             ContentView()
                 .environmentObject(settings)
                 .environmentObject(viewModel)
@@ -208,7 +221,6 @@ struct IvLyricsIOSApp: App {
                 .onOpenURL { url in
                     viewModel.handleOpenURL(url)
                 }
-        }
     }
 }
 
@@ -9049,7 +9061,11 @@ struct SettingsView: View {
                 selectedTab = tab
             }
 #endif
+#if DEBUG
+            if !DebugSettingsUIHarness.enabled { model.prepareCreatorPrivacySettings() }
+#else
             model.prepareCreatorPrivacySettings()
+#endif
         }
         .fullScreenCover(isPresented: $settingsLogsPresented) {
             LogsView(visible: $settingsLogsPresented)
@@ -9359,7 +9375,8 @@ struct SettingsView: View {
                 settingsToggleCard(
                     settings.t("setting.metadata_translation"),
                     description: settings.t("setting.metadata_translation_desc"),
-                    binding: metadataTranslationBinding
+                    binding: metadataTranslationBinding,
+                    identifier: "settings.toggle.metadata"
                 )
                 settingsToggleCard(settings.t("setting.simplify_title"), description: settings.t("setting.simplify_title_desc"), binding: settingsSavedBinding(\.simplifyTitleEnabled))
                 settingsToggleCard(
@@ -9828,7 +9845,8 @@ struct SettingsView: View {
                 settingsToggleCard(
                     settings.t("setting.cultural_annotations"),
                     description: settings.t("setting.cultural_annotations_desc"),
-                    binding: culturalAnnotationsEnabledBinding
+                    binding: culturalAnnotationsEnabledBinding,
+                    identifier: "settings.toggle.cultural"
                 )
                 if settings.culturalAnnotationsEnabled {
                     settingsCard(settings.t("setting.cultural_font_family")) {
@@ -10447,7 +10465,7 @@ struct SettingsView: View {
         .id(title)
     }
 
-    private func settingsToggleCard(_ title: String, description: String = "", binding: Binding<Bool>) -> some View {
+    private func settingsToggleCard(_ title: String, description: String = "", binding: Binding<Bool>, identifier: String? = nil) -> some View {
         Toggle(isOn: binding) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -10466,6 +10484,8 @@ struct SettingsView: View {
         .padding(.vertical, 10)
         .settingsRowSeparator()
         .id(title)
+        .accessibilityIdentifier(identifier ?? "settings.toggle.\(title)")
+        .debugSettingsHitArea(identifier ?? "settings.toggle.\(title)")
     }
 
     private func typographySettingsRow(_ slot: AppSettings.TypographySlot) -> some View {
@@ -10750,11 +10770,14 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .disabled(provider.isKeyless)
                 .accessibilityValue(selected ? settings.t("setting.ai_provider_selected") : "")
+                .accessibilityIdentifier("settings.ai.expand.\(provider.id)")
 
                 Toggle("", isOn: aiProviderEnabledBinding(provider.id))
                     .labelsHidden()
                     .fixedSize()
                     .accessibilityLabel(settings.tf("setting.ai_provider_toggle_format", provider.label))
+                    .accessibilityIdentifier("settings.ai.toggle.\(provider.id)")
+                    .debugSettingsHitArea("settings.ai.toggle.\(provider.id)")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -10866,6 +10889,9 @@ struct SettingsView: View {
 
     @MainActor
     private func refreshAIModels() async {
+#if DEBUG
+        if DebugSettingsUIHarness.enabled { return }
+#endif
         let configuration = aiModelConfiguration
         let requestId = UUID()
         aiModelsRequestId = requestId
@@ -11753,6 +11779,9 @@ private struct OpenAIConnectionEditor: View {
     }
 
     @MainActor private func loadModels() async {
+#if DEBUG
+        if DebugSettingsUIHarness.enabled { return }
+#endif
         let context = configuration
         let id = UUID()
         requestID = id

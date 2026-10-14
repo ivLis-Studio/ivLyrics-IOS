@@ -80,6 +80,9 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
 
     override init() {
         super.init()
+#if DEBUG
+        if DebugSettingsUIHarness.enabled { return }
+#endif
         displayLayer.videoGravity = .resizeAspect
         displayLayer.backgroundColor = UIColor.black.cgColor
         guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
