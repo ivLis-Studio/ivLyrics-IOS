@@ -101,9 +101,21 @@ let above = CGRect(x: 236, y: 42.3, width: 402, height: 68) // Exact fourth-CI f
 let below = CGRect(x: 236, y: 357, width: 402, height: 68)
 let down = revealDragDistance(for: above, in: viewport)
 let up = revealDragDistance(for: below, in: viewport)
-precondition(abs(down - 61.7) < 0.0001 && viewport.contains(above.offsetBy(dx: 0, dy: down)))
-precondition(abs(up + 75) < 0.0001 && viewport.contains(below.offsetBy(dx: 0, dy: up)))
+precondition(abs(down - 77.7) < 0.0001 && viewport.contains(above.offsetBy(dx: 0, dy: down)))
+precondition(abs(up + 91) < 0.0001 && viewport.contains(below.offsetBy(dx: 0, dy: up)))
 precondition(revealDragDistance(for: above.offsetBy(dx: 0, dy: down), in: viewport) == 0)
+// Exact fifth-CI near-edge failures: the prior 9–10pt gesture never started a pan.
+let almostVisible = CGRect(x: 236, y: 292, width: 402, height: 68)
+let edgeDrag = revealDragDistance(for: almostVisible, in: viewport)
+precondition(abs(edgeDrag + 26) < 0.0001)
+for slop: CGFloat in [0, 10, 16] {
+    precondition(viewport.contains(almostVisible.offsetBy(dx: 0, dy: edgeDrag + slop)))
+}
+let aiViewport = CGRect(x: 1, y: 242, width: 400, height: 631)
+let almostVisibleSwitch = CGRect(x: 305.5, y: 846.7, width: 61, height: 28)
+let switchDrag = revealDragDistance(for: almostVisibleSwitch, in: aiViewport)
+precondition(abs(switchDrag + 25.7) < 0.0001)
+precondition(aiViewport.contains(almostVisibleSwitch.offsetBy(dx: 0, dy: switchDrag + 16)))
 for y: CGFloat in [-1000, 1000] {
     let distance = revealDragDistance(for: CGRect(x: 236, y: y, width: 402, height: 68), in: viewport)
     precondition(abs(distance) <= viewport.height * 0.4)

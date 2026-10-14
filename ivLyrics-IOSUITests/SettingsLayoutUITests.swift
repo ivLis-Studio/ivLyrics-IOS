@@ -83,8 +83,11 @@ final class SettingsLayoutUITests: XCTestCase {
     private static func revealDragDistance(for frame: CGRect?, in viewport: CGRect) -> CGFloat {
         let limit = viewport.height * 0.4 // Both finger endpoints stay inside the viewport.
         guard let frame, !frame.isEmpty else { return -limit }
-        if frame.minY < viewport.minY { return min(limit, viewport.minY - frame.minY + 8) }
-        if frame.maxY > viewport.maxY { return -min(limit, frame.maxY - viewport.maxY + 8) }
+        // A drag of 8–10pt can remain inside UIScrollView's pan-recognition slop.
+        // Include enough finger travel to scroll even a control clipped by 1–2pt.
+        let recognitionTravel: CGFloat = 24
+        if frame.minY < viewport.minY { return min(limit, viewport.minY - frame.minY + recognitionTravel) }
+        if frame.maxY > viewport.maxY { return -min(limit, frame.maxY - viewport.maxY + recognitionTravel) }
         return 0
     }
 
