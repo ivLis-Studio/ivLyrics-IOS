@@ -84,30 +84,6 @@ jobs:
           python3 scripts/test-interlude.py
           python3 scripts/test-settings-ui.py
 
-      - name: Run static analyzer
-        run: |
-          xcodebuild \
-            -project ivLyrics-IOS.xcodeproj \
-            -scheme ivLyrics-IOS \
-            -configuration Release \
-            -destination "generic/platform=iOS" \
-            CODE_SIGNING_ALLOWED=NO \
-            analyze
-
-
-      - name: Build iOS Simulator
-        env:
-          # The pinned llama.cpp xcframework has no iOS Simulator slice (Packages/LlamaCpp).
-          IVLYRICS_LLAMA_STUB: "1"
-        run: |
-          xcodebuild \
-            -project ivLyrics-IOS.xcodeproj \
-            -scheme ivLyrics-IOS \
-            -configuration Debug \
-            -destination "generic/platform=iOS Simulator" \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
       - name: Check native settings and track popup UI
         id: settings_ui
         env:
@@ -153,6 +129,29 @@ jobs:
           path: |
             ${{ runner.temp }}/settings-ui.xcresult
             ${{ runner.temp }}/settings-ui-screenshots
+
+      - name: Run static analyzer
+        run: |
+          xcodebuild \
+            -project ivLyrics-IOS.xcodeproj \
+            -scheme ivLyrics-IOS \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            analyze
+
+      - name: Build iOS Simulator
+        env:
+          # The pinned llama.cpp xcframework has no iOS Simulator slice (Packages/LlamaCpp).
+          IVLYRICS_LLAMA_STUB: "1"
+        run: |
+          xcodebuild \
+            -project ivLyrics-IOS.xcodeproj \
+            -scheme ivLyrics-IOS \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
 
       - name: Build iOS device archive
         env:
