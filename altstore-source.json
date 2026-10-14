@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.20",
+          "buildVersion": "59",
+          "date": "2026-10-14",
+          "localizedDescription": "v1.3.20은 기기에서 직접 가사를 번역하는 새로운 Local AI 제공자를 추가했습니다. Local AI는 기본적으로 꺼져 있으며, 지원되는 고사양 iPhone에서 모델을 내려받아 설정한 품질로 사용할 수 있습니다. 또한 제공자 안내, 실행 안정성 및 IPA 빌드 검증을 개선했습니다.\n\nv1.3.20 adds a new Local AI provider that translates lyrics directly on the device. Local AI is disabled by default and can be used at a selected quality level after downloading a model on supported high-end iPhones. This release also improves provider guidance, runtime stability, and IPA build validation.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.20/ivLyrics-IOS-v1.3.20-unsigned.ipa",
+          "size": 10937204,
+          "sha256": "63de367af41dc3f822962197a4d89e5fc88eece696caa53d66183cfafa50a74c",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.19",
           "buildVersion": "58",
           "date": "2026-10-14",
