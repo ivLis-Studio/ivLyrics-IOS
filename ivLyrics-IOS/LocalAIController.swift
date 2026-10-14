@@ -46,8 +46,9 @@ final class LocalAIController: ObservableObject {
         started = true
         let service = self.service
         Task {
-            await service.setObserver { [weak self] state in
-                Task { @MainActor in self?.apply(state) }
+            // The controller lives for the whole process (LocalAIController.shared).
+            await service.setObserver { state in
+                Task { @MainActor in self.apply(state) }
             }
             await service.refresh()
         }
