@@ -88,6 +88,12 @@ if ! xcrun vtool -show-build "$EXECUTABLE_PATH" | grep -Eq 'platform[[:space:]]+
     exit 1
 fi
 
+# The offline settings fixture is for Debug UI tests only, never a released application route.
+if strings "$EXECUTABLE_PATH" | grep -E -- 'DebugSettingsUIHarness|--ivlyrics-ui-test' >/dev/null; then
+    echo "The release executable contains the Debug settings UI fixture." >&2
+    exit 1
+fi
+
 # Succeeds when version $1 is at most version $2 (for example 16.4 and 17.0).
 version_at_most() {
     local IFS=.
