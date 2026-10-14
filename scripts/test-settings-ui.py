@@ -74,6 +74,14 @@ assert "UITextField()" in native_search and "max(48, preferredFont.lineHeight + 
 assert "field.adjustsFontSizeToFitWidth = false" in native_search
 assert 'field.accessibilityIdentifier = "settings.search"' in native_search
 assert "func textFieldShouldReturn(" in native_search and "field.resignFirstResponder()" in native_search
+update_search = declaration(native_search, "func updateUIView(")
+assert "scheduleFocus(field)" in update_search
+assert "becomeFirstResponder()" not in update_search and "resignFirstResponder()" not in update_search
+assert "if field.font != font" in update_search
+assert ".strokeBorder(SettingsDesign.strongBorder)" in controls
+assert 'SettingsActionLabel(title: resetTitle)' in popup
+assert 'SettingsActionLabel(title: delta > 0' in popup
+assert 'lyrics.menu.offset.video.delta.' in ui_tests and 'lyrics.menu.offset.video.reset' in ui_tests
 assert '.accessibilityIdentifier("settings.root")' not in declaration(content, "struct SettingsView:")
 assert 'case "accessibility5": return .accessibility5' in harness
 assert ui_tests.count('textSize: "accessibility5"') >= 2
@@ -84,6 +92,76 @@ assert 'Color.black.opacity(0.56)' in popup and 'scrollableContentHeight' not in
 assert "attachment.lifetime = .keepAlways" in ui_tests and "XCUIScreen.main.screenshot()" in ui_tests
 assert "launch-\\(surface)-missing-marker" in ui_tests and "invalid-touch-target-" in ui_tests
 assert "XCTAssertGreaterThanOrEqual(element.frame.height, 44" in ui_tests
+
+# Execute the real coordinator's deferred focus logic with an SDK-free field double.
+# UIKit rendering still requires native CI, but stale queued requests and synchronous
+# responder changes are deterministic host regressions rather than timing guesses.
+coordinator = declaration(native_search, "final class Coordinator:")
+focus_prelude = r'''
+import Foundation
+protocol UITextFieldDelegate {}
+final class UITextField: NSObject {
+    var text: String? = ""
+    var window: NSObject? = NSObject()
+    var isFirstResponder = false
+    var becomes = 0, resigns = 0
+    func becomeFirstResponder() { isFirstResponder = true; becomes += 1 }
+    func resignFirstResponder() { isFirstResponder = false; resigns += 1 }
+}
+final class InputState { var text = "", focused = false }
+struct SettingsSearchField {
+    let state: InputState
+    var text: String { get { state.text } nonmutating set { state.text = newValue } }
+    var isFocused: Bool { get { state.focused } nonmutating set { state.focused = newValue } }
+}
+'''
+focus_checks = r'''
+@main struct FocusChecks {
+    @MainActor static func main() async throws {
+        let state = InputState(), field = UITextField()
+        let coordinator = Coordinator(SettingsSearchField(state: state))
+        var checks = 0
+        func check(_ value: @autoclosure () -> Bool) {
+            checks += 1; precondition(value(), "Native search focus contract failed")
+        }
+        state.focused = true; coordinator.scheduleFocus(field)
+        check(!field.isFirstResponder) // No UIKit focus change during updateUIView.
+        try await Task.sleep(for: .milliseconds(10))
+        check(field.isFirstResponder && field.becomes == 1)
+        coordinator.scheduleFocus(field)
+        try await Task.sleep(for: .milliseconds(10))
+        check(field.becomes == 1) // Idempotent updates do not reopen the keyboard.
+        state.focused = false; coordinator.scheduleFocus(field)
+        check(field.isFirstResponder)
+        try await Task.sleep(for: .milliseconds(10))
+        check(!field.isFirstResponder && field.resigns == 1)
+        state.focused = true; coordinator.scheduleFocus(field)
+        state.focused = false; coordinator.scheduleFocus(field)
+        try await Task.sleep(for: .milliseconds(10))
+        check(!field.isFirstResponder && field.becomes == 1)
+        state.focused = true; coordinator.scheduleFocus(field); coordinator.cancelFocusRequests()
+        try await Task.sleep(for: .milliseconds(10))
+        check(!field.isFirstResponder)
+        field.window = nil; coordinator.scheduleFocus(field)
+        try await Task.sleep(for: .milliseconds(10))
+        check(!field.isFirstResponder)
+        field.text = "artist"; coordinator.changed(field)
+        check(state.text == "artist")
+        state.focused = false; coordinator.textFieldDidBeginEditing(field)
+        check(state.focused)
+        coordinator.textFieldDidEndEditing(field)
+        check(!state.focused)
+        field.isFirstResponder = true; state.focused = true
+        check(coordinator.textFieldShouldReturn(field) && !state.focused && !field.isFirstResponder)
+        print("Settings UI regression: \(checks) deferred native-search focus checks passed")
+    }
+}
+'''
+with tempfile.TemporaryDirectory(prefix="ivlyrics-settings-focus-") as temp:
+    path = Path(temp)
+    (path / "Focus.swift").write_text(focus_prelude + coordinator + focus_checks)
+    subprocess.run(["xcrun", "swiftc", "-parse-as-library", str(path / "Focus.swift"), "-o", str(path / "focus")], check=True)
+    subprocess.run([str(path / "focus")], check=True)
 
 # Compile the actual Debug initializer prefix with native Combine @Published.
 # Pull every required input declaration from production so a newly added input

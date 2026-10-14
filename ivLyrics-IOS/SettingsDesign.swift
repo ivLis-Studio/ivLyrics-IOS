@@ -36,7 +36,7 @@ struct SettingsTextFieldStyle: TextFieldStyle {
             .padding(.vertical, 10)
             .frame(minHeight: 48)
             .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
-            .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
+            .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(SettingsDesign.strongBorder))
     }
 }
 
@@ -71,14 +71,20 @@ struct SettingsSearchField: UIViewRepresentable {
 
     func updateUIView(_ field: UITextField, context: Context) {
         context.coordinator.parent = self
-        field.placeholder = prompt
-        field.accessibilityLabel = prompt
+        if field.placeholder != prompt { field.placeholder = prompt }
+        if field.accessibilityLabel != prompt { field.accessibilityLabel = prompt }
         field.accessibilityIdentifier = "settings.search"
-        field.font = preferredFont
+        let font = preferredFont
+        if field.font != font { field.font = font }
         field.isEnabled = isEnabled
         if field.text != text { field.text = text }
-        if isFocused && !field.isFirstResponder { field.becomeFirstResponder() }
-        else if !isFocused && field.isFirstResponder { field.resignFirstResponder() }
+        // UIKit keyboard/responder changes must not re-enter a SwiftUI render transaction.
+        context.coordinator.scheduleFocus(field)
+    }
+
+    static func dismantleUIView(_ field: UITextField, coordinator: Coordinator) {
+        coordinator.cancelFocusRequests()
+        field.delegate = nil
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextField, context: Context) -> CGSize? {
@@ -109,7 +115,20 @@ struct SettingsSearchField: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextFieldDelegate {
         var parent: SettingsSearchField
+        private var focusRequestID = 0
         init(_ parent: SettingsSearchField) { self.parent = parent }
+        func cancelFocusRequests() { focusRequestID &+= 1 }
+        func scheduleFocus(_ field: UITextField) {
+            cancelFocusRequests()
+            guard parent.isFocused != field.isFirstResponder else { return }
+            let requestID = focusRequestID
+            DispatchQueue.main.async { [weak self, weak field] in
+                guard let self, let field, self.focusRequestID == requestID,
+                      field.window != nil else { return }
+                if self.parent.isFocused && !field.isFirstResponder { field.becomeFirstResponder() }
+                else if !self.parent.isFocused && field.isFirstResponder { field.resignFirstResponder() }
+            }
+        }
         @objc func changed(_ field: UITextField) { parent.text = field.text ?? "" }
         func textFieldDidBeginEditing(_ textField: UITextField) {
             if !parent.isFocused { parent.isFocused = true }

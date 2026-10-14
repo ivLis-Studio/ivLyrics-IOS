@@ -40,6 +40,9 @@ button/input frames against the 44-point minimum and verifies that popup close a
 footer controls remain fully inside the window. Search asserts the native input's
 own frame and taps near its top edge to verify focus across its height. Reveal
 gestures scroll in either direction and require visibility, not just `isHittable`.
+The Video portrait path also measures and taps all six offset buttons and reset,
+checking their displayed values and restoring zero before dismissal. Input borders
+are drawn inside their bounds rather than relying on test geometry tolerances.
 Screenshots use the full native display to avoid application-cropping artifacts
 after rotation, and launch/assertion failures retain screenshots and AX trees too.
 A Debug-only non-interactive geometry probe
@@ -105,5 +108,6 @@ python3 scripts/validate-i18n.py
 
 The host regression checks project/scheme wiring and fixture boundaries, then
 compiles and executes the production manual-search method against late cancelled
-success/error callbacks. It is not a native render/build check. Native testing
+success/error callbacks, plus the actual native-search coordinator against deferred,
+cancelled and idempotent focus requests. It is not a native render/build check. Native testing
 requires the full-Xcode CI command above.

@@ -98,6 +98,28 @@ final class SettingsLayoutUITests: XCTestCase {
         XCTAssertFalse(toggle.frame.isEmpty)
     }
 
+    private func checkVideoOffsets() {
+        var value = 0
+        for delta in [-100, -50, -10, 10, 50, 100] {
+            let button = app.buttons["lyrics.menu.offset.video.delta.\(delta)"]
+            reveal(button, scrollID: "lyrics.menu.scroll")
+            assertTouchTarget(button)
+            button.tap()
+            value += delta
+            XCTAssertEqual(app.staticTexts["lyrics.menu.offset.video.value"].label,
+                           value > 0 ? "+\(value)ms" : "\(value)ms")
+        }
+        let increment = app.buttons["lyrics.menu.offset.video.delta.100"]
+        reveal(increment, scrollID: "lyrics.menu.scroll")
+        increment.tap()
+        let reset = app.buttons["lyrics.menu.offset.video.reset"]
+        reveal(reset, scrollID: "lyrics.menu.scroll")
+        assertTouchTarget(reset)
+        reset.tap()
+        XCTAssertEqual(app.staticTexts["lyrics.menu.offset.video.value"].label, "0ms")
+        capture("video-popup-offset-buttons-and-reset")
+    }
+
     func testGeneralPortraitSearchKeyboardAndSwitch() {
         launch()
         let search = app.textFields["settings.search"]
@@ -182,6 +204,7 @@ final class SettingsLayoutUITests: XCTestCase {
         apply.tap()
         wait(NSPredicate(format: "isEnabled == true"), on: apply)
         capture("video-popup-offline-selection")
+        checkVideoOffsets()
         app.buttons["lyrics.menu.close"].tap()
         XCTAssertTrue(app.staticTexts["ui.harness.closed"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["ui.harness.actions"].label, "Actions: 1")

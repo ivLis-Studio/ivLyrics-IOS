@@ -300,6 +300,7 @@ struct LyricsMetaMenuOverlay: View {
     private var syncTab: some View {
         VStack(alignment: .leading, spacing: 14) {
             offsetBlock(
+                identifier: "global",
                 title: settings.t("lyrics.global_sync.title"),
                 detail: settings.t("lyrics.global_sync.help"),
                 resetTitle: settings.t("lyrics.global_sync.reset"),
@@ -308,6 +309,7 @@ struct LyricsMetaMenuOverlay: View {
                 isDimmed: false
             )
             offsetBlock(
+                identifier: "track",
                 title: settings.t("lyrics.sync.title"),
                 detail: trackSyncDetailText,
                 resetTitle: settings.t("lyrics.sync.reset"),
@@ -316,6 +318,7 @@ struct LyricsMetaMenuOverlay: View {
                 isDimmed: model.currentTrackKey.isEmpty
             )
             offsetBlock(
+                identifier: "bluetooth",
                 title: settings.t("lyrics.bluetooth_sync.title"),
                 detail: bluetoothSyncDetailText,
                 resetTitle: settings.t("lyrics.bluetooth_sync.reset"),
@@ -402,6 +405,7 @@ struct LyricsMetaMenuOverlay: View {
                 .disabled(selectingVideo)
             }
             offsetBlock(
+                identifier: "video",
                 title: settings.t("lyrics.video_sync.title"),
                 detail: videoSyncDetailText,
                 resetTitle: settings.t("lyrics.video_sync.reset"),
@@ -607,7 +611,7 @@ struct LyricsMetaMenuOverlay: View {
         }
     }
 
-    private func offsetBlock(title: String, detail: String, resetTitle: String, value: Int, setValue: @escaping (Int) -> Void, isDimmed: Bool) -> some View {
+    private func offsetBlock(identifier: String, title: String, detail: String, resetTitle: String, value: Int, setValue: @escaping (Int) -> Void, isDimmed: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.pretendard(14, weight: .bold))
@@ -624,37 +628,38 @@ struct LyricsMetaMenuOverlay: View {
                 .frame(minHeight: 54)
                 .background(.white.opacity(34.0 / 255.0), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.top, 4)
+                .accessibilityIdentifier("lyrics.menu.offset.\(identifier).value")
 
-            offsetButtonRow([-100, -50, -10], value: value, setValue: setValue)
+            offsetButtonRow([-100, -50, -10], identifier: identifier, value: value, setValue: setValue)
                 .padding(.top, 2)
-            offsetButtonRow([10, 50, 100], value: value, setValue: setValue)
+            offsetButtonRow([10, 50, 100], identifier: identifier, value: value, setValue: setValue)
 
-            Button(resetTitle) {
+            Button {
                 setValue(0)
+            } label: {
+                SettingsActionLabel(title: resetTitle)
+                    .font(.pretendard(13, weight: .semibold))
+                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .font(.pretendard(13, weight: .semibold))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .frame(minHeight: 44)
-            .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .buttonStyle(.plain)
+            .buttonStyle(SettingsActionButtonStyle())
+            .accessibilityIdentifier("lyrics.menu.offset.\(identifier).reset")
         }
         .opacity(isDimmed ? 0.52 : 1)
     }
 
-    private func offsetButtonRow(_ deltas: [Int], value: Int, setValue: @escaping (Int) -> Void) -> some View {
+    private func offsetButtonRow(_ deltas: [Int], identifier: String, value: Int, setValue: @escaping (Int) -> Void) -> some View {
         HStack(spacing: 8) {
             ForEach(deltas, id: \.self) { delta in
-                Button(delta > 0 ? "+\(delta)" : "\(delta)") {
+                Button {
                     setValue(value + delta)
+                } label: {
+                    SettingsActionLabel(title: delta > 0 ? "+\(delta)" : "\(delta)")
+                        .font(.pretendard(13, weight: .semibold))
+                        .monospacedDigit()
+                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .font(.pretendard(13, weight: .semibold))
-                .monospacedDigit()
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .frame(minHeight: 44)
-                .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .buttonStyle(.plain)
+                .buttonStyle(SettingsActionButtonStyle())
+                .accessibilityIdentifier("lyrics.menu.offset.\(identifier).delta.\(delta)")
             }
         }
     }
