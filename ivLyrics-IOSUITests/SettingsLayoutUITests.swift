@@ -64,15 +64,28 @@ final class SettingsLayoutUITests: XCTestCase {
         for _ in 0..<24 {
             let viewport = app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1).intersection(scroll.frame)
             if element.exists && element.isHittable && viewport.contains(element.frame) { return }
-            // SwiftUI can report isHittable for an off-screen button. Small normal
-            // drags and both directions avoid overshooting it in short landscape viewports.
-            let above = element.exists && element.frame.minY < viewport.minY
-            let start = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: above ? 0.35 : 0.75))
-            let end = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: above ? 0.70 : 0.40))
-            start.press(forDuration: 0.05, thenDragTo: end)
+            let distance = Self.revealDragDistance(for: element.exists ? element.frame : nil, in: viewport)
+            if distance == 0 {
+                wait(NSPredicate { _, _ in element.exists && element.isHittable && viewport.contains(element.frame) }, on: element)
+                return
+            }
+            // Match the actual overflow, not a fixed swipe fraction. Slow movement
+            // and a stationary end hold prevent momentum from skipping a short control.
+            let start = scroll.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: viewport.midX - scroll.frame.minX, dy: viewport.midY - scroll.frame.minY))
+            let end = start.withOffset(CGVector(dx: 0, dy: distance))
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.25)
         }
         capture("unreachable-in-\(scrollID)")
         XCTFail("Control must be fully visible and reachable by normal scrolling: \(element)")
+    }
+
+    private static func revealDragDistance(for frame: CGRect?, in viewport: CGRect) -> CGFloat {
+        let limit = viewport.height * 0.4 // Both finger endpoints stay inside the viewport.
+        guard let frame, !frame.isEmpty else { return -limit }
+        if frame.minY < viewport.minY { return min(limit, viewport.minY - frame.minY + 8) }
+        if frame.maxY > viewport.maxY { return -min(limit, frame.maxY - viewport.maxY + 8) }
+        return 0
     }
 
     private func assertTouchTarget(_ element: XCUIElement, contained: Bool = true, file: StaticString = #filePath, line: UInt = #line) {

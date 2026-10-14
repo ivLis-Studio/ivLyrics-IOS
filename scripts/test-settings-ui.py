@@ -85,13 +85,38 @@ assert 'lyrics.menu.offset.video.delta.' in ui_tests and 'lyrics.menu.offset.vid
 assert '.accessibilityIdentifier("settings.root")' not in declaration(content, "struct SettingsView:")
 assert 'case "accessibility5": return .accessibility5' in harness
 assert ui_tests.count('textSize: "accessibility5"') >= 2
-assert "viewport.contains(element.frame)" in ui_tests and "element.frame.minY < viewport.minY" in ui_tests
+assert "viewport.contains(element.frame)" in ui_tests and "frame.minY < viewport.minY" in ui_tests
+assert "withVelocity: .slow, thenHoldForDuration: 0.25" in ui_tests
 assert '"lyrics.menu.video.apply"' in popup and '"lyrics.menu.regenerate"' in popup
 assert 'settings.t("tmi.regenerate")' not in popup
 assert 'Color.black.opacity(0.56)' in popup and 'scrollableContentHeight' not in popup
 assert "attachment.lifetime = .keepAlways" in ui_tests and "XCUIScreen.main.screenshot()" in ui_tests
 assert "launch-\\(surface)-missing-marker" in ui_tests and "invalid-touch-target-" in ui_tests
 assert "XCTAssertGreaterThanOrEqual(element.frame.height, 44" in ui_tests
+
+drag_math = declaration(ui_tests, "private static func revealDragDistance(").replace("private static func", "func", 1)
+drag_checks = r'''
+let viewport = CGRect(x: 236, y: 96, width: 402, height: 262)
+let above = CGRect(x: 236, y: 42.3, width: 402, height: 68) // Exact fourth-CI failure.
+let below = CGRect(x: 236, y: 357, width: 402, height: 68)
+let down = revealDragDistance(for: above, in: viewport)
+let up = revealDragDistance(for: below, in: viewport)
+precondition(abs(down - 61.7) < 0.0001 && viewport.contains(above.offsetBy(dx: 0, dy: down)))
+precondition(abs(up + 75) < 0.0001 && viewport.contains(below.offsetBy(dx: 0, dy: up)))
+precondition(revealDragDistance(for: above.offsetBy(dx: 0, dy: down), in: viewport) == 0)
+for y: CGFloat in [-1000, 1000] {
+    let distance = revealDragDistance(for: CGRect(x: 236, y: y, width: 402, height: 68), in: viewport)
+    precondition(abs(distance) <= viewport.height * 0.4)
+    precondition(viewport.minY < viewport.midY + distance && viewport.midY + distance < viewport.maxY)
+}
+precondition(revealDragDistance(for: nil, in: viewport) < 0)
+print("Settings UI regression: exact native reveal frames, direction, containment and bounded drag checks passed")
+'''
+with tempfile.TemporaryDirectory(prefix="ivlyrics-settings-drag-") as temp:
+    path = Path(temp)
+    (path / "Drag.swift").write_text("import Foundation\nimport CoreGraphics\n" + drag_math + drag_checks)
+    subprocess.run(["xcrun", "swiftc", str(path / "Drag.swift"), "-o", str(path / "drag")], check=True)
+    subprocess.run([str(path / "drag")], check=True)
 
 # Execute the real coordinator's deferred focus logic with an SDK-free field double.
 # UIKit rendering still requires native CI, but stale queued requests and synchronous
