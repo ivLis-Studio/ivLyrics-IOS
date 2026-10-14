@@ -2,6 +2,30 @@ name: iOS Validation
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'ivLyrics-IOS/SettingsDesign.swift'
+      - 'ivLyrics-IOS/LocalAISettingsView.swift'
+      - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
+      - 'ivLyrics-IOS/ContentView.swift'
+      - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
+      - 'ivLyrics-IOSUITests/**'
+      - 'ivLyrics-IOS.xcodeproj/**'
+      - '.github/workflows/ios-validation.yml'
+  pull_request:
+    paths:
+      - 'ivLyrics-IOS/SettingsDesign.swift'
+      - 'ivLyrics-IOS/LocalAISettingsView.swift'
+      - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
+      - 'ivLyrics-IOS/ContentView.swift'
+      - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
+      - 'ivLyrics-IOSUITests/**'
+      - 'ivLyrics-IOS.xcodeproj/**'
+      - '.github/workflows/ios-validation.yml'
+
+concurrency:
+  group: ios-validation-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
