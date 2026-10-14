@@ -795,7 +795,8 @@
     "local_ai.privacy": "가사는 이 기기에서만 번역되며 외부로 전송되지 않습니다. 모델(Hugging Face)은 처음 한 번만 내려받습니다.",
     "local_ai.not_ready": "로컬 모델이 아직 준비되지 않았습니다. 설정 > AI 제공자 > Local AI에서 모델을 먼저 받아 주세요.",
     "local_ai.unsupported_language": "로컬 모델은 {language}(으)로 번역할 수 없습니다.",
-    "local_ai.download_busy": "모델 다운로드가 끝난 뒤 다시 시도해 주세요."
+    "local_ai.download_busy": "모델 다운로드가 끝난 뒤 다시 시도해 주세요.",
+    "local_ai.performance_note": "기기 성능에 따라 속도와 안정성이 크게 달라집니다. 고사양 기기가 아니라면 사용을 권장하지 않습니다."
   },
   "en": {
     "section.account": "Account",
@@ -1593,7 +1594,8 @@
     "local_ai.privacy": "Lyrics are translated on this device and are never sent anywhere. The model (Hugging Face) is downloaded only once.",
     "local_ai.not_ready": "The local model is not ready yet. Download it first in Settings > AI Providers > Local AI.",
     "local_ai.unsupported_language": "The local model cannot translate into {language}.",
-    "local_ai.download_busy": "Wait for the model download to finish, then try again."
+    "local_ai.download_busy": "Wait for the model download to finish, then try again.",
+    "local_ai.performance_note": "Speed and stability depend heavily on your device's performance. Not recommended unless your device is high-end."
   },
   "zh-CN": {
     "section.account": "账户",
@@ -2391,7 +2393,8 @@
     "local_ai.privacy": "歌词仅在此设备上翻译，绝不会发送到任何地方。模型 (Hugging Face) 只需下载一次。",
     "local_ai.not_ready": "本地模型尚未就绪。请先在 设置 > AI 提供商 > Local AI 中下载模型。",
     "local_ai.unsupported_language": "本地模型无法翻译成{language}。",
-    "local_ai.download_busy": "请等待模型下载完成后再试。"
+    "local_ai.download_busy": "请等待模型下载完成后再试。",
+    "local_ai.performance_note": "运行速度和稳定性在很大程度上取决于设备性能。如果不是高端设备，不建议使用。"
   },
   "zh-TW": {
     "section.account": "帳戶",
@@ -3189,7 +3192,8 @@
     "local_ai.privacy": "歌詞只會在此裝置上翻譯，絕不會傳送到任何地方。模型 (Hugging Face) 只需下載一次。",
     "local_ai.not_ready": "本機模型尚未就緒。請先在 設定 > AI 提供者 > Local AI 中下載模型。",
     "local_ai.unsupported_language": "本機模型無法翻譯成{language}。",
-    "local_ai.download_busy": "請等模型下載完成後再試一次。"
+    "local_ai.download_busy": "請等模型下載完成後再試一次。",
+    "local_ai.performance_note": "執行速度與穩定性很大程度取決於裝置效能。如果不是高階裝置，不建議使用。"
   },
   "ja": {
     "section.account": "アカウント",
@@ -3987,7 +3991,8 @@
     "local_ai.privacy": "歌詞はこのデバイス上で翻訳され、外部に送信されることはありません。モデル (Hugging Face) のダウンロードは最初の一度だけです。",
     "local_ai.not_ready": "ローカルモデルの準備がまだできていません。設定 > AIプロバイダー > Local AI で先にモデルをダウンロードしてください。",
     "local_ai.unsupported_language": "ローカルモデルは{language}への翻訳に対応していません。",
-    "local_ai.download_busy": "モデルのダウンロードが完了してから、もう一度お試しください。"
+    "local_ai.download_busy": "モデルのダウンロードが完了してから、もう一度お試しください。",
+    "local_ai.performance_note": "速度と安定性はデバイスの性能によって大きく変わります。ハイエンドのデバイスでない場合はおすすめしません。"
   },
   "hi": {
     "section.account": "खाता",
@@ -4785,7 +4790,8 @@
     "local_ai.privacy": "लिरिक्स का अनुवाद इसी डिवाइस पर होता है और उन्हें कहीं नहीं भेजा जाता। मॉडल (Hugging Face) सिर्फ़ एक बार डाउनलोड होता है।",
     "local_ai.not_ready": "स्थानीय मॉडल अभी तैयार नहीं है। पहले सेटिंग्स > AI प्रदाता > Local AI में इसे डाउनलोड करें।",
     "local_ai.unsupported_language": "स्थानीय मॉडल {language} में अनुवाद नहीं कर सकता।",
-    "local_ai.download_busy": "मॉडल डाउनलोड पूरा होने तक प्रतीक्षा करें, फिर दोबारा प्रयास करें।"
+    "local_ai.download_busy": "मॉडल डाउनलोड पूरा होने तक प्रतीक्षा करें, फिर दोबारा प्रयास करें।",
+    "local_ai.performance_note": "गति और स्थिरता काफ़ी हद तक आपके डिवाइस के प्रदर्शन पर निर्भर करती है। अगर आपका डिवाइस हाई-एंड नहीं है, तो इसका इस्तेमाल करने की सलाह नहीं दी जाती।"
   },
   "es": {
     "section.account": "Cuenta",
@@ -5583,7 +5589,8 @@
     "local_ai.privacy": "Las letras se traducen en este dispositivo y nunca se envían a ningún sitio. El modelo (Hugging Face) se descarga una sola vez.",
     "local_ai.not_ready": "El modelo local aún no está listo. Descárgalo primero en Ajustes > Proveedores de IA > Local AI.",
     "local_ai.unsupported_language": "El modelo local no puede traducir al {language}.",
-    "local_ai.download_busy": "Espera a que termine la descarga del modelo y vuelve a intentarlo."
+    "local_ai.download_busy": "Espera a que termine la descarga del modelo y vuelve a intentarlo.",
+    "local_ai.performance_note": "La velocidad y la estabilidad dependen mucho del rendimiento de tu dispositivo. No se recomienda si tu dispositivo no es de gama alta."
   },
   "fr": {
     "section.account": "Compte",
@@ -6381,7 +6388,8 @@
     "local_ai.privacy": "Les paroles sont traduites sur cet appareil et ne sont jamais envoyées ailleurs. Le modèle (Hugging Face) n'est téléchargé qu'une seule fois.",
     "local_ai.not_ready": "Le modèle local n'est pas encore prêt. Téléchargez-le d'abord dans Paramètres > Fournisseurs d'IA > Local AI.",
     "local_ai.unsupported_language": "Le modèle local ne peut pas traduire en {language}.",
-    "local_ai.download_busy": "Attendez la fin du téléchargement du modèle, puis réessayez."
+    "local_ai.download_busy": "Attendez la fin du téléchargement du modèle, puis réessayez.",
+    "local_ai.performance_note": "La vitesse et la stabilité dépendent fortement des performances de votre appareil. Déconseillé si votre appareil n'est pas haut de gamme."
   },
   "ar": {
     "section.account": "الحساب",
@@ -7179,7 +7187,8 @@
     "local_ai.privacy": "تُترجَم كلمات الأغاني على هذا الجهاز ولا تُرسَل إلى أي مكان. يتم تنزيل النموذج (Hugging Face) مرة واحدة فقط.",
     "local_ai.not_ready": "النموذج المحلي غير جاهز بعد. نزّله أولًا من الإعدادات > موفرو الذكاء الاصطناعي > Local AI.",
     "local_ai.unsupported_language": "لا يمكن للنموذج المحلي الترجمة إلى {language}.",
-    "local_ai.download_busy": "انتظر حتى يكتمل تنزيل النموذج، ثم حاول مرة أخرى."
+    "local_ai.download_busy": "انتظر حتى يكتمل تنزيل النموذج، ثم حاول مرة أخرى.",
+    "local_ai.performance_note": "تعتمد السرعة والاستقرار بشكل كبير على أداء جهازك. لا يُنصح باستخدامه إلا على الأجهزة عالية الأداء."
   },
   "fa": {
     "section.account": "حساب",
@@ -7977,7 +7986,8 @@
     "local_ai.privacy": "متن ترانه‌ها روی همین دستگاه ترجمه می‌شود و به هیچ جا ارسال نمی‌شود. مدل (Hugging Face) فقط یک بار دانلود می‌شود.",
     "local_ai.not_ready": "مدل محلی هنوز آماده نیست. ابتدا آن را از تنظیمات > ارائه‌دهندگان هوش مصنوعی > Local AI دانلود کنید.",
     "local_ai.unsupported_language": "مدل محلی نمی‌تواند به {language} ترجمه کند.",
-    "local_ai.download_busy": "صبر کنید تا دانلود مدل تمام شود، سپس دوباره تلاش کنید."
+    "local_ai.download_busy": "صبر کنید تا دانلود مدل تمام شود، سپس دوباره تلاش کنید.",
+    "local_ai.performance_note": "سرعت و پایداری تا حد زیادی به توان دستگاه شما بستگی دارد. اگر دستگاه شما رده‌بالا نیست، استفاده از آن توصیه نمی‌شود."
   },
   "de": {
     "section.account": "Konto",
@@ -8775,7 +8785,8 @@
     "local_ai.privacy": "Songtexte werden auf diesem Gerät übersetzt und nirgendwohin gesendet. Das Modell (Hugging Face) wird nur einmal heruntergeladen.",
     "local_ai.not_ready": "Das lokale Modell ist noch nicht bereit. Laden Sie es zuerst unter Einstellungen > KI-Anbieter > Local AI herunter.",
     "local_ai.unsupported_language": "Das lokale Modell unterstützt die Zielsprache {language} nicht.",
-    "local_ai.download_busy": "Warten Sie, bis der Modell-Download abgeschlossen ist, und versuchen Sie es dann erneut."
+    "local_ai.download_busy": "Warten Sie, bis der Modell-Download abgeschlossen ist, und versuchen Sie es dann erneut.",
+    "local_ai.performance_note": "Geschwindigkeit und Stabilität hängen stark von der Leistung Ihres Geräts ab. Nur für leistungsstarke Geräte empfohlen."
   },
   "ru": {
     "section.account": "Аккаунт",
@@ -9573,7 +9584,8 @@
     "local_ai.privacy": "Тексты песен переводятся на этом устройстве и никуда не отправляются. Модель (Hugging Face) скачивается только один раз.",
     "local_ai.not_ready": "Локальная модель ещё не готова. Сначала скачайте её в разделе Настройки > Провайдеры ИИ > Local AI.",
     "local_ai.unsupported_language": "Локальная модель не поддерживает перевод на язык «{language}».",
-    "local_ai.download_busy": "Дождитесь окончания скачивания модели и повторите попытку."
+    "local_ai.download_busy": "Дождитесь окончания скачивания модели и повторите попытку.",
+    "local_ai.performance_note": "Скорость и стабильность сильно зависят от производительности вашего устройства. Рекомендуется только для мощных устройств."
   },
   "sv": {
     "section.account": "Konto",
@@ -10371,7 +10383,8 @@
     "local_ai.privacy": "Låttexter översätts på den här enheten och skickas aldrig någonstans. Modellen (Hugging Face) laddas bara ner en gång.",
     "local_ai.not_ready": "Den lokala modellen är inte redo än. Ladda ner den först under Inställningar > AI-leverantörer > Local AI.",
     "local_ai.unsupported_language": "Den lokala modellen kan inte översätta till {language}.",
-    "local_ai.download_busy": "Vänta tills modellen har laddats ner och försök sedan igen."
+    "local_ai.download_busy": "Vänta tills modellen har laddats ner och försök sedan igen.",
+    "local_ai.performance_note": "Hastighet och stabilitet beror i hög grad på enhetens prestanda. Rekommenderas bara för kraftfulla enheter."
   },
   "pt": {
     "section.account": "Conta",
@@ -11169,7 +11182,8 @@
     "local_ai.privacy": "As letras são traduzidas neste dispositivo e nunca são enviadas a lugar nenhum. O modelo (Hugging Face) é baixado apenas uma vez.",
     "local_ai.not_ready": "O modelo local ainda não está pronto. Baixe-o primeiro em Configurações > Provedores de IA > Local AI.",
     "local_ai.unsupported_language": "O modelo local não pode traduzir para o {language}.",
-    "local_ai.download_busy": "Aguarde o download do modelo terminar e tente novamente."
+    "local_ai.download_busy": "Aguarde o download do modelo terminar e tente novamente.",
+    "local_ai.performance_note": "A velocidade e a estabilidade dependem muito do desempenho do seu dispositivo. Não é recomendado se o seu dispositivo não for topo de linha."
   },
   "bn": {
     "section.account": "অ্যাকাউন্ট",
@@ -11967,7 +11981,8 @@
     "local_ai.privacy": "লিরিক্স এই ডিভাইসেই অনুবাদ হয় এবং কোথাও পাঠানো হয় না। মডেল (Hugging Face) শুধু একবারই ডাউনলোড হয়।",
     "local_ai.not_ready": "স্থানীয় মডেল এখনও প্রস্তুত নয়। আগে সেটিংস > এআই প্রদানকারী > Local AI থেকে এটি ডাউনলোড করুন।",
     "local_ai.unsupported_language": "স্থানীয় মডেল {language} ভাষায় অনুবাদ করতে পারে না।",
-    "local_ai.download_busy": "মডেল ডাউনলোড শেষ হওয়া পর্যন্ত অপেক্ষা করুন, তারপর আবার চেষ্টা করুন।"
+    "local_ai.download_busy": "মডেল ডাউনলোড শেষ হওয়া পর্যন্ত অপেক্ষা করুন, তারপর আবার চেষ্টা করুন।",
+    "local_ai.performance_note": "গতি ও স্থিতিশীলতা অনেকটাই আপনার ডিভাইসের পারফরম্যান্সের ওপর নির্ভর করে। আপনার ডিভাইস হাই-এন্ড না হলে এটি ব্যবহারের পরামর্শ দেওয়া হয় না।"
   },
   "cs": {
     "section.account": "Účet",
@@ -12765,7 +12780,8 @@
     "local_ai.privacy": "Texty písní se překládají v tomto zařízení a nikam se neodesílají. Model (Hugging Face) se stahuje jen jednou.",
     "local_ai.not_ready": "Místní model ještě není připraven. Nejprve ho stáhněte v Nastavení > Poskytovatelé AI > Local AI.",
     "local_ai.unsupported_language": "Místní model neumí překládat do jazyka {language}.",
-    "local_ai.download_busy": "Počkejte na dokončení stahování modelu a zkuste to znovu."
+    "local_ai.download_busy": "Počkejte na dokončení stahování modelu a zkuste to znovu.",
+    "local_ai.performance_note": "Rychlost a stabilita výrazně závisí na výkonu vašeho zařízení. Doporučeno pouze pro výkonná zařízení."
   },
   "it": {
     "section.account": "Account",
@@ -13563,7 +13579,8 @@
     "local_ai.privacy": "I testi vengono tradotti su questo dispositivo e non vengono mai inviati altrove. Il modello (Hugging Face) viene scaricato una sola volta.",
     "local_ai.not_ready": "Il modello locale non è ancora pronto. Scaricalo prima in Impostazioni > Provider AI > Local AI.",
     "local_ai.unsupported_language": "Il modello locale non può tradurre in {language}.",
-    "local_ai.download_busy": "Attendi il termine del download del modello, poi riprova."
+    "local_ai.download_busy": "Attendi il termine del download del modello, poi riprova.",
+    "local_ai.performance_note": "Velocità e stabilità dipendono molto dalle prestazioni del tuo dispositivo. Sconsigliato se il dispositivo non è di fascia alta."
   },
   "th": {
     "section.account": "บัญชี",
@@ -14361,7 +14378,8 @@
     "local_ai.privacy": "เนื้อเพลงจะถูกแปลบนอุปกรณ์นี้และไม่ถูกส่งไปที่ใด โมเดล (Hugging Face) จะดาวน์โหลดเพียงครั้งเดียว",
     "local_ai.not_ready": "โมเดลในเครื่องยังไม่พร้อม โปรดดาวน์โหลดก่อนที่ การตั้งค่า > ผู้ให้บริการ AI > Local AI",
     "local_ai.unsupported_language": "โมเดลในเครื่องไม่สามารถแปลเป็นภาษา{language}ได้",
-    "local_ai.download_busy": "โปรดรอให้ดาวน์โหลดโมเดลเสร็จก่อน แล้วลองอีกครั้ง"
+    "local_ai.download_busy": "โปรดรอให้ดาวน์โหลดโมเดลเสร็จก่อน แล้วลองอีกครั้ง",
+    "local_ai.performance_note": "ความเร็วและความเสถียรขึ้นอยู่กับประสิทธิภาพของอุปกรณ์เป็นอย่างมาก ไม่แนะนำให้ใช้หากอุปกรณ์ของคุณไม่ใช่รุ่นระดับสูง"
   },
   "vi": {
     "section.account": "Tài khoản",
@@ -15159,7 +15177,8 @@
     "local_ai.privacy": "Lời bài hát được dịch trên thiết bị này và không bao giờ được gửi đi đâu. Mô hình (Hugging Face) chỉ cần tải xuống một lần.",
     "local_ai.not_ready": "Mô hình cục bộ chưa sẵn sàng. Hãy tải xuống trước trong Cài đặt > Nhà cung cấp AI > Local AI.",
     "local_ai.unsupported_language": "Mô hình cục bộ không thể dịch sang {language}.",
-    "local_ai.download_busy": "Vui lòng đợi tải mô hình xong rồi thử lại."
+    "local_ai.download_busy": "Vui lòng đợi tải mô hình xong rồi thử lại.",
+    "local_ai.performance_note": "Tốc độ và độ ổn định phụ thuộc nhiều vào hiệu năng thiết bị của bạn. Không khuyến khích sử dụng nếu thiết bị không thuộc dòng cao cấp."
   },
   "id": {
     "section.account": "Akun",
@@ -15957,7 +15976,8 @@
     "local_ai.privacy": "Lirik diterjemahkan di perangkat ini dan tidak pernah dikirim ke mana pun. Model (Hugging Face) hanya diunduh sekali.",
     "local_ai.not_ready": "Model lokal belum siap. Unduh terlebih dahulu di Pengaturan > Penyedia AI > Local AI.",
     "local_ai.unsupported_language": "Model lokal tidak dapat menerjemahkan ke bahasa {language}.",
-    "local_ai.download_busy": "Tunggu hingga unduhan model selesai, lalu coba lagi."
+    "local_ai.download_busy": "Tunggu hingga unduhan model selesai, lalu coba lagi.",
+    "local_ai.performance_note": "Kecepatan dan stabilitas sangat bergantung pada performa perangkat Anda. Tidak disarankan jika perangkat Anda bukan kelas atas."
   },
   "ms": {
     "section.account": "Akaun",
@@ -16755,7 +16775,8 @@
     "local_ai.privacy": "Lirik diterjemah pada peranti ini dan tidak pernah dihantar ke mana-mana. Model (Hugging Face) hanya dimuat turun sekali.",
     "local_ai.not_ready": "Model setempat belum sedia. Muat turun model dahulu dalam Tetapan > Penyedia AI > Local AI.",
     "local_ai.unsupported_language": "Model setempat tidak dapat menterjemah ke bahasa {language}.",
-    "local_ai.download_busy": "Tunggu sehingga muat turun model selesai, kemudian cuba lagi."
+    "local_ai.download_busy": "Tunggu sehingga muat turun model selesai, kemudian cuba lagi.",
+    "local_ai.performance_note": "Kelajuan dan kestabilan sangat bergantung pada prestasi peranti anda. Tidak disyorkan kecuali peranti anda berprestasi tinggi."
   },
   "tr": {
     "section.account": "Hesap",
@@ -17553,6 +17574,7 @@
     "local_ai.privacy": "Şarkı sözleri bu cihazda çevrilir ve hiçbir yere gönderilmez. Model (Hugging Face) yalnızca bir kez indirilir.",
     "local_ai.not_ready": "Yerel model henüz hazır değil. Önce Ayarlar > Yapay Zeka Sağlayıcıları > Local AI bölümünden indirin.",
     "local_ai.unsupported_language": "Yerel model {language} diline çeviri yapamaz.",
-    "local_ai.download_busy": "Model indirmesinin bitmesini bekleyin, ardından tekrar deneyin."
+    "local_ai.download_busy": "Model indirmesinin bitmesini bekleyin, ardından tekrar deneyin.",
+    "local_ai.performance_note": "Hız ve kararlılık büyük ölçüde cihazınızın performansına bağlıdır. Üst düzey bir cihazınız yoksa önerilmez."
   }
 }

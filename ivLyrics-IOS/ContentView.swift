@@ -10455,6 +10455,15 @@ struct SettingsView: View {
                                 .foregroundStyle(SettingsDesign.muted)
                                 .multilineTextAlignment(.leading)
                                 .fixedSize(horizontal: false, vertical: true)
+                            if provider.isLocal {
+                                // Translation runs on the phone itself, so the card says up front that it needs a high-end device.
+                                Text(settings.t("local_ai.performance_note"))
+                                    .font(.pretendard(12))
+                                    .foregroundStyle(SettingsDesign.accent)
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.top, 2)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         if !provider.isKeyless {

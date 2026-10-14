@@ -36,6 +36,16 @@ assert re.search(r"if providerId == LocalAI\.providerId \{\s*//[^\n]*\n\s*if isA
     "a disabled Local AI must leave cache keys unchanged"
 languages = re.findall(r'Language\(code: "([^"]+)"', section(settings, "    static let languages: [Language] = [", "    static let typographySlots"))
 assert len(languages) == 22, languages
+content_view = (SRC / "ContentView.swift").read_text(encoding="utf-8")
+provider_card = section(content_view, "    private func aiProviderSettingsCard(", "    private func aiProviderDescription(")
+assert re.search(r'if provider\.isLocal \{\s*//[^\n]*\n\s*Text\(settings\.t\("local_ai\.performance_note"\)\)', provider_card), \
+    "the Local AI card must say that it needs a high-end device"
+bundle = json.loads((SRC / "Resources/AppI18nStrings.json").read_text(encoding="utf-8"))
+assert sorted(bundle) == sorted(languages), sorted(bundle)
+for code, strings in bundle.items():
+    assert strings.get("local_ai.performance_note", "").strip(), f"{code}: missing the Local AI performance note"
+    assert not re.search(r"(?i)click|clic|cliqu|klick|klik", strings["local_ai.confirm_remove"]), f"{code}: say tap, not click"
+assert bundle["ko"]["local_ai.performance_note"] == "기기 성능에 따라 속도와 안정성이 크게 달라집니다. 고사양 기기가 아니라면 사용을 권장하지 않습니다."
 
 helpers = '''import Foundation
 extension String { var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) } }
