@@ -1,5 +1,6 @@
 {
   "ko": {
+    "button.clear_search": "검색어 지우기",
     "section.account": "계정",
     "section.layout": "레이아웃",
     "first_language.title_format": "%@ 곡을 처음 재생하시네요",
@@ -821,6 +822,7 @@
     "setting.simplify_title_desc": "곡 제목의 괄호 안 부가 정보를 숨깁니다. LP 라벨에도 적용됩니다."
   },
   "en": {
+    "button.clear_search": "Clear search",
     "section.account": "Account",
     "section.layout": "Layout",
     "first_language.title_format": "First time playing a %@ song",
@@ -1642,6 +1644,7 @@
     "setting.simplify_title_desc": "Hide bracketed notes in track titles, including on LP labels."
   },
   "zh-CN": {
+    "button.clear_search": "清除搜索",
     "section.account": "账户",
     "section.layout": "布局",
     "first_language.title_format": "第一次播放%@歌曲",
@@ -2463,6 +2466,7 @@
     "setting.simplify_title_desc": "隐藏标题中的括号备注，也适用于黑胶标签。"
   },
   "zh-TW": {
+    "button.clear_search": "清除搜尋",
     "section.account": "帳戶",
     "section.layout": "版面配置",
     "first_language.title_format": "第一次播放%@歌曲",
@@ -3284,6 +3288,7 @@
     "setting.simplify_title_desc": "隱藏標題中的括號備註，也適用於黑膠標籤。"
   },
   "ja": {
+    "button.clear_search": "検索をクリア",
     "section.account": "アカウント",
     "section.layout": "レイアウト",
     "first_language.title_format": "%@の曲を初めて再生しています",
@@ -4105,6 +4110,7 @@
     "setting.simplify_title_desc": "曲名の括弧内の補足を非表示にします。LPラベルにも適用されます。"
   },
   "hi": {
+    "button.clear_search": "खोज साफ़ करें",
     "section.account": "खाता",
     "section.layout": "लेआउट",
     "first_language.title_format": "आप पहली बार %@ गीत चला रहे हैं",
@@ -4926,6 +4932,7 @@
     "setting.simplify_title_desc": "गीत के शीर्षक में कोष्ठक वाली टिप्पणियाँ छिपाएँ, LP लेबल पर भी।"
   },
   "es": {
+    "button.clear_search": "Borrar búsqueda",
     "section.account": "Cuenta",
     "section.layout": "Diseño",
     "first_language.title_format": "Es la primera vez que reproduces una canción en %@",
@@ -5747,6 +5754,7 @@
     "setting.simplify_title_desc": "Oculta las notas entre paréntesis en los títulos, también en las etiquetas LP."
   },
   "fr": {
+    "button.clear_search": "Effacer la recherche",
     "section.account": "Compte",
     "section.layout": "Disposition",
     "first_language.title_format": "Première lecture d’une chanson en %@",
@@ -6568,6 +6576,7 @@
     "setting.simplify_title_desc": "Masque les notes entre parenthèses dans les titres, y compris sur les étiquettes LP."
   },
   "ar": {
+    "button.clear_search": "مسح البحث",
     "section.account": "الحساب",
     "section.layout": "التخطيط",
     "first_language.title_format": "هذه أول مرة تشغّل فيها أغنية باللغة %@",
@@ -7389,6 +7398,7 @@
     "setting.simplify_title_desc": "إخفاء الملاحظات بين الأقواس في عناوين الأغاني، بما فيها ملصقات الأسطوانة."
   },
   "fa": {
+    "button.clear_search": "پاک کردن جستجو",
     "section.account": "حساب",
     "section.layout": "چیدمان",
     "first_language.title_format": "این نخستین بار است که آهنگی به زبان %@ پخش می‌کنید",
@@ -8210,6 +8220,7 @@
     "setting.simplify_title_desc": "توضیحات داخل پرانتز در عنوان آهنگ‌ها و برچسب‌های صفحه پنهان می‌شوند."
   },
   "de": {
+    "button.clear_search": "Suche löschen",
     "section.account": "Konto",
     "section.layout": "Layout",
     "first_language.title_format": "Du spielst zum ersten Mal einen Song auf %@ ab",
@@ -9031,6 +9042,7 @@
     "setting.simplify_title_desc": "Blendet Klammerzusätze in Titeln aus, auch auf LP-Etiketten."
   },
   "ru": {
+    "button.clear_search": "Очистить поиск",
     "section.account": "Аккаунт",
     "section.layout": "Макет",
     "first_language.title_format": "Песня на языке «%@» воспроизводится впервые",
@@ -9852,6 +9864,7 @@
     "setting.simplify_title_desc": "Скрывает примечания в скобках в названиях, в том числе на этикетках LP."
   },
   "sv": {
+    "button.clear_search": "Rensa sökning",
     "section.account": "Konto",
     "section.layout": "Layout",
     "first_language.title_format": "Första gången du spelar en låt på %@",
@@ -10673,6 +10686,7 @@
     "setting.simplify_title_desc": "Dölj anmärkningar inom parentes i låttitlar, även på LP-etiketter."
   },
   "pt": {
+    "button.clear_search": "Limpar pesquisa",
     "section.account": "Conta",
     "section.layout": "Layout",
     "first_language.title_format": "Primeira vez que você reproduz uma música em %@",
@@ -11494,6 +11508,7 @@
     "setting.simplify_title_desc": "Oculta notas entre parênteses nos títulos, incluindo nas etiquetas LP."
   },
   "bn": {
+    "button.clear_search": "অনুসন্ধান মুছুন",
     "section.account": "অ্যাকাউন্ট",
     "section.layout": "বিন্যাস",
     "first_language.title_format": "আপনি প্রথমবার %@ ভাষার গান চালাচ্ছেন",
@@ -12315,6 +12330,7 @@
     "setting.simplify_title_desc": "গানের শিরোনামের বন্ধনীর মন্তব্য লুকান, LP লেবেলেও।"
   },
   "cs": {
+    "button.clear_search": "Vymazat hledání",
     "section.account": "Účet",
     "section.layout": "Rozložení",
     "first_language.title_format": "Poprvé přehráváte skladbu v jazyce %@",
@@ -13136,6 +13152,7 @@
     "setting.simplify_title_desc": "Skryje poznámky v závorkách v názvech skladeb, včetně štítků LP."
   },
   "it": {
+    "button.clear_search": "Cancella ricerca",
     "section.account": "Account",
     "section.layout": "Layout",
     "first_language.title_format": "È la prima volta che riproduci un brano in %@",
@@ -13957,6 +13974,7 @@
     "setting.simplify_title_desc": "Nasconde le note tra parentesi nei titoli, anche sulle etichette LP."
   },
   "th": {
+    "button.clear_search": "ล้างการค้นหา",
     "section.account": "บัญชี",
     "section.layout": "เค้าโครง",
     "first_language.title_format": "นี่เป็นครั้งแรกที่คุณเล่นเพลงภาษา%@",
@@ -14778,6 +14796,7 @@
     "setting.simplify_title_desc": "ซ่อนข้อความในวงเล็บของชื่อเพลง รวมถึงบนฉลากแผ่น LP"
   },
   "vi": {
+    "button.clear_search": "Xóa tìm kiếm",
     "section.account": "Tài khoản",
     "section.layout": "Bố cục",
     "first_language.title_format": "Đây là lần đầu bạn phát một bài hát bằng %@",
@@ -15599,6 +15618,7 @@
     "setting.simplify_title_desc": "Ẩn ghi chú trong ngoặc ở tên bài hát, cả trên nhãn đĩa LP."
   },
   "id": {
+    "button.clear_search": "Hapus pencarian",
     "section.account": "Akun",
     "section.layout": "Tata letak",
     "first_language.title_format": "Pertama kali memutar lagu berbahasa %@",
@@ -16420,6 +16440,7 @@
     "setting.simplify_title_desc": "Sembunyikan catatan dalam tanda kurung pada judul lagu, termasuk label LP."
   },
   "ms": {
+    "button.clear_search": "Kosongkan carian",
     "section.account": "Akaun",
     "section.layout": "Susun atur",
     "first_language.title_format": "Kali pertama memainkan lagu dalam bahasa %@",
@@ -17241,6 +17262,7 @@
     "setting.simplify_title_desc": "Sembunyikan nota dalam kurungan pada tajuk lagu, termasuk label LP."
   },
   "tr": {
+    "button.clear_search": "Aramayı temizle",
     "section.account": "Hesap",
     "section.layout": "Düzen",
     "first_language.title_format": "İlk kez %@ dilinde bir şarkı çalıyorsunuz",

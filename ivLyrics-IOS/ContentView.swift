@@ -8981,6 +8981,8 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var selectedSpeakerColor = AppSettings.speakerColorNormal
     @State private var expandedAIProvider: String?
     @EnvironmentObject private var settings: AppSettings
@@ -9001,31 +9003,13 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 9) {
-                settingsHeader
-                HStack {
-                    Image(systemName: "magnifyingglass").foregroundStyle(SettingsDesign.secondary)
-                    TextField(settings.t("settings.search"), text: $settingsSearch)
-                        .focused($settingsSearchFocused)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    if !settingsSearch.isEmpty {
-                        Button { settingsSearch = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .accessibilityLabel(settings.t("button.close"))
-                    }
-                }
-                .padding(10).background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 10))
-                settingsTabs
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 13)
-            .padding(.bottom, 12)
-            .background(SettingsDesign.background.opacity(0.96))
-            .overlay(alignment: .bottom) { SettingsDesign.border.frame(height: 1) }
+            if !scrollsHeader { settingsTop }
 
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         Color.clear.frame(height: 0).id("settings-top")
+                        if scrollsHeader { settingsTop.padding(.bottom, 20) }
                         if settingsSearch.trimmed.isEmpty { selectedSettingsPage }
                         else { settingsSearchResults }
                     }
@@ -9035,7 +9019,10 @@ struct SettingsView: View {
                     .padding(.top, 22)
                     .padding(.bottom, 40)
                 }
+                .accessibilityIdentifier("settings.scroll")
+                .scrollDismissesKeyboard(.interactively)
                 .onChange(of: selectedTab) { _, _ in
+                    settingsSearchFocused = false
                     if settingsSearchTarget.isEmpty { proxy.scrollTo("settings-top", anchor: .top) }
                 }
                 .task(id: settingsSearchTarget) {
@@ -9051,6 +9038,7 @@ struct SettingsView: View {
         .font(.pretendard(15))
         .tint(SettingsDesign.accent)
         .toggleStyle(SettingsSwitchStyle())
+        .accessibilityIdentifier("settings.root")
         .onChange(of: settingsSearch) { _, query in
             if !query.trimmed.isEmpty { settingsSearchTarget = "" }
         }
@@ -9068,6 +9056,56 @@ struct SettingsView: View {
                 .environmentObject(model)
                 .environmentObject(model.playbackClock)
         }
+    }
+
+    private var scrollsHeader: Bool { verticalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize }
+
+    private var settingsTop: some View {
+        VStack(spacing: 10) {
+            settingsHeader
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(SettingsDesign.secondary)
+                    .accessibilityHidden(true)
+                TextField(settings.t("settings.search"), text: $settingsSearch)
+                    .font(.body)
+                    .textFieldStyle(.plain)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .layoutPriority(1)
+                    .focused($settingsSearchFocused)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .onSubmit { settingsSearchFocused = false }
+                    .accessibilityLabel(settings.t("settings.search"))
+                    .accessibilityIdentifier("settings.search")
+                if !settingsSearch.isEmpty {
+                    Button { settingsSearch = ""; settingsSearchFocused = true } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(settings.t("button.clear_search"))
+                    .accessibilityIdentifier("settings.search.clear")
+                }
+            }
+            .padding(.horizontal, 12)
+            .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 10))
+            if scrollsHeader {
+                Picker(settings.t("settings.title"), selection: $selectedTab) {
+                    ForEach(SettingsTab.allCases) { tab in Text(settings.t(tab.titleKey)).tag(tab) }
+                }
+                .settingsMenuSurface()
+                .accessibilityIdentifier("settings.sections")
+            } else {
+                settingsTabs
+            }
+        }
+        .padding(.horizontal, scrollsHeader ? 0 : 20)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .background(SettingsDesign.background.opacity(0.96))
     }
 
     private var settingsSearchEntries: [(tab: SettingsTab, key: String)] {
@@ -9198,11 +9236,13 @@ struct SettingsView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(settings.t(entry.key)).font(.pretendard(15, weight: .semibold))
+                            .fixedSize(horizontal: false, vertical: true)
                         Text(settings.t(entry.tab.titleKey)).font(.caption).foregroundStyle(SettingsDesign.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).padding(14)
                     .background(SettingsDesign.surface, in: RoundedRectangle(cornerRadius: 12))
                 }.buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.result.\(entry.key)")
             }
         }
     }
@@ -9213,7 +9253,7 @@ struct SettingsView: View {
                 .font(.pretendard(22, weight: .heavy))
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
-            Button { dismiss() } label: {
+            Button { settingsSearchFocused = false; dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(SettingsDesign.secondary)
@@ -9225,6 +9265,7 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(settings.t("button.close"))
+            .accessibilityIdentifier("settings.close")
         }
     }
 
@@ -9233,6 +9274,7 @@ struct SettingsView: View {
             HStack(spacing: 6) {
                 ForEach(SettingsTab.allCases) { tab in
                     Button {
+                        settingsSearchFocused = false
                         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
                             settingsSearch = ""
                             settingsSearchTarget = ""
@@ -9251,6 +9293,7 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
+                    .accessibilityIdentifier("settings.tab.\(tab.rawValue)")
                 }
             }
         }
@@ -10377,12 +10420,11 @@ struct SettingsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             if !title.trimmed.isEmpty {
-                HStack(alignment: .firstTextBaseline) {
+                SettingsAdaptiveActions {
                     Text(title)
                         .font(.pretendard(15, weight: .semibold))
                         .foregroundStyle(SettingsDesign.text)
                     if !valueText.isEmpty {
-                        Spacer(minLength: 8)
                         Text(valueText)
                             .font(.pretendard(13))
                             .monospacedDigit()
@@ -10411,6 +10453,7 @@ struct SettingsView: View {
                 Text(title)
                     .font(.pretendard(15, weight: .semibold))
                     .foregroundStyle(SettingsDesign.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !description.trimmed.isEmpty {
                     Text(description)
                         .font(.pretendard(12.5))
@@ -10587,12 +10630,9 @@ struct SettingsView: View {
 
     private func settingsActionButton(_ title: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
         Button(role: role, action: action) {
-            Text(title)
+            SettingsActionLabel(title: title)
                 .font(.pretendard(13.5, weight: .semibold))
                 .foregroundStyle(role == .destructive ? SettingsDesign.accent : SettingsDesign.text)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-                .padding(.horizontal, 10)
                 .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
         }
@@ -10682,6 +10722,7 @@ struct SettingsView: View {
                     HStack(spacing: 6) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(provider.label).font(.pretendard(14.5, weight: .semibold))
+                                .fixedSize(horizontal: false, vertical: true)
                             Text(aiProviderDescription(provider))
                                 .font(.pretendard(12))
                                 .foregroundStyle(SettingsDesign.muted)
@@ -10721,12 +10762,10 @@ struct SettingsView: View {
             if expanded {
                 if provider.isLocal {
                     LocalAISettingsPanel()
-                        .padding(.leading, 56)
-                        .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1).padding(.leading, 72) }
+                        .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1) }
                 } else {
                     aiProviderConfiguration
-                        .padding(.leading, 56)
-                        .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1).padding(.leading, 72) }
+                        .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1) }
                 }
             }
         }
@@ -10804,7 +10843,8 @@ struct SettingsView: View {
                 Button {
                     Task { await refreshAIModels() }
                 } label: {
-                    Image(systemName: "arrow.clockwise").frame(width: 34, height: 34)
+                    if aiModelsLoading { ProgressView().frame(width: 44, height: 44) }
+                    else { Image(systemName: "arrow.clockwise").frame(width: 44, height: 44) }
                 }
                 .buttonStyle(.bordered)
                 .disabled(aiModelsLoading)
@@ -11315,10 +11355,11 @@ private extension View {
     func settingsMenuSurface() -> some View {
         self
             .pickerStyle(.menu)
-            .font(.pretendard(14.5, weight: .semibold))
+            .font(.body)
             .tint(SettingsDesign.text)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .frame(minHeight: 48)
             .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
@@ -11663,14 +11704,19 @@ private struct OpenAIConnectionEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            VStack(alignment: .leading, spacing: 8) {
                 Toggle("\(position + 2). \(connection.name)", isOn: $connection.enabled)
+                HStack(spacing: 12) {
                 Button { onMove(-1) } label: { Image(systemName: "arrow.up") }
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
                     .disabled(position == 0).accessibilityLabel(settings.t("openai.move_up"))
                 Button { onMove(1) } label: { Image(systemName: "arrow.down") }
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
                     .disabled(position == count - 1).accessibilityLabel(settings.t("openai.move_down"))
                 Button(role: .destructive, action: onRemove) { Image(systemName: "trash") }
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
                     .accessibilityLabel(settings.t("openai.remove_connection"))
+                }
             }
             TextField(settings.t("openai.connection_name"), text: $connection.name)
             TextField(settings.t("field.base_url"), text: $connection.baseUrl)
@@ -11685,7 +11731,10 @@ private struct OpenAIConnectionEditor: View {
                     ForEach(availableModels) { model in Text(model.displayName).tag(model.id) }
                 }
                 .labelsHidden().settingsMenuSurface().disabled(loading || availableModels.isEmpty)
-                Button { revision += 1 } label: { Image(systemName: "arrow.clockwise") }
+                Button { revision += 1 } label: {
+                    if loading { ProgressView().frame(width: 44, height: 44) }
+                    else { Image(systemName: "arrow.clockwise").frame(width: 44, height: 44) }
+                }
                     .disabled(loading).accessibilityLabel(settings.t("button.refresh_models"))
             }
             TextField(settings.t("field.model_id"), text: $connection.model)
@@ -11696,7 +11745,7 @@ private struct OpenAIConnectionEditor: View {
                 Text(settings.t("status.models_unavailable")).font(.caption).foregroundStyle(.orange)
             }
         }
-        .textFieldStyle(.roundedBorder)
+        .textFieldStyle(SettingsTextFieldStyle())
         .padding(12)
         .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
         .task(id: configuration) { await loadModels() }

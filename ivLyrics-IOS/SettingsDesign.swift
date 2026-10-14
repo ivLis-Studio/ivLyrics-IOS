@@ -10,52 +10,31 @@ enum SettingsDesign {
     static let strongBorder = Color.white.opacity(0.14)
     static let text = Color(hex: "#F1F0F4")
     static let secondary = Color(hex: "#8F8E98")
-    static let muted = Color(hex: "#5C5B64")
+    static let muted = Color(hex: "#A3A2AD")
     static let accent = Color(hex: "#FF6B4A")
     static let mint = Color(hex: "#5FCE9B")
 }
 
 struct SettingsSwitchStyle: ToggleStyle {
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 14) {
-            configuration.label.frame(maxWidth: .infinity, alignment: .leading)
-            Button {
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
-                    configuration.isOn.toggle()
-                }
-            } label: {
-                Capsule()
-                    .fill(configuration.isOn ? SettingsDesign.accent.opacity(0.16) : SettingsDesign.control)
-                    .overlay(Capsule().stroke(configuration.isOn ? .clear : SettingsDesign.strongBorder, lineWidth: 1))
-                    .overlay(alignment: configuration.isOn ? .trailing : .leading) {
-                        Circle()
-                            .fill(configuration.isOn ? SettingsDesign.accent : Color(hex: "#8B8A93"))
-                            .frame(width: 20, height: 20)
-                            .padding(3)
-                    }
-                    .frame(width: 44, height: 26)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+        // UIKit owns the switch's intrinsic size, disabled state, accessibility value and hit area.
+        Toggle(isOn: configuration.$isOn) {
+            configuration.label
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .opacity(isEnabled ? 1 : 0.4)
-        .accessibilityRepresentation {
-            Toggle(isOn: configuration.$isOn) { configuration.label }
-                .toggleStyle(.switch)
-        }
+        .toggleStyle(.switch)
+        .tint(SettingsDesign.accent)
+        .frame(minHeight: 44)
     }
 }
 
 struct SettingsTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
-            .font(.pretendard(13.5))
+            .font(.body)
             .padding(.horizontal, 12)
-            .padding(.vertical, 11)
+            .padding(.vertical, 10)
+            .frame(minHeight: 48)
             .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
             .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
     }
@@ -109,7 +88,7 @@ struct SettingsSlider: UIViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UISlider, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? 140, height: 28)
+        CGSize(width: proposal.width ?? 140, height: 44)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -151,11 +130,37 @@ struct SettingsActionButtonStyle: ButtonStyle {
 }
 
 struct SettingsSegmentedPicker: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var title: String
     @Binding var selection: String
     var options: [(value: String, title: String)]
 
     var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            menu
+        } else {
+            ViewThatFits(in: .horizontal) {
+                segments
+                menu
+            }
+        }
+    }
+
+    private var menu: some View {
+        Picker(title, selection: $selection) {
+            ForEach(options, id: \.value) { option in
+                Text(option.title).tag(option.value)
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(SettingsDesign.text)
+        .font(.body)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.horizontal, 12)
+        .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
+    }
+
+    private var segments: some View {
         HStack(spacing: 4) {
             ForEach(options, id: \.value) { option in
                 Button { selection = option.value } label: {
@@ -163,7 +168,10 @@ struct SettingsSegmentedPicker: View {
                         .font(.pretendard(13.5, weight: .semibold))
                         .foregroundStyle(selection == option.value ? SettingsDesign.background : SettingsDesign.secondary)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .fixedSize(horizontal: true, vertical: true)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .frame(minHeight: 44)
                         .background(selection == option.value ? SettingsDesign.text : .clear, in: RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
@@ -183,20 +191,60 @@ extension View {
 }
 
 struct SettingsChipToggleStyle: ToggleStyle {
+    @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
         Button { configuration.isOn.toggle() } label: {
             configuration.label
-                .font(.pretendard(11.5, weight: .semibold))
+                .font(.pretendard(13, weight: .semibold))
                 .foregroundStyle(configuration.isOn ? SettingsDesign.mint : SettingsDesign.muted)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.vertical, 8)
                 .background(configuration.isOn ? SettingsDesign.mint.opacity(0.16) : SettingsDesign.control, in: Capsule())
-                .frame(minHeight: 36)
-                .contentShape(Capsule())
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.4)
         .accessibilityRepresentation {
             Toggle(isOn: configuration.$isOn) { configuration.label }.toggleStyle(.switch)
+        }
+    }
+}
+
+/// All settings/popup actions share wrapping text, native button semantics and a full-row hit area.
+struct SettingsActionLabel: View {
+    var title: String
+    var systemImage: String? = nil
+    var busy = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if busy { ProgressView().controlSize(.small).accessibilityHidden(true) }
+            else if let systemImage { Image(systemName: systemImage).accessibilityHidden(true) }
+            Text(title)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Intrinsic-width controls move onto separate rows instead of being compressed on small screens.
+struct SettingsAdaptiveActions<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8, content: content)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { content().fixedSize(horizontal: true, vertical: true) }
+                VStack(alignment: .leading, spacing: 8, content: content)
+            }
         }
     }
 }

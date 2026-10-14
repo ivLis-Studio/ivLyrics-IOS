@@ -69,7 +69,7 @@ struct LocalAISettingsPanel: View {
                     .disabled(busy)
                 }
                 if fileReady {
-                    actionButton(controller.test == .running ? "…" : settings.t("local_ai.test")) {
+                    actionButton(settings.t("local_ai.test"), busy: controller.test == .running) {
                         controller.runTest(
                             targetLanguage: settings.snapshot.targetLanguage,
                             configuration: configuration,
@@ -304,14 +304,11 @@ struct LocalAISettingsPanel: View {
         return LocalAI.format(settings.t("local_ai.idle_after"), ["minutes": String(minutes)])
     }
 
-    private func actionButton(_ title: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
+    private func actionButton(_ title: String, role: ButtonRole? = nil, busy: Bool = false, action: @escaping () -> Void) -> some View {
         Button(role: role, action: action) {
-            Text(title)
+            SettingsActionLabel(title: title, busy: busy)
                 .font(.pretendard(13.5, weight: .semibold))
                 .foregroundStyle(role == .destructive ? SettingsDesign.accent : SettingsDesign.text)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-                .padding(.horizontal, 10)
                 .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
         }
