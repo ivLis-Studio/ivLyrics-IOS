@@ -79,6 +79,52 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Check native settings and track popup UI
+        id: settings_ui
+        env:
+          IVLYRICS_LLAMA_STUB: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          ivlyrics_ui_device="$(xcrun simctl list devices available --json | ruby -rjson -e '
+            devices = JSON.parse(STDIN.read).fetch("devices").values.flatten
+            device = devices.find { |entry| entry["name"] == "iPhone SE (3rd generation)" } ||
+              devices.find { |entry| entry["name"].start_with?("iPhone") && !entry["name"].include?("Max") }
+            abort "No available iPhone Simulator" unless device
+            puts device.fetch("udid")
+          ')"
+          xcodebuild \
+            -project ivLyrics-IOS.xcodeproj \
+            -scheme ivLyrics-IOS \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$ivlyrics_ui_device" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath "$RUNNER_TEMP/settings-ui.xcresult" \
+            -derivedDataPath "$RUNNER_TEMP/settings-ui-derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Export native UI screenshots
+        if: always()
+        shell: bash
+        run: |
+          if [[ -d "$RUNNER_TEMP/settings-ui.xcresult" ]]; then
+            xcrun xcresulttool export attachments \
+              --path "$RUNNER_TEMP/settings-ui.xcresult" \
+              --output-path "$RUNNER_TEMP/settings-ui-screenshots"
+          fi
+
+      - name: Save native UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-settings-ui
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/settings-ui.xcresult
+            ${{ runner.temp }}/settings-ui-screenshots
+
       - name: Build iOS device archive
         env:
           RELEASE_TAG: validation
