@@ -61,11 +61,13 @@ struct VinylPlayerModeView: View {
                         width: max(0, proxy.size.width - (geometry.isLandscape ? 64 : 32)),
                         height: geometry.lyricHeight
                     )
+                    // Hit-test the panel's own frame only. Applied after .position, the shape would
+                    // fill the whole scene and take the tonearm, record and cover touches beneath it.
+                    .contentShape(Rectangle())
                     .position(
                         x: proxy.size.width * 0.5,
                         y: proxy.size.height - geometry.lyricBottom - geometry.lyricHeight * 0.5
                     )
-                    .contentShape(Rectangle())
                     .zIndex(20)
             }
 
@@ -267,9 +269,14 @@ struct VinylPlayerModeView: View {
             artwork: artworkImages[track.stableKey]
         )
             .frame(width: frame.width, height: frame.height)
+            // Hit-test the cover as drawn (its rounded square, turned with it). Applied after
+            // .position, the shape would fill the whole scene, so a tap anywhere, even on the
+            // record peeking out of a paused cover, closed vinyl mode.
+            .contentShape(RoundedRectangle(cornerRadius: max(4, frame.width * 0.024), style: .continuous))
             .rotationEffect(.degrees(rotation))
             .position(x: frame.midX, y: frame.midY)
-            .contentShape(RoundedRectangle(cornerRadius: max(4, frame.width * 0.024), style: .continuous))
+            // Accessibility only: VoiceOver keeps the frame and focus ring it had (the whole scene).
+            .contentShape(.accessibility, RoundedRectangle(cornerRadius: max(4, frame.width * 0.024), style: .continuous))
             .gesture(coverGesture(enabled: closeEnabled))
             .allowsHitTesting(closeEnabled)
             .accessibilityLabel(settings.t("vinyl.close_hint"))
@@ -308,9 +315,11 @@ struct VinylPlayerModeView: View {
             centerCounterRotation: settings.vinylCenterRotationEnabled ? 0 : -rotation
         )
             .frame(width: frame.width, height: frame.height)
+            // Hit-test the record as drawn. Applied after .position, the circle would be the
+            // largest one fitting the whole scene and would take cover and background taps.
+            .contentShape(Circle())
             .rotationEffect(.degrees(rotation))
             .position(x: frame.midX, y: frame.midY)
-            .contentShape(Circle())
             .onTapGesture {
                 guard interactive else { return }
                 model.togglePlayback()
