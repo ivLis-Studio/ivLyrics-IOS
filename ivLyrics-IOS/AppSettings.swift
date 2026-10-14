@@ -135,6 +135,17 @@ final class AppSettings: ObservableObject {
         Provider(id: "paxsenix", label: "paxsenix", description: "OpenAI 호환 API 서버", defaultBaseUrl: PaxsenixAIProvider.baseURL, defaultModel: "", apiKeyURL: PaxsenixAIProvider.dashboardURL),
         Provider(id: "deepl", label: "DeepL", description: "DeepL API Free / Pro", defaultBaseUrl: "", defaultModel: "", apiKeyURL: "https://www.deepl.com/your-account/keys")
     ]
+    /// On-device translation. Appended last so existing users keep their provider order.
+    static let localAIProvider = Provider(
+        id: LocalAI.providerId,
+        label: LocalAI.label,
+        description: "",
+        defaultBaseUrl: "",
+        defaultModel: "",
+        apiKeyURL: "",
+        defaultEnabled: false,
+        isLocal: true
+    )
     static let allAIProviders: [Provider] = [
         Provider(
             id: KeylessTranslationProviders.bingId,
@@ -156,7 +167,7 @@ final class AppSettings: ObservableObject {
             isKeyless: true,
             defaultEnabled: true
         )
-    ] + providers
+    ] + providers + [localAIProvider]
     static let defaultAIProviderOrder = allAIProviders.map(\.id)
 
     static let languages: [Language] = [
@@ -304,6 +315,10 @@ final class AppSettings: ObservableObject {
     @Published private(set) var aiProviderProfiles: [String: AIProviderProfile] { didSet { saveAIProviderSettingsIfNeeded() } }
     @Published var preferSyncDataProvider: Bool { didSet { set("lyrics_prefer_sync_data_provider", preferSyncDataProvider) } }
     @Published var preferLyricsTypeOverProviderOrder: Bool { didSet { set("lyrics_prefer_type_over_provider", preferLyricsTypeOverProviderOrder) } }
+    /// Local AI settings stay on this device: the model files and memory they describe are local.
+    @Published var localAITier: String { didSet { set("local_ai_tier_v1", LocalAI.Tier.stored(localAITier).rawValue) } }
+    @Published var localAIProcessor: String { didSet { set("local_ai_processor_v1", LocalAI.Processor.stored(localAIProcessor).rawValue) } }
+    @Published var localAIIdleMinutes: Int { didSet { set("local_ai_idle_minutes_v1", LocalAI.normalizedIdleMinutes(localAIIdleMinutes)) } }
     @Published private(set) var languageRulesRevision = 0
     @Published private(set) var backgroundSettingsRevision = 0
     @Published private(set) var typographyRevision = 0
@@ -411,6 +426,9 @@ final class AppSettings: ObservableObject {
         aiProviderProfiles = loadedAIProviderProfiles
         preferSyncDataProvider = defaults.object(forKey: "lyrics_prefer_sync_data_provider") as? Bool ?? true
         preferLyricsTypeOverProviderOrder = defaults.object(forKey: "lyrics_prefer_type_over_provider") as? Bool ?? true
+        localAITier = LocalAI.Tier.stored(defaults.string(forKey: "local_ai_tier_v1")).rawValue
+        localAIProcessor = LocalAI.Processor.stored(defaults.string(forKey: "local_ai_processor_v1")).rawValue
+        localAIIdleMinutes = LocalAI.normalizedIdleMinutes(defaults.object(forKey: "local_ai_idle_minutes_v1") as? Int)
         isBootstrapping = false
         snapshotInvalidationCancellable = objectWillChange.sink { [weak self] _ in
             self?.cachedSnapshot = nil
@@ -606,7 +624,10 @@ final class AppSettings: ObservableObject {
             lyricsProviderEnabled: lyricsProviderEnabled,
             lyricsProviderTypes: lyricsProviderTypes,
             preferSyncDataProvider: preferSyncDataProvider,
-            preferLyricsTypeOverProviderOrder: preferLyricsTypeOverProviderOrder
+            preferLyricsTypeOverProviderOrder: preferLyricsTypeOverProviderOrder,
+            localAITier: LocalAI.Tier.stored(localAITier).rawValue,
+            localAIProcessor: LocalAI.Processor.stored(localAIProcessor).rawValue,
+            localAIIdleMinutes: LocalAI.normalizedIdleMinutes(localAIIdleMinutes)
         )
         cachedSnapshot = snapshot
         return snapshot
@@ -1820,6 +1841,9 @@ final class AppSettings: ObservableObject {
         var lyricsProviderTypes: [String: [String: Bool]]
         var preferSyncDataProvider: Bool
         var preferLyricsTypeOverProviderOrder: Bool
+        var localAITier: String
+        var localAIProcessor: String
+        var localAIIdleMinutes: Int
 
         var hasApiKey: Bool {
             if provider.id == "pollinations", !pollinationsAccessToken.trimmed.isEmpty {
@@ -1869,6 +1893,8 @@ final class AppSettings: ObservableObject {
         var hasAnyTranslationProvider: Bool {
             hasKeylessTranslationProvider || hasReadyAIProvider
                 || (isAIProviderEnabled("deepl") && selectingAIProvider("deepl")?.hasApiKey == true)
+                // Without the model it fails at once and the next provider translates.
+                || isAIProviderEnabled(LocalAI.providerId)
         }
 
         func selectingAIProvider(_ providerId: String) -> Snapshot? {
@@ -1986,6 +2012,13 @@ final class AppSettings: ObservableObject {
         var cacheKey: String {
             var key = "\(provider.id)|output=\(outputLang)|resolvedOutput=\(pronunciationLanguage)|pronunciationNotation=\(pronunciationNotation)|translationTarget=\(defaultRule.targetLang)|bingTranslate=\(bingTranslateEnabled)|googleTranslate=\(googleTranslateEnabled)|default=\(defaultRule.cacheKey)|furigana=\(japaneseFuriganaEnabled)|model=\(model)|url=\(baseUrl)|tok=\(maxTokens)|temp=\(temperature)"
             for providerId in AppSettings.normalizedAIProviderOrder(aiProviderOrder) {
+                if providerId == LocalAI.providerId {
+                    // Disabled Local AI leaves the keys of existing caches unchanged.
+                    if isAIProviderEnabled(providerId) {
+                        key += "|provider=\(providerId):enabled=true:tier=\(LocalAI.Tier.stored(localAITier).rawValue)"
+                    }
+                    continue
+                }
                 key += "|provider=\(providerId):enabled=\(isAIProviderEnabled(providerId))"
                 if let profile = aiProviderProfiles[providerId] {
                     key += ":model=\(profile.model):url=\(profile.baseUrl):tok=\(profile.maxTokens):temp=\(profile.temperature)"
@@ -2000,6 +2033,14 @@ final class AppSettings: ObservableObject {
                 key += "|rule=\(rule.cacheKey)"
             }
             return key
+        }
+
+        var localAIConfiguration: LocalAI.Configuration {
+            LocalAI.Configuration(
+                tier: LocalAI.Tier.stored(localAITier),
+                processor: LocalAI.Processor.stored(localAIProcessor),
+                idleMinutes: LocalAI.normalizedIdleMinutes(localAIIdleMinutes)
+            )
         }
     }
 
@@ -2177,9 +2218,11 @@ final class AppSettings: ObservableObject {
         var defaultBaseUrl: String
         var defaultModel: String
         var apiKeyURL: String
-        var translationOnly: Bool { isKeyless || id == "deepl" }
+        var translationOnly: Bool { isKeyless || isLocal || id == "deepl" }
         var isKeyless: Bool = false
         var defaultEnabled: Bool = false
+        /// Runs on this device (Local AI): no key, translation only.
+        var isLocal: Bool = false
     }
 
     struct AIProviderProfile: Codable, Hashable, Sendable {

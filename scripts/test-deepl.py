@@ -13,6 +13,7 @@ extension String { var trimmed: String { trimmingCharacters(in: .whitespacesAndN
 struct HTTPStatusError: Error { let statusCode: Int; let message: String }
 enum PaxsenixAIProvider { static let baseURL="https://fixture.test", dashboardURL="https://fixture.test" }
 enum KeylessTranslationProviders { static let bingId="bing-translate", googleId="google-translate" }
+enum LocalAI { static let providerId="local-ai", label="Local AI" }
 enum AppSettings {
 // PROVIDERS
 // PROVIDER

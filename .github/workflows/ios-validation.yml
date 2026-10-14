@@ -50,6 +50,7 @@ jobs:
           python3 scripts/test-sync-load-reuse.py
           python3 scripts/test-ai-models.py
           python3 scripts/test-openai-connections.py
+          python3 scripts/test-local-ai.py
 
       - name: Run static analyzer
         run: |
@@ -63,6 +64,9 @@ jobs:
 
 
       - name: Build iOS Simulator
+        env:
+          # The pinned llama.cpp xcframework has no iOS Simulator slice (Packages/LlamaCpp).
+          IVLYRICS_LLAMA_STUB: "1"
         run: |
           xcodebuild \
             -project ivLyrics-IOS.xcodeproj \

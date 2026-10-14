@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		000000000000000000000240 /* SpotifyiOS in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000242 /* SpotifyiOS */; };
+		000000000000000000000250 /* LlamaCpp in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000252 /* LlamaCpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +41,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				000000000000000000000240 /* SpotifyiOS in Frameworks */,
+				000000000000000000000250 /* LlamaCpp in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -80,6 +82,7 @@
 			name = "ivLyrics-IOS";
 			packageProductDependencies = (
 				000000000000000000000242 /* SpotifyiOS */,
+				000000000000000000000252 /* LlamaCpp */,
 			);
 			productName = MyApp;
 			productReference = 000000000000000000000120 /* ivLyrics-IOS.app */;
@@ -111,6 +114,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				000000000000000000000241 /* XCRemoteSwiftPackageReference "ios-sdk" */,
+				000000000000000000000251 /* XCLocalSwiftPackageReference "Packages/LlamaCpp" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 000000000000000000000020 /* Products */;
@@ -372,6 +376,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		000000000000000000000251 /* XCLocalSwiftPackageReference "Packages/LlamaCpp" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/LlamaCpp;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		000000000000000000000241 /* XCRemoteSwiftPackageReference "ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -388,6 +399,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 000000000000000000000241 /* XCRemoteSwiftPackageReference "ios-sdk" */;
 			productName = SpotifyiOS;
+		};
+		000000000000000000000252 /* LlamaCpp */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 000000000000000000000251 /* XCLocalSwiftPackageReference "Packages/LlamaCpp" */;
+			productName = LlamaCpp;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

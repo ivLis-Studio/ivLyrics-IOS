@@ -487,6 +487,32 @@ actor AiLyricsRepository {
                             guard let profile = settings.selectingAIProvider(provider.id), profile.hasApiKey else { continue }
                             await providerUpdate?(task, provider.label)
                             resolvedValues = try await translateDeepL(texts: requests.map(\.text), language: targetLang, settings: profile)
+                        } else if provider.isLocal {
+                            await providerUpdate?(task, provider.label)
+                            log("translation attempt: provider=\(provider.label) / tier=\(settings.localAIConfiguration.tier.rawValue)")
+                            // Lyrics on screen stream lines and run before prefetching for upcoming songs.
+                            resolvedValues = try await LocalAIService.shared.translate(
+                                lines: requests.map(\.text),
+                                targetLanguage: targetLang,
+                                configuration: settings.localAIConfiguration,
+                                priority: partialUpdate == nil ? .background : .interactive,
+                                messages: .app(uiLanguage: settings.uiLang)
+                            ) { [self] index, value in
+                                await liveState.setValue(task: task, index: index, value: value)
+                                await emitSupplementPartial(
+                                    baseResult: baseResult,
+                                    requests: requests,
+                                    settings: settings,
+                                    sourceLang: sourceLang,
+                                    targetLang: targetLang,
+                                    pronunciationLang: pronunciationLang,
+                                    rule: rule,
+                                    translationSkipped: translationSkipped,
+                                    liveState: liveState,
+                                    partialUpdate: partialUpdate
+                                )
+                            }
+                            log("translation response: provider=\(provider.label) / lines=\(resolvedValues?.count ?? 0)")
                         } else if provider.isKeyless {
                             await providerUpdate?(task, provider.label)
                             log("translation attempt: provider=\(provider.label)")
@@ -673,6 +699,8 @@ actor AiLyricsRepository {
         var lastError: Error?
         for providerId in settings.enabledAIProviderOrder {
             guard let provider = AppSettings.aiProviderById(providerId) else { continue }
+            // Local AI translates lyrics only.
+            if provider.isLocal { continue }
             do {
                 let translation: MetadataTranslation
                 if provider.id == "deepl" {

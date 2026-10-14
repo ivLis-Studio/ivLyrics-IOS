@@ -180,6 +180,7 @@ struct IvLyricsIOSApp: App {
 
     init() {
         IvLyricsFontLoader.registerPretendard()
+        LocalAIController.shared.start()
     }
 
     var body: some Scene {
@@ -8994,10 +8995,14 @@ struct SettingsView: View {
                     settingsSearchFocused = false
                     selectedTab = entry.tab
                     if entry.tab == .ai {
-                        if let provider = AppSettings.providers.first(where: { $0.label == entry.key }) {
+                        if entry.key == LocalAI.label {
+                            expandedAIProvider = LocalAI.providerId
+                        } else if let provider = AppSettings.providers.first(where: { $0.label == entry.key }) {
                             settings.setProvider(provider.id)
+                            expandedAIProvider = settings.providerId
+                        } else {
+                            expandedAIProvider = settings.providerId
                         }
-                        expandedAIProvider = settings.providerId
                     }
                     settingsSearchTarget = settings.t(entry.key)
                     settingsSearch = ""
@@ -10418,8 +10423,9 @@ struct SettingsView: View {
     }
 
     private func aiProviderSettingsCard(_ provider: AppSettings.Provider, index: Int) -> some View {
-        let selected = !provider.isKeyless && settings.providerId == provider.id
-        let expanded = expandedAIProvider == provider.id && selected
+        let selected = !provider.isKeyless && !provider.isLocal && settings.providerId == provider.id
+        // Local AI has its own panel and does not change the provider whose keys are edited.
+        let expanded = expandedAIProvider == provider.id && (selected || provider.isLocal)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 providerOrderControls(index: index, count: settings.aiProviderOrder.count) { offset in
@@ -10433,6 +10439,8 @@ struct SettingsView: View {
                     guard !provider.isKeyless else { return }
                     if expanded {
                         expandedAIProvider = nil
+                    } else if provider.isLocal {
+                        expandedAIProvider = provider.id
                     } else {
                         settings.setProvider(provider.id)
                         expandedAIProvider = provider.id
@@ -10470,9 +10478,15 @@ struct SettingsView: View {
             .padding(.vertical, 10)
 
             if expanded {
-                aiProviderConfiguration
-                    .padding(.leading, 56)
-                    .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1).padding(.leading, 72) }
+                if provider.isLocal {
+                    LocalAISettingsPanel()
+                        .padding(.leading, 56)
+                        .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1).padding(.leading, 72) }
+                } else {
+                    aiProviderConfiguration
+                        .padding(.leading, 56)
+                        .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1).padding(.leading, 72) }
+                }
             }
         }
         .settingsRowSeparator()
@@ -10503,6 +10517,8 @@ struct SettingsView: View {
             return settings.t("setting.bing_translate_provider_desc")
         case KeylessTranslationProviders.googleId:
             return settings.t("setting.google_translate_provider_desc")
+        case LocalAI.providerId:
+            return settings.t("local_ai.description")
         default:
             return settings.t("provider.desc.\(provider.id)")
         }
