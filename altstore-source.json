@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "1.3.21",
+          "buildVersion": "60",
+          "date": "2026-10-14",
+          "localizedDescription": "v1.3.21은 모바일 배경과 가로 화면 제어 옵션을 추가하고, LP 모드의 레코드 전환 및 회전 동작을 개선했습니다. 가사 전환 사이의 연주 구간이 자연스럽게 페이드되며, 번역된 레이블이 이전 레코드에서도 유지됩니다. 또한 배포 메타데이터와 릴리스 프로젝트 설정을 정비했습니다.\n\nv1.3.21 adds mobile background and landscape controls, while improving record transitions and rotation in Vinyl mode. Instrumental gaps now fade more smoothly between lyric handoffs, and translated labels remain visible on outgoing records. Distribution metadata and release project settings were also maintained.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v1.3.21/ivLyrics-IOS-v1.3.21-unsigned.ipa",
+          "size": 11017306,
+          "sha256": "142a9ce5c9d940fc0876be7d37897047c1efe5c2fff7fda95db0212a4db1813a",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.3.20",
           "buildVersion": "59",
           "date": "2026-10-14",
