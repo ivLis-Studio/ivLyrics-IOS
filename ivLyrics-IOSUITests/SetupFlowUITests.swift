@@ -61,6 +61,7 @@ final class SetupFlowUITests: XCTestCase {
     private func reveal(_ element: XCUIElement, scrollID: String = "onboarding.scroll") {
         let scroll = app.scrollViews[scrollID]
         for _ in 0..<32 {
+            declineFixturePasswordSaveIfPresented()
             let window = app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1)
             let viewport = scroll.exists ? window.intersection(scroll.frame) : window
             if element.exists && element.isHittable && viewport.contains(element.frame) { return }
@@ -247,6 +248,20 @@ final class SetupFlowUITests: XCTestCase {
         wait { !self.app.keyboards.firstMatch.exists }
     }
 
+    private func declineFixturePasswordSaveIfPresented(timeout: TimeInterval = 0) {
+        // Some Simulator profiles offer to save the fake secret after editing or Show/Hide.
+        // Dismiss that specific system sheet through its real button, never save it.
+        let prompt = app.sheets.matching(NSPredicate(
+            format: "label CONTAINS[cd] %@ OR label CONTAINS %@", "password", "암호"
+        )).firstMatch
+        guard timeout > 0 ? prompt.waitForExistence(timeout: timeout) : prompt.exists else { return }
+        let decline = prompt.buttons.matching(NSPredicate(format: "label IN %@", ["Not Now", "지금 안 함"])).firstMatch
+        XCTAssertTrue(decline.exists && decline.isHittable)
+        capture("onboarding-system-fixture-password-save")
+        decline.tap()
+        wait { !prompt.exists }
+    }
+
     func testOnboardingLanguageThemeDraftsAndValidationRetry() {
         launch("onboarding", language: "ko")
         capture("onboarding-ko-dark-display")
@@ -287,8 +302,11 @@ final class SetupFlowUITests: XCTestCase {
         XCTAssertEqual(app.textFields["onboarding.client-id"].value as? String, "fixture-client")
         reveal(app.buttons["Show"])
         app.buttons["Show"].tap()
+        declineFixturePasswordSaveIfPresented(timeout: 2)
         XCTAssertTrue(app.textFields.matching(NSPredicate(format: "value == %@", "fixture-secret")).firstMatch.exists)
         app.buttons["Hide"].tap()
+        declineFixturePasswordSaveIfPresented(timeout: 2)
+        XCTAssertTrue(app.secureTextFields["onboarding.client-secret"].exists)
         next()
         wait { self.app.buttons["onboarding.next"].label == "Try again" }
         capture("onboarding-drafts-retained-second-failure")
