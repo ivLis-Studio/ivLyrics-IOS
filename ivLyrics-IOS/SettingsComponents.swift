@@ -718,7 +718,7 @@ struct SettingsOptionSheet: View {
                         .font(.body.weight(.semibold))
                         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                         .foregroundStyle(palette.text2)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

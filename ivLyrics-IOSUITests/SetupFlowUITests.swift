@@ -131,7 +131,15 @@ final class SetupFlowUITests: XCTestCase {
         // A missing sheet must fail here, rather than retrying the opening action.
         let close = app.buttons["settings.options.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 10), "The language picker must open after one tap")
-        wait { close.isHittable }
+        // Hittable can become true before the native sheet finishes transforming.
+        // Measure the settled geometry; the 44pt assertions below remain strict.
+        var previousFrame: CGRect?
+        wait {
+            guard close.exists && close.isHittable else { return false }
+            let frame = close.frame
+            defer { previousFrame = frame }
+            return previousFrame == frame
+        }
         touchTarget(close)
     }
 
