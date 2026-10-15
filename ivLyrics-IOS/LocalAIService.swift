@@ -28,7 +28,10 @@ extension LocalAI {
         var readyTier: Tier?
         var device: String?
         var errorTier: Tier?
+        /// English diagnostic for logs and checks; the card shows `failure` instead.
         var error: String?
+        /// The same failure for the settings card, without engine details, file names or URLs.
+        var failure: Failure?
 
         func phase(for tier: Tier) -> Phase {
             if downloadingTier == tier { return .downloading }
@@ -43,6 +46,47 @@ extension LocalAI {
         var sample: String
         var line: String
         var seconds: Double
+    }
+
+    /// A failure the app can explain in its UI language.
+    enum Failure: Equatable, Sendable {
+        /// Already localized through LocalAI.Messages.
+        case message(String)
+        case unavailable, background, memoryPressure, emptyReply, promptTooLong
+        case modelLoadFailed, outOfMemory, engine
+        case downloadStatus(Int), downloadDamaged, network, storageFull
+        case unknown
+
+        init(_ error: Error) {
+            switch error {
+            case let error as LocalAIError:
+                switch error {
+                case let .notReady(message), let .downloadBusy(message), let .unsupportedLanguage(message):
+                    self = .message(message)
+                case .unavailable: self = .unavailable
+                case .background: self = .background
+                case .memoryPressure: self = .memoryPressure
+                case .emptyReply: self = .emptyReply
+                case .promptTooLong: self = .promptTooLong
+                case .modelLoadFailed: self = .modelLoadFailed
+                case .outOfMemory: self = .outOfMemory
+                case .engine: self = .engine
+                }
+            case let error as LocalAIDownloadError:
+                switch error {
+                case let .httpStatus(status): self = .downloadStatus(status)
+                case .sizeMismatch, .invalidFile: self = .downloadDamaged
+                }
+            case let error as CocoaError where error.code == .fileWriteOutOfSpace:
+                self = .storageFull
+            case let error as POSIXError where error.code == .ENOSPC:
+                self = .storageFull
+            case is URLError:
+                self = .network
+            default:
+                self = .unknown
+            }
+        }
     }
 }
 
@@ -172,6 +216,7 @@ actor LocalAIService {
         state.downloadedTiers = Set(LocalAI.Tier.allCases.filter(isDownloaded))
         if state.downloadingTier == nil && state.loadingTier == nil {
             state.error = nil
+            state.failure = nil
             state.errorTier = nil
         }
         publish()
@@ -319,6 +364,7 @@ actor LocalAIService {
         state.readyTier = nil
         state.device = nil
         state.error = nil
+        state.failure = nil
         state.errorTier = nil
         publish()
         do {
@@ -334,6 +380,7 @@ actor LocalAIService {
         } catch {
             state.loadingTier = nil
             state.error = error.localizedDescription
+            state.failure = LocalAI.Failure(error)
             state.errorTier = configuration.tier
             publish()
             throw error is LocalAIError ? error : LocalAIError.engine(error.localizedDescription)
@@ -508,6 +555,7 @@ actor LocalAIService {
         state.loadedBytes = min(partial, tier.byteCount)
         state.totalBytes = tier.byteCount
         state.error = nil
+        state.failure = nil
         state.errorTier = nil
         publish()
         downloadTask = Task { await self.runDownload(tier) }
@@ -535,6 +583,7 @@ actor LocalAIService {
             state.loadedBytes = 0
         } catch {
             state.error = error.localizedDescription
+            state.failure = LocalAI.Failure(error)
             state.errorTier = tier
         }
         state.downloadingTier = nil
@@ -564,6 +613,7 @@ actor LocalAIService {
         state.downloadedTiers.remove(tier)
         if state.errorTier == tier {
             state.error = nil
+            state.failure = nil
             state.errorTier = nil
         }
         publish()

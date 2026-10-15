@@ -16,6 +16,32 @@ extension LocalAI.Messages {
     }
 }
 
+extension LocalAI.Failure {
+    /// The failure in the app's UI language. Engine details, model file names and URLs stay in
+    /// the log.
+    func message(uiLanguage: String) -> String {
+        let key: String
+        switch self {
+        case let .message(text):
+            return text
+        case let .downloadStatus(status):
+            return LocalAI.format(AppI18n.t(uiLanguage, "local_ai.error_download_status"), ["status": String(status)])
+        case .unavailable: key = "local_ai.error_unavailable"
+        case .background: key = "local_ai.error_background"
+        case .memoryPressure: key = "local_ai.error_memory_pressure"
+        case .emptyReply: key = "local_ai.error_empty_reply"
+        case .promptTooLong: key = "local_ai.error_prompt_too_long"
+        case .modelLoadFailed: key = "local_ai.error_model_load_failed"
+        case .outOfMemory: key = "local_ai.error_out_of_memory"
+        case .engine, .unknown: key = "local_ai.error_generic"
+        case .downloadDamaged: key = "local_ai.error_download_damaged"
+        case .network: key = "local_ai.error_network"
+        case .storageFull: key = "local_ai.error_storage_full"
+        }
+        return AppI18n.t(uiLanguage, key)
+    }
+}
+
 /// Connects LocalAIService to SwiftUI and to iOS: memory warnings release the model and the GPU
 /// is left alone while the app is in the background.
 @MainActor
@@ -128,7 +154,7 @@ final class LocalAIController: ObservableObject {
                 )
                 outcome = .passed("✓ \(result.sample) → \(result.line) (\(String(format: "%.1f", result.seconds))s)")
             } catch {
-                outcome = .failed("✗ \(error.localizedDescription)")
+                outcome = .failed("✗ \(LocalAI.Failure(error).message(uiLanguage: uiLanguage))")
             }
             if token == testToken { test = outcome }
         }

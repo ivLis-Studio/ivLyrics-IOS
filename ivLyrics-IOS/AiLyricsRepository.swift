@@ -808,6 +808,10 @@ actor AiLyricsRepository {
             log("ai tmi skipped: API key missing for \(settings.provider.label)")
             return TmiResponse(trackKey: trackKey, info: nil, errorMessage: "tmi.require_key", logs: logs)
         }
+        guard settings.hasModel else {
+            log("ai tmi skipped: model missing for \(settings.provider.label)")
+            return TmiResponse(trackKey: trackKey, info: nil, errorMessage: "status.ai_model_needed", logs: logs)
+        }
 
         log("ai tmi: provider=\(settings.provider.label) / model=\(settings.model) / target=\(targetLang)")
         do {
@@ -1023,12 +1027,12 @@ actor AiLyricsRepository {
 
     private func callProviderRaw(prompt: String, settings: AppSettings.Snapshot) async throws -> String {
         let keys = providerApiKeys(settings)
-        guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: "API 키가 필요합니다"]) }
+        guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "tmi.require_key")]) }
         guard !settings.model.trimmed.isEmpty else {
             throw NSError(
                 domain: "ivLyrics.AI",
                 code: -6,
-                userInfo: [NSLocalizedDescriptionKey: "AI 모델을 선택하거나 모델 ID를 입력해야 합니다"]
+                userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "status.ai_model_needed")]
             )
         }
         var lastError: Error?
@@ -1049,7 +1053,7 @@ actor AiLyricsRepository {
                 }
             }
         }
-        throw lastError ?? NSError(domain: "ivLyrics.AI", code: -2, userInfo: [NSLocalizedDescriptionKey: "AI 제공자 요청 실패"])
+        throw lastError ?? NSError(domain: "ivLyrics.AI", code: -2, userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "error.ai_request_failed")])
     }
 
     private func callProviderRawOnce(prompt: String, settings: AppSettings.Snapshot, apiKey: String) async throws -> String {
@@ -1143,12 +1147,12 @@ actor AiLyricsRepository {
         onDelta: ((String) async -> Void)? = nil
     ) async throws -> String {
         let keys = providerApiKeys(settings)
-        guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: "API 키가 필요합니다"]) }
+        guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "tmi.require_key")]) }
         guard !settings.model.trimmed.isEmpty else {
             throw NSError(
                 domain: "ivLyrics.AI",
                 code: -6,
-                userInfo: [NSLocalizedDescriptionKey: "AI 모델을 선택하거나 모델 ID를 입력해야 합니다"]
+                userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "status.ai_model_needed")]
             )
         }
         var lastError: Error?
@@ -1169,7 +1173,7 @@ actor AiLyricsRepository {
                 }
             }
         }
-        throw lastError ?? NSError(domain: "ivLyrics.AI", code: -2, userInfo: [NSLocalizedDescriptionKey: "AI 제공자 스트림 요청 실패"])
+        throw lastError ?? NSError(domain: "ivLyrics.AI", code: -2, userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "error.ai_request_failed")])
     }
 
     private func callResearchStreamRaw(
@@ -1181,8 +1185,8 @@ actor AiLyricsRepository {
         onDelta: ((String) async -> Void)? = nil
     ) async throws -> String {
         let keys = providerApiKeys(settings)
-        guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: "API 키가 필요합니다"]) }
-        guard !settings.model.trimmed.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -6, userInfo: [NSLocalizedDescriptionKey: "AI 모델을 선택해야 합니다"]) }
+        guard !keys.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -1, userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "tmi.require_key")]) }
+        guard !settings.model.trimmed.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -6, userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "status.ai_model_needed")]) }
         var lastError: Error?
         for apiKey in keys {
             for attempt in 0..<2 {
@@ -1203,7 +1207,7 @@ actor AiLyricsRepository {
                 try await Task.sleep(nanoseconds: UInt64(900_000_000 * (attempt + 1)))
             }
         }
-        throw lastError ?? NSError(domain: "ivLyrics.Research", code: -2, userInfo: [NSLocalizedDescriptionKey: "Research request failed"])
+        throw lastError ?? NSError(domain: "ivLyrics.Research", code: -2, userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "error.ai_request_failed")])
     }
 
     private func callResearchStreamRawOnce(

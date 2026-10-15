@@ -1142,7 +1142,7 @@ actor LyricsRepository {
         )
     }
 
-    func validateSpotifyCredentials(clientId: String, clientSecret: String) async throws -> SpotifyCredentialValidation {
+    func validateSpotifyCredentials(clientId: String, clientSecret: String, uiLanguage: String) async throws -> SpotifyCredentialValidation {
         var logs: [String] = []
         func log(_ message: String) {
             logs.append(message)
@@ -1151,11 +1151,12 @@ actor LyricsRepository {
         guard credentials.configured else {
             invalidateSpotifyToken()
             log(credentials.partial ? "spotify token: Spotify API client id/secret is incomplete" : "spotify token: Spotify API credentials not configured")
-            throw HTTPStatusError(statusCode: 0, message: "Spotify Client ID와 Client Secret이 필요합니다")
+            let key = credentials.partial ? "spotify.error.incomplete_credentials" : "spotify.error.credentials_not_configured"
+            throw HTTPStatusError(statusCode: 0, message: AppI18n.t(uiLanguage, key))
         }
         let response = try await requestSpotifyClientCredentialsToken(credentials: credentials, log: log)
         guard !response.accessToken.isEmpty else {
-            throw HTTPStatusError(statusCode: 0, message: "Spotify token response가 비어 있습니다")
+            throw HTTPStatusError(statusCode: 0, message: AppI18n.t(uiLanguage, "spotify.error.no_access_token"))
         }
         cacheSpotifyToken(credentials: credentials, response: response, log: log)
         return SpotifyCredentialValidation(expiresInSeconds: response.expiresInSeconds, logs: logs)

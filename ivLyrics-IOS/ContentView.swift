@@ -3966,7 +3966,7 @@ struct MainLyricPreviewPanel: View {
 
     private func emptyPreviewRows() -> [MainLyricPreviewRow] {
         let detail = model.lyricsResult.detail.trimmed
-        if model.status == .loading || isLoadingLyricsPreview(detail) {
+        if model.status == .loading || model.showsLyricsLoadingPlaceholder {
             return [.loading(model.lyricsLoadingText)]
         }
         guard settings.lyricsNotFoundNoticeEnabled else { return [] }
@@ -4206,11 +4206,6 @@ struct MainLyricPreviewPanel: View {
         }
     }
 
-    private func isLoadingLyricsPreview(_ detail: String) -> Bool {
-        let value = detail.lowercased()
-        return value.contains("loading") || value.contains("불러")
-    }
-
     private var emptyLyricsPreviewCandidateKey: String {
         let previewItems = AppSettings.normalizePreviewItems(settings.previewItems)
         guard previewItems != AppSettings.previewItemNone,
@@ -4218,7 +4213,7 @@ struct MainLyricPreviewPanel: View {
             return ""
         }
         let detail = model.lyricsResult.detail.trimmed
-        guard model.status != .loading, !isLoadingLyricsPreview(detail) else {
+        guard model.status != .loading, !model.showsLyricsLoadingPlaceholder else {
             return ""
         }
         return buildEmptyLyricsPreviewKey(detail: detail)
@@ -8587,6 +8582,17 @@ struct InitialSetupView: View {
     ]
     private let welcomeTimer = Timer.publish(every: 1.85, on: .main, in: .common).autoconnect()
 
+    /// Same path as the Settings picker, so status text and the "same as app" target follow.
+    private var uiLanguageBinding: Binding<String> {
+        Binding(
+            get: { settings.uiLang },
+            set: { value in
+                settings.uiLang = value
+                model.uiLanguageChanged()
+            }
+        )
+    }
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -8707,7 +8713,7 @@ struct InitialSetupView: View {
                         .foregroundStyle(.white.opacity(0.55))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Picker("", selection: $settings.uiLang) {
+                Picker("", selection: uiLanguageBinding) {
                     ForEach(AppI18n.uiLanguages) { language in
                         Text(language.nativeName).tag(language.code)
                     }
@@ -9100,7 +9106,7 @@ struct SettingsView: View {
             .padding(.horizontal, 12)
             .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 10))
             if scrollsHeader {
-                Picker(settings.t("settings.title"), selection: $selectedTab) {
+                Picker(settings.t("settings.title"), selection: settingsSectionBinding) {
                     ForEach(SettingsTab.allCases) { tab in Text(settings.t(tab.titleKey)).tag(tab) }
                 }
                 .settingsMenuSurface()
@@ -9304,6 +9310,20 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    /// The compact section menu acts like the tab buttons: choosing a section leaves search,
+    /// so the page shows and scrolls to the top.
+    private var settingsSectionBinding: Binding<SettingsTab> {
+        Binding(
+            get: { selectedTab },
+            set: { tab in
+                settingsSearchFocused = false
+                settingsSearch = ""
+                settingsSearchTarget = ""
+                selectedTab = tab
+            }
+        )
     }
 
     @ViewBuilder
@@ -10042,7 +10062,7 @@ struct SettingsView: View {
                 model.testAIConnection()
             }
             .disabled(model.aiConnectionTesting)
-            settingsActionButton(settings.t("tmi.regenerate")) {
+            settingsActionButton(settings.t("button.save_regenerate")) {
                 model.saveAiSettingsAndRegenerate()
             }
         }
@@ -11208,7 +11228,7 @@ struct SettingsView: View {
 
     private var selectedRuleSourceLabel: String {
         if model.selectedRuleSourceLang == "auto" {
-            return "\(settings.t("label.auto")) (\(model.effectiveDetectedLyricsSourceLang))"
+            return settings.autoSourceLanguageLabel(model.effectiveDetectedLyricsSourceLang)
         }
         let language = AppSettings.languageInfo(effectiveRuleSourceLang)
         return "\(language.nativeName) · \(language.name)"

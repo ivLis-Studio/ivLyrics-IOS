@@ -62,7 +62,7 @@ final class LlamaInferenceEngine: LocalAIInferenceEngine, @unchecked Sendable {
             }
         }
         guard let model = loadedModel else {
-            throw LocalAIError.engine("The model could not be loaded.")
+            throw LocalAIError.modelLoadFailed
         }
 
         var contextParams = llama_context_default_params()
@@ -79,7 +79,7 @@ final class LlamaInferenceEngine: LocalAIInferenceEngine, @unchecked Sendable {
         }
         guard let context = llama_init_from_model(model, contextParams) else {
             llama_model_free(model)
-            throw LocalAIError.engine("Not enough memory to start the model.")
+            throw LocalAIError.outOfMemory
         }
         guard let template = llama_model_chat_template(model, nil) else {
             llama_free(context)

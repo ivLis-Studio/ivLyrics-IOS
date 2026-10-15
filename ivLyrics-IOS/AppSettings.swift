@@ -466,6 +466,26 @@ final class AppSettings: ObservableObject {
         AppI18n.format(uiLang, key, arguments)
     }
 
+    /// "Auto (Japanese)" for the automatic source-language choice, with the detected language
+    /// named in the UI language.
+    func autoSourceLanguageLabel(_ detectedCode: String) -> String {
+        tf("label.auto_target", languageDisplayName(detectedCode))
+    }
+
+    /// The language's name in the UI language, e.g. "일본어" for "ja" in Korean; the code itself
+    /// only when the system has no name for it.
+    func languageDisplayName(_ code: String) -> String {
+        let normalized = Self.normalizeLanguageCode(code)
+        let identifier: String
+        switch normalized {
+        case "zh-CN": identifier = "zh-Hans"
+        case "zh-TW": identifier = "zh-Hant"
+        default: identifier = normalized
+        }
+        let name = Locale(identifier: uiLang).localizedString(forIdentifier: identifier)?.trimmed ?? ""
+        return name.isEmpty ? code : name
+    }
+
     func exportCloudSettings() -> [String: Any] {
         let stored = defaults.dictionaryRepresentation()
         return Self.cloudSettingKeys.reduce(into: [String: Any]()) { result, key in
@@ -1625,13 +1645,30 @@ final class AppSettings: ObservableObject {
     }
 
     static func autoTargetLanguage() -> String {
-        let identifier = Locale.current.identifier
-        if identifier.lowercased().hasPrefix("zh") {
-            return identifier.contains("TW") || identifier.contains("HK") || identifier.contains("MO") ? "zh-TW" : "zh-CN"
+        // The app bundle declares no localizations, so Locale.current reports English on every
+        // device. The user's preferred languages keep the device language and its fallbacks.
+        for identifier in Locale.preferredLanguages {
+            if let code = uiLanguageCode(forPreferredLanguage: identifier) {
+                return code
+            }
         }
-        let language = Locale.current.language.languageCode?.identifier ?? "en"
-        let normalized = normalizeLanguageCode(language)
-        return languages.contains { $0.code.lowercased() == normalized.lowercased() } ? normalized : "en"
+        return "en"
+    }
+
+    /// "zh-Hant-HK" → "zh-TW", "zh-Hans-CN" → "zh-CN", "pt-BR" → "pt", "ko-KR" → "ko";
+    /// nil for a language the app is not translated into.
+    static func uiLanguageCode(forPreferredLanguage identifier: String) -> String? {
+        let subtags = identifier.trimmed.replacingOccurrences(of: "_", with: "-").lowercased()
+            .split(separator: "-").map(String.init)
+        guard let base = subtags.first, !base.isEmpty else { return nil }
+        if base == "zh" || base == "yue" {
+            let rest = Set(subtags.dropFirst())
+            if rest.contains("hans") { return "zh-CN" }
+            if rest.contains("hant") || !rest.isDisjoint(with: ["tw", "hk", "mo"]) { return "zh-TW" }
+            // Cantonese is written in Traditional characters unless a script says otherwise.
+            return base == "yue" ? "zh-TW" : "zh-CN"
+        }
+        return languages.first { $0.code.lowercased() == base }?.code
     }
 
     private static func previewItemsForMode(_ mode: String?) -> Int {

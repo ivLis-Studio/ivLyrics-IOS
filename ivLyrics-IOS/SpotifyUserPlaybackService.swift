@@ -190,6 +190,8 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     @Published private(set) var lastError = ""
     var onDiagnostic: ((String) -> Void)?
     var onAuthorizationRecoveryNeeded: (() -> Void)?
+    /// UI language for the errors this service reports; AppViewModel points it at the settings.
+    var uiLanguage: () -> String = { "en" }
     var hasStoredAuthorization: Bool {
         validAccessToken() != nil || !refreshToken.isEmpty
     }
@@ -234,14 +236,14 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     func authorize(clientId: String) async throws {
         let safeClientId = clientId.trimmed
         guard !safeClientId.isEmpty else {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -1, userInfo: [NSLocalizedDescriptionKey: "Spotify Client ID가 필요합니다"])
+            throw failure("ivLyrics.SpotifyOAuth", code: -1, "toast.spotify_client_id_missing")
         }
         if connected {
             return
         }
         if let authorizationTask {
             guard authorizationClientId == safeClientId else {
-                throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -8, userInfo: [NSLocalizedDescriptionKey: "다른 Spotify 계정 연결이 이미 진행 중입니다"])
+                throw failure("ivLyrics.SpotifyOAuth", code: -8, "error.spotify_oauth_in_progress")
             }
             try await authorizationTask.value
             return
@@ -279,19 +281,21 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
             URLQueryItem(name: "show_dialog", value: "false")
         ]
         guard let url = components.url else {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -2, userInfo: [NSLocalizedDescriptionKey: "Spotify OAuth URL 생성 실패"])
+            throw failure("ivLyrics.SpotifyOAuth", code: -2, "error.spotify_web_api_authorization_failed")
         }
         let callback = try await runAuthenticationSession(url: url)
         let returned = URLComponents(url: callback, resolvingAgainstBaseURL: false)
         let returnedState = returned?.queryItems?.first(where: { $0.name == "state" })?.value ?? ""
         guard returnedState == state else {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -3, userInfo: [NSLocalizedDescriptionKey: "Spotify OAuth state mismatch"])
+            diagnostic("spotify OAuth: state mismatch")
+            throw failure("ivLyrics.SpotifyOAuth", code: -3, "error.spotify_web_api_authorization_failed")
         }
         if let error = returned?.queryItems?.first(where: { $0.name == "error" })?.value, !error.isEmpty {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -4, userInfo: [NSLocalizedDescriptionKey: "Spotify OAuth error: \(error)"])
+            diagnostic("spotify OAuth error: \(error)")
+            throw failure("ivLyrics.SpotifyOAuth", code: -4, "error.spotify_web_api_authorization_failed")
         }
         guard let code = returned?.queryItems?.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -5, userInfo: [NSLocalizedDescriptionKey: "Spotify authorization code가 없습니다"])
+            throw failure("ivLyrics.SpotifyOAuth", code: -5, "error.spotify_web_api_authorization_failed")
         }
         try await exchangeAuthorizationCode(code, verifier: verifier, clientId: safeClientId)
         defaults.set(safeClientId, forKey: clientIdKey)
@@ -615,7 +619,7 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
     private func playerCommand(method: String, path: String, params: [String: String] = [:], clientId: String) async throws {
         prepare(clientId: clientId)
         guard let token = try await accessToken(clientId: clientId) else {
-            throw NSError(domain: "ivLyrics.SpotifyPlayer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Spotify OAuth 연결이 필요합니다"])
+            throw failure("ivLyrics.SpotifyPlayer", code: -1, "error.spotify_web_api_login_required")
         }
         var components = URLComponents(string: "https://api.spotify.com/v1/me/player/\(path)")!
         if !params.isEmpty {
@@ -655,6 +659,11 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
         onDiagnostic?(message)
     }
 
+    /// An error whose message is in the app's UI language; domain and code stay for the log.
+    private func failure(_ domain: String, code: Int, _ key: String) -> NSError {
+        NSError(domain: domain, code: code, userInfo: [NSLocalizedDescriptionKey: AppI18n.t(uiLanguage(), key)])
+    }
+
     private static func isCancellation(_ error: Error) -> Bool {
         if error is CancellationError { return true }
         return (error as? URLError)?.code == .cancelled
@@ -669,14 +678,16 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
 
     private func runAuthenticationSession(url: URL) async throws -> URL {
         guard authenticationSession == nil else {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -9, userInfo: [NSLocalizedDescriptionKey: "Spotify OAuth 연결이 이미 진행 중입니다"])
+            throw failure("ivLyrics.SpotifyOAuth", code: -9, "error.spotify_oauth_in_progress")
         }
         #if os(iOS)
         guard let anchor = Self.activePresentationAnchor() else {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -12, userInfo: [NSLocalizedDescriptionKey: "Spotify OAuth를 표시할 활성 화면이 없습니다"])
+            throw failure("ivLyrics.SpotifyOAuth", code: -12, "error.spotify_oauth_no_window")
         }
         authenticationPresentationAnchor = anchor
         #endif
+        let missingCallback = failure("ivLyrics.SpotifyOAuth", code: -6, "error.spotify_web_api_authorization_failed")
+        let sessionNotStarted = failure("ivLyrics.SpotifyOAuth", code: -7, "error.spotify_oauth_session_failed")
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             let session = ASWebAuthenticationSession(url: url, callbackURLScheme: callbackScheme) { callbackURL, error in
                 self.authenticationSession = nil
@@ -686,7 +697,7 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
                     return
                 }
                 guard let callbackURL else {
-                    continuation.resume(throwing: NSError(domain: "ivLyrics.SpotifyOAuth", code: -6, userInfo: [NSLocalizedDescriptionKey: "Spotify OAuth callback이 없습니다"]))
+                    continuation.resume(throwing: missingCallback)
                     return
                 }
                 continuation.resume(returning: callbackURL)
@@ -697,7 +708,7 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
             if !session.start() {
                 self.authenticationSession = nil
                 self.authenticationPresentationAnchor = nil
-                continuation.resume(throwing: NSError(domain: "ivLyrics.SpotifyOAuth", code: -7, userInfo: [NSLocalizedDescriptionKey: "Spotify OAuth 세션을 시작하지 못했습니다"]))
+                continuation.resume(throwing: sessionNotStarted)
             }
         }
     }
@@ -746,13 +757,13 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
         request.httpBody = IvLyricsUtilities.encodeParams(params).data(using: .utf8)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -8, userInfo: [NSLocalizedDescriptionKey: "Spotify token response가 없습니다"])
+            throw failure("ivLyrics.SpotifyOAuth", code: -8, "error.spotify_web_api_authorization_failed")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw HTTPStatusError(statusCode: http.statusCode, message: String(data: data, encoding: .utf8) ?? "")
         }
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw NSError(domain: "ivLyrics.SpotifyOAuth", code: -9, userInfo: [NSLocalizedDescriptionKey: "Spotify token JSON 파싱 실패"])
+            throw failure("ivLyrics.SpotifyOAuth", code: -9, "error.spotify_web_api_authorization_failed")
         }
         return object
     }

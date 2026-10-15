@@ -371,6 +371,10 @@ enum LocalAIError: LocalizedError, Equatable {
     case memoryPressure
     case emptyReply
     case promptTooLong
+    /// The model file could not be loaded.
+    case modelLoadFailed
+    /// There was not enough memory to create the model's context.
+    case outOfMemory
     /// Native load or inference failure; the engine must be released.
     case engine(String)
 
@@ -388,6 +392,10 @@ enum LocalAIError: LocalizedError, Equatable {
             return "[Local AI] The model returned an empty line."
         case .promptTooLong:
             return "[Local AI] The lyrics are too long for the local model."
+        case .modelLoadFailed:
+            return "[Local AI] The model could not be loaded."
+        case .outOfMemory:
+            return "[Local AI] Not enough memory to start the model."
         case let .engine(message):
             return "[Local AI] " + message
         }

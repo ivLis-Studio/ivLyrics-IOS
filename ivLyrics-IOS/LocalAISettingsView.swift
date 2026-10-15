@@ -125,7 +125,7 @@ struct LocalAISettingsPanel: View {
         case .ready:
             return LocalAI.format(settings.t("local_ai.status_ready"), ["device": state.device ?? "GPU"])
         case .error:
-            return LocalAI.format(settings.t("local_ai.status_error"), ["error": state.error ?? ""])
+            return LocalAI.format(settings.t("local_ai.status_error"), ["error": state.failure?.message(uiLanguage: settings.uiLang) ?? ""])
         case .missing:
             return settings.t("local_ai.status_not_downloaded")
         }

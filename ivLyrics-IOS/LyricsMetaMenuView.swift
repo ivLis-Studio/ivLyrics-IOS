@@ -228,7 +228,7 @@ struct LyricsMetaMenuOverlay: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Menu {
-                Button("auto(\(model.effectiveDetectedLyricsSourceLang))") {
+                Button(settings.autoSourceLanguageLabel(model.effectiveDetectedLyricsSourceLang)) {
                     model.setSelectedRuleSourceLang("auto")
                 }
                 ForEach(AppSettings.languages) { language in
@@ -1046,7 +1046,7 @@ struct LyricsMetaMenuOverlay: View {
 
     private var sourceStatusText: String {
         if model.selectedRuleSourceLang == "auto" {
-            return "auto(\(model.effectiveDetectedLyricsSourceLang))"
+            return settings.autoSourceLanguageLabel(model.effectiveDetectedLyricsSourceLang)
         }
         let language = AppSettings.languageInfo(effectiveRuleSourceLang)
         return "\(language.nativeName) · \(language.name)"

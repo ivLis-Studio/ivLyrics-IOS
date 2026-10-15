@@ -260,6 +260,20 @@ final class AppViewModel: ObservableObject {
             : settings.tf("status.lyrics_loading_provider_format", providerName)
     }
 
+    /// lyricsResult is the "Loading lyrics…" placeholder rather than a final message. Tracked
+    /// explicitly so the check works in every UI language.
+    var showsLyricsLoadingPlaceholder: Bool {
+        guard let lyricsLoadingPlaceholder else { return false }
+        return lyricsResult == lyricsLoadingPlaceholder
+    }
+
+    private func showLyricsLoadingPlaceholder() {
+        let placeholder = LyricsResult.empty(lyricsLoadingText)
+        lyricsLoadingPlaceholder = placeholder
+        baseLyricsResult = placeholder
+        lyricsResult = placeholder
+    }
+
     var aiTranslationLoadingText: String {
         aiProviderLoadingText(
             formatKey: "loading.translation_provider_format",
@@ -417,6 +431,11 @@ final class AppViewModel: ObservableObject {
     private var cloudSettingsTask: Task<Void, Never>?
     private var cloudSettingsRecord = CloudSettingsClient.Record.empty
     private var cloudSettingsStatusOverrideKey = ""
+    private var lyricsLoadingPlaceholder: LyricsResult?
+    // Each status line keeps the closure that built it, so a UI language change can rebuild it.
+    private var manualLrclibStatusText: (AppSettings) -> String = { $0.t("lyrics.lrclib_search.ready") }
+    private var updateStatusText: (AppSettings) -> String = { $0.t("update.status_idle") }
+    private var spotifyValidationStatusText: (AppSettings) -> String = { _ in "" }
     private var creatorSupportTask: Task<Void, Never>?
     private var creatorSupportRequestKey = ""
     private var spotifyPollTask: Task<Void, Never>?
@@ -542,6 +561,9 @@ final class AppViewModel: ObservableObject {
         }
         spotifyUserPlaybackService.onDiagnostic = { [weak self] message in
             self?.appendLog(message)
+        }
+        spotifyUserPlaybackService.uiLanguage = { [weak self] in
+            self?.settings.uiLang ?? "en"
         }
         spotifyUserPlaybackService.onAuthorizationRecoveryNeeded = { [weak self] in
             guard let self else { return }
@@ -874,13 +896,30 @@ final class AppViewModel: ObservableObject {
     func refreshLocalizedStatusStrings() {
         if status == .idle, currentTrack == nil, lyricsResult.lines.isEmpty {
             lyricsResult = LyricsResult.empty(settings.t("status.waiting_current_track"))
+        } else if let placeholder = lyricsLoadingPlaceholder, lyricsResult == placeholder {
+            let rebuilt = LyricsResult.empty(lyricsLoadingText)
+            lyricsLoadingPlaceholder = rebuilt
+            if baseLyricsResult == placeholder { baseLyricsResult = rebuilt }
+            lyricsResult = rebuilt
         }
-        if manualLrclibStatus.trimmed.isEmpty {
-            manualLrclibStatus = settings.t("lyrics.lrclib_search.ready")
-        }
-        if updateStatus.trimmed.isEmpty {
-            updateStatus = settings.t("update.status_idle")
-        }
+        manualLrclibStatus = manualLrclibStatusText(settings)
+        updateStatus = updateStatusText(settings)
+        spotifyValidationStatus = spotifyValidationStatusText(settings)
+    }
+
+    private func setManualLrclibStatus(_ text: @escaping (AppSettings) -> String) {
+        manualLrclibStatusText = text
+        manualLrclibStatus = text(settings)
+    }
+
+    private func setUpdateStatus(_ text: @escaping (AppSettings) -> String) {
+        updateStatusText = text
+        updateStatus = text(settings)
+    }
+
+    private func setSpotifyValidationStatus(_ text: @escaping (AppSettings) -> String) {
+        spotifyValidationStatusText = text
+        spotifyValidationStatus = text(settings)
     }
 
 #if DEBUG
@@ -888,9 +927,7 @@ final class AppViewModel: ObservableObject {
         cancelLyricsLoadTask()
         status = .loading
         lyricsLoadingProviderName = "LRCLIB"
-        let loadingResult = LyricsResult.empty(lyricsLoadingText)
-        baseLyricsResult = loadingResult
-        lyricsResult = loadingResult
+        showLyricsLoadingPlaceholder()
     }
 
     /// Plays DebugKaraokeFixture through the production clock and lyric renderers.
@@ -1012,7 +1049,7 @@ final class AppViewModel: ObservableObject {
             connected: spotifyUserPlaybackService.connected
         )
         guard settings.snapshot.hasSpotifyCredentials || canUseUserToken else {
-            spotifyValidationStatus = settings.t("toast.spotify_missing")
+            setSpotifyValidationStatus { $0.t("toast.spotify_missing") }
             status = .setupRequired
             appendLog("spotify manual metadata: Client Secret or enabled Web API authorization is required")
             return
@@ -1820,9 +1857,7 @@ final class AppViewModel: ObservableObject {
         logs = []
         manualCandidates = []
         metadataTranslation = nil
-        let loadingResult = LyricsResult.empty(lyricsLoadingText)
-        baseLyricsResult = loadingResult
-        lyricsResult = loadingResult
+        showLyricsLoadingPlaceholder()
         resetYouTubeBackgroundForTrack()
         let requestID = lyricsLoadRequestID
         loadTask = Task { [weak self] in
@@ -1921,6 +1956,12 @@ final class AppViewModel: ObservableObject {
         guard snapshotSettings.hasApiKey else {
             tmiLoading = false
             tmiError = settings.t("tmi.require_key")
+            return
+        }
+        // paxsenix has no default model: say so here instead of failing inside the request.
+        guard snapshotSettings.hasModel else {
+            tmiLoading = false
+            tmiError = settings.t("status.ai_model_needed")
             return
         }
 
@@ -2049,6 +2090,9 @@ final class AppViewModel: ObservableObject {
         if trimmed == "tmi.require_key"
             || (lower.contains("api key") && lower.contains("required")) {
             return settings.t("tmi.require_key")
+        }
+        if trimmed == "status.ai_model_needed" {
+            return settings.t("status.ai_model_needed")
         }
         return trimmed
     }
@@ -2272,12 +2316,12 @@ final class AppViewModel: ObservableObject {
         guard !title.isEmpty else {
             manualCandidates = []
             searchingManualCandidates = false
-            manualLrclibStatus = settings.t("lyrics.lrclib_search.empty_title")
+            setManualLrclibStatus { $0.t("lyrics.lrclib_search.empty_title") }
             return
         }
         searchingManualCandidates = true
         manualCandidates = []
-        manualLrclibStatus = settings.t("lyrics.lrclib_search.loading")
+        setManualLrclibStatus { $0.t("lyrics.lrclib_search.loading") }
         let track = currentTrack
         let trackKey = currentTrackKey
         let artist = inputArtist.trimmed
@@ -2288,17 +2332,19 @@ final class AppViewModel: ObservableObject {
                 let candidates = try await lyricsRepository.searchManualLrclib(track: track, title: title, artist: artist)
                 guard !Task.isCancelled, manualSearchRequestID == requestID, trackKey == currentTrackKey else { return }
                 manualCandidates = candidates
-                manualLrclibStatus = candidates.isEmpty
-                    ? settings.t("lyrics.lrclib_search.no_results")
-                    : settings.tf("lyrics.lrclib_search.result_count_format", candidates.count)
+                setManualLrclibStatus {
+                    candidates.isEmpty
+                        ? $0.t("lyrics.lrclib_search.no_results")
+                        : $0.tf("lyrics.lrclib_search.result_count_format", candidates.count)
+                }
                 appendLog("manual LRCLIB search: candidates=\(candidates.count)")
             } catch {
                 guard !Task.isCancelled, manualSearchRequestID == requestID, trackKey == currentTrackKey else { return }
-                let detail = error.localizedDescription.trimmed.isEmpty ? "unknown error" : error.localizedDescription.trimmed
+                let detail = error.localizedDescription.trimmed
                 manualCandidates = []
-                manualLrclibStatus = settings.tf("lyrics.lrclib_search.error_format", detail)
+                setManualLrclibStatus { $0.tf("lyrics.lrclib_search.error_format", detail.isEmpty ? $0.t("error.unknown") : detail) }
                 showSavedToast(manualLrclibStatus)
-                appendLog("manual LRCLIB search failed: \(detail)")
+                appendLog("manual LRCLIB search failed: \(detail.isEmpty ? "unknown error" : detail)")
             }
         }
     }
@@ -2314,7 +2360,7 @@ final class AppViewModel: ObservableObject {
         cancelLyricsLoadTask()
         status = .loading
         lyricsLoadingProviderName = "LRCLIB"
-        manualLrclibStatus = settings.t("lyrics.lrclib_search.selecting")
+        setManualLrclibStatus { $0.t("lyrics.lrclib_search.selecting") }
         let requestID = lyricsLoadRequestID
         loadTask = Task { [weak self] in
             guard let self else { return }
@@ -2331,20 +2377,20 @@ final class AppViewModel: ObservableObject {
                 publishFinalSupplementResult(final)
                 lyricsLoadingProviderName = ""
                 status = .loaded
-                manualLrclibStatus = settings.t("lyrics.lrclib_search.loaded")
+                setManualLrclibStatus { $0.t("lyrics.lrclib_search.loaded") }
                 showSavedToast(manualLrclibStatus)
                 appendLog("manual LRCLIB applied: id=\(candidate.id)")
                 await loadYouTubeIfNeeded(track: track, result: final)
             } catch {
                 guard isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
-                let detail = error.localizedDescription.trimmed.isEmpty ? "unknown error" : error.localizedDescription.trimmed
+                let detail = error.localizedDescription.trimmed
                 baseLyricsResult = previousBase
                 lyricsResult = previousResult
                 lyricsLoadingProviderName = ""
-                manualLrclibStatus = settings.tf("lyrics.lrclib_search.error_format", detail)
+                setManualLrclibStatus { $0.tf("lyrics.lrclib_search.error_format", detail.isEmpty ? $0.t("error.unknown") : detail) }
                 status = previousStatus
                 showSavedToast(manualLrclibStatus)
-                appendLog("manual LRCLIB apply failed: \(detail)")
+                appendLog("manual LRCLIB apply failed: \(detail.isEmpty ? "unknown error" : detail)")
             }
         }
     }
@@ -2602,7 +2648,7 @@ final class AppViewModel: ObservableObject {
     @discardableResult
     private func requireSpotifyLiveClientId(logMessage: String) -> Bool {
         guard settings.snapshot.hasSpotifyClientId else {
-            spotifyValidationStatus = settings.t("toast.spotify_client_id_missing")
+            setSpotifyValidationStatus { $0.t("toast.spotify_client_id_missing") }
             status = .setupRequired
             showSavedToast(spotifyValidationStatus)
             appendLog(logMessage)
@@ -2617,7 +2663,7 @@ final class AppViewModel: ObservableObject {
     @discardableResult
     private func requireSpotifyApiCredentials(logMessage: String) -> Bool {
         guard settings.snapshot.hasSpotifyCredentials else {
-            spotifyValidationStatus = settings.t("toast.spotify_missing")
+            setSpotifyValidationStatus { $0.t("toast.spotify_missing") }
             status = .setupRequired
             showSavedToast(settings.t("toast.spotify_missing"))
             appendLog(logMessage)
@@ -2651,7 +2697,7 @@ final class AppViewModel: ObservableObject {
             return
         }
         if settings.spotifyClientSecret.trimmed.isEmpty {
-            spotifyValidationStatus = settings.t("spotify.status_app_remote_ready")
+            setSpotifyValidationStatus { $0.t("spotify.status_app_remote_ready") }
             defaults.set(true, forKey: keyInitialSetupDismissed)
             initialSetupPresented = false
             showSavedToast(settings.t("toast.spotify_saved"))
@@ -2673,14 +2719,14 @@ final class AppViewModel: ObservableObject {
         let clientId = settings.spotifyClientId.trimmed
         let clientSecret = settings.spotifyClientSecret.trimmed
         guard !clientId.isEmpty else {
-            spotifyValidationStatus = settings.t("toast.spotify_client_id_missing")
+            setSpotifyValidationStatus { $0.t("toast.spotify_client_id_missing") }
             status = .setupRequired
             showSavedToast(spotifyValidationStatus)
             appendLog("spotify api validation: missing client id")
             return
         }
         guard !clientSecret.isEmpty else {
-            spotifyValidationStatus = settings.t("spotify.status_app_remote_ready")
+            setSpotifyValidationStatus { $0.t("spotify.status_app_remote_ready") }
             showSavedToast(settings.t("toast.spotify_saved"))
             appendLog("spotify api validation: Client ID saved for App Remote; Client Secret not configured")
             if startLiveAfterSuccess {
@@ -2691,18 +2737,22 @@ final class AppViewModel: ObservableObject {
             return
         }
         spotifyCredentialsValidationInFlight = true
-        spotifyValidationStatus = settings.t("spotify.status_checking")
+        setSpotifyValidationStatus { $0.t("spotify.status_checking") }
         showSavedToast(settings.t("toast.spotify_checking"))
         Task { [weak self] in
             guard let self else { return }
             do {
-                let validation = try await lyricsRepository.validateSpotifyCredentials(clientId: clientId, clientSecret: clientSecret)
+                let validation = try await lyricsRepository.validateSpotifyCredentials(
+                    clientId: clientId,
+                    clientSecret: clientSecret,
+                    uiLanguage: settings.uiLang
+                )
                 appendLogs(validation.logs)
                 let sourceKey = spotifyCredentialsSourceKey(clientId: clientId, clientSecret: clientSecret)
                 let changed = defaults.string(forKey: keySpotifyValidatedSourceKey) != sourceKey
                 defaults.set(sourceKey, forKey: keySpotifyValidatedSourceKey)
                 spotifyCredentialsValidationInFlight = false
-                spotifyValidationStatus = settings.t("spotify.status_configured")
+                setSpotifyValidationStatus { $0.t("spotify.status_configured") }
                 showSavedToast(settings.t("toast.spotify_saved"))
                 appendLog("spotify api validation: token verified, ttl=\(validation.expiresInSeconds)s")
                 if changed {
@@ -2721,10 +2771,10 @@ final class AppViewModel: ObservableObject {
                 }
             } catch {
                 spotifyCredentialsValidationInFlight = false
-                let detail = error.localizedDescription.trimmed.isEmpty ? "unknown error" : error.localizedDescription.trimmed
-                spotifyValidationStatus = settings.tf("spotify.status_invalid_format", detail)
+                let detail = error.localizedDescription.trimmed
+                setSpotifyValidationStatus { $0.tf("spotify.status_invalid_format", detail.isEmpty ? $0.t("error.unknown") : detail) }
                 showSavedToast(settings.t("toast.spotify_invalid"))
-                appendLog("spotify api validation failed: \(detail)")
+                appendLog("spotify api validation failed: \(detail.isEmpty ? "unknown error" : detail)")
             }
         }
     }
@@ -2754,7 +2804,7 @@ final class AppViewModel: ObservableObject {
         }
         updateTask?.cancel()
         updateCheckInFlight = true
-        updateStatus = settings.t("update.status_checking")
+        setUpdateStatus { $0.t("update.status_checking") }
         if manual {
             showSavedToast(settings.t("toast.update_checking"))
             appendLog("update check: started")
@@ -2768,14 +2818,15 @@ final class AppViewModel: ObservableObject {
                 pendingUpdateInfo = info
                 if info.updateAvailable {
                     let version = info.latestDisplayVersion
-                    updateStatus = settings.tf("update.status_available_format", version)
+                    setUpdateStatus { $0.tf("update.status_available_format", version) }
                     updateDialogPresented = true
                     if manual {
                         showSavedToast(settings.tf("toast.update_available_format", version))
                     }
                     appendLog("update available: current=\(info.currentVersionName) latest=\(version)")
                 } else {
-                    updateStatus = settings.tf("update.status_latest_format", info.currentVersionName)
+                    let currentVersion = info.currentVersionName
+                    setUpdateStatus { $0.tf("update.status_latest_format", currentVersion) }
                     if manual {
                         showSavedToast(settings.t("toast.update_latest"))
                         appendLog("update check: latest version")
@@ -2784,12 +2835,12 @@ final class AppViewModel: ObservableObject {
             } catch {
                 if Task.isCancelled { return }
                 updateCheckInFlight = false
-                let detail = error.localizedDescription.trimmed.isEmpty ? "unknown error" : error.localizedDescription.trimmed
-                updateStatus = settings.tf("update.status_failed_format", detail)
+                let detail = error.localizedDescription.trimmed
+                setUpdateStatus { $0.tf("update.status_failed_format", detail.isEmpty ? $0.t("error.unknown") : detail) }
                 if manual {
                     showSavedToast(settings.t("toast.update_failed"))
                 }
-                appendLog("update check failed: \(detail)")
+                appendLog("update check failed: \(detail.isEmpty ? "unknown error" : detail)")
             }
         }
     }
@@ -3059,9 +3110,9 @@ final class AppViewModel: ObservableObject {
                 appendLog(info.valid ? "pollinations auth: token verified" : "pollinations auth: token invalid")
                 showSavedToast(info.valid ? settings.t("pollinations.toast_valid") : settings.t("pollinations.toast_failed"))
             } catch {
-                let detail = error.localizedDescription.trimmed.isEmpty ? "unknown error" : error.localizedDescription.trimmed
-                pollinationsAuthStatus = settings.tf("pollinations.status_failed_format", detail)
-                appendLog("pollinations auth failed: \(detail)")
+                let detail = error.localizedDescription.trimmed
+                pollinationsAuthStatus = settings.tf("pollinations.status_failed_format", detail.isEmpty ? settings.t("error.unknown") : detail)
+                appendLog("pollinations auth failed: \(detail.isEmpty ? "unknown error" : detail)")
                 showSavedToast(settings.t("pollinations.toast_failed"))
             }
         }
@@ -3305,9 +3356,7 @@ final class AppViewModel: ObservableObject {
             return
         }
         lyricsLoadingProviderName = providerName.trimmed
-        let loadingResult = LyricsResult.empty(lyricsLoadingText)
-        baseLyricsResult = loadingResult
-        lyricsResult = loadingResult
+        showLyricsLoadingPlaceholder()
     }
 
     private func hydrateSpotifyAppRemoteMetadataIfNeeded(_ playback: SpotifyPlaybackSnapshot) {
@@ -3420,11 +3469,13 @@ final class AppViewModel: ObservableObject {
             appendLog("spotify live track: \(incoming.title) / \(incoming.artist)" + (playback.deviceName.isEmpty ? "" : " / \(playback.deviceName)"))
             cancelLyricsLoadTask()
             lyricsLoadingProviderName = ""
-            let loadingResult = LyricsResult.empty(
-                loadLyricsIfNeeded ? lyricsLoadingText : settings.t("status.lyrics_waiting")
-            )
-            baseLyricsResult = loadingResult
-            lyricsResult = loadingResult
+            if loadLyricsIfNeeded {
+                showLyricsLoadingPlaceholder()
+            } else {
+                let waitingResult = LyricsResult.empty(settings.t("status.lyrics_waiting"))
+                baseLyricsResult = waitingResult
+                lyricsResult = waitingResult
+            }
             status = loadLyricsIfNeeded ? .loading : .idle
             logs = Array(logs.suffix(40))
             spotifyQueuePrefetchTask?.cancel()
@@ -4637,9 +4688,9 @@ final class AppViewModel: ObservableObject {
         pollinationsAuthInFlight = false
         pollinationsAuthVerificationURL = nil
         pollinationsAuthUserCode = ""
-        let detail = error.localizedDescription.trimmed.isEmpty ? "unknown error" : error.localizedDescription.trimmed
-        pollinationsAuthStatus = settings.tf("pollinations.status_failed_format", detail)
-        appendLog("pollinations auth failed: \(detail)")
+        let detail = error.localizedDescription.trimmed
+        pollinationsAuthStatus = settings.tf("pollinations.status_failed_format", detail.isEmpty ? settings.t("error.unknown") : detail)
+        appendLog("pollinations auth failed: \(detail.isEmpty ? "unknown error" : detail)")
         showSavedToast(settings.t("pollinations.toast_failed"))
     }
 

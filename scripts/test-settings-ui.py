@@ -305,6 +305,7 @@ final class FixtureRepository: @unchecked Sendable {
     var toasts: [String] = []
     func appendLog(_ value: String) {}
     func showSavedToast(_ value: String) { toasts.append(value) }
+    func setManualLrclibStatus(_ text: (FixtureSettings) -> String) { manualLrclibStatus = text(settings) }
 '''
 checks = r'''
 }
