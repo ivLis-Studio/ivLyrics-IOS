@@ -1,21 +1,152 @@
 import SwiftUI
 import UIKit
 
-/// Settings-only tokens shared by the native controls and grouped rows.
+// MARK: - Tokens
+
+/// Fixed dark tokens. The lyrics popup and the Debug harness keep using these; the settings
+/// screens read SettingsPalette from the environment so they follow the manual theme switch.
 enum SettingsDesign {
-    static let background = Color(hex: "#0D0D11")
-    static let surface = Color(hex: "#151519")
-    static let control = Color(hex: "#1B1B21")
-    static let border = Color.white.opacity(0.07)
-    static let strongBorder = Color.white.opacity(0.14)
-    static let text = Color(hex: "#F1F0F4")
-    static let secondary = Color(hex: "#8F8E98")
-    static let muted = Color(hex: "#A3A2AD")
-    static let accent = Color(hex: "#FF6B4A")
-    static let mint = Color(hex: "#5FCE9B")
+    static let background = Color(hex: "#0B0B0C")
+    static let surface = Color(hex: "#141416")
+    static let control = Color(hex: "#19191C")
+    static let border = Color.white.opacity(0.065)
+    static let strongBorder = Color.white.opacity(0.1)
+    static let text = Color(hex: "#EDEDEF")
+    static let secondary = Color(hex: "#8B8B94")
+    static let muted = Color(hex: "#A9A9B1")
+    static let accent = Color(hex: "#2563EB")
+    static let mint = Color(hex: "#3FB950")
 }
 
+/// The settings theme is a manual choice (no automatic option); dark stays the default.
+enum SettingsTheme {
+    static let dark = "dark"
+    static let light = "light"
+
+    static func normalized(_ value: String?) -> String {
+        value == light ? light : dark
+    }
+
+    static func palette(_ value: String?) -> SettingsPalette {
+        normalized(value) == light ? .light : .dark
+    }
+}
+
+/// Neutral surfaces plus one blue that marks state. Values follow the approved settings lab.
+struct SettingsPalette: Sendable {
+    let isDark: Bool
+    let background: Color
+    let surface: Color
+    let surface2: Color
+    let surface3: Color
+    let surface4: Color
+    let raise: Color
+    let line: Color
+    let line2: Color
+    let line3: Color
+    let text: Color
+    let text2: Color
+    let text3: Color
+    let text4: Color
+    let ink: Color
+    let inkText: Color
+    let accent: Color
+    let accentText: Color
+    let accentSoft: Color
+    let accentLine: Color
+    let ok: Color
+    let okSoft: Color
+    let warn: Color
+    let warnSoft: Color
+    let danger: Color
+    let dangerSoft: Color
+    let layerOriginal: Color
+    let layerPhonetic: Color
+    let layerTranslation: Color
+
+    var colorScheme: ColorScheme { isDark ? .dark : .light }
+
+    static let dark = SettingsPalette(
+        isDark: true,
+        background: Color(hex: "#0B0B0C"),
+        surface: Color(hex: "#141416"),
+        surface2: Color(hex: "#19191C"),
+        surface3: Color(hex: "#212125"),
+        surface4: Color(hex: "#2C2C31"),
+        raise: Color(hex: "#2A2A2F"),
+        line: Color.white.opacity(0.065),
+        line2: Color.white.opacity(0.1),
+        line3: Color.white.opacity(0.17),
+        text: Color(hex: "#EDEDEF"),
+        text2: Color(hex: "#A9A9B1"),
+        text3: Color(hex: "#8B8B94"),
+        text4: Color(hex: "#58585F"),
+        ink: Color(hex: "#EDEDEF"),
+        inkText: Color(hex: "#0B0B0C"),
+        accent: Color(hex: "#2563EB"),
+        accentText: Color(hex: "#7AADFF"),
+        accentSoft: Color(hex: "#3B82F6").opacity(0.14),
+        accentLine: Color(hex: "#3B82F6").opacity(0.55),
+        ok: Color(hex: "#3FB950"),
+        okSoft: Color(hex: "#3FB950").opacity(0.12),
+        warn: Color(hex: "#D6A33A"),
+        warnSoft: Color(hex: "#D6A33A").opacity(0.12),
+        danger: Color(hex: "#F2554E"),
+        dangerSoft: Color(hex: "#F2554E").opacity(0.12),
+        layerOriginal: Color(hex: "#D4D4D8"),
+        layerPhonetic: Color(hex: "#E9A23B"),
+        layerTranslation: Color(hex: "#3FBF8A")
+    )
+
+    static let light = SettingsPalette(
+        isDark: false,
+        background: Color(hex: "#F6F6F7"),
+        surface: Color(hex: "#FFFFFF"),
+        surface2: Color(hex: "#F6F6F7"),
+        surface3: Color(hex: "#EEEEF0"),
+        surface4: Color(hex: "#E1E1E5"),
+        raise: Color(hex: "#FFFFFF"),
+        line: Color.black.opacity(0.07),
+        line2: Color.black.opacity(0.11),
+        line3: Color.black.opacity(0.18),
+        text: Color(hex: "#18181B"),
+        text2: Color(hex: "#52525B"),
+        text3: Color(hex: "#64646D"),
+        text4: Color(hex: "#A1A1AA"),
+        ink: Color(hex: "#18181B"),
+        inkText: Color(hex: "#FFFFFF"),
+        accent: Color(hex: "#2563EB"),
+        accentText: Color(hex: "#1D4ED8"),
+        accentSoft: Color(hex: "#2563EB").opacity(0.08),
+        accentLine: Color(hex: "#2563EB").opacity(0.45),
+        ok: Color(hex: "#1A7F37"),
+        okSoft: Color(hex: "#1A7F37").opacity(0.09),
+        warn: Color(hex: "#9A6700"),
+        warnSoft: Color(hex: "#9A6700").opacity(0.1),
+        danger: Color(hex: "#CF222E"),
+        dangerSoft: Color(hex: "#CF222E").opacity(0.08),
+        layerOriginal: Color(hex: "#3F3F46"),
+        layerPhonetic: Color(hex: "#C27612"),
+        layerTranslation: Color(hex: "#15845A")
+    )
+}
+
+private struct SettingsPaletteKey: EnvironmentKey {
+    static let defaultValue = SettingsPalette.dark
+}
+
+extension EnvironmentValues {
+    var settingsPalette: SettingsPalette {
+        get { self[SettingsPaletteKey.self] }
+        set { self[SettingsPaletteKey.self] = newValue }
+    }
+}
+
+// MARK: - Native controls
+
 struct SettingsSwitchStyle: ToggleStyle {
+    @Environment(\.settingsPalette) private var palette
+
     func makeBody(configuration: Configuration) -> some View {
         // UIKit owns the switch's intrinsic size, disabled state, accessibility value and hit area.
         Toggle(isOn: configuration.$isOn) {
@@ -23,11 +154,12 @@ struct SettingsSwitchStyle: ToggleStyle {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .toggleStyle(.switch)
-        .tint(SettingsDesign.accent)
+        .tint(palette.accent)
         .frame(minHeight: 44)
     }
 }
 
+/// Text fields of the dark lyrics popup.
 struct SettingsTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
@@ -35,8 +167,8 @@ struct SettingsTextFieldStyle: TextFieldStyle {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(minHeight: 48)
-            .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
-            .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(SettingsDesign.strongBorder))
+            .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(SettingsDesign.strongBorder))
     }
 }
 
@@ -48,13 +180,12 @@ struct SettingsSearchField: UIViewRepresentable {
     @Binding var isFocused: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.settingsPalette) private var palette
 
     func makeUIView(context: Context) -> UITextField {
         let field = UITextField()
         field.borderStyle = .none
         field.backgroundColor = .clear
-        field.textColor = UIColor(SettingsDesign.text)
-        field.tintColor = UIColor(SettingsDesign.accent)
         field.font = preferredFont
         field.adjustsFontForContentSizeCategory = true
         field.adjustsFontSizeToFitWidth = false
@@ -71,7 +202,16 @@ struct SettingsSearchField: UIViewRepresentable {
 
     func updateUIView(_ field: UITextField, context: Context) {
         context.coordinator.parent = self
-        if field.placeholder != prompt { field.placeholder = prompt }
+        let textColor = UIColor(palette.text)
+        if field.placeholder != prompt || field.textColor != textColor {
+            field.textColor = textColor
+            field.attributedPlaceholder = NSAttributedString(
+                string: prompt,
+                attributes: [.foregroundColor: UIColor(palette.text3)]
+            )
+        }
+        field.tintColor = UIColor(palette.accent)
+        field.keyboardAppearance = palette.isDark ? .dark : .light
         if field.accessibilityLabel != prompt { field.accessibilityLabel = prompt }
         field.accessibilityIdentifier = "settings.search"
         let font = preferredFont
@@ -151,6 +291,7 @@ struct SettingsSlider: UIViewRepresentable {
     var step: Double
     var onEditingChanged: (Bool) -> Void
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.settingsPalette) private var palette
 
     init(value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
         _value = value
@@ -161,14 +302,15 @@ struct SettingsSlider: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UISlider {
         let slider = SettingsNativeSlider()
-        slider.minimumTrackTintColor = UIColor(SettingsDesign.accent)
-        slider.maximumTrackTintColor = UIColor(SettingsDesign.control)
-        slider.thumbTintColor = UIColor(SettingsDesign.accent)
-        let thumb = UIGraphicsImageRenderer(size: CGSize(width: 26, height: 26)).image { context in
-            UIColor(SettingsDesign.accent.opacity(0.18)).setFill()
-            context.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: 26, height: 26))
-            UIColor(SettingsDesign.accent).setFill()
-            context.cgContext.fillEllipse(in: CGRect(x: 4, y: 4, width: 18, height: 18))
+        let thumb = UIGraphicsImageRenderer(size: CGSize(width: 30, height: 30)).image { context in
+            let circle = CGRect(x: 3, y: 2, width: 24, height: 24)
+            context.cgContext.setShadow(offset: CGSize(width: 0, height: 1), blur: 2.5, color: UIColor.black.withAlphaComponent(0.3).cgColor)
+            UIColor.white.setFill()
+            context.cgContext.fillEllipse(in: circle)
+            context.cgContext.setShadow(offset: .zero, blur: 0, color: nil)
+            UIColor.black.withAlphaComponent(0.12).setStroke()
+            context.cgContext.setLineWidth(0.5)
+            context.cgContext.strokeEllipse(in: circle.insetBy(dx: 0.25, dy: 0.25))
         }
         slider.setThumbImage(thumb, for: .normal)
         slider.setThumbImage(thumb, for: .highlighted)
@@ -182,9 +324,11 @@ struct SettingsSlider: UIViewRepresentable {
 
     func updateUIView(_ slider: UISlider, context: Context) {
         context.coordinator.parent = self
+        slider.minimumTrackTintColor = UIColor(palette.accent)
+        slider.maximumTrackTintColor = UIColor(palette.surface4)
         slider.minimumValue = Float(bounds.lowerBound)
         slider.maximumValue = Float(bounds.upperBound)
-        slider.value = Float(value)
+        if !slider.isTracking { slider.value = Float(value) }
         slider.accessibilityValue = String(format: "%g", value)
         (slider as? SettingsNativeSlider)?.accessibilityStep = Float(step)
         slider.isEnabled = isEnabled
@@ -233,79 +377,194 @@ struct SettingsActionButtonStyle: ButtonStyle {
     }
 }
 
+/// Equal segments on one line; options that do not fit (long translations, large text) become a
+/// vertical list of the same choices instead of being squeezed or truncated.
 struct SettingsSegmentedPicker: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.settingsPalette) private var palette
     var title: String
     @Binding var selection: String
     var options: [(value: String, title: String)]
+    var icons: [String: String] = [:]
+    var swatches: [String: Color] = [:]
 
     var body: some View {
         if dynamicTypeSize.isAccessibilitySize {
-            menu
+            list
         } else {
             ViewThatFits(in: .horizontal) {
                 segments
-                menu
+                list
             }
         }
-    }
-
-    private var menu: some View {
-        Picker(title, selection: $selection) {
-            ForEach(options, id: \.value) { option in
-                Text(option.title).tag(option.value)
-            }
-        }
-        .pickerStyle(.menu)
-        .tint(SettingsDesign.text)
-        .font(.body)
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .padding(.horizontal, 12)
-        .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
     }
 
     private var segments: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             ForEach(options, id: \.value) { option in
+                let isOn = selection == option.value
                 Button { selection = option.value } label: {
-                    Text(option.title)
-                        .font(.pretendard(13.5, weight: .semibold))
-                        .foregroundStyle(selection == option.value ? SettingsDesign.background : SettingsDesign.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: true, vertical: true)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .frame(minHeight: 44)
-                        .background(selection == option.value ? SettingsDesign.text : .clear, in: RoundedRectangle(cornerRadius: 8))
+                    HStack(spacing: 6) {
+                        decoration(option.value)
+                        Text(option.title)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                    .foregroundStyle(isOn ? palette.text : palette.text3)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background {
+                        if isOn {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(palette.raise)
+                                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(palette.line2))
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(title), \(option.title)")
-                .accessibilityAddTraits(selection == option.value ? [.isSelected] : [])
+                .accessibilityAddTraits(isOn ? [.isSelected] : [])
             }
         }
-        .padding(3)
-        .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
+        .padding(2)
+        .background(palette.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(palette.line2))
+    }
+
+    private var list: some View {
+        VStack(spacing: 8) {
+            ForEach(options, id: \.value) { option in
+                let isOn = selection == option.value
+                Button { selection = option.value } label: {
+                    HStack(spacing: 10) {
+                        decoration(option.value)
+                        Text(option.title)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(palette.text)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        SettingsCheckMark(isOn: isOn)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(palette.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(isOn ? palette.accent : palette.line2, lineWidth: isOn ? 1.5 : 1))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(title), \(option.title)")
+                .accessibilityAddTraits(isOn ? [.isSelected] : [])
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func decoration(_ value: String) -> some View {
+        if let icon = icons[value] {
+            Image(systemName: icon)
+                .font(.footnote.weight(.medium))
+                .accessibilityHidden(true)
+        }
+        if let swatch = swatches[value] {
+            Circle()
+                .fill(swatch)
+                .frame(width: 11, height: 11)
+                .overlay(Circle().strokeBorder(palette.line3))
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+/// Round radio indicator of option cards and stacked choices.
+struct SettingsCheckMark: View {
+    @Environment(\.settingsPalette) private var palette
+    var isOn: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .strokeBorder(isOn ? palette.accent : palette.line3, lineWidth: 1)
+                .background(Circle().fill(isOn ? palette.accent : Color.clear))
+            if isOn {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white)
+            }
+        }
+        .frame(width: 18, height: 18)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct SettingsRowSeparatorModifier: ViewModifier {
+    @Environment(\.settingsPalette) private var palette
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .top) {
+            palette.line.frame(height: 1).allowsHitTesting(false)
+        }
     }
 }
 
 extension View {
+    /// Rows draw their own top hairline; SettingsGroup hides the first one.
     func settingsRowSeparator() -> some View {
-        overlay(alignment: .bottom) { SettingsDesign.border.frame(height: 1) }
+        modifier(SettingsRowSeparatorModifier())
+    }
+
+    /// Text inputs: 44pt high, neutral surface, one-pixel border.
+    func settingsFieldChrome() -> some View {
+        modifier(SettingsFieldChrome())
     }
 }
 
+private struct SettingsFieldChrome: ViewModifier {
+    @Environment(\.settingsPalette) private var palette
+
+    func body(content: Content) -> some View {
+        content
+            .font(.body)
+            .foregroundStyle(palette.text)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 44)
+            .background(palette.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(palette.line2))
+    }
+}
+
+/// Lyrics provider capability chips: the whole 44pt-high chip is the toggle.
 struct SettingsChipToggleStyle: ToggleStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.settingsPalette) private var palette
+    var systemImage: String? = nil
+
     func makeBody(configuration: Configuration) -> some View {
         Button { configuration.isOn.toggle() } label: {
-            configuration.label
-                .font(.pretendard(13, weight: .semibold))
-                .foregroundStyle(configuration.isOn ? SettingsDesign.mint : SettingsDesign.muted)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(configuration.isOn ? SettingsDesign.mint.opacity(0.16) : SettingsDesign.control, in: Capsule())
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            HStack(spacing: 6) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.caption.weight(.semibold))
+                        .accessibilityHidden(true)
+                }
+                configuration.label
+                    .font(.footnote.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(configuration.isOn ? Color.white : palette.text2)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(minHeight: 36)
+            .background(configuration.isOn ? palette.accent : palette.surface2, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(configuration.isOn ? Color.clear : palette.line2))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.4)
@@ -352,3 +611,4 @@ struct SettingsAdaptiveActions<Content: View>: View {
         }
     }
 }
+

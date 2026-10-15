@@ -3741,90 +3741,6 @@ struct OffsetStepper: View {
     }
 }
 
-struct BluetoothSyncOffsetControls: View {
-    @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var model: AppViewModel
-
-    var body: some View {
-        DetailedOffsetControls(
-            title: settings.t("lyrics.bluetooth_sync.title"),
-            subtitle: scopeText,
-            help: settings.t("lyrics.bluetooth_sync.help"),
-            value: model.bluetoothOffsetMs,
-            resetTitle: settings.t("lyrics.bluetooth_sync.reset"),
-            contentOpacity: model.hasBluetoothAudioDevice ? 1 : 0.45,
-            adjust: { model.adjustBluetoothOffsetMs($0) },
-            reset: { model.setBluetoothOffsetMs(0, notify: true) }
-        )
-    }
-
-    private var scopeText: String {
-        model.hasBluetoothAudioDevice
-            ? settings.tf("lyrics.bluetooth_sync.device_scope", model.bluetoothAudioDeviceName)
-            : settings.t("lyrics.bluetooth_sync.no_device")
-    }
-}
-
-struct DetailedOffsetControls: View {
-    var title: String
-    var subtitle: String? = nil
-    var help: String
-    var value: Int
-    var resetTitle: String
-    var contentOpacity: Double = 1
-    var adjust: (Int) -> Void
-    var reset: () -> Void
-
-    private let negativeSteps = [-100, -50, -10]
-    private let positiveSteps = [10, 50, 100]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text(help)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Text(formatSignedMs(value))
-                .font(.title3.monospacedDigit().weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            offsetButtonRow(negativeSteps)
-            offsetButtonRow(positiveSteps)
-            Button(resetTitle) {
-                reset()
-            }
-            .buttonStyle(.bordered)
-            .frame(maxWidth: .infinity)
-        }
-        .opacity(contentOpacity)
-    }
-
-    private func offsetButtonRow(_ steps: [Int]) -> some View {
-        HStack(spacing: 8) {
-            ForEach(steps, id: \.self) { delta in
-                Button(formatSignedMs(delta)) {
-                    adjust(delta)
-                }
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    private func formatSignedMs(_ offsetMs: Int) -> String {
-        offsetMs > 0 ? "+\(offsetMs)ms" : "\(offsetMs)ms"
-    }
-}
-
 struct MainLyricPreviewPanel: View {
     private static let emptyLyricsPreviewVisibleSeconds: TimeInterval = 3
 
@@ -8883,107 +8799,8 @@ struct InitialSetupView: View {
     }
 }
 
-private struct SpotifySetupInstructionsPanel: View {
-    @EnvironmentObject private var settings: AppSettings
-    @State private var step = 0
-    @State private var copiedMessage = ""
-
-    private let stepCount = 6
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(settings.t("spotify.setup.instructions"))
-                    .font(.headline)
-                Spacer()
-                Text(settings.tf("onboarding.step_format", step + 1, stepCount))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(stepTitle)
-                .font(.subheadline.weight(.semibold))
-            Text(stepDescription)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if let item = copyItem {
-                copyRow(title: item.title, value: item.value)
-            }
-
-            if step == 0, let url = URL(string: "https://developer.spotify.com/dashboard") {
-                Link(settings.t("button.open_browser"), destination: url)
-                    .font(.caption.weight(.semibold))
-            }
-
-            if !copiedMessage.trimmed.isEmpty {
-                Text(copiedMessage)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 10) {
-                Button(settings.t("button.previous")) {
-                    step = max(0, step - 1)
-                }
-                .disabled(step == 0)
-
-                Button(step == stepCount - 1 ? settings.t("button.restart") : settings.t("button.next")) {
-                    step = step == stepCount - 1 ? 0 : step + 1
-                }
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(.vertical, 6)
-    }
-
-    private var stepTitle: String {
-        settings.t("spotify.step\(step).title")
-    }
-
-    private var stepDescription: String {
-        settings.t("spotify.step\(step).desc")
-    }
-
-    private var copyItem: (title: String, value: String)? {
-        switch step {
-        case 0:
-            return (settings.t("spotify.copy.dashboard_url"), "https://developer.spotify.com/dashboard")
-        case 1:
-            return (settings.t("spotify.copy.app_name"), "trackinfo")
-        case 2:
-            return (settings.t("spotify.copy.app_description"), "trackinfo")
-        case 3:
-            return (settings.t("spotify.copy.redirect_uri"), SpotifyRedirectConfiguration.uri)
-        default:
-            return nil
-        }
-    }
-
-    private func copyRow(title: String, value: String) -> some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.caption.monospaced())
-                    .textSelection(.enabled)
-            }
-            Spacer()
-            Button(settings.t("button.copy")) {
-                #if os(iOS)
-                UIPasteboard.general.string = value
-                #endif
-                copiedMessage = settings.tf("toast.copied_format", value)
-            }
-            .buttonStyle(.bordered)
-        }
-    }
-}
-
 struct SettingsView: View {
-    private enum SettingsTab: String, CaseIterable, Identifiable {
+    enum Menu: String, CaseIterable, Identifiable, Hashable {
         case general
         case providers
         case ai
@@ -8995,21 +8812,119 @@ struct SettingsView: View {
         var id: String { rawValue }
         var titleKey: String { "tab.\(rawValue)" }
 
+        var symbol: String {
+            switch self {
+            case .general: return "slider.horizontal.3"
+            case .providers: return "music.note.list"
+            case .ai: return "sparkles"
+            case .appearance: return "paintpalette"
+            case .lyrics: return "music.mic"
+            case .player: return "play.rectangle"
+            case .system: return "gearshape.2"
+            }
+        }
     }
 
+    private enum MenuGroup: String, CaseIterable, Identifiable {
+        case general
+        case sources
+        case display
+        case manage
+
+        var id: String { rawValue }
+
+        var titleKey: String {
+            switch self {
+            case .general: return "tab.general"
+            case .sources: return "settings.group.sources"
+            case .display: return "settings.group.display"
+            case .manage: return "settings.group.manage"
+            }
+        }
+
+        var menus: [Menu] {
+            switch self {
+            case .general: return [.general]
+            case .sources: return [.providers, .ai]
+            case .display: return [.appearance, .lyrics, .player]
+            case .manage: return [.system]
+            }
+        }
+    }
+
+    private enum PreviewKind {
+        case lyrics
+        case main
+        case annotation
+        case pip
+        case vinyl
+    }
+
+    private enum SettingsSheet: String, Identifiable {
+        case uiLanguage
+        case outputLanguage
+        case ruleSource
+        case aiModel
+
+        var id: String { rawValue }
+    }
+
+    private enum SearchPreparation: Equatable {
+        case none
+        case typography(String)
+        case cultural(String)
+        case connection(String)
+        case reveal
+    }
+
+    private struct SearchEntry: Identifiable {
+        let id: String
+        let menu: Menu
+        let label: String
+        var description = ""
+        var section = ""
+        var context = ""
+        var options: [String] = []
+        var value = ""
+        var preparation: SearchPreparation = .none
+    }
+
+    private struct SearchBlock: Identifiable {
+        let id: Int
+        let menu: Menu
+        var entries: [SearchEntry]
+    }
+
+    private struct RevealRequest: Equatable {
+        let menu: Menu
+        let rowID: String
+        let token = UUID()
+    }
+
+    private static let pageSpace = "settings.page"
+
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.verticalSizeClass) private var verticalSizeClass
-    @State private var selectedSpeakerColor = AppSettings.speakerColorNormal
-    @State private var expandedAIProvider: String?
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    @State private var settingsLogsPresented = false
-    @State private var selectedTab: SettingsTab = .general
+    @State private var path: [Menu] = []
     @State private var settingsSearch = ""
     @State private var settingsSearchFocused = false
-    @State private var settingsSearchTarget = ""
+    @State private var reveal: RevealRequest?
+    @State private var flashRowID: String?
+    @State private var revealedRowID: String?
+    @State private var scrollMemory = SettingsScrollMemory()
+    @State private var previewExpanded: [Menu: Bool] = [:]
+    @State private var previewSectionID = ""
+    @State private var typographyGroup = "main"
+    @State private var culturalColumn = "normal"
+    @State private var selectedSpeakerColor = AppSettings.speakerColorNormal
+    @State private var expandedAIProvider: String?
+    @State private var activeSheet: SettingsSheet?
+    @State private var settingsLogsPresented = false
     @State private var aiModels: [AIProviderModels.Model] = []
     @State private var aiModelsConfiguration: AIProviderModels.Configuration?
     @State private var aiModelsLoading = false
@@ -9018,52 +8933,40 @@ struct SettingsView: View {
     @State private var aiModelsRequestId = UUID()
     @State private var cloudApplyConfirmationPresented = false
     @State private var cloudDeleteConfirmationPresented = false
+    @State private var clearAllConfirmationPresented = false
+    @State private var aiCacheConfirmationPresented = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            if !scrollsHeader { settingsTop }
-
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Color.clear.frame(height: 0).id("settings-top")
-                        if scrollsHeader { settingsTop.padding(.bottom, 20) }
-                        if settingsSearch.trimmed.isEmpty { selectedSettingsPage }
-                        else { settingsSearchResults }
-                    }
-                    .frame(maxWidth: 640)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 22)
-                    .padding(.bottom, 40)
+        NavigationStack(path: $path) {
+            homePage
+                .navigationDestination(for: Menu.self) { menu in
+                    menuPage(menu)
                 }
-                .accessibilityIdentifier("settings.scroll")
-                .scrollDismissesKeyboard(.interactively)
-                .onChange(of: selectedTab) { _, _ in
-                    settingsSearchFocused = false
-                    if settingsSearchTarget.isEmpty { proxy.scrollTo("settings-top", anchor: .top) }
-                }
-                .task(id: settingsSearchTarget) {
-                    guard !settingsSearchTarget.isEmpty else { return }
-                    await Task.yield()
-                    proxy.scrollTo(settingsSearchTarget, anchor: .top)
-                }
-            }
         }
-        .background(SettingsDesign.background.ignoresSafeArea())
-        .preferredColorScheme(.dark)
-        .foregroundStyle(SettingsDesign.text)
-        .font(.pretendard(15))
-        .tint(SettingsDesign.accent)
+        .tint(palette.accentText)
         .toggleStyle(SettingsSwitchStyle())
-        .onChange(of: settingsSearch) { _, query in
-            if !query.trimmed.isEmpty { settingsSearchTarget = "" }
+        .environment(\.settingsPalette, palette)
+        .preferredColorScheme(palette.colorScheme)
+        .overlay(alignment: .bottom) { settingsToast }
+        .onChange(of: model.toastMessage) { _, message in
+            let text = message.trimmed
+            if !text.isEmpty { UIAccessibility.post(notification: .announcement, argument: text) }
+        }
+        .onChange(of: path) { _, newPath in
+            settingsSearchFocused = false
+            previewSectionID = ""
+            if newPath.last != reveal?.menu {
+                reveal = nil
+                revealedRowID = nil
+                flashRowID = nil
+            }
         }
         .onAppear {
 #if DEBUG
-            if let rawTab = ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_SETTINGS_TAB"],
-               let tab = SettingsTab(rawValue: rawTab) {
-                selectedTab = tab
+            if path.isEmpty,
+               let rawTab = ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_SETTINGS_TAB"],
+               let menu = Menu(rawValue: rawTab) {
+                path = [menu]
             }
 #endif
 #if DEBUG
@@ -9072,1209 +8975,16 @@ struct SettingsView: View {
             model.prepareCreatorPrivacySettings()
 #endif
         }
+        .sheet(item: $activeSheet) { sheet in
+            sheetContent(sheet)
+                .environment(\.settingsPalette, palette)
+                .environmentObject(settings)
+                .environmentObject(model)
+        }
         .fullScreenCover(isPresented: $settingsLogsPresented) {
             LogsView(visible: $settingsLogsPresented)
                 .environmentObject(model)
                 .environmentObject(model.playbackClock)
-        }
-    }
-
-    private var scrollsHeader: Bool { verticalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize }
-
-    private var settingsTop: some View {
-        VStack(spacing: 10) {
-            settingsHeader
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(SettingsDesign.secondary)
-                    .accessibilityHidden(true)
-                SettingsSearchField(prompt: settings.t("settings.search"), text: $settingsSearch,
-                                    isFocused: $settingsSearchFocused)
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .layoutPriority(1)
-                if !settingsSearch.isEmpty {
-                    Button { settingsSearch = ""; settingsSearchFocused = true } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(settings.t("button.clear_search"))
-                    .accessibilityIdentifier("settings.search.clear")
-                }
-            }
-            .padding(.horizontal, 12)
-            .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 10))
-            if scrollsHeader {
-                Picker(settings.t("settings.title"), selection: settingsSectionBinding) {
-                    ForEach(SettingsTab.allCases) { tab in Text(settings.t(tab.titleKey)).tag(tab) }
-                }
-                .settingsMenuSurface()
-                .accessibilityIdentifier("settings.sections")
-            } else {
-                settingsTabs
-            }
-        }
-        .padding(.horizontal, scrollsHeader ? 0 : 20)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(SettingsDesign.background.opacity(0.96))
-    }
-
-    private var settingsSearchEntries: [(tab: SettingsTab, key: String)] {
-        [
-            (.general, "section.language"),
-            (.general, "setting.ui_language"),
-            (.general, "setting.pronunciation_language"),
-            (.general, "setting.pronunciation_notation"),
-            (.general, "setting.metadata_translation"),
-            (.general, "setting.simplify_title"),
-            (.general, "setting.japanese_furigana"),
-            (.general, "setting.main_preview"),
-            (.lyrics, "section.player"),
-            (.lyrics, "setting.auto_interlude"),
-            (.lyrics, "setting.interlude_labels"),
-            (.lyrics, "setting.synced_karaoke_animation"),
-            (.lyrics, "setting.karaoke_bounce_effect"),
-            (.lyrics, "setting.karaoke_display_granularity"),
-            (.providers, "section.lyrics_providers"),
-            (.providers, "setting.lyrics_type_priority"),
-            (.providers, "setting.sync_data_provider_priority"),
-            (.appearance, "section.layout"),
-            (.appearance, "setting.lyrics_alignment"),
-            (.appearance, "section.typography"),
-            (.appearance, "section.speaker_colors"),
-            (.appearance, "setting.creator_speaker_colors"),
-            (.player, "section.player"),
-            (.player, "setting.keep_screen_on"),
-            (.player, "setting.landscape_auto_hide"),
-            (.player, "setting.landscape_center_no_lyrics"),
-            (.player, "setting.title_tap_action"),
-            (.player, "setting.landscape_original_lyrics"),
-            (.player, "setting.landscape_artwork"),
-            (.player, "setting.lyrics_not_found_notice"),
-            (.player, "section.pip"),
-            (.player, "setting.pip_show_artwork"),
-            (.player, "setting.pip_background"),
-            (.player, "setting.pip_orientation"),
-            (.player, "setting.pip_lyrics_alignment"),
-            (.player, "setting.pip_lyrics_size"),
-            (.player, "setting.pip_translation_size"),
-            (.player, "vinyl.mode"),
-            (.player, "vinyl.settings.album_size"),
-            (.player, "vinyl.settings.record_size"),
-            (.player, "vinyl.settings.tonearm_style"),
-            (.player, "vinyl.settings.tonearm_finish"),
-            (.player, "vinyl.settings.tonearm_size"),
-            (.player, "vinyl.settings.animations"),
-            (.player, "vinyl.settings.track_change_animations"),
-            (.player, "vinyl.settings.rotation_speed"),
-            (.player, "vinyl.settings.center_rotation"),
-            (.player, "vinyl.settings.lyrics"),
-            (.player, "section.typography"),
-            (.ai, "section.ai_lyrics"),
-            (.ai, "lyrics.translation"),
-            (.ai, "lyrics.pronunciation"),
-            (.ai, "section.provider"),
-            (.ai, "setting.cultural_annotations"),
-            (.ai, "setting.cultural_font_family"),
-            (.ai, "section.language_rules"),
-            (.ai, "field.source"),
-            (.ai, "field.track_language"),
-            (.ai, "field.save_target"),
-            (.ai, "field.base_url"),
-            (.ai, "field.model"),
-            (.ai, "openai.connections"),
-            (.ai, "field.max_tokens"),
-            (.ai, "field.temperature"),
-            (.ai, "field.api_key"),
-            (.ai, "pollinations.access_token"),
-            (.system, "section.account"),
-            (.system, "creator_privacy.private_title"),
-            (.system, "cloud_sync.section"),
-            (.system, "section.spotify_api"),
-            (.system, "field.spotify_client_id"),
-            (.system, "field.spotify_client_secret"),
-            (.system, "field.redirect_uri"),
-            (.system, "field.live_source"),
-            (.system, "spotify.disconnect_oauth"),
-            (.system, "lyrics.tab.sync"),
-            (.system, "section.update"),
-            (.system, "section.tools"),
-            (.appearance, "section.background"),
-            (.appearance, "setting.background_mode"),
-            (.appearance, "setting.brightness"),
-            (.appearance, "setting.blur"),
-            (.appearance, "setting.video_scale"),
-            (.appearance, "setting.video_fallback"),
-            (.appearance, "setting.video_aspect"),
-            (.appearance, "setting.video_edge_to_edge"),
-            (.appearance, "setting.noise"),
-            (.appearance, "setting.reduce_motion"),
-            (.appearance, "field.solid_color"),
-            (.appearance, "section.track_background"),
-            (.appearance, "lyrics.background.override")
-        ] + AppSettings.allAIProviders.map { (tab: SettingsTab.ai, key: $0.label) }
-          + AppSettings.lyricsProviders.map { (tab: SettingsTab.providers, key: $0.name) }
-    }
-
-    private var settingsSearchResults: some View {
-        let query = settingsSearch.trimmed
-        let matches = settingsSearchEntries.filter { entry in
-            let descriptionKey = entry.key + "_desc"
-            let description = settings.t(descriptionKey)
-            return settings.t(entry.key).localizedStandardContains(query)
-                || settings.t(entry.tab.titleKey).localizedStandardContains(query)
-                || (description != descriptionKey && description.localizedStandardContains(query))
-        }
-        return VStack(alignment: .leading, spacing: 12) {
-            if matches.isEmpty { Text(settings.t("settings.no_results")).foregroundStyle(SettingsDesign.secondary) }
-            ForEach(matches.indices, id: \.self) { index in
-                let entry = matches[index]
-                Button {
-                    settingsSearchFocused = false
-                    selectedTab = entry.tab
-                    if entry.tab == .ai {
-                        if entry.key == LocalAI.label {
-                            expandedAIProvider = LocalAI.providerId
-                        } else if let provider = AppSettings.providers.first(where: { $0.label == entry.key }) {
-                            settings.setProvider(provider.id)
-                            expandedAIProvider = settings.providerId
-                        } else {
-                            expandedAIProvider = settings.providerId
-                        }
-                    }
-                    settingsSearchTarget = settings.t(entry.key)
-                    settingsSearch = ""
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(settings.t(entry.key)).font(.pretendard(15, weight: .semibold))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(settings.t(entry.tab.titleKey)).font(.caption).foregroundStyle(SettingsDesign.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(14)
-                    .background(SettingsDesign.surface, in: RoundedRectangle(cornerRadius: 12))
-                }.buttonStyle(.plain)
-                    .accessibilityIdentifier("settings.result.\(entry.key)")
-            }
-        }
-    }
-
-    private var settingsHeader: some View {
-        HStack(spacing: 16) {
-            Text(settings.t("settings.title"))
-                .font(.pretendard(22, weight: .heavy))
-                .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 8)
-            Button { settingsSearchFocused = false; dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(SettingsDesign.secondary)
-                    .frame(width: 34, height: 34)
-                    .background(SettingsDesign.control, in: Circle())
-                    .overlay(Circle().stroke(SettingsDesign.strongBorder, lineWidth: 1))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(settings.t("button.close"))
-            .accessibilityIdentifier("settings.close")
-        }
-    }
-
-    private var settingsTabs: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(SettingsTab.allCases) { tab in
-                    Button {
-                        settingsSearchFocused = false
-                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
-                            settingsSearch = ""
-                            settingsSearchTarget = ""
-                            selectedTab = tab
-                        }
-                    } label: {
-                        Text(settings.t(tab.titleKey))
-                            .font(.pretendard(14.5, weight: .semibold))
-                            .foregroundStyle(selectedTab == tab ? SettingsDesign.background : SettingsDesign.secondary)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(selectedTab == tab ? SettingsDesign.text : .clear, in: Capsule())
-                            .frame(minHeight: 44)
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
-                    .accessibilityIdentifier("settings.tab.\(tab.rawValue)")
-                }
-            }
-        }
-    }
-
-    /// The compact section menu acts like the tab buttons: choosing a section leaves search,
-    /// so the page shows and scrolls to the top.
-    private var settingsSectionBinding: Binding<SettingsTab> {
-        Binding(
-            get: { selectedTab },
-            set: { tab in
-                settingsSearchFocused = false
-                settingsSearch = ""
-                settingsSearchTarget = ""
-                selectedTab = tab
-            }
-        )
-    }
-
-    @ViewBuilder
-    private var selectedSettingsPage: some View {
-        switch selectedTab {
-        case .general:
-            generalSettingsPage
-        case .lyrics:
-            lyricsSettingsPage
-        case .providers:
-            lyricsProvidersSettingsPage
-        case .appearance:
-            appearanceSettingsPage
-        case .player:
-            playerSettingsPage
-        case .ai:
-            aiSettingsPage
-        case .system:
-            systemSettingsPage
-        }
-    }
-
-    private var generalSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            settingsSection(settings.t("section.language"), description: settings.t("section.language_desc")) {
-                settingsCard(settings.t("setting.ui_language"), description: settings.t("setting.ui_language_desc")) {
-                    Picker("", selection: uiLanguageBinding) {
-                        ForEach(AppSettings.languages) { language in
-                            Text("\(language.nativeName) · \(language.name)").tag(language.code)
-                        }
-                    }
-                    .labelsHidden()
-                    .settingsMenuSurface()
-                }
-
-                settingsCard(settings.t("setting.pronunciation_language"), description: settings.t("setting.pronunciation_language_desc")) {
-                    Picker("", selection: outputLanguageBinding) {
-                        Text(settings.t("language.same_as_ui")).tag(AppSettings.outputLangSameUI)
-                        ForEach(AppSettings.languages) { language in
-                            Text("\(language.nativeName) · \(language.name)").tag(language.code)
-                        }
-                    }
-                    .labelsHidden()
-                    .settingsMenuSurface()
-                }
-
-                settingsCard(settings.t("setting.pronunciation_notation"), description: settings.t("setting.pronunciation_notation_desc")) {
-                    Picker("", selection: pronunciationNotationBinding) {
-                        Text(settings.t("pronunciation.notation.translation"))
-                            .tag(AppSettings.pronunciationNotationTranslation)
-                        Text(settings.t("pronunciation.notation.latin"))
-                            .tag(AppSettings.pronunciationNotationLatin)
-                        Text(settings.t("pronunciation.notation.ipa"))
-                            .tag(AppSettings.pronunciationNotationIPA)
-                    }
-                    .labelsHidden()
-                    .settingsMenuSurface()
-                }
-
-                settingsToggleCard(
-                    settings.t("setting.metadata_translation"),
-                    description: settings.t("setting.metadata_translation_desc"),
-                    binding: metadataTranslationBinding,
-                    identifier: "settings.toggle.metadata"
-                )
-                settingsToggleCard(settings.t("setting.simplify_title"), description: settings.t("setting.simplify_title_desc"), binding: settingsSavedBinding(\.simplifyTitleEnabled))
-                settingsToggleCard(
-                    settings.t("setting.japanese_furigana"),
-                    description: settings.t("setting.japanese_furigana_desc"),
-                    binding: japaneseFuriganaBinding
-                )
-                settingsCard(settings.t("setting.main_preview"), description: settings.t("setting.main_preview_desc")) {
-                    VStack(spacing: 4) {
-                        Toggle(settings.t("setting.preview_hidden"), isOn: previewHiddenBinding)
-                        Toggle(settings.t("setting.main_preview_original"), isOn: previewItemBinding(AppSettings.previewItemOriginal))
-                        Toggle(settings.t("setting.main_preview_pronunciation"), isOn: previewItemBinding(AppSettings.previewItemPronunciation))
-                        Toggle(settings.t("setting.main_preview_translation"), isOn: previewItemBinding(AppSettings.previewItemTranslation))
-                    }
-                }
-            }
-
-        }
-    }
-
-    private var lyricsSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            settingsSection(settings.t("section.player")) {
-                settingsToggleCard(settings.t("setting.auto_interlude"), description: settings.t("setting.auto_interlude_desc"), binding: autoInterludeBinding)
-                settingsToggleCard(settings.t("setting.interlude_labels"), description: settings.t("setting.interlude_labels_desc"), binding: settingsSavedBinding(\.interludeLabelsEnabled))
-                settingsToggleCard(settings.t("setting.synced_karaoke_animation"), description: settings.t("setting.synced_karaoke_animation_desc"), binding: settingsSavedBinding(\.syncedLyricsKaraokeAnimationEnabled))
-                settingsToggleCard(settings.t("setting.karaoke_bounce_effect"), description: settings.t("setting.karaoke_bounce_effect_desc"), binding: settingsSavedBinding(\.karaokeBounceEffectEnabled))
-                settingsCard(
-                    settings.t("setting.karaoke_display_granularity"),
-                    description: settings.t("setting.karaoke_display_granularity_desc")
-                ) {
-                    SettingsSegmentedPicker(
-                        title: settings.t("setting.karaoke_display_granularity"),
-                        selection: Binding(
-                            get: {
-                                AppSettings.normalizeKaraokeDisplayGranularity(
-                                    settings.karaokeDisplayGranularity
-                                )
-                            },
-                            set: { value in
-                                settings.karaokeDisplayGranularity = value
-                                model.showSavedToast(settings.t("toast.settings_saved"))
-                            }
-                        ),
-                        options: [
-                            (AppSettings.karaokeDisplayCharacter, settings.t("karaoke.display.character")),
-                            (AppSettings.karaokeDisplayWord, settings.t("karaoke.display.word")),
-                            (AppSettings.karaokeDisplayLine, settings.t("karaoke.display.line"))
-                        ]
-                    )
-                }
-            }
-
-        }
-    }
-
-    private var lyricsProvidersSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            settingsSection(
-                settings.t("section.lyrics_providers"),
-                description: settings.t("section.lyrics_providers_desc")
-            ) {
-                settingsToggleCard(
-                    settings.t("setting.lyrics_type_priority"),
-                    description: settings.t("setting.lyrics_type_priority_desc"),
-                    binding: lyricsTypePriorityBinding
-                )
-                settingsToggleCard(
-                    settings.t("setting.sync_data_provider_priority"),
-                    description: settings.t("setting.sync_data_provider_priority_desc"),
-                    binding: syncDataProviderPriorityBinding
-                )
-                ForEach(Array(settings.lyricsProviderOrder.enumerated()), id: \.element) { index, providerId in
-                    if let provider = AppSettings.lyricsProviderById(providerId) {
-                        lyricsProviderSettingsCard(provider, index: index)
-                    }
-                }
-            }
-        }
-    }
-
-    private func lyricsProviderSettingsCard(_ provider: AppSettings.LyricsProvider, index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                providerOrderControls(index: index, count: settings.lyricsProviderOrder.count) { offset in
-                    settings.moveLyricsProvider(provider.id, offset: offset)
-                    model.reloadLyrics(bypassCache: true)
-                }
-                Toggle(isOn: lyricsProviderEnabledBinding(provider.id)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(provider.name).font(.pretendard(14.5, weight: .semibold))
-                        Text(settings.t("lyrics.provider.author_default"))
-                            .font(.pretendard(12))
-                            .foregroundStyle(SettingsDesign.muted)
-                    }
-                }
-                .accessibilityLabel("\(provider.name), \(settings.t("lyrics.provider.enabled"))")
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    Toggle(settings.t("lyrics.provider.type_karaoke"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypeKaraoke))
-                        .accessibilityLabel(provider.supportsNativeKaraoke ? settings.t("lyrics.provider.type_karaoke") : settings.t("lyrics.provider.type_karaoke_sync_data"))
-                    if provider.supportsSynced {
-                        Toggle(settings.t("lyrics.provider.type_synced"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypeSynced))
-                    }
-                    if provider.supportsPlain {
-                        Toggle(settings.t("lyrics.provider.type_plain"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypePlain))
-                    }
-                    if let projectURL = provider.projectURL, let url = URL(string: projectURL) {
-                        Link(destination: url) {
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 13))
-                                .frame(width: 32, height: 32)
-                        }
-                        .foregroundStyle(SettingsDesign.secondary)
-                        .accessibilityLabel(settings.t("lyrics.provider.open_project"))
-                    }
-                }
-                .toggleStyle(SettingsChipToggleStyle())
-            }
-            .padding(.leading, 56)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(settings.t("lyrics.provider.allowed_types"))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .settingsRowSeparator()
-    }
-
-    private func providerOrderControls(index: Int, count: Int, move: @escaping (Int) -> Void) -> some View {
-        VStack(spacing: 0) {
-            Button { move(-1) } label: {
-                Image(systemName: "triangle.fill").font(.system(size: 8))
-                    .frame(width: 44, height: 44).contentShape(Rectangle())
-            }
-            .disabled(index == 0)
-            .accessibilityLabel(settings.t("accessibility.move_up"))
-            Button { move(1) } label: {
-                Image(systemName: "triangle.fill").rotationEffect(.degrees(180)).font(.system(size: 8))
-                    .frame(width: 44, height: 44).contentShape(Rectangle())
-            }
-            .disabled(index == count - 1)
-            .accessibilityLabel(settings.t("accessibility.move_down"))
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(SettingsDesign.secondary)
-    }
-
-    private var appearanceSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            settingsSection(settings.t("section.layout")) {
-                settingsCard(settings.t("setting.lyrics_alignment"), description: settings.t("setting.lyrics_alignment_desc")) {
-                    SettingsSegmentedPicker(
-                        title: settings.t("setting.lyrics_alignment"),
-                        selection: lyricsAlignmentBinding,
-                        options: [
-                            ("left", settings.t("alignment.left")),
-                            ("center", settings.t("alignment.center")),
-                            ("right", settings.t("alignment.right"))
-                        ]
-                    )
-                }
-            }
-
-            settingsSection(settings.t("section.typography"), description: settings.t("section.typography_desc")) {
-                ForEach(AppSettings.typographySlots) { slot in
-                    typographySettingsRow(slot)
-                }
-            }
-
-            settingsSection(settings.t("section.speaker_colors"), description: settings.t("section.speaker_colors_desc")) {
-                settingsToggleCard(
-                    settings.t("setting.creator_speaker_colors"),
-                    description: settings.t("setting.creator_speaker_colors_desc"),
-                    binding: settingsSavedBinding(\.useSyncCreatorSpeakerColors)
-                )
-                ForEach(["normal", "duet", "male", "female"], id: \.self) { group in
-                    speakerSwatchGroup(group)
-                }
-                settingsCard("") {
-                    settingsActionButton(settings.t("button.reset"), role: .destructive) {
-                        settings.resetSpeakerColors()
-                        model.showSavedToast(settings.t("toast.speaker_colors_reset"))
-                    }
-                }
-            }
-
-            backgroundSettingsSection
-            trackBackgroundSettingsSection
-        }
-    }
-
-    private var playerSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            settingsSection(settings.t("section.player")) {
-                settingsCard(settings.t("setting.title_tap_action")) {
-                    Picker(settings.t("setting.title_tap_action"), selection: $settings.titleTapAction) {
-                        Text(settings.t("title_action.disabled")).tag("disabled")
-                        Text(settings.t("title_action.track")).tag("track")
-                        Text(settings.t("title_action.album")).tag("album")
-                        Text(settings.t("title_action.context")).tag("context")
-                    }
-                    .pickerStyle(.menu)
-                }
-                settingsToggleCard(settings.t("setting.landscape_original_lyrics"), description: settings.t("setting.landscape_original_lyrics_desc"), binding: settingsSavedBinding(\.landscapeOriginalLyricsEnabled))
-                settingsToggleCard(settings.t("setting.landscape_artwork"), binding: settingsSavedBinding(\.landscapeArtworkEnabled))
-                settingsToggleCard(settings.t("setting.lyrics_not_found_notice"), binding: settingsSavedBinding(\.lyricsNotFoundNoticeEnabled))
-                settingsToggleCard(
-                    settings.t("setting.keep_screen_on"),
-                    description: settings.t("setting.keep_screen_on_desc"),
-                    binding: keepScreenOnBinding
-                )
-                settingsToggleCard(
-                    settings.t("setting.landscape_auto_hide"),
-                    description: settings.t("setting.landscape_auto_hide_desc"),
-                    binding: landscapeAutoHideBinding
-                )
-                settingsToggleCard(
-                    settings.t("setting.landscape_center_no_lyrics"),
-                    description: settings.t("setting.landscape_center_no_lyrics_desc"),
-                    binding: landscapeCenterNoLyricsBinding
-                )
-            }
-
-            settingsSection(settings.t("section.pip"), description: settings.t("section.pip_desc")) {
-                settingsToggleCard(
-                    settings.t("setting.pip_show_artwork"),
-                    description: settings.t("setting.pip_show_artwork_desc"),
-                    binding: pipShowArtworkBinding
-                )
-                settingsCard(settings.t("setting.pip_background"), description: settings.t("setting.pip_background_desc")) {
-                    SettingsSegmentedPicker(
-                        title: settings.t("setting.pip_background"),
-                        selection: Binding(get: {
-                        AppSettings.normalizePipBackgroundMode(settings.pipBackgroundMode)
-                    }, set: { value in
-                        settings.pipBackgroundMode = value
-                        model.showSavedToast(settings.t("toast.pip_settings_saved"))
-                    }),
-                        options: [
-                            (AppSettings.pipBackgroundCover, settings.t("pip.background.cover")),
-                            (AppSettings.pipBackgroundBlur, settings.t("pip.background.blur")),
-                            (AppSettings.pipBackgroundGradient, settings.t("pip.background.gradient")),
-                            (AppSettings.pipBackgroundSolid, settings.t("background.mode.solid"))
-                        ]
-                    )
-                }
-                settingsCard(settings.t("setting.pip_orientation"), description: settings.t("setting.pip_orientation_desc")) {
-                    SettingsSegmentedPicker(
-                        title: settings.t("setting.pip_orientation"),
-                        selection: Binding(get: {
-                        AppSettings.normalizePipOrientation(settings.pipOrientation)
-                    }, set: { value in
-                        settings.pipOrientation = value
-                        model.showSavedToast(settings.t("toast.pip_settings_saved"))
-                    }),
-                        options: [
-                            (AppSettings.pipOrientationLandscape, settings.t("pip.orientation.landscape")),
-                            (AppSettings.pipOrientationPortrait, settings.t("pip.orientation.portrait")),
-                            (AppSettings.pipOrientationSquare, settings.t("pip.orientation.square"))
-                        ]
-                    )
-                }
-                settingsCard(settings.t("setting.pip_lyrics_alignment"), description: settings.t("setting.pip_lyrics_alignment_desc")) {
-                    SettingsSegmentedPicker(
-                        title: settings.t("setting.pip_lyrics_alignment"),
-                        selection: Binding(get: {
-                        AppSettings.normalizeLyricsAlignment(settings.pipLyricsTextAlignment)
-                    }, set: { value in
-                        settings.pipLyricsTextAlignment = value
-                        model.showSavedToast(settings.t("toast.pip_settings_saved"))
-                    }),
-                        options: [
-                            ("left", settings.t("alignment.left")),
-                            ("center", settings.t("alignment.center")),
-                            ("right", settings.t("alignment.right"))
-                        ]
-                    )
-                }
-                settingsCard(settings.t("setting.pip_lyrics_size"), description: settings.t("setting.pip_lyrics_size_desc")) {
-                    HStack {
-                        SettingsSlider(value: Binding(get: {
-                            Double(AppSettings.clampPipLyricsSizePercent(settings.pipLyricsSizePercent))
-                        }, set: { value in
-                            settings.pipLyricsSizePercent = AppSettings.clampPipLyricsSizePercent(Int(value.rounded()))
-                        }), in: 50...180, step: 1, onEditingChanged: { editing in
-                            if !editing { model.showSavedToast(settings.t("toast.pip_settings_saved")) }
-                        })
-                        Text("\(AppSettings.clampPipLyricsSizePercent(settings.pipLyricsSizePercent))%")
-                            .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(SettingsDesign.secondary)
-                    }
-                }
-                settingsCard(settings.t("setting.pip_translation_size"), description: settings.t("setting.pip_translation_size_desc")) {
-                    HStack {
-                        SettingsSlider(value: Binding(get: {
-                            Double(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent))
-                        }, set: { value in
-                            settings.pipTranslationSizePercent = AppSettings.clampPipTranslationSizePercent(Int(value.rounded()))
-                        }), in: 50...250, step: 1, onEditingChanged: { editing in
-                            if !editing { model.showSavedToast(settings.t("toast.pip_settings_saved")) }
-                        })
-                        Text("\(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent))%")
-                            .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(SettingsDesign.secondary)
-                    }
-                }
-            }
-
-            settingsSection(settings.t("vinyl.mode"), description: settings.t("vinyl.settings.subtitle")) {
-                settingsCard(
-                    settings.t("vinyl.settings.album_size"),
-                    description: settings.t("vinyl.settings.album_size_desc")
-                ) {
-                    HStack {
-                        SettingsSlider(value: Binding(get: {
-                            Double(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent))
-                        }, set: { value in
-                            settings.vinylAlbumSizePercent = AppSettings.clampVinylSizePercent(Int(value.rounded()))
-                        }), in: 70...140, step: 5, onEditingChanged: { editing in
-                            if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
-                        })
-                        Text("\(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent))%")
-                            .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(SettingsDesign.secondary)
-                    }
-                }
-
-                settingsCard(
-                    settings.t("vinyl.settings.record_size"),
-                    description: settings.t("vinyl.settings.record_size_desc")
-                ) {
-                    HStack {
-                        SettingsSlider(value: Binding(get: {
-                            Double(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent))
-                        }, set: { value in
-                            settings.vinylRecordSizePercent = AppSettings.clampVinylSizePercent(Int(value.rounded()))
-                        }), in: 70...140, step: 5, onEditingChanged: { editing in
-                            if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
-                        })
-                        Text("\(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent))%")
-                            .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(SettingsDesign.secondary)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(settings.t("vinyl.settings.tonearm_title"))
-                        .font(.pretendard(18, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text(settings.t("vinyl.settings.tonearm_subtitle"))
-                        .font(.pretendard(12, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.58))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 8)
-
-                settingsCard(
-                    settings.t("vinyl.settings.tonearm_style"),
-                    description: settings.t("vinyl.settings.tonearm_style_desc")
-                ) {
-                    Picker("", selection: Binding(get: {
-                        AppSettings.normalizeVinylTonearmStyle(settings.vinylTonearmStyle)
-                    }, set: { value in
-                        settings.vinylTonearmStyle = AppSettings.normalizeVinylTonearmStyle(value)
-                        model.showSavedToast(settings.t("toast.settings_saved"))
-                    })) {
-                        Text(settings.t("vinyl.settings.tonearm_style_s")).tag(AppSettings.vinylTonearmStyleS)
-                        Text(settings.t("vinyl.settings.tonearm_style_straight")).tag(AppSettings.vinylTonearmStyleStraight)
-                        Text(settings.t("vinyl.settings.tonearm_style_j")).tag(AppSettings.vinylTonearmStyleJ)
-                        Text(settings.t("vinyl.settings.tonearm_style_linear")).tag(AppSettings.vinylTonearmStyleLinear)
-                    }
-                    .labelsHidden()
-                    .settingsMenuSurface()
-                }
-
-                settingsCard(
-                    settings.t("vinyl.settings.tonearm_finish"),
-                    description: settings.t("vinyl.settings.tonearm_finish_desc")
-                ) {
-                    SettingsSegmentedPicker(
-                        title: settings.t("vinyl.settings.tonearm_finish"),
-                        selection: Binding(get: {
-                        AppSettings.normalizeVinylTonearmFinish(settings.vinylTonearmFinish)
-                    }, set: { value in
-                        settings.vinylTonearmFinish = AppSettings.normalizeVinylTonearmFinish(value)
-                        model.showSavedToast(settings.t("toast.settings_saved"))
-                    }),
-                        options: [
-                            (AppSettings.vinylTonearmFinishWhite, settings.t("vinyl.settings.tonearm_finish_white")),
-                            (AppSettings.vinylTonearmFinishSilver, settings.t("vinyl.settings.tonearm_finish_silver")),
-                            (AppSettings.vinylTonearmFinishBlack, settings.t("vinyl.settings.tonearm_finish_black"))
-                        ]
-                    )
-                }
-
-                settingsCard(
-                    settings.t("vinyl.settings.tonearm_size"),
-                    description: settings.t("vinyl.settings.tonearm_size_desc")
-                ) {
-                    HStack {
-                        SettingsSlider(value: Binding(get: {
-                            Double(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent))
-                        }, set: { value in
-                            settings.vinylTonearmSizePercent = AppSettings.clampVinylTonearmSizePercent(Int(value.rounded()))
-                        }), in: 80...120, step: 5, onEditingChanged: { editing in
-                            if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
-                        })
-                        Text("\(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent))%")
-                            .font(.pretendard(13, weight: .semibold))
-                            .foregroundStyle(SettingsDesign.secondary)
-                    }
-                }
-
-                settingsToggleCard(
-                    settings.t("vinyl.settings.animations"),
-                    description: settings.t("vinyl.settings.animations_desc"),
-                    binding: settingsSavedBinding(\.vinylAnimationsEnabled)
-                )
-
-                settingsToggleCard(settings.t("vinyl.settings.track_change_animations"), description: settings.t("vinyl.settings.track_change_animations_desc"), binding: settingsSavedBinding(\.vinylTrackChangeAnimationsEnabled))
-                settingsCard(settings.t("vinyl.settings.rotation_speed"), description: settings.t("vinyl.settings.rotation_speed_desc"), valueText: "\(settings.vinylRotationSpeedPercent)%") {
-                    SettingsSlider(value: Binding(get: { Double(settings.vinylRotationSpeedPercent) }, set: { settings.vinylRotationSpeedPercent = VinylMotionPolicy.speedPercent(Int($0.rounded())) }), in: 25...300, step: 5, onEditingChanged: { editing in
-                        if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
-                    })
-                }
-
-                settingsToggleCard(
-                    settings.t("vinyl.settings.center_rotation"),
-                    description: settings.t("vinyl.settings.center_rotation_desc"),
-                    binding: settingsSavedBinding(\.vinylCenterRotationEnabled)
-                )
-
-                settingsToggleCard(
-                    settings.t("vinyl.settings.lyrics"),
-                    description: settings.t("vinyl.settings.lyrics_desc"),
-                    binding: settingsSavedBinding(\.vinylLyricsEnabled)
-                )
-            }
-
-            settingsSection(settings.t("section.typography"), description: settings.t("vinyl.settings.typography_desc")) {
-                ForEach(AppSettings.vinylTypographySlots) { slot in
-                    typographySettingsRow(slot)
-                }
-            }
-        }
-    }
-
-    private var aiSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            settingsSection(settings.t("section.ai_lyrics"), description: settings.t("section.ai_lyrics_desc")) {
-                settingsToggleCard(settings.t("lyrics.translation"), binding: $settings.translationEnabled)
-                settingsToggleCard(settings.t("lyrics.pronunciation"), binding: $settings.pronunciationEnabled)
-
-            }
-
-            settingsSection(settings.t("section.provider"), description: settings.t("setting.ai_provider_order_desc")) {
-                ForEach(Array(settings.aiProviderOrder.enumerated()), id: \.element) { index, providerId in
-                    if let provider = AppSettings.aiProviderById(providerId) {
-                        aiProviderSettingsCard(provider, index: index)
-                    }
-                }
-            }
-
-            settingsSection(settings.t("setting.cultural_annotations")) {
-                settingsToggleCard(
-                    settings.t("setting.cultural_annotations"),
-                    description: settings.t("setting.cultural_annotations_desc"),
-                    binding: culturalAnnotationsEnabledBinding,
-                    identifier: "settings.toggle.cultural"
-                )
-                if settings.culturalAnnotationsEnabled {
-                    settingsCard(settings.t("setting.cultural_font_family")) {
-                        VStack(alignment: .leading, spacing: 14) {
-                            SettingsSegmentedPicker(
-                                title: settings.t("setting.cultural_font_family"),
-                                selection: $settings.culturalAnnotationsFontFamily,
-                                options: [
-                                    ("pretendard", settings.t("font.pretendard")),
-                                    ("system", settings.t("font.system")),
-                                    ("serif", settings.t("font.serif")),
-                                    ("monospace", settings.t("font.monospace"))
-                                ]
-                            )
-
-                            culturalAnnotationSlider(
-                                title: settings.t("setting.cultural_font_size"),
-                                value: culturalAnnotationFontSizeBinding,
-                                range: 10...28,
-                                valueText: "\(settings.culturalAnnotationsFontSize)px"
-                            )
-                            culturalAnnotationSlider(
-                                title: settings.t("setting.cultural_font_weight"),
-                                value: culturalAnnotationFontWeightBinding,
-                                range: 100...900,
-                                step: 100,
-                                valueText: "\(settings.culturalAnnotationsFontWeight)"
-                            )
-                            culturalAnnotationSlider(
-                                title: settings.t("setting.cultural_opacity"),
-                                value: culturalAnnotationOpacityBinding,
-                                range: 20...100,
-                                step: 5,
-                                valueText: "\(settings.culturalAnnotationsOpacity)%"
-                            )
-                        }
-                    }
-                    settingsCard("\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_font_family"))") {
-                        VStack(alignment: .leading, spacing: 14) {
-                            SettingsSegmentedPicker(
-                                title: settings.t("setting.cultural_font_family"),
-                                selection: $settings.culturalAnnotationsVinylFontFamily,
-                                options: [
-                                    ("pretendard", settings.t("font.pretendard")),
-                                    ("system", settings.t("font.system")),
-                                    ("serif", settings.t("font.serif")),
-                                    ("monospace", settings.t("font.monospace"))
-                                ]
-                            )
-
-                            culturalAnnotationSlider(
-                                title: "\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_font_size"))",
-                                value: culturalAnnotationVinylFontSizeBinding,
-                                range: 10...28,
-                                valueText: "\(settings.culturalAnnotationsVinylFontSize)px"
-                            )
-                            culturalAnnotationSlider(
-                                title: "\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_font_weight"))",
-                                value: culturalAnnotationVinylFontWeightBinding,
-                                range: 100...900,
-                                step: 100,
-                                valueText: "\(settings.culturalAnnotationsVinylFontWeight)"
-                            )
-                            culturalAnnotationSlider(
-                                title: "\(settings.t("vinyl.mode")) · \(settings.t("setting.cultural_opacity"))",
-                                value: culturalAnnotationVinylOpacityBinding,
-                                range: 20...100,
-                                step: 5,
-                                valueText: "\(settings.culturalAnnotationsVinylOpacity)%"
-                            )
-                        }
-                    }
-                }
-
-            }
-
-            settingsSection(settings.t("section.language_rules")) {
-                settingsCard(settings.t("field.source")) {
-                    Picker("", selection: selectedRuleSourceBinding) {
-                        Text(settings.t("language.auto_default")).tag("auto")
-                        ForEach(AppSettings.languages) { language in
-                            Text("\(language.nativeName) · \(language.name)").tag(language.code)
-                        }
-                    }
-                    .labelsHidden()
-                    .settingsMenuSurface()
-                }
-                settingsToggleCard(settings.t("lyrics.translation"), binding: selectedRuleTranslationBinding)
-                settingsToggleCard(settings.t("lyrics.pronunciation"), binding: selectedRulePronunciationBinding)
-                settingsCard(settings.t("field.track_language")) {
-                    Text(selectedRuleSourceLabel).foregroundStyle(.white.opacity(0.70))
-                }
-                settingsCard(settings.t("field.save_target")) {
-                    Text(selectedRuleTargetLabel).foregroundStyle(.white.opacity(0.70))
-                }
-                settingsActionButton(settings.t("lyrics.rule.reset"), role: .destructive) {
-                    settings.resetLanguageRule(sourceLang: effectiveRuleSourceLang)
-                    model.saveLanguageRuleAndRegenerate()
-                }
-                .disabled(effectiveRuleSourceLang == AppSettings.defaultSourceLang)
-            }
-        }
-    }
-
-    private var aiProviderConfiguration: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let url = URL(string: selectedProvider.apiKeyURL), !selectedProvider.apiKeyURL.trimmed.isEmpty {
-                Link(settings.t("button.get_key"), destination: url)
-                    .font(.pretendard(15, weight: .semibold))
-            }
-            if !selectedProvider.translationOnly {
-                settingsCard(settings.t("field.base_url")) {
-                    settingsTextField(settings.t("field.base_url"), text: $settings.baseUrl)
-                }
-                settingsCard(
-                    settings.t("field.model"),
-                    description: settings.providerId == "paxsenix" && settings.model.trimmed.isEmpty
-                        ? settings.t("field.model_required")
-                        : ""
-                ) {
-                    aiModelSelector
-                }
-                .task(id: aiModelConfiguration) {
-                    aiModels = []
-                    aiModelsError = ""
-                    aiModelsBuiltIn = false
-                    do {
-                        try await Task.sleep(for: .milliseconds(350))
-                        await refreshAIModels()
-                    } catch { }
-                }
-            }
-            if settings.providerId == "chatgpt" {
-                settingsCard(settings.t("openai.connections"), description: settings.t("openai.connections_desc")) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ForEach(Array(settings.openAIConnections.enumerated()), id: \.element.id) { index, connection in
-                            OpenAIConnectionEditor(connection: Binding(
-                                get: { settings.openAIConnections.first(where: { $0.id == connection.id }) ?? connection },
-                                set: { value in settings.openAIConnections = settings.openAIConnections.map { $0.id == value.id ? value : $0 } }
-                            ), position: index, count: settings.openAIConnections.count,
-                            onMove: { delta in
-                                var connections = settings.openAIConnections
-                                guard let current = connections.firstIndex(where: { $0.id == connection.id }),
-                                      connections.indices.contains(current + delta) else { return }
-                                connections.swapAt(current, current + delta)
-                                settings.openAIConnections = connections
-                            }, onRemove: {
-                                settings.openAIConnections.removeAll { $0.id == connection.id }
-                            })
-                        }
-                        Button(settings.t("openai.add_connection")) {
-                            settings.openAIConnections.append(OpenAIConnection())
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
-            if !selectedProvider.translationOnly {
-                settingsCard(settings.t("field.max_tokens")) {
-                    Stepper(value: maxTokensBinding, in: 256...65_536, step: 256) {
-                        Text("\(settings.maxTokens)")
-                    }
-                }
-                settingsCard(settings.t("field.temperature")) {
-                    HStack {
-                        SettingsSlider(value: temperatureBinding, in: 0...2, step: 0.05)
-                        Text(String(format: "%.2f", settings.temperature))
-                            .foregroundStyle(SettingsDesign.secondary)
-                    }
-                }
-            }
-            settingsCard(settings.t("field.api_key"), description: settings.t("field.api_key_desc")) {
-                TextEditor(text: $settings.apiKeys)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 86)
-                    .padding(10)
-                    .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
-                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
-            }
-            if settings.providerId == "pollinations" {
-                settingsCard(settings.t("pollinations.access_token")) {
-                    SecureField(settings.t("pollinations.access_token"), text: $settings.pollinationsAccessToken)
-                        .textFieldStyle(SettingsTextFieldStyle())
-                    Text(model.pollinationsAuthStatusText)
-                        .font(.caption)
-                        .foregroundStyle(SettingsDesign.secondary)
-                    settingsActionButton(model.pollinationsConnected ? settings.t("pollinations.reconnect") : settings.t("pollinations.connect")) {
-                        model.startPollinationsLogin()
-                    }
-                    .disabled(model.pollinationsAuthInFlight)
-                    settingsActionButton(settings.t("pollinations.open_login")) { model.openPollinationsLoginPage() }
-                        .disabled(!model.pollinationsCanOpenLoginPage)
-                    settingsActionButton(settings.t("pollinations.test")) { model.testPollinationsToken() }
-                        .disabled(!model.pollinationsCanTestToken)
-                    settingsActionButton(settings.t("pollinations.disconnect"), role: .destructive) { model.disconnectPollinationsLogin() }
-                        .disabled(!model.pollinationsConnected || model.pollinationsAuthInFlight)
-                }
-            }
-            Text(settings.t("settings.ai_autosave"))
-                .font(.caption).foregroundStyle(SettingsDesign.secondary)
-            settingsActionButton(settings.t(model.aiConnectionTesting ? "pollinations.status_testing" : "pollinations.test")) {
-                model.testAIConnection()
-            }
-            .disabled(model.aiConnectionTesting)
-            settingsActionButton(settings.t("button.save_regenerate")) {
-                model.saveAiSettingsAndRegenerate()
-            }
-        }
-    }
-
-
-    private var systemSettingsPage: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            settingsSection(settings.t("section.account")) {
-                settingsCard("Discord", description: settings.t("creator_privacy.section_desc")) {
-                    HStack(spacing: 10) {
-                        if model.creatorAccountConnected {
-                            settingsActionButton(settings.t("creator_privacy.refresh")) {
-                                model.refreshCreatorPrivacy()
-                            }
-                            .disabled(model.creatorPrivacyRequestInFlight)
-
-                            settingsActionButton(settings.t("creator_privacy.disconnect"), role: .destructive) {
-                                model.disconnectCreatorAccount()
-                            }
-                            .disabled(model.creatorPrivacyRequestInFlight)
-                        } else {
-                            settingsActionButton(settings.t("creator_privacy.login")) {
-                                model.startCreatorAccountLogin()
-                            }
-                            .disabled(model.creatorPrivacyRequestInFlight || model.creatorPrivacyLoginInProgress)
-                        }
-                    }
-                }
-                settingsCard(
-                    settings.t("creator_privacy.private_title"),
-                    description: settings.t("creator_privacy.private_desc")
-                ) {
-                    HStack(alignment: .center, spacing: 12) {
-                        Group {
-                            if model.creatorPrivacyRequestInFlight {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Circle()
-                                    .fill(creatorPrivacyStatusColor)
-                                    .frame(width: 8, height: 8)
-                            }
-                        }
-                        .frame(width: 18, height: 18)
-
-                        Text(model.creatorPrivacyStatusText)
-                            .font(.pretendard(13))
-                            .foregroundStyle(SettingsDesign.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer(minLength: 10)
-
-                        Toggle("", isOn: creatorPrivacyBinding)
-                            .labelsHidden()
-                            .fixedSize()
-                            .disabled(!model.creatorPrivacyCanEdit)
-                            .accessibilityLabel(settings.t("creator_privacy.private_title"))
-                            .accessibilityValue(model.creatorPrivacyStatusText)
-                    }
-
-
-                }
-                settingsCard(settings.t("cloud_sync.section"), description: settings.t("cloud_sync.monthly_required") + "\n" + settings.t("cloud_sync.section_desc")) {
-                    HStack(alignment: .center, spacing: 10) {
-                        if model.cloudSettingsRequestInFlight {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: model.cloudSettingsSupportBlocked
-                                  ? "exclamationmark.triangle.fill"
-                                  : (model.cloudSettingsExists ? "checkmark.icloud" : "icloud"))
-                                .foregroundStyle(model.cloudSettingsSupportBlocked
-                                                 ? Color.orange.opacity(0.92)
-                                                 : (model.cloudSettingsExists ? Color.green.opacity(0.85) : Color.white.opacity(0.40)))
-                        }
-                        Text(model.cloudSettingsStatusText)
-                            .font(.pretendard(13))
-                            .foregroundStyle(SettingsDesign.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityLabel(model.cloudSettingsStatusText)
-                    }
-
-                    HStack(spacing: 10) {
-                        settingsActionButton(settings.t("cloud_sync.refresh")) {
-                            model.refreshCloudSettings()
-                        }
-                        settingsActionButton(settings.t("cloud_sync.upload")) {
-                            model.uploadCloudSettings()
-                        }
-                    }
-                    .disabled(!model.cloudSettingsActionsEnabled)
-
-                    HStack(spacing: 10) {
-                        settingsActionButton(settings.t("cloud_sync.apply")) {
-                            cloudApplyConfirmationPresented = true
-                        }
-                        .disabled(!model.cloudSettingsCanApply)
-                        settingsActionButton(settings.t("cloud_sync.delete"), role: .destructive) {
-                            cloudDeleteConfirmationPresented = true
-                        }
-                        .disabled(!model.cloudSettingsActionsEnabled)
-                    }
-                }
-
-            }
-
-            settingsSection(
-                settings.t("section.spotify_api"),
-                description: settings.t("section.spotify_api_option_desc")
-            ) {
-                settingsCard(settings.t("section.spotify_api")) {
-                    SpotifySetupInstructionsPanel()
-                }
-                settingsCard(settings.t("field.spotify_client_id")) {
-                    settingsTextField(settings.t("field.spotify_client_id"), text: $settings.spotifyClientId)
-                }
-                settingsCard(
-                    settings.t("field.spotify_client_secret"),
-                    description: settings.t("field.spotify_client_secret_role")
-                ) {
-                    SecureField(settings.t("field.spotify_client_secret"), text: $settings.spotifyClientSecret)
-                        .textFieldStyle(SettingsTextFieldStyle())
-                }
-                settingsCard(settings.t("field.redirect_uri")) {
-                    Text(SpotifyRedirectConfiguration.uri)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                        .foregroundStyle(.white.opacity(0.72))
-                }
-                spotifyWebAPIOptInCard
-                settingsCard(settings.t("field.live_source")) {
-                    Text(model.spotifyAppRemoteConnected ? settings.t("spotify.source.app_remote") : (model.spotifyLivePolling ? settings.t("spotify.source.web_api") : settings.t("spotify.source.off")))
-                        .foregroundStyle(.white.opacity(0.72))
-                    settingsActionButton(model.spotifyLivePolling ? settings.t("spotify.live.stop") : settings.t("spotify.live.connect")) {
-                        model.spotifyLivePolling ? model.stopSpotifyLivePolling() : model.connectSpotifyUserAndStartPolling()
-                    }
-                }
-                if !model.spotifyValidationStatus.trimmed.isEmpty {
-                    Text(model.spotifyValidationStatus)
-                        .font(.caption)
-                        .foregroundStyle(SettingsDesign.secondary)
-                }
-                settingsActionButton(model.spotifyCredentialsValidationInFlight ? settings.t("spotify.validate_checking") : settings.t("button.spotify_save")) {
-                    model.validateSpotifyApiCredentials(reloadOnChange: true)
-                }
-                .disabled(model.spotifyCredentialsValidationInFlight)
-                if model.spotifyWebAPIAuthorizationStored {
-                    settingsCard(
-                        settings.t("spotify.disconnect_oauth"),
-                        description: settings.t("spotify.disconnect_oauth_desc")
-                    ) {
-                        settingsActionButton(settings.t("spotify.disconnect_oauth"), role: .destructive) {
-                            model.disconnectSpotifyUser()
-                        }
-                    }
-                }
-            }
-
-            settingsSection(settings.t("lyrics.tab.sync"), description: settings.t("lyrics.global_sync.help")) {
-                settingsCard(settings.t("lyrics.tab.sync")) {
-                    DetailedOffsetControls(
-                        title: settings.t("lyrics.global_sync.title"),
-                        help: settings.t("lyrics.global_sync.help"),
-                        value: model.globalOffsetMs,
-                        resetTitle: settings.t("lyrics.global_sync.reset"),
-                        adjust: { model.adjustGlobalOffsetMs($0) },
-                        reset: { model.setGlobalOffsetMs(0, notify: true) }
-                    )
-                    DetailedOffsetControls(
-                        title: settings.t("lyrics.sync.title"),
-                        help: settings.t("lyrics.sync.help"),
-                        value: model.trackOffsetMs,
-                        resetTitle: settings.t("lyrics.sync.reset"),
-                        adjust: { model.adjustTrackOffsetMs($0) },
-                        reset: { model.setTrackOffsetMs(0, notify: true) }
-                    )
-                    BluetoothSyncOffsetControls()
-                    DetailedOffsetControls(
-                        title: settings.t("lyrics.video_sync.title"),
-                        help: settings.t("lyrics.video_sync.help"),
-                        value: model.videoOffsetMs,
-                        resetTitle: settings.t("lyrics.video_sync.reset"),
-                        adjust: { model.adjustVideoOffsetMs($0) },
-                        reset: { model.setVideoOffsetMs(0, notify: true) }
-                    )
-                }
-            }
-
-            settingsSection(settings.t("section.update")) {
-                settingsCard(settings.t("section.update")) {
-                    Text(model.updateStatus)
-                        .font(.caption)
-                        .foregroundStyle(SettingsDesign.secondary)
-                    settingsActionButton(model.updateCheckInFlight ? settings.t("update.checking") : settings.t("update.check")) {
-                        model.checkForUpdates(manual: true)
-                    }
-                    .disabled(model.updateCheckInFlight)
-                    settingsActionButton(settings.t("button.open_release")) { model.openUpdateReleasePage() }
-                }
-            }
-
-            settingsSection(settings.t("section.tools"), description: settings.t("section.tools_desc")) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    settingsActionButton(settings.t("button.clear_current")) { model.clearCachesForCurrentTrack() }
-                    settingsActionButton(settings.t("button.clear_all"), role: .destructive) { model.clearAllCaches() }
-                    settingsActionButton(settings.t("button.ai_cache_clear")) { model.clearAiCaches() }
-                    settingsActionButton(settings.t("button.debug_log")) { settingsLogsPresented = true }
-                    settingsActionButton(settings.t("button.reload_current")) { model.reloadLyrics(bypassCache: true) }
-                }
-                .padding(16)
-            }
         }
         .alert(settings.t("cloud_sync.apply"), isPresented: $cloudApplyConfirmationPresented) {
             Button(settings.t("button.cancel"), role: .cancel) {}
@@ -10301,510 +9011,1480 @@ struct SettingsView: View {
         } message: {
             Text(settings.t("cloud_sync.monthly_required"))
         }
-    }
-
-    private var backgroundSettingsSection: some View {
-        settingsSection(settings.t("section.background"), description: settings.t("section.background_desc")) {
-            settingsCard(settings.t("setting.background_mode"), description: settings.t("setting.background_mode_desc")) {
-                SettingsSegmentedPicker(
-                    title: settings.t("setting.background_mode"),
-                    selection: Binding(get: { settings.backgroundMode }, set: { value in
-                    settings.backgroundMode = value
-                    model.refreshBackgroundForCurrentTrack()
-                    model.showSavedToast(settings.t("toast.background_saved"))
-                }),
-                    options: [
-                        (AppSettings.backgroundGradient, settings.t("background.mode.gradient")),
-                        (AppSettings.backgroundBlurGradient, settings.t("background.mode.blur_gradient")),
-                        (AppSettings.backgroundVideo, settings.t("background.mode.video")),
-                        (AppSettings.backgroundSolid, settings.t("background.mode.solid"))
-                    ]
-                )
-            }
-            videoAppearanceSettings(fallback: $settings.backgroundVideoFallback, aspect: $settings.backgroundVideoAspect, edgeToEdge: $settings.backgroundVideoEdgeToEdge)
-            settingsCard(settings.t("setting.brightness"), valueText: "\(settings.backgroundBrightness)%") {
-                SettingsSlider(value: Binding(get: { Double(settings.backgroundBrightness) }, set: { settings.backgroundBrightness = Int($0.rounded()) }), in: 0...100, step: 1, onEditingChanged: backgroundSliderEditingChanged)
-            }
-            settingsCard(settings.t("setting.blur"), valueText: "\(settings.backgroundBlur)%") {
-                SettingsSlider(value: Binding(get: { Double(settings.backgroundBlur) }, set: { settings.backgroundBlur = Int($0.rounded()) }), in: 0...100, step: 1, onEditingChanged: backgroundSliderEditingChanged)
-            }
-            settingsCard(settings.t("setting.video_scale"), valueText: "\(settings.backgroundVideoScale)%") {
-                SettingsSlider(value: Binding(get: { Double(settings.backgroundVideoScale) }, set: { settings.backgroundVideoScale = AppSettings.clampBackgroundVideoScale(Int($0.rounded())) }), in: 100...180, step: 1, onEditingChanged: backgroundSliderEditingChanged)
-            }
-            settingsToggleCard(settings.t("setting.noise"), binding: backgroundNoiseBinding)
-            settingsToggleCard(settings.t("setting.reduce_motion"), binding: backgroundReduceMotionBinding)
-            settingsCard(settings.t("field.solid_color")) {
-                HexColorEditorRow(
-                    title: settings.t("field.solid_color"),
-                    hexColor: $settings.backgroundSolidColor,
-                    fallback: "#1e3a8a",
-                    onSave: { model.showSavedToast(settings.t("toast.background_saved")) }
-                )
-            }
+        .alert(settings.t("button.clear_all"), isPresented: $clearAllConfirmationPresented) {
+            Button(settings.t("button.cancel"), role: .cancel) {}
+            Button(settings.t("button.clear_all"), role: .destructive) { model.clearAllCaches() }
+        } message: {
+            Text(settings.t("settings.confirm.irreversible"))
+        }
+        .alert(settings.t("button.ai_cache_clear"), isPresented: $aiCacheConfirmationPresented) {
+            Button(settings.t("button.cancel"), role: .cancel) {}
+            Button(settings.t("button.ai_cache_clear"), role: .destructive) { model.clearAiCaches() }
+        } message: {
+            Text(settings.t("settings.confirm.irreversible"))
         }
     }
 
-    private func videoAppearanceSettings(fallback: Binding<String>, aspect: Binding<String>, edgeToEdge: Binding<Bool>) -> some View {
-        Group {
-            settingsCard(settings.t("setting.video_fallback")) {
-                Picker(settings.t("setting.video_fallback"), selection: fallback) {
-                    Text(settings.t("background.mode.gradient")).tag(AppSettings.backgroundGradient)
-                    Text(settings.t("background.mode.blur_gradient")).tag(AppSettings.backgroundBlurGradient)
-                    Text(settings.t("background.mode.solid")).tag(AppSettings.backgroundSolid)
-                }.pickerStyle(.menu)
-            }
-            settingsCard(settings.t("setting.video_aspect")) {
-                SettingsSegmentedPicker(title: settings.t("setting.video_aspect"), selection: aspect,
-                    options: [("fit", settings.t("video_aspect.fit")), ("fill", settings.t("video_aspect.fill")), ("stretch", settings.t("video_aspect.stretch"))])
-            }
-            settingsToggleCard(settings.t("setting.video_edge_to_edge"), description: settings.t("setting.video_edge_to_edge_desc"), binding: edgeToEdge)
-        }
+    private var palette: SettingsPalette {
+        SettingsTheme.palette(settings.settingsTheme)
     }
 
-    private var trackBackgroundSettingsSection: some View {
-        settingsSection(settings.t("section.track_background")) {
-            settingsToggleCard(settings.t("lyrics.background.override"), binding: trackBackgroundOverrideBinding)
-                .disabled(model.currentTrackKey.isEmpty)
-            if model.currentTrackKey.isEmpty {
-                Text(settings.t("label.no_current_track"))
-                    .font(.pretendard(13))
-                    .foregroundStyle(.white.opacity(0.58))
-            } else if currentTrackHasBackgroundOverride {
-                settingsCard(settings.t("setting.background_mode")) {
-                    SettingsSegmentedPicker(
-                        title: settings.t("setting.background_mode"),
-                        selection: trackBackgroundModeBinding,
-                        options: [
-                            (AppSettings.backgroundGradient, settings.t("background.mode.gradient")),
-                            (AppSettings.backgroundBlurGradient, settings.t("background.mode.blur_gradient")),
-                            (AppSettings.backgroundVideo, settings.t("background.mode.video")),
-                            (AppSettings.backgroundSolid, settings.t("background.mode.solid"))
-                        ]
-                    )
-                }
-                videoAppearanceSettings(
-                    fallback: Binding(get: { editableTrackBackground.videoFallback }, set: { value in updateTrackBackground { $0.videoFallback = AppSettings.normalizeVideoFallback(value) } }),
-                    aspect: Binding(get: { editableTrackBackground.videoAspect }, set: { value in updateTrackBackground { $0.videoAspect = AppearancePolicy.videoAspect(value) } }),
-                    edgeToEdge: Binding(get: { editableTrackBackground.videoEdgeToEdge }, set: { value in updateTrackBackground { $0.videoEdgeToEdge = value } })
-                )
-                settingsCard(settings.t("setting.brightness"), valueText: "\(Int(trackBackgroundBrightnessBinding.wrappedValue))%") {
-                    SettingsSlider(value: trackBackgroundBrightnessBinding, in: 0...100, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
-                }
-                settingsCard(settings.t("setting.blur"), valueText: "\(Int(trackBackgroundBlurBinding.wrappedValue))%") {
-                    SettingsSlider(value: trackBackgroundBlurBinding, in: 0...100, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
-                }
-                settingsCard(settings.t("setting.video_scale"), valueText: "\(Int(trackBackgroundVideoScaleBinding.wrappedValue))%") {
-                    SettingsSlider(value: trackBackgroundVideoScaleBinding, in: 100...180, step: 1, onEditingChanged: trackBackgroundSliderEditingChanged)
-                }
-                settingsToggleCard(settings.t("setting.noise"), binding: trackBackgroundNoiseBinding)
-                settingsToggleCard(settings.t("setting.reduce_motion"), binding: trackBackgroundReduceMotionBinding)
-                settingsCard(settings.t("field.solid_color")) {
-                    HexColorEditorRow(
-                        title: settings.t("field.solid_color"),
-                        hexColor: trackBackgroundSolidColorBinding,
-                        fallback: "#1e3a8a",
-                        onSave: { model.showSavedToast(settings.t("toast.track_background_saved")) }
-                    )
-                }
-            }
-        }
-    }
-
-    private func settingsSection<Content: View>(
-        _ title: String,
-        description: String = "",
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.pretendard(13.5, weight: .bold))
-                .foregroundStyle(SettingsDesign.secondary)
-                .accessibilityAddTraits(.isHeader)
-            VStack(alignment: .leading, spacing: 0) {
-                if !description.trimmed.isEmpty {
-                    Text(description)
-                        .font(.pretendard(12.5))
-                        .foregroundStyle(SettingsDesign.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 14)
-                        .padding(.bottom, 4)
-                }
-                content()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(SettingsDesign.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(SettingsDesign.border, lineWidth: 1))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .id(title)
-    }
-
-    private func settingsCard<Content: View>(
-        _ title: String,
-        description: String = "",
-        valueText: String = "",
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            if !title.trimmed.isEmpty {
-                SettingsAdaptiveActions {
-                    Text(title)
-                        .font(.pretendard(15, weight: .semibold))
-                        .foregroundStyle(SettingsDesign.text)
-                    if !valueText.isEmpty {
-                        Text(valueText)
-                            .font(.pretendard(13))
-                            .monospacedDigit()
-                            .foregroundStyle(SettingsDesign.secondary)
-                    }
-                }
-            }
-            if !description.trimmed.isEmpty {
-                Text(description)
-                    .font(.pretendard(12.5))
-                    .foregroundStyle(SettingsDesign.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .settingsRowSeparator()
-        .id(title)
-    }
-
-    private func settingsToggleCard(_ title: String, description: String = "", binding: Binding<Bool>, identifier: String? = nil) -> some View {
-        Toggle(isOn: binding) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.pretendard(15, weight: .semibold))
-                    .foregroundStyle(SettingsDesign.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !description.trimmed.isEmpty {
-                    Text(description)
-                        .font(.pretendard(12.5))
-                        .foregroundStyle(SettingsDesign.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .settingsRowSeparator()
-        .id(title)
-        .accessibilityIdentifier(identifier ?? "settings.toggle.\(title)")
-        .debugSettingsHitArea(identifier ?? "settings.toggle.\(title)")
-    }
-
-    private func typographySettingsRow(_ slot: AppSettings.TypographySlot) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                typographyLabel(slot).frame(width: 74, alignment: .leading)
-                typographySlider(slot).frame(minWidth: 60)
-                typographyWeights(slot)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                typographyLabel(slot)
-                HStack(spacing: 12) {
-                    typographySlider(slot)
-                    typographyWeights(slot)
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .settingsRowSeparator()
-    }
-
-    private func typographyLabel(_ slot: AppSettings.TypographySlot) -> some View {
-        Text(settings.t("typography.slot.\(slot.id)"))
-            .font(.pretendard(14, weight: .semibold))
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityHint(settings.t("typography.slot.\(slot.id)_desc"))
-    }
-
-    private func typographySlider(_ slot: AppSettings.TypographySlot) -> some View {
-        VStack(spacing: 1) {
-            SettingsSlider(value: typographySizeBinding(slot), in: 70...160, step: 1, onEditingChanged: { editing in
-                if !editing { model.showSavedToast(settings.t("toast.typography_saved")) }
-            })
-            .accessibilityLabel(settings.t("typography.slot.\(slot.id)"))
-            .accessibilityValue("\(typographyStyle(slot).sizePercent)%")
-            Text("\(typographyStyle(slot).sizePercent)%")
-                .font(.pretendard(10))
-                .monospacedDigit()
-                .foregroundStyle(SettingsDesign.secondary)
+    /// Toasts are drawn by the player screen, which this full-screen cover hides; show them here too.
+    @ViewBuilder
+    private var settingsToast: some View {
+        let message = model.toastMessage.trimmed
+        if !message.isEmpty {
+            Text(message)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(palette.inkText)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .background(palette.ink, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .padding(.horizontal, 18)
+                .padding(.bottom, 20)
+                .allowsHitTesting(false)
                 .accessibilityHidden(true)
+                .transition(.opacity)
         }
     }
 
-    private func typographyWeights(_ slot: AppSettings.TypographySlot) -> some View {
-        HStack(spacing: 3) {
-            ForEach([AppSettings.typoWeightRegular, AppSettings.typoWeightSemibold, AppSettings.typoWeightBold], id: \.self) { weight in
-                Button {
-                    typographyWeightBinding(slot).wrappedValue = weight
-                } label: {
-                    Text(weight == AppSettings.typoWeightRegular ? "R" : weight == AppSettings.typoWeightSemibold ? "S" : "B")
-                        .font(.pretendard(12, weight: .bold))
-                        .foregroundStyle(typographyStyle(slot).weight == weight ? SettingsDesign.background : SettingsDesign.secondary)
-                        .frame(minWidth: 26, minHeight: 26)
-                        .background(typographyStyle(slot).weight == weight ? SettingsDesign.text : .clear, in: RoundedRectangle(cornerRadius: 6))
-                        .frame(minWidth: 36, minHeight: 44)
+    // MARK: Home
+
+    private var homePage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                searchBox
+                    .padding(.bottom, 18)
+                if settingsSearch.trimmed.isEmpty {
+                    ForEach(MenuGroup.allCases) { group in
+                        homeGroup(group)
+                    }
+                } else {
+                    settingsSearchResults
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 40)
+            .frame(maxWidth: 680)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .accessibilityIdentifier("settings.home")
+        .background(palette.background.ignoresSafeArea())
+        .navigationTitle(settings.t("settings.title"))
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) { themeSwitch }
+            ToolbarItem(placement: .topBarTrailing) { closeButton }
+        }
+        .toolbarBackground(palette.background, for: .navigationBar)
+    }
+
+    private var searchBox: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(palette.text3)
+                .accessibilityHidden(true)
+            SettingsSearchField(prompt: settings.t("settings.search"), text: $settingsSearch,
+                                isFocused: $settingsSearchFocused)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .layoutPriority(1)
+            if !settingsSearch.isEmpty {
+                Button { settingsSearch = ""; settingsSearchFocused = true } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                        .foregroundStyle(palette.text3)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(settings.t("typography.weight.\(weight)"))
-                .accessibilityAddTraits(typographyStyle(slot).weight == weight ? [.isSelected] : [])
+                .accessibilityLabel(settings.t("button.clear_search"))
+                .accessibilityIdentifier("settings.search.clear")
             }
         }
-        .padding(.horizontal, 3)
-        .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.leading, 12)
+        .padding(.trailing, settingsSearch.isEmpty ? 12 : 2)
+        .background(palette.surface2, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(settingsSearchFocused ? palette.accentLine : palette.line2))
     }
 
-    private func speakerSwatchGroup(_ group: String) -> some View {
-        let slots = AppSettings.speakerColorSlots.filter { $0.id.hasPrefix(group) }
-        return settingsCard("") {
-            Text(settings.t("speaker_color.\(group)"))
-                .font(.pretendard(13, weight: .bold))
-                .foregroundStyle(SettingsDesign.secondary)
-            HStack(spacing: 6) {
-                ForEach(slots) { slot in
-                    Button { selectedSpeakerColor = slot.id } label: {
-                        Circle()
-                            .fill(Color(hex: settings.speakerColorSettings().hex(slot.id)))
-                            .frame(width: 34, height: 34)
-                            .overlay(Circle().stroke(selectedSpeakerColor == slot.id ? SettingsDesign.text : .clear, lineWidth: 2).padding(-3))
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(slot.id == AppSettings.speakerColorNormal ? settings.t("speaker_color.normal") : "\(settings.t("speaker_color.\(group)")) \(slot.id.last.map(String.init) ?? "")")
-                    .accessibilityValue(settings.speakerColorSettings().hex(slot.id))
-                    .accessibilityAddTraits(selectedSpeakerColor == slot.id ? [.isSelected] : [])
+    private func homeGroup(_ group: MenuGroup) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(settings.t(group.titleKey))
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(palette.text3)
+                .padding(.horizontal, 6)
+                .accessibilityAddTraits(.isHeader)
+            SettingsGroup {
+                ForEach(group.menus) { menu in
+                    homeRow(menu)
                 }
             }
-            if let slot = slots.first(where: { $0.id == selectedSpeakerColor }) {
-                SpeakerColorRow(slot: slot)
-                    .id(slot.id)
-                    .font(.pretendard(13.5, weight: .semibold))
-                    .padding(12)
-                    .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11))
-            }
         }
+        .padding(.bottom, 20)
     }
 
-    private var spotifyWebAPIOptInCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 14) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(settings.t("setting.spotify_web_api"))
-                        .font(.pretendard(15, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Text(settings.t("setting.spotify_web_api_desc"))
-                        .font(.pretendard(13))
-                        .foregroundStyle(SettingsDesign.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Toggle("", isOn: spotifyWebAPIEnabledBinding)
-                    .labelsHidden()
-                    .fixedSize()
-                    .accessibilityLabel(settings.t("setting.spotify_web_api"))
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Circle()
-                    .fill(spotifyWebAPIStatusColor)
-                    .frame(width: 7, height: 7)
-                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
-                    .accessibilityHidden(true)
-                Text(spotifyWebAPIStatusText)
-                    .font(.pretendard(13))
-                    .foregroundStyle(.white.opacity(0.72))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .settingsRowSeparator()
-    }
-
-    private var spotifyWebAPIEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { settings.spotifyWebAPIEnabled },
-            set: { value in
-                model.setSpotifyWebAPIEnabled(value)
-                model.showSavedToast(settings.t("toast.settings_saved"))
-            }
-        )
-    }
-
-    private var spotifyWebAPIStatusText: String {
-        guard settings.spotifyWebAPIEnabled else {
-            return settings.t("setting.spotify_web_api_status_off")
-        }
-        return model.spotifyWebAPIConnected
-            ? settings.t("setting.spotify_web_api_status_connected")
-            : settings.t("setting.spotify_web_api_status_pending")
-    }
-
-    private var spotifyWebAPIStatusColor: Color {
-        guard settings.spotifyWebAPIEnabled else { return .white.opacity(0.34) }
-        return model.spotifyWebAPIConnected
-            ? Color(red: 0.18, green: 0.83, blue: 0.44)
-            : Color(red: 0.98, green: 0.76, blue: 0.30)
-    }
-
-    private func settingsActionButton(_ title: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
-        Button(role: role, action: action) {
-            SettingsActionLabel(title: title)
-                .font(.pretendard(13.5, weight: .semibold))
-                .foregroundStyle(role == .destructive ? SettingsDesign.accent : SettingsDesign.text)
-                .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
-        }
-        .buttonStyle(SettingsActionButtonStyle())
-    }
-
-    private func settingsTextField(_ title: String, text: Binding<String>) -> some View {
-        TextField(title, text: text)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .textFieldStyle(SettingsTextFieldStyle())
-    }
-
-    private func culturalAnnotationSlider(
-        title: String,
-        value: Binding<Double>,
-        range: ClosedRange<Double>,
-        step: Double = 1,
-        valueText: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Text(title)
-                    .font(.pretendard(13, weight: .semibold))
-                Spacer()
-                Text(valueText)
-                    .font(.pretendard(12))
-                    .foregroundStyle(SettingsDesign.secondary)
-            }
-            SettingsSlider(value: value, in: range, step: step)
-        }
-    }
-
-    private var effectiveRuleSourceLang: String {
-        model.effectiveSelectedRuleSourceLang
-    }
-
-    private var creatorPrivacyBinding: Binding<Bool> {
-        Binding(
-            get: { model.creatorPrivacyIsPrivate },
-            set: { model.setCreatorPrivacy($0) }
-        )
-    }
-
-    private var creatorPrivacyStatusColor: Color {
-        switch model.creatorPrivacyState {
-        case .privateProfile:
-            return Color(red: 0.67, green: 0.55, blue: 1.0)
-        case .publicProfile:
-            return Color(red: 0.21, green: 0.87, blue: 0.52)
-        case .loading, .notLoaded:
-            return Color.white.opacity(0.40)
-        case .signedOut:
-            return Color.white.opacity(0.24)
-        }
-    }
-
-    private var selectedProvider: AppSettings.Provider {
-        AppSettings.providerById(settings.providerId)
-    }
-
-    private func aiProviderSettingsCard(_ provider: AppSettings.Provider, index: Int) -> some View {
-        let selected = !provider.isKeyless && !provider.isLocal && settings.providerId == provider.id
-        // Local AI has its own panel and does not change the provider whose keys are edited.
-        let expanded = expandedAIProvider == provider.id && (selected || provider.isLocal)
-        return VStack(alignment: .leading, spacing: 0) {
+    private func homeRow(_ menu: Menu) -> some View {
+        Button {
+            settingsSearchFocused = false
+            path = [menu]
+        } label: {
             HStack(spacing: 12) {
-                providerOrderControls(index: index, count: settings.aiProviderOrder.count) { offset in
-                    settings.moveAIProvider(provider.id, offset: offset)
-                    model.translationProviderSettingsChanged()
+                menuIcon(menu)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(settings.t(menu.titleKey))
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(palette.text)
+                    Text(menuSummary(menu))
+                        .font(.footnote)
+                        .foregroundStyle(palette.text3)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 }
-                .draggable(provider.id)
-                .accessibilityHint(settings.tf("setting.ai_provider_drag_format", provider.label))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(palette.text4)
+                    .accessibilityHidden(true)
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SettingsRowButtonStyle())
+        .settingsRowSeparator()
+        .accessibilityIdentifier("settings.menu.\(menu.rawValue)")
+        .accessibilityHint(menuSummary(menu))
+    }
 
-                Button {
-                    guard !provider.isKeyless else { return }
-                    if expanded {
-                        expandedAIProvider = nil
-                    } else if provider.isLocal {
-                        expandedAIProvider = provider.id
-                    } else {
-                        settings.setProvider(provider.id)
-                        expandedAIProvider = provider.id
-                        model.showSavedToast(settings.t("toast.provider_saved"))
+    private func menuIcon(_ menu: Menu) -> some View {
+        Image(systemName: menu.symbol)
+            .font(.subheadline)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .foregroundStyle(palette.text2)
+            .frame(width: 30, height: 30)
+            .background(palette.surface3, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
+    private func menuSummary(_ menu: Menu) -> String {
+        menuSectionTitleKeys(menu).map { settings.t($0) }.joined(separator: " · ")
+    }
+
+    private func menuSectionTitleKeys(_ menu: Menu) -> [String] {
+        switch menu {
+        case .general:
+            return ["section.language", "settings.section.lyrics_display"]
+        case .providers:
+            return ["settings.section.lookup", "section.lyrics_providers"]
+        case .ai:
+            return ["section.ai_lyrics", "section.language_rules", "section.provider", "settings.section.connections", "setting.cultural_annotations"]
+        case .appearance:
+            return ["section.layout", "section.typography", "section.speaker_colors", "section.background", "section.track_background"]
+        case .lyrics:
+            return ["settings.section.interlude", "settings.section.karaoke"]
+        case .player:
+            return ["section.player", "settings.section.landscape", "section.pip", "vinyl.mode", "vinyl.settings.tonearm_title"]
+        case .system:
+            return ["section.account", "section.spotify_api", "lyrics.tab.sync", "section.update", "section.tools"]
+        }
+    }
+
+    private var themeSwitch: some View {
+        HStack(spacing: 0) {
+            themeOption(SettingsTheme.light, symbol: "sun.max", key: "settings.theme.light")
+            themeOption(SettingsTheme.dark, symbol: "moon", key: "settings.theme.dark")
+        }
+        .background {
+            // The visible track is inset; each option keeps a full 44pt hit area.
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(palette.surface2)
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(palette.line2))
+                .padding(.vertical, 4)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(settings.t("settings.theme"))
+    }
+
+    private func themeOption(_ theme: String, symbol: String, key: String) -> some View {
+        let isOn = SettingsTheme.normalized(settings.settingsTheme) == theme
+        return Button {
+            settings.settingsTheme = theme
+        } label: {
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.medium))
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .foregroundStyle(isOn ? palette.text : palette.text3)
+                .frame(width: 44, height: 44)
+                .background {
+                    if isOn {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(palette.raise)
+                            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(palette.line2))
+                            .padding(.horizontal, 3)
+                            .padding(.vertical, 6)
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(provider.label).font(.pretendard(14.5, weight: .semibold))
-                                .fixedSize(horizontal: false, vertical: true)
-                            Text(aiProviderDescription(provider))
-                                .font(.pretendard(12))
-                                .foregroundStyle(SettingsDesign.muted)
-                                .multilineTextAlignment(.leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                            if provider.isLocal {
-                                // Translation runs on the phone itself, so the card says up front that it needs a high-end device.
-                                Text(settings.t("local_ai.performance_note"))
-                                    .font(.pretendard(12))
-                                    .foregroundStyle(SettingsDesign.accent)
-                                    .multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.top, 2)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(settings.t(key))
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
+        .accessibilityIdentifier("settings.theme.\(theme)")
+    }
+
+    private var closeButton: some View {
+        Button {
+            settingsSearchFocused = false
+            dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.body.weight(.semibold))
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .foregroundStyle(palette.text2)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(settings.t("button.close"))
+        .accessibilityIdentifier("settings.close")
+    }
+
+    // MARK: Search
+
+    private var settingsSearchResults: some View {
+        let results = searchResults(settingsSearch)
+        return VStack(alignment: .leading, spacing: 14) {
+            if results.isEmpty {
+                Text(settings.t("settings.no_results"))
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(palette.text2)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+            } else {
+                Text(settings.tf("settings.search.results_format", results.count))
+                    .font(.footnote)
+                    .foregroundStyle(palette.text3)
+                    .padding(.horizontal, 6)
+                ForEach(searchBlocks(results)) { block in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(settings.t(block.menu.titleKey))
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(palette.text3)
+                            .padding(.horizontal, 6)
+                            .accessibilityAddTraits(.isHeader)
+                        SettingsGroup {
+                            ForEach(block.entries) { entry in
+                                searchResultRow(entry)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        if !provider.isKeyless {
-                            Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(SettingsDesign.muted)
-                        }
                     }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(provider.isKeyless)
-                .accessibilityValue(selected ? settings.t("setting.ai_provider_selected") : "")
-                .accessibilityIdentifier("settings.ai.expand.\(provider.id)")
-
-                Toggle("", isOn: aiProviderEnabledBinding(provider.id))
-                    .labelsHidden()
-                    .fixedSize()
-                    .accessibilityLabel(settings.tf("setting.ai_provider_toggle_format", provider.label))
-                    .accessibilityIdentifier("settings.ai.toggle.\(provider.id)")
-                    .debugSettingsHitArea("settings.ai.toggle.\(provider.id)")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-
-            if expanded {
-                if provider.isLocal {
-                    LocalAISettingsPanel()
-                        .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1) }
-                } else {
-                    aiProviderConfiguration
-                        .overlay(alignment: .top) { SettingsDesign.border.frame(height: 1) }
                 }
             }
         }
+    }
+
+    private func searchBlocks(_ results: [SearchEntry]) -> [SearchBlock] {
+        var blocks: [SearchBlock] = []
+        for entry in results {
+            if let last = blocks.indices.last, blocks[last].menu == entry.menu {
+                blocks[last].entries.append(entry)
+            } else {
+                blocks.append(SearchBlock(id: blocks.count, menu: entry.menu, entries: [entry]))
+            }
+        }
+        return blocks
+    }
+
+    private func searchResultRow(_ entry: SearchEntry) -> some View {
+        Button { openSearchResult(entry) } label: {
+            HStack(spacing: 12) {
+                menuIcon(entry.menu)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.label)
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(palette.text)
+                    Text(([settings.t(entry.menu.titleKey), entry.section, entry.context].filter { !$0.isEmpty }).joined(separator: " · "))
+                        .font(.footnote)
+                        .foregroundStyle(palette.text3)
+                }
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !entry.value.isEmpty {
+                    Text(entry.value)
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(palette.text3)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SettingsRowButtonStyle())
         .settingsRowSeparator()
-        .id(provider.label)
+        .accessibilityIdentifier("settings.result.\(entry.id)")
+    }
+
+    private func searchResults(_ query: String) -> [SearchEntry] {
+        let needle = SettingsSearchText.normalized(query)
+        guard !needle.isEmpty else { return [] }
+        let initialsOnly = SettingsSearchText.isInitialConsonantQuery(needle)
+        var scored: [(entry: SearchEntry, score: Int)] = []
+        for entry in searchCatalog {
+            let label = SettingsSearchText.normalized(entry.label)
+            var score = 0
+            if label == needle {
+                score = 100
+            } else if label.hasPrefix(needle) {
+                score = 80
+            } else if label.contains(needle) {
+                score = 60
+            } else if initialsOnly && SettingsSearchText.initialConsonants(entry.label.filter { !$0.isWhitespace }).contains(needle) {
+                score = 50
+            } else if entry.options.contains(where: { SettingsSearchText.normalized($0).contains(needle) }) {
+                score = 35
+            } else if SettingsSearchText.normalized(entry.description).contains(needle) {
+                score = 30
+            } else if SettingsSearchText.normalized(settings.t(entry.menu.titleKey) + entry.section + entry.context).contains(needle) {
+                score = 18
+            }
+            if score > 0 { scored.append((entry, score)) }
+        }
+        return scored
+            .enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.score != rhs.element.score { return lhs.element.score > rhs.element.score }
+                if lhs.element.entry.label.count != rhs.element.entry.label.count {
+                    return lhs.element.entry.label.count < rhs.element.entry.label.count
+                }
+                return lhs.offset < rhs.offset
+            }
+            .prefix(60)
+            .map { $0.element.entry }
+    }
+
+    private func openSearchResult(_ entry: SearchEntry) {
+        settingsSearchFocused = false
+        switch entry.preparation {
+        case .none:
+            break
+        case let .typography(group):
+            typographyGroup = group
+        case let .cultural(column):
+            culturalColumn = column
+        case let .connection(providerId):
+            if providerId == LocalAI.providerId {
+                expandedAIProvider = providerId
+            } else {
+                settings.setProvider(providerId)
+                expandedAIProvider = settings.providerId
+            }
+        case .reveal:
+            revealedRowID = entry.id
+        }
+        reveal = RevealRequest(menu: entry.menu, rowID: entry.id)
+        if path != [entry.menu] { path = [entry.menu] }
+    }
+
+    @MainActor
+    private func performReveal(menu: Menu, proxy: ScrollViewProxy) async {
+        guard let request = reveal, request.menu == menu else { return }
+        try? await Task.sleep(for: .milliseconds(450))
+        guard !Task.isCancelled, reveal == request else { return }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+            proxy.scrollTo(request.rowID, anchor: .center)
+        }
+        flashRowID = request.rowID
+        try? await Task.sleep(for: .milliseconds(1600))
+        if flashRowID == request.rowID {
+            withAnimation(.easeOut(duration: 0.35)) { flashRowID = nil }
+        }
+    }
+
+    private func onOff(_ value: Bool) -> String {
+        settings.t(value ? "label.on" : "label.off")
+    }
+
+    private func entry(_ id: String, _ menu: Menu, section: String, description: String? = nil, label: String? = nil,
+                       options: [String] = [], value: String = "", context: String = "",
+                       preparation: SearchPreparation = .none) -> SearchEntry {
+        SearchEntry(
+            id: id,
+            menu: menu,
+            label: label ?? settings.t(id),
+            description: description.map { settings.t($0) } ?? "",
+            section: settings.t(section),
+            context: context,
+            options: options,
+            value: value,
+            preparation: preparation
+        )
+    }
+
+    /// Every row that search can find, with the row identifier that the pages scroll to.
+    private var searchCatalog: [SearchEntry] {
+        var entries: [SearchEntry] = []
+        let language = "section.language"
+        let display = "settings.section.lyrics_display"
+        entries += [
+            entry("setting.ui_language", .general, section: language, description: "setting.ui_language_desc",
+                  options: AppSettings.languages.map(\.nativeName), value: languageLabel(settings.uiLang)),
+            entry("setting.pronunciation_language", .general, section: language, description: "setting.pronunciation_language_desc",
+                  value: outputLanguageLabel),
+            entry("setting.pronunciation_notation", .general, section: language, description: "setting.pronunciation_notation_desc",
+                  options: pronunciationNotationChoices.map(\.title)),
+            entry("setting.main_preview", .general, section: display, description: "setting.main_preview_desc",
+                  options: [settings.t("setting.preview_hidden"), settings.t("setting.main_preview_original"),
+                            settings.t("setting.main_preview_pronunciation"), settings.t("setting.main_preview_translation")]),
+            entry("setting.metadata_translation", .general, section: display, description: "setting.metadata_translation_desc",
+                  value: onOff(settings.metadataTranslationEnabled)),
+            entry("setting.simplify_title", .general, section: display, description: "setting.simplify_title_desc",
+                  value: onOff(settings.simplifyTitleEnabled)),
+            entry("setting.japanese_furigana", .general, section: display, description: "setting.japanese_furigana_desc",
+                  value: onOff(settings.japaneseFuriganaEnabled))
+        ]
+        let lookup = "settings.section.lookup"
+        entries += [
+            entry("setting.lyrics_type_priority", .providers, section: lookup, description: "setting.lyrics_type_priority_desc",
+                  value: onOff(settings.preferLyricsTypeOverProviderOrder)),
+            entry("setting.sync_data_provider_priority", .providers, section: lookup, description: "setting.sync_data_provider_priority_desc",
+                  value: onOff(settings.preferSyncDataProvider))
+        ]
+        entries += AppSettings.lyricsProviders.map { provider in
+            entry("lyricsProvider.\(provider.id)", .providers, section: "section.lyrics_providers", label: provider.name,
+                  options: [settings.t("lyrics.provider.type_karaoke"), settings.t("lyrics.provider.type_synced"), settings.t("lyrics.provider.type_plain")],
+                  value: onOff(settings.lyricsProviderEnabled[provider.id] ?? true))
+        }
+        entries += [
+            entry("ai.translation", .ai, section: "section.ai_lyrics", label: settings.t("lyrics.translation"),
+                  value: onOff(settings.translationEnabled)),
+            entry("ai.pronunciation", .ai, section: "section.ai_lyrics", label: settings.t("lyrics.pronunciation"),
+                  value: onOff(settings.pronunciationEnabled)),
+            entry("field.source", .ai, section: "section.language_rules", value: ruleSourceLabel),
+            entry("field.track_language", .ai, section: "section.language_rules", value: selectedRuleSourceLabel),
+            entry("field.save_target", .ai, section: "section.language_rules", value: selectedRuleTargetLabel),
+            entry("lyrics.rule.reset", .ai, section: "section.language_rules")
+        ]
+        entries += settings.aiProviderOrder.compactMap(AppSettings.aiProviderById).map { provider in
+            entry("aiProvider.\(provider.id)", .ai, section: "section.provider", description: nil, label: provider.label,
+                  value: onOff(settings.aiProviderEnabled[provider.id] ?? false))
+        }
+        entries += connectionProviders.map { provider in
+            entry("connection.\(provider.id)", .ai, section: "settings.section.connections", label: provider.label,
+                  preparation: .connection(provider.id))
+        }
+        let selected = selectedProvider
+        let connectionSection = "settings.section.connections"
+        var fields = ["field.api_key"]
+        if !selected.translationOnly {
+            fields = ["field.base_url", "field.model", "field.max_tokens", "field.temperature"] + fields
+        }
+        if selected.id == "chatgpt" { fields.append("openai.connections") }
+        if selected.id == "pollinations" { fields.append("pollinations.access_token") }
+        entries += fields.map { key in
+            entry("connection.field.\(key)", .ai, section: connectionSection, label: settings.t(key),
+                  context: selected.label, preparation: .connection(selected.id))
+        }
+        let cultural = "setting.cultural_annotations"
+        entries.append(entry("setting.cultural_annotations", .ai, section: cultural, description: "setting.cultural_annotations_desc",
+                             value: onOff(settings.culturalAnnotationsEnabled)))
+        for (key, value) in [("setting.cultural_font_family", ""), ("setting.cultural_font_size", "\(settings.culturalAnnotationsFontSize)px"),
+                             ("setting.cultural_font_weight", "\(settings.culturalAnnotationsFontWeight)"),
+                             ("setting.cultural_opacity", "\(settings.culturalAnnotationsOpacity)%")] {
+            entries.append(entry("cultural.normal.\(key)", .ai, section: cultural, label: settings.t(key),
+                                 value: value, context: settings.t("settings.cultural.normal"), preparation: .cultural("normal")))
+        }
+        for (key, value) in [("setting.cultural_font_family", ""), ("setting.cultural_font_size", "\(settings.culturalAnnotationsVinylFontSize)px"),
+                             ("setting.cultural_font_weight", "\(settings.culturalAnnotationsVinylFontWeight)"),
+                             ("setting.cultural_opacity", "\(settings.culturalAnnotationsVinylOpacity)%")] {
+            entries.append(entry("cultural.vinyl.\(key)", .ai, section: cultural,
+                                 label: "\(settings.t("vinyl.mode")) · \(settings.t(key))",
+                                 value: value, context: settings.t("vinyl.mode"), preparation: .cultural("vinyl")))
+        }
+        entries.append(entry("setting.lyrics_alignment", .appearance, section: "section.layout", description: "setting.lyrics_alignment_desc"))
+        let _ = settings.typographyRevision
+        for slot in AppSettings.typographySlots {
+            let style = typographyStyle(slot)
+            let group = slot.id.hasPrefix("main_") ? "main" : "lyrics"
+            entries.append(entry("typography.\(slot.id)", .appearance, section: "section.typography",
+                                 description: "typography.slot.\(slot.id)_desc", label: settings.t("typography.slot.\(slot.id)"),
+                                 value: "\(style.sizePercent)% · \(settings.t("typography.weight.\(style.weight)"))",
+                                 context: settings.t(group == "main" ? "settings.typography.main" : "settings.typography.lyrics"),
+                                 preparation: .typography(group)))
+        }
+        entries += [
+            entry("setting.creator_speaker_colors", .appearance, section: "section.speaker_colors",
+                  description: "setting.creator_speaker_colors_desc", value: onOff(settings.useSyncCreatorSpeakerColors)),
+            entry("speakers.palette", .appearance, section: "section.speaker_colors", label: settings.t("section.speaker_colors"),
+                  options: ["normal", "duet", "male", "female"].map { settings.t("speaker_color.\($0)") })
+        ]
+        let background = "section.background"
+        entries += [
+            entry("setting.background_mode", .appearance, section: background, description: "setting.background_mode_desc",
+                  options: backgroundModeChoices.map(\.title), value: backgroundModeLabel(settings.backgroundMode)),
+            entry("setting.video_fallback", .appearance, section: background, preparation: .reveal),
+            entry("setting.video_aspect", .appearance, section: background, preparation: .reveal),
+            entry("setting.video_edge_to_edge", .appearance, section: background, description: "setting.video_edge_to_edge_desc", preparation: .reveal),
+            entry("setting.video_scale", .appearance, section: background, value: "\(settings.backgroundVideoScale)%", preparation: .reveal),
+            entry("field.solid_color", .appearance, section: background, value: settings.backgroundSolidColor.uppercased(), preparation: .reveal),
+            entry("setting.brightness", .appearance, section: background, value: "\(settings.backgroundBrightness)%"),
+            entry("setting.blur", .appearance, section: background, value: "\(settings.backgroundBlur)%"),
+            entry("setting.noise", .appearance, section: background, value: onOff(settings.backgroundNoiseEnabled)),
+            entry("setting.reduce_motion", .appearance, section: background, value: onOff(settings.backgroundReduceMotionEnabled)),
+            entry("lyrics.background.override", .appearance, section: "section.track_background")
+        ]
+        let interlude = "settings.section.interlude"
+        let karaoke = "settings.section.karaoke"
+        entries += [
+            entry("setting.auto_interlude", .lyrics, section: interlude, description: "setting.auto_interlude_desc",
+                  value: onOff(settings.autoInstrumentalBreakEnabled)),
+            entry("setting.interlude_labels", .lyrics, section: interlude, description: "setting.interlude_labels_desc",
+                  value: onOff(settings.interludeLabelsEnabled)),
+            entry("setting.synced_karaoke_animation", .lyrics, section: karaoke, description: "setting.synced_karaoke_animation_desc",
+                  value: onOff(settings.syncedLyricsKaraokeAnimationEnabled)),
+            entry("setting.karaoke_bounce_effect", .lyrics, section: karaoke, description: "setting.karaoke_bounce_effect_desc",
+                  value: onOff(settings.karaokeBounceEffectEnabled)),
+            entry("setting.karaoke_display_granularity", .lyrics, section: karaoke, description: "setting.karaoke_display_granularity_desc",
+                  options: karaokeGranularityOptions.map { $0.title })
+        ]
+        let player = "section.player"
+        let landscape = "settings.section.landscape"
+        let pip = "section.pip"
+        let vinyl = "vinyl.mode"
+        let tonearm = "vinyl.settings.tonearm_title"
+        entries += [
+            entry("setting.title_tap_action", .player, section: player, options: titleTapChoices.map(\.title)),
+            entry("setting.lyrics_not_found_notice", .player, section: player, value: onOff(settings.lyricsNotFoundNoticeEnabled)),
+            entry("setting.keep_screen_on", .player, section: player, description: "setting.keep_screen_on_desc", value: onOff(settings.keepScreenOn)),
+            entry("setting.landscape_original_lyrics", .player, section: landscape, description: "setting.landscape_original_lyrics_desc",
+                  value: onOff(settings.landscapeOriginalLyricsEnabled)),
+            entry("setting.landscape_artwork", .player, section: landscape, value: onOff(settings.landscapeArtworkEnabled)),
+            entry("setting.landscape_auto_hide", .player, section: landscape, description: "setting.landscape_auto_hide_desc",
+                  value: onOff(settings.landscapeAutoHideControls)),
+            entry("setting.landscape_center_no_lyrics", .player, section: landscape, description: "setting.landscape_center_no_lyrics_desc",
+                  value: onOff(settings.landscapeCenterNoLyrics)),
+            entry("setting.pip_show_artwork", .player, section: pip, description: "setting.pip_show_artwork_desc", value: onOff(settings.pipShowArtwork)),
+            entry("setting.pip_background", .player, section: pip, description: "setting.pip_background_desc", options: pipBackgroundChoices.map(\.title)),
+            entry("setting.pip_orientation", .player, section: pip, description: "setting.pip_orientation_desc"),
+            entry("setting.pip_lyrics_alignment", .player, section: pip, description: "setting.pip_lyrics_alignment_desc"),
+            entry("setting.pip_lyrics_size", .player, section: pip, description: "setting.pip_lyrics_size_desc",
+                  value: "\(AppSettings.clampPipLyricsSizePercent(settings.pipLyricsSizePercent))%"),
+            entry("setting.pip_translation_size", .player, section: pip, description: "setting.pip_translation_size_desc",
+                  value: "\(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent))%"),
+            entry("vinyl.settings.album_size", .player, section: vinyl, description: "vinyl.settings.album_size_desc",
+                  value: "\(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent))%"),
+            entry("vinyl.settings.record_size", .player, section: vinyl, description: "vinyl.settings.record_size_desc",
+                  value: "\(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent))%"),
+            entry("vinyl.settings.animations", .player, section: vinyl, description: "vinyl.settings.animations_desc", value: onOff(settings.vinylAnimationsEnabled)),
+            entry("vinyl.settings.track_change_animations", .player, section: vinyl, description: "vinyl.settings.track_change_animations_desc",
+                  value: onOff(settings.vinylTrackChangeAnimationsEnabled)),
+            entry("vinyl.settings.rotation_speed", .player, section: vinyl, description: "vinyl.settings.rotation_speed_desc",
+                  value: "\(settings.vinylRotationSpeedPercent)%"),
+            entry("vinyl.settings.center_rotation", .player, section: vinyl, description: "vinyl.settings.center_rotation_desc",
+                  value: onOff(settings.vinylCenterRotationEnabled)),
+            entry("vinyl.settings.lyrics", .player, section: vinyl, description: "vinyl.settings.lyrics_desc", value: onOff(settings.vinylLyricsEnabled)),
+            entry("vinyl.settings.tonearm_style", .player, section: tonearm, description: "vinyl.settings.tonearm_style_desc",
+                  options: tonearmStyleChoices.map(\.title)),
+            entry("vinyl.settings.tonearm_finish", .player, section: tonearm, description: "vinyl.settings.tonearm_finish_desc"),
+            entry("vinyl.settings.tonearm_size", .player, section: tonearm, description: "vinyl.settings.tonearm_size_desc",
+                  value: "\(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent))%")
+        ]
+        for slot in AppSettings.vinylTypographySlots {
+            let style = typographyStyle(slot)
+            entries.append(entry("typography.\(slot.id)", .player, section: "section.typography",
+                                 description: "typography.slot.\(slot.id)_desc", label: settings.t("typography.slot.\(slot.id)"),
+                                 value: "\(style.sizePercent)% · \(settings.t("typography.weight.\(style.weight)"))"))
+        }
+        let account = "section.account"
+        let spotify = "section.spotify_api"
+        let sync = "lyrics.tab.sync"
+        let tools = "section.tools"
+        entries += [
+            entry("account.discord", .system, section: account, description: "creator_privacy.section_desc", label: "Discord"),
+            entry("creator_privacy.private_title", .system, section: account, description: "creator_privacy.private_desc"),
+            entry("cloud_sync.section", .system, section: account, description: "cloud_sync.section_desc"),
+            entry("cloud_sync.refresh", .system, section: account, context: settings.t("cloud_sync.section")),
+            entry("cloud_sync.upload", .system, section: account, context: settings.t("cloud_sync.section")),
+            entry("cloud_sync.apply", .system, section: account, context: settings.t("cloud_sync.section")),
+            entry("cloud_sync.delete", .system, section: account, context: settings.t("cloud_sync.section")),
+            entry("spotify.setup.instructions", .system, section: spotify),
+            entry("field.spotify_client_id", .system, section: spotify),
+            entry("field.spotify_client_secret", .system, section: spotify, description: "field.spotify_client_secret_role"),
+            entry("field.redirect_uri", .system, section: spotify, value: SpotifyRedirectConfiguration.uri),
+            entry("setting.spotify_web_api", .system, section: spotify, description: "setting.spotify_web_api_desc",
+                  value: onOff(settings.spotifyWebAPIEnabled)),
+            entry("button.spotify_save", .system, section: spotify),
+            entry("field.live_source", .system, section: spotify, value: liveSourceText),
+            entry("lyrics.global_sync.title", .system, section: sync, description: "lyrics.global_sync.help", value: formatSignedMs(model.globalOffsetMs)),
+            entry("lyrics.sync.title", .system, section: sync, description: "lyrics.sync.help", value: formatSignedMs(model.trackOffsetMs)),
+            entry("lyrics.bluetooth_sync.title", .system, section: sync, description: "lyrics.bluetooth_sync.help", value: formatSignedMs(model.bluetoothOffsetMs)),
+            entry("lyrics.video_sync.title", .system, section: sync, description: "lyrics.video_sync.help", value: formatSignedMs(model.videoOffsetMs)),
+            entry("update.check", .system, section: "section.update"),
+            entry("button.open_release", .system, section: "section.update"),
+            entry("button.reload_current", .system, section: tools),
+            entry("button.debug_log", .system, section: tools),
+            entry("button.ai_cache_clear", .system, section: tools),
+            entry("button.clear_current", .system, section: tools),
+            entry("button.clear_all", .system, section: tools)
+        ]
+        if model.spotifyWebAPIAuthorizationStored {
+            entries.append(entry("spotify.disconnect_oauth", .system, section: spotify, description: "spotify.disconnect_oauth_desc"))
+        }
+        return entries
+    }
+
+    // MARK: Menu pages
+
+    private func menuPage(_ menu: Menu) -> some View {
+        let hasPreview = [Menu.ai, .appearance, .player].contains(menu)
+        let pinned = hasPreview && verticalSizeClass != .compact && !dynamicTypeSize.isAccessibilitySize
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if hasPreview && !pinned {
+                        previewPanel(menu, pinned: false)
+                            .padding(.top, 6)
+                    }
+                    menuSections(menu)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 48)
+                .frame(maxWidth: 680)
+                .frame(maxWidth: .infinity)
+                .background(SettingsScrollKeeper(key: menu.rawValue, memory: scrollMemory, restores: reveal?.menu != menu))
+            }
+            .coordinateSpace(.named(Self.pageSpace))
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if pinned { previewPanel(menu, pinned: true) }
+            }
+            .onPreferenceChange(SettingsSectionOffsetKey.self) { offsets in
+                updatePreviewSection(offsets)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .accessibilityIdentifier("settings.scroll")
+            .task(id: reveal?.token) {
+                await performReveal(menu: menu, proxy: proxy)
+            }
+        }
+        .background(palette.background.ignoresSafeArea())
+        .navigationTitle(settings.t(menu.titleKey))
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { closeButton }
+        }
+        .toolbarBackground(palette.background, for: .navigationBar)
+    }
+
+    @ViewBuilder
+    private func menuSections(_ menu: Menu) -> some View {
+        switch menu {
+        case .general: generalSettingsPage
+        case .providers: lyricsProvidersSettingsPage
+        case .ai: aiSettingsPage
+        case .appearance: appearanceSettingsPage
+        case .lyrics: lyricsSettingsPage
+        case .player: playerSettingsPage
+        case .system: systemSettingsPage
+        }
+    }
+
+    /// Section header plus content; sections with a live preview report where they are.
+    private func section<Content: View>(
+        _ id: String,
+        title: String,
+        subtitle: String = "",
+        tracksPreview: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsSectionHeader(title: title, subtitle: subtitle)
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+        }
+        // Sections keep their natural height, so a parent stack can never squeeze their rows or cards.
+        .fixedSize(horizontal: false, vertical: true)
+        .id(id)
+        .background {
+            if tracksPreview {
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: SettingsSectionOffsetKey.self,
+                        value: [id: geometry.frame(in: .named(Self.pageSpace)).minY]
+                    )
+                }
+            }
+        }
+    }
+
+    private func updatePreviewSection(_ offsets: [String: CGFloat]) {
+        guard !offsets.isEmpty else { return }
+        let line: CGFloat = 320
+        let passed = offsets.filter { $0.value <= line }
+        let active = passed.max { $0.value < $1.value }?.key ?? offsets.min { $0.value < $1.value }?.key ?? ""
+        if active != previewSectionID { previewSectionID = active }
+    }
+
+    private func previewKind(_ menu: Menu) -> PreviewKind {
+        switch menu {
+        case .ai:
+            return .annotation
+        case .player:
+            return ["player.vinyl", "player.tonearm", "player.vinylTypography"].contains(previewSectionID) ? .vinyl : .pip
+        default:
+            return previewSectionID == "appearance.typography" && typographyGroup == "main" ? .main : .lyrics
+        }
+    }
+
+    private func previewPanel(_ menu: Menu, pinned: Bool) -> some View {
+        let expanded = previewExpanded[menu] ?? (menu == .appearance)
+        return VStack(spacing: 8) {
+            Button {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                    previewExpanded[menu] = !expanded
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(settings.t("settings.preview"))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(palette.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(palette.text3)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(palette.line2))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(settings.t(expanded ? "label.on" : "label.off"))
+            .accessibilityIdentifier("settings.preview.toggle")
+            if expanded {
+                previewContent(previewKind(menu))
+                    .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, pinned ? 16 : 0)
+        .padding(.top, pinned ? 6 : 0)
+        .padding(.bottom, 8)
+        .frame(maxWidth: pinned ? 712 : .infinity)
+        .frame(maxWidth: .infinity)
+        .background(pinned ? palette.background : Color.clear)
+    }
+
+    @ViewBuilder
+    private func previewContent(_ kind: PreviewKind) -> some View {
+        switch kind {
+        case .lyrics: SettingsLyricsPreview()
+        case .annotation: SettingsLyricsPreview(annotation: true)
+        case .main: SettingsMainScreenPreview()
+        case .pip: SettingsPipPreview()
+        case .vinyl: SettingsVinylPreview()
+        }
+    }
+
+    // MARK: Sheets
+
+    @ViewBuilder
+    private func sheetContent(_ sheet: SettingsSheet) -> some View {
+        switch sheet {
+        case .uiLanguage:
+            SettingsOptionSheet(
+                title: settings.t("setting.ui_language"),
+                options: AppSettings.languages.map { SettingsChoice(value: $0.code, title: "\($0.nativeName) · \($0.name)") },
+                selection: settings.uiLang,
+                searchPrompt: settings.t("button.search"),
+                closeLabel: settings.t("button.close"),
+                emptyText: settings.t("settings.no_results"),
+                onSelect: { uiLanguageBinding.wrappedValue = $0 }
+            )
+        case .outputLanguage:
+            SettingsOptionSheet(
+                title: settings.t("setting.pronunciation_language"),
+                options: [SettingsChoice(value: AppSettings.outputLangSameUI, title: settings.t("language.same_as_ui"))]
+                    + AppSettings.languages.map { SettingsChoice(value: $0.code, title: "\($0.nativeName) · \($0.name)") },
+                selection: settings.outputLang,
+                searchPrompt: settings.t("button.search"),
+                closeLabel: settings.t("button.close"),
+                emptyText: settings.t("settings.no_results"),
+                onSelect: { outputLanguageBinding.wrappedValue = $0 }
+            )
+        case .ruleSource:
+            SettingsOptionSheet(
+                title: settings.t("field.source"),
+                options: [SettingsChoice(value: "auto", title: settings.t("language.auto_default"))]
+                    + AppSettings.languages.map { SettingsChoice(value: $0.code, title: "\($0.nativeName) · \($0.name)") },
+                selection: model.selectedRuleSourceLang,
+                searchPrompt: settings.t("button.search"),
+                closeLabel: settings.t("button.close"),
+                emptyText: settings.t("settings.no_results"),
+                onSelect: { selectedRuleSourceBinding.wrappedValue = $0 }
+            )
+        case .aiModel:
+            SettingsOptionSheet(
+                title: settings.t("field.model"),
+                options: aiModelChoices,
+                selection: settings.model,
+                searchPrompt: settings.t("button.search"),
+                closeLabel: settings.t("button.close"),
+                emptyText: settings.t("settings.no_results"),
+                onSelect: { settings.model = $0 }
+            )
+        }
+    }
+
+    // MARK: Shared row builders
+
+    private func toggleRow(_ key: String, descriptionKey: String? = nil, isOn: Binding<Bool>,
+                           identifier: String? = nil, rowID: String? = nil, indent: Bool = false) -> some View {
+        SettingsToggleRow(
+            title: settings.t(key),
+            description: descriptionKey.map { settings.t($0) } ?? "",
+            isOn: isOn,
+            identifier: identifier ?? "settings.toggle.\(key)",
+            indent: indent
+        )
+        .settingsRow(rowID ?? key, flashing: flashRowID)
+    }
+
+    private func sliderRow(_ key: String, descriptionKey: String? = nil, rowID: String? = nil, value: Binding<Double>,
+                           range: ClosedRange<Double>, step: Double = 1, unit: String = "%", decimals: Int = 0,
+                           onEditingChanged: @escaping (Bool) -> Void = { _ in }) -> some View {
+        SettingsStackRow(title: settings.t(key), description: descriptionKey.map { settings.t($0) } ?? "") {
+            SettingsValueSlider(label: settings.t(key), value: value, range: range, step: step, unit: unit,
+                                decimals: decimals, onEditingChanged: onEditingChanged)
+        }
+        .settingsRow(rowID ?? key, flashing: flashRowID)
+    }
+
+    private func segmentedRow(_ key: String, descriptionKey: String? = nil, rowID: String? = nil, selection: Binding<String>,
+                              options: [(value: String, title: String)], icons: [String: String] = [:],
+                              swatches: [String: Color] = [:]) -> some View {
+        SettingsStackRow(title: settings.t(key), description: descriptionKey.map { settings.t($0) } ?? "") {
+            SettingsSegmentedPicker(title: settings.t(key), selection: selection, options: options, icons: icons, swatches: swatches)
+        }
+        .settingsRow(rowID ?? key, flashing: flashRowID)
+    }
+
+    private func cardsRow(_ key: String, descriptionKey: String? = nil, selection: Binding<String>,
+                          options: [SettingsChoice], columns: Int = 2) -> some View {
+        SettingsStackRow(title: settings.t(key), description: descriptionKey.map { settings.t($0) } ?? "") {
+            SettingsOptionCards(title: settings.t(key), options: options, selection: selection, columns: columns)
+        }
+        .settingsRow(key, flashing: flashRowID)
+    }
+
+    /// Shown under a row that search revealed although its condition currently hides it.
+    private func conditionNote(_ controllerKey: String) -> some View {
+        SettingsNoteRow(text: settings.tf("settings.conditional_format", settings.t(controllerKey)),
+                        systemImage: "info.circle", color: palette.accentText)
+    }
+
+    private func languageLabel(_ code: String) -> String {
+        let language = AppSettings.languageInfo(code)
+        return "\(language.nativeName) · \(language.name)"
+    }
+
+    private var outputLanguageLabel: String {
+        settings.outputLang == AppSettings.outputLangSameUI ? settings.t("language.same_as_ui") : languageLabel(settings.outputLang)
+    }
+
+    private func formatSignedMs(_ offsetMs: Int) -> String {
+        offsetMs > 0 ? "+\(offsetMs)ms" : "\(offsetMs)ms"
+    }
+
+    private func rankBadge(_ rank: Int) -> some View {
+        Text("\(rank)")
+            .font(.caption.weight(.semibold).monospacedDigit())
+            .foregroundStyle(palette.text3)
+            .frame(minWidth: 22, minHeight: 22)
+            .background(palette.surface3, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
+    private func providerMoveButtons(index: Int, count: Int, name: String, move: @escaping (Int) -> Void) -> some View {
+        HStack(spacing: 2) {
+            SettingsIconButton(systemImage: "chevron.up", label: "\(name), \(settings.t("accessibility.move_up"))") { move(-1) }
+                .disabled(index == 0)
+            SettingsIconButton(systemImage: "chevron.down", label: "\(name), \(settings.t("accessibility.move_down"))") { move(1) }
+                .disabled(index == count - 1)
+        }
+    }
+
+    private func cardBackground<Content: View>(_ content: Content) -> some View {
+        content
+            .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(palette.line))
+    }
+
+    // MARK: General
+
+    private var pronunciationNotationChoices: [SettingsChoice] {
+        [
+            SettingsChoice(value: AppSettings.pronunciationNotationTranslation, title: settings.t("pronunciation.notation.translation")),
+            SettingsChoice(value: AppSettings.pronunciationNotationLatin, title: settings.t("pronunciation.notation.latin")),
+            SettingsChoice(value: AppSettings.pronunciationNotationIPA, title: settings.t("pronunciation.notation.ipa"))
+        ]
+    }
+
+    private var generalSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            section("general.language", title: settings.t("section.language"), subtitle: settings.t("section.language_desc")) {
+                SettingsGroup {
+                    SettingsStackRow(title: settings.t("setting.ui_language"), description: settings.t("setting.ui_language_desc")) {
+                        SettingsPickerButton(title: settings.t("setting.ui_language"), value: languageLabel(settings.uiLang)) {
+                            activeSheet = .uiLanguage
+                        }
+                    }
+                    .settingsRow("setting.ui_language", flashing: flashRowID)
+                    SettingsStackRow(title: settings.t("setting.pronunciation_language"), description: settings.t("setting.pronunciation_language_desc")) {
+                        SettingsPickerButton(title: settings.t("setting.pronunciation_language"), value: outputLanguageLabel) {
+                            activeSheet = .outputLanguage
+                        }
+                    }
+                    .settingsRow("setting.pronunciation_language", flashing: flashRowID)
+                    cardsRow("setting.pronunciation_notation", descriptionKey: "setting.pronunciation_notation_desc",
+                             selection: pronunciationNotationBinding, options: pronunciationNotationChoices)
+                }
+            }
+            section("general.display", title: settings.t("settings.section.lyrics_display")) {
+                SettingsGroup {
+                    SettingsStackRow(title: settings.t("setting.main_preview"), description: settings.t("setting.main_preview_desc")) {
+                        SettingsFlowLayout(spacing: 8, lineSpacing: 8) {
+                            Toggle(settings.t("setting.preview_hidden"), isOn: previewHiddenBinding)
+                                .toggleStyle(SettingsLayerChipStyle(color: nil))
+                            Toggle(settings.t("setting.main_preview_original"), isOn: previewItemBinding(AppSettings.previewItemOriginal))
+                                .toggleStyle(SettingsLayerChipStyle(color: palette.layerOriginal))
+                            Toggle(settings.t("setting.main_preview_pronunciation"), isOn: previewItemBinding(AppSettings.previewItemPronunciation))
+                                .toggleStyle(SettingsLayerChipStyle(color: palette.layerPhonetic))
+                            Toggle(settings.t("setting.main_preview_translation"), isOn: previewItemBinding(AppSettings.previewItemTranslation))
+                                .toggleStyle(SettingsLayerChipStyle(color: palette.layerTranslation))
+                        }
+                    }
+                    .settingsRow("setting.main_preview", flashing: flashRowID)
+                    toggleRow("setting.metadata_translation", descriptionKey: "setting.metadata_translation_desc",
+                              isOn: metadataTranslationBinding, identifier: "settings.toggle.metadata")
+                    toggleRow("setting.simplify_title", descriptionKey: "setting.simplify_title_desc",
+                              isOn: settingsSavedBinding(\.simplifyTitleEnabled))
+                    toggleRow("setting.japanese_furigana", descriptionKey: "setting.japanese_furigana_desc",
+                              isOn: japaneseFuriganaBinding)
+                }
+            }
+        }
+    }
+
+    // MARK: Lyrics providers
+
+    private var lyricsProvidersSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            section("providers.lookup", title: settings.t("settings.section.lookup"), subtitle: settings.t("settings.section.lookup_desc")) {
+                SettingsGroup {
+                    toggleRow("setting.lyrics_type_priority", descriptionKey: "setting.lyrics_type_priority_desc",
+                              isOn: lyricsTypePriorityBinding)
+                    toggleRow("setting.sync_data_provider_priority", descriptionKey: "setting.sync_data_provider_priority_desc",
+                              isOn: syncDataProviderPriorityBinding)
+                    lookupChain
+                }
+            }
+            section("providers.list", title: settings.t("section.lyrics_providers"), subtitle: settings.t("section.lyrics_providers_desc")) {
+                ForEach(Array(settings.lyricsProviderOrder.enumerated()), id: \.element) { index, providerId in
+                    if let provider = AppSettings.lyricsProviderById(providerId) {
+                        lyricsProviderSettingsCard(provider, index: index)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The order in which lyrics are tried, drawn from the two switches above and the provider list.
+    private var lookupChain: some View {
+        var steps: [(title: String, accent: Bool)] = []
+        if settings.preferSyncDataProvider { steps.append((title: "ivLyrics Sync", accent: true)) }
+        if settings.preferLyricsTypeOverProviderOrder {
+            steps += ["lyrics.provider.type_karaoke", "lyrics.provider.type_synced", "lyrics.provider.type_plain"].map { (title: settings.t($0), accent: false) }
+        } else {
+            steps += settings.lyricsProviderOrder
+                .filter { settings.lyricsProviderEnabled[$0] ?? true }
+                .compactMap { AppSettings.lyricsProviderById($0)?.name }
+                .map { (title: $0, accent: false) }
+        }
+        return SettingsFlowLayout(spacing: 6, lineSpacing: 6) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                HStack(spacing: 6) {
+                    if index > 0 {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(palette.text4)
+                    }
+                    Text(step.title)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(step.accent ? palette.accentText : palette.text)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 28)
+                        .background(step.accent ? palette.accentSoft : palette.surface2, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(step.accent ? palette.accentLine : palette.line2))
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .settingsRowSeparator()
+        .accessibilityElement(children: .combine)
+    }
+
+    private func lyricsProviderSettingsCard(_ provider: AppSettings.LyricsProvider, index: Int) -> some View {
+        let enabled = settings.lyricsProviderEnabled[provider.id] ?? true
+        let header = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 10))
+        return VStack(alignment: .leading, spacing: 10) {
+            header {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    rankBadge(index + 1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(provider.name)
+                            .font(.callout.weight(.medium))
+                            .foregroundStyle(palette.text)
+                        Text(settings.t("lyrics.provider.author_default"))
+                            .font(.footnote)
+                            .foregroundStyle(palette.text3)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .opacity(enabled ? 1 : 0.5)
+                HStack(spacing: 8) {
+                    providerMoveButtons(index: index, count: settings.lyricsProviderOrder.count, name: provider.name) { offset in
+                        settings.moveLyricsProvider(provider.id, offset: offset)
+                        model.reloadLyrics(bypassCache: true)
+                    }
+                    Toggle(provider.name, isOn: lyricsProviderEnabledBinding(provider.id))
+                        .labelsHidden()
+                        .toggleStyle(SettingsSwitchStyle())
+                        .fixedSize()
+                        .accessibilityLabel("\(provider.name), \(settings.t("lyrics.provider.enabled"))")
+                        .accessibilityIdentifier("settings.lyrics.toggle.\(provider.id)")
+                        .debugSettingsHitArea("settings.lyrics.toggle.\(provider.id)")
+                }
+            }
+            SettingsFlowLayout(spacing: 8, lineSpacing: 0) {
+                Toggle(settings.t("lyrics.provider.type_karaoke"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypeKaraoke))
+                    .toggleStyle(SettingsChipToggleStyle(systemImage: "music.mic"))
+                    .accessibilityLabel(provider.supportsNativeKaraoke ? settings.t("lyrics.provider.type_karaoke") : settings.t("lyrics.provider.type_karaoke_sync_data"))
+                if provider.supportsSynced {
+                    Toggle(settings.t("lyrics.provider.type_synced"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypeSynced))
+                        .toggleStyle(SettingsChipToggleStyle(systemImage: "clock"))
+                }
+                if provider.supportsPlain {
+                    Toggle(settings.t("lyrics.provider.type_plain"), isOn: lyricsProviderTypeBinding(provider.id, type: AppSettings.lyricsTypePlain))
+                        .toggleStyle(SettingsChipToggleStyle(systemImage: "text.alignleft"))
+                }
+            }
+            .opacity(enabled ? 1 : 0.5)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(settings.t("lyrics.provider.allowed_types"))
+            if let projectURL = provider.projectURL, let url = URL(string: projectURL) {
+                Button { openURL(url) } label: {
+                    SettingsButtonLabel(title: settings.t("lyrics.provider.open_project"), systemImage: "arrow.up.right.square")
+                }
+                .buttonStyle(SettingsButtonStyle())
+                .accessibilityLabel("\(provider.name), \(settings.t("lyrics.provider.open_project"))")
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 12)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(palette.line))
+        .settingsRow("lyricsProvider.\(provider.id)", flashing: flashRowID)
+    }
+
+    // MARK: AI
+
+    private var aiSettingsPage: some View {
+        let owners = aiTaskOwners
+        return VStack(alignment: .leading, spacing: 0) {
+            section("ai.layers", title: settings.t("section.ai_lyrics"), subtitle: settings.t("section.ai_lyrics_desc")) {
+                let tiles = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: 8))
+                    : AnyLayout(HStackLayout(spacing: 8))
+                tiles {
+                    SettingsToggleTile(title: settings.t("lyrics.translation"), systemImage: "translate", color: palette.layerTranslation,
+                                       onText: settings.t("label.on"), offText: settings.t("label.off"),
+                                       isOn: $settings.translationEnabled, identifier: "settings.toggle.translation")
+                        .settingsRow("ai.translation", flashing: flashRowID)
+                    SettingsToggleTile(title: settings.t("lyrics.pronunciation"), systemImage: "speaker.wave.2", color: palette.layerPhonetic,
+                                       onText: settings.t("label.on"), offText: settings.t("label.off"),
+                                       isOn: $settings.pronunciationEnabled, identifier: "settings.toggle.pronunciation")
+                        .settingsRow("ai.pronunciation", flashing: flashRowID)
+                }
+                aiLayerSample
+            }
+            section("ai.rules", title: settings.t("section.language_rules")) {
+                languageRulesGroup
+            }
+            section("ai.providers", title: settings.t("section.provider"), subtitle: settings.t("setting.ai_provider_order_desc")) {
+                SettingsFlowLayout(spacing: 6, lineSpacing: 6) {
+                    ownerPill(settings.t("lyrics.translation"), color: palette.layerTranslation, owner: owners.translation)
+                    ownerPill(settings.t("lyrics.pronunciation"), color: palette.layerPhonetic, owner: owners.pronunciation)
+                }
+                ForEach(Array(settings.aiProviderOrder.enumerated()), id: \.element) { index, providerId in
+                    if let provider = AppSettings.aiProviderById(providerId) {
+                        aiProviderSettingsCard(provider, index: index, owners: owners)
+                    }
+                }
+            }
+            section("ai.connections", title: settings.t("settings.section.connections"), subtitle: settings.t("settings.section.connections_desc")) {
+                ForEach(connectionProviders) { provider in
+                    aiConnectionCard(provider)
+                }
+            }
+            section("ai.cultural", title: settings.t("setting.cultural_annotations"), tracksPreview: true) {
+                culturalAnnotationsGroup
+            }
+        }
+    }
+
+    private var aiLayerSample: some View {
+        let line = SettingsPreviewSamples.sky
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(line.original)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(palette.text)
+            Text(line.pronunciation)
+                .font(.system(size: 13))
+                .foregroundStyle(palette.layerPhonetic)
+                .opacity(settings.pronunciationEnabled ? 1 : 0.2)
+            Text(settings.t(line.translationKey))
+                .font(.system(size: 14))
+                .foregroundStyle(palette.layerTranslation)
+                .opacity(settings.translationEnabled ? 1 : 0.2)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(palette.line))
+        .accessibilityHidden(true)
+    }
+
+    private func ownerPill(_ task: String, color: Color, owner: String?) -> some View {
+        HStack(spacing: 7) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(color)
+                .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
+            Text(task)
+                .foregroundStyle(palette.text3)
+            Text(owner ?? settings.t("settings.provider.none"))
+                .fontWeight(owner == nil ? .regular : .medium)
+                .foregroundStyle(owner == nil ? palette.text3 : palette.text)
+        }
+        .font(.footnote)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(minHeight: 30)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(palette.line2))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Which provider is tried first for each task: the first enabled one that can actually run.
+    private var aiTaskOwners: (translation: String?, pronunciation: String?) {
+        let snapshot = settings.snapshot
+        var translation: String?
+        for providerId in snapshot.enabledAIProviderOrder {
+            guard let provider = AppSettings.aiProviderById(providerId) else { continue }
+            if provider.isKeyless {
+                translation = provider.label
+            } else if provider.isLocal {
+                let tier = LocalAI.Tier.stored(settings.localAITier)
+                guard LocalAIController.shared.state.downloadedTiers.contains(tier) else { continue }
+                translation = provider.label
+            } else if let selected = snapshot.selectingAIProvider(providerId), selected.hasApiKey,
+                      provider.translationOnly || selected.hasModel {
+                translation = provider.label
+            }
+            if translation != nil { break }
+        }
+        let pronunciation = snapshot.readyAIProviderSnapshots.first?.provider.label
+        return (translation, pronunciation)
+    }
+
+    private var languageRulesGroup: some View {
+        let infoLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 6))
+        return SettingsGroup {
+            infoLayout {
+                ruleInfo(settings.t("field.track_language"), value: selectedRuleSourceLabel)
+                ruleInfo(settings.t("field.save_target"), value: selectedRuleTargetLabel)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+            .settingsRow("field.track_language", flashing: flashRowID)
+            .overlay(alignment: .bottom) { Color.clear.frame(height: 1).id("field.save_target") }
+            SettingsStackRow(title: settings.t("field.source")) {
+                SettingsPickerButton(title: settings.t("field.source"), value: ruleSourceLabel) {
+                    activeSheet = .ruleSource
+                }
+            }
+            .settingsRow("field.source", flashing: flashRowID)
+            rulesTable
+        }
+    }
+
+    private func ruleInfo(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(palette.text3)
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(palette.text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(palette.surface2, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(palette.line))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Default rule and the rule of the current song language, each with translation / pronunciation.
+    private var rulesTable: some View {
+        let source = effectiveRuleSourceLang
+        let hasSourceRow = source != AppSettings.defaultSourceLang
+        let inherited = hasSourceRow && settings.snapshot.languageRules[AppSettings.normalizeSourceLanguageKey(source)] == nil
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        return VStack(alignment: .leading, spacing: 0) {
+            if !stacked {
+                HStack(spacing: 12) {
+                    Text(settings.t("field.source"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    ruleColumn(translation: true) {
+                        ruleColumnTitle(settings.t("lyrics.translation"), color: palette.layerTranslation)
+                    }
+                    ruleColumn(translation: false) {
+                        ruleColumnTitle(settings.t("lyrics.pronunciation"), color: palette.layerPhonetic)
+                    }
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(palette.text3)
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+                .settingsRowSeparator()
+                .accessibilityHidden(true)
+            }
+            ruleRow(title: settings.t("settings.rules.default"), badge: nil, source: AppSettings.defaultSourceLang,
+                    inherited: false, stacked: stacked)
+                .background(palette.surface2)
+            if hasSourceRow {
+                ruleRow(title: languageLabel(source), badge: settings.t("field.track_language"), source: source,
+                        inherited: inherited, stacked: stacked)
+                    .overlay(alignment: .leading) { palette.accent.frame(width: 2).accessibilityHidden(true) }
+                HStack {
+                    Spacer(minLength: 0)
+                    Button {
+                        settings.resetLanguageRule(sourceLang: effectiveRuleSourceLang)
+                        model.saveLanguageRuleAndRegenerate()
+                    } label: {
+                        SettingsButtonLabel(title: settings.t("lyrics.rule.reset"), systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(SettingsButtonStyle())
+                    .disabled(effectiveRuleSourceLang == AppSettings.defaultSourceLang)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+                .settingsRow("lyrics.rule.reset", flashing: flashRowID)
+            }
+        }
+    }
+
+    private func ruleColumnTitle(_ title: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous).fill(color).frame(width: 7, height: 7)
+            Text(title).fixedSize()
+        }
+        .font(.caption.weight(.medium))
+    }
+
+    /// A table column as wide as its caption (at least a switch), so header and rows stay aligned
+    /// in every language without breaking the caption mid-word.
+    private func ruleColumn<Content: View>(translation: Bool, @ViewBuilder content: () -> Content) -> some View {
+        ZStack {
+            ruleColumnTitle(settings.t(translation ? "lyrics.translation" : "lyrics.pronunciation"),
+                            color: translation ? palette.layerTranslation : palette.layerPhonetic)
+                .hidden()
+            Color.clear.frame(width: 56, height: 1)
+            content()
+        }
+    }
+
+    private func ruleRow(title: String, badge: String?, source: String, inherited: Bool, stacked: Bool) -> some View {
+        let name = VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(palette.text)
+                .fixedSize(horizontal: false, vertical: true)
+            if let badge { SettingsPill(text: badge, tone: .accent) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        return Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 2) {
+                    name
+                    Toggle(isOn: ruleBinding(source: source, translation: true)) {
+                        ruleColumnTitle(settings.t("lyrics.translation"), color: palette.layerTranslation)
+                    }
+                    .toggleStyle(SettingsSwitchStyle())
+                    .opacity(inherited ? 0.6 : 1)
+                    Toggle(isOn: ruleBinding(source: source, translation: false)) {
+                        ruleColumnTitle(settings.t("lyrics.pronunciation"), color: palette.layerPhonetic)
+                    }
+                    .toggleStyle(SettingsSwitchStyle())
+                    .opacity(inherited ? 0.6 : 1)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    name
+                    ruleColumn(translation: true) {
+                        Toggle("\(title) · \(settings.t("lyrics.translation"))", isOn: ruleBinding(source: source, translation: true))
+                            .labelsHidden()
+                            .toggleStyle(SettingsSwitchStyle())
+                            .fixedSize()
+                            .opacity(inherited ? 0.6 : 1)
+                    }
+                    ruleColumn(translation: false) {
+                        Toggle("\(title) · \(settings.t("lyrics.pronunciation"))", isOn: ruleBinding(source: source, translation: false))
+                            .labelsHidden()
+                            .toggleStyle(SettingsSwitchStyle())
+                            .fixedSize()
+                            .opacity(inherited ? 0.6 : 1)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .settingsRowSeparator()
+    }
+
+    /// The same path as the former rule switches: the rule is saved and the current lyrics regenerate.
+    private func ruleBinding(source: String, translation: Bool) -> Binding<Bool> {
+        Binding(
+            get: {
+                _ = settings.languageRulesRevision
+                let rule = settings.languageRule(for: source)
+                return translation ? rule.translationEnabled : rule.pronunciationEnabled
+            },
+            set: { enabled in
+                let rule = settings.languageRule(for: source)
+                settings.setLanguageRule(
+                    sourceLang: source,
+                    translationEnabled: translation ? enabled : rule.translationEnabled,
+                    pronunciationEnabled: translation ? rule.pronunciationEnabled : enabled,
+                    targetLang: settings.outputLang
+                )
+                model.saveLanguageRuleAndRegenerate()
+            }
+        )
+    }
+
+    private var ruleSourceLabel: String {
+        model.selectedRuleSourceLang == "auto" ? settings.t("language.auto_default") : languageLabel(model.selectedRuleSourceLang)
+    }
+
+    private func aiProviderSettingsCard(_ provider: AppSettings.Provider, index: Int,
+                                        owners: (translation: String?, pronunciation: String?)) -> some View {
+        let enabled = settings.aiProviderEnabled[provider.id] ?? false
+        let header = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 10))
+        return VStack(alignment: .leading, spacing: 10) {
+            header {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    rankBadge(index + 1)
+                    Text(provider.label)
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(palette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .opacity(enabled ? 1 : 0.5)
+                HStack(spacing: 8) {
+                    providerMoveButtons(index: index, count: settings.aiProviderOrder.count, name: provider.label) { offset in
+                        settings.moveAIProvider(provider.id, offset: offset)
+                        model.translationProviderSettingsChanged()
+                    }
+                    .draggable(provider.id)
+                    .accessibilityHint(settings.tf("setting.ai_provider_drag_format", provider.label))
+                    Toggle("", isOn: aiProviderEnabledBinding(provider.id))
+                        .labelsHidden()
+                        .toggleStyle(SettingsSwitchStyle())
+                        .fixedSize()
+                        .accessibilityLabel(settings.tf("setting.ai_provider_toggle_format", provider.label))
+                        .accessibilityIdentifier("settings.ai.toggle.\(provider.id)")
+                        .debugSettingsHitArea("settings.ai.toggle.\(provider.id)")
+                }
+            }
+            // Descriptions use the full card width under the name instead of a column beside the controls.
+            VStack(alignment: .leading, spacing: 2) {
+                Text(aiProviderDescription(provider))
+                    .font(.footnote)
+                    .foregroundStyle(palette.text3)
+                if provider.isLocal {
+                    // Translation runs on the phone itself, so the card says up front that it needs a high-end device.
+                    Text(settings.t("local_ai.performance_note"))
+                        .font(.footnote)
+                        .foregroundStyle(palette.warn)
+                        .padding(.top, 2)
+                }
+            }
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 32)
+            .opacity(enabled ? 1 : 0.5)
+            HStack(spacing: 8) {
+                capabilityChip(settings.t("lyrics.translation"), systemImage: "translate", isOwner: owners.translation == provider.label && enabled)
+                if !provider.translationOnly {
+                    capabilityChip(settings.t("lyrics.pronunciation"), systemImage: "speaker.wave.2", isOwner: owners.pronunciation == provider.label && enabled)
+                }
+            }
+            .padding(.leading, 32)
+            .opacity(enabled ? 1 : 0.5)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 12)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(palette.line))
+        .settingsRow("aiProvider.\(provider.id)", flashing: flashRowID)
         .dropDestination(for: String.self) { providerIds, location in
             guard let sourceId = providerIds.first else { return false }
             settings.moveAIProvider(sourceId, relativeTo: provider.id, after: location.y > 36)
@@ -10838,14 +10518,317 @@ struct SettingsView: View {
         }
     }
 
-    private func aiProviderEnabledBinding(_ providerId: String) -> Binding<Bool> {
-        Binding(
-            get: { settings.aiProviderEnabled[providerId] ?? false },
-            set: { enabled in
-                settings.setAIProviderEnabled(providerId, enabled: enabled)
-                model.translationProviderSettingsChanged()
+    private func capabilityChip(_ title: String, systemImage: String, isOwner: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.semibold))
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.footnote.weight(.medium))
+        }
+        .foregroundStyle(isOwner ? Color.white : palette.text2)
+        .padding(.horizontal, 10)
+        .frame(minHeight: 32)
+        .background(isOwner ? palette.accent : palette.surface2, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(isOwner ? Color.clear : palette.line2))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isOwner ? [.isSelected] : [])
+    }
+
+    private var connectionProviders: [AppSettings.Provider] {
+        settings.aiProviderOrder.compactMap(AppSettings.aiProviderById).filter { !$0.isKeyless }
+    }
+
+    private func providerInitials(_ label: String) -> String {
+        let words = label
+            .replacingOccurrences(of: #"[^A-Za-z0-9가-힣 ]"#, with: " ", options: .regularExpression)
+            .split(separator: " ")
+        if words.count > 1, let first = words[0].first, let second = words[1].first {
+            return "\(first)\(second)".uppercased()
+        }
+        return String(label.prefix(2)).uppercased()
+    }
+
+    private func aiConnectionCard(_ provider: AppSettings.Provider) -> some View {
+        let selected = !provider.isKeyless && !provider.isLocal && settings.providerId == provider.id
+        // Local AI has its own panel and does not change the provider whose keys are edited.
+        let expanded = expandedAIProvider == provider.id && (selected || provider.isLocal)
+        let enabled = settings.aiProviderEnabled[provider.id] ?? false
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                if expanded {
+                    expandedAIProvider = nil
+                } else if provider.isLocal {
+                    expandedAIProvider = provider.id
+                } else {
+                    settings.setProvider(provider.id)
+                    expandedAIProvider = provider.id
+                    model.showSavedToast(settings.t("toast.provider_saved"))
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Text(providerInitials(provider.label))
+                        .font(.caption.weight(.semibold))
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        .foregroundStyle(palette.text2)
+                        .frame(width: 30, height: 30)
+                        .background(palette.surface3, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(palette.line))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(provider.label)
+                            .font(.callout.weight(.medium))
+                            .foregroundStyle(palette.text)
+                        Text(aiProviderDescription(provider))
+                            .font(.footnote)
+                            .foregroundStyle(palette.text3)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                        if selected {
+                            SettingsPill(text: settings.t("setting.ai_provider_selected"), tone: .accent)
+                                .padding(.top, 4)
+                        }
+                    }
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    SettingsPill(text: settings.t(enabled ? "label.on" : "label.off"), tone: enabled ? .ok : .neutral)
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(palette.text3)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentShape(Rectangle())
             }
-        )
+            .buttonStyle(SettingsRowButtonStyle())
+            .accessibilityValue(selected ? settings.t("setting.ai_provider_selected") : "")
+            .accessibilityIdentifier("settings.ai.expand.\(provider.id)")
+            if expanded {
+                Group {
+                    if provider.isLocal {
+                        LocalAISettingsPanel()
+                    } else {
+                        aiProviderConfiguration
+                    }
+                }
+                .settingsRowSeparator()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(palette.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(expanded ? palette.line2 : palette.line))
+        .settingsRow("connection.\(provider.id)", flashing: flashRowID)
+    }
+
+    private var aiProviderConfiguration: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let url = URL(string: selectedProvider.apiKeyURL), !selectedProvider.apiKeyURL.trimmed.isEmpty {
+                HStack {
+                    Button { openURL(url) } label: {
+                        SettingsButtonLabel(title: settings.t("button.get_key"), systemImage: "arrow.up.right.square")
+                    }
+                    .buttonStyle(SettingsButtonStyle())
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            if !selectedProvider.translationOnly {
+                SettingsStackRow(title: settings.t("field.base_url")) {
+                    settingsTextField(settings.t("field.base_url"), text: $settings.baseUrl)
+                }
+                .settingsRow("connection.field.field.base_url", flashing: flashRowID)
+                SettingsStackRow(
+                    title: settings.t("field.model"),
+                    description: settings.providerId == "paxsenix" && settings.model.trimmed.isEmpty
+                        ? settings.t("field.model_required")
+                        : ""
+                ) {
+                    aiModelSelector
+                }
+                .settingsRow("connection.field.field.model", flashing: flashRowID)
+                .task(id: aiModelConfiguration) {
+                    aiModels = []
+                    aiModelsError = ""
+                    aiModelsBuiltIn = false
+                    do {
+                        try await Task.sleep(for: .milliseconds(350))
+                        await refreshAIModels()
+                    } catch { }
+                }
+            }
+            if settings.providerId == "chatgpt" {
+                SettingsStackRow(title: settings.t("openai.connections"), description: settings.t("openai.connections_desc")) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(settings.openAIConnections.enumerated()), id: \.element.id) { index, connection in
+                            OpenAIConnectionEditor(connection: Binding(
+                                get: { settings.openAIConnections.first(where: { $0.id == connection.id }) ?? connection },
+                                set: { value in settings.openAIConnections = settings.openAIConnections.map { $0.id == value.id ? value : $0 } }
+                            ), position: index, count: settings.openAIConnections.count,
+                            onMove: { delta in
+                                var connections = settings.openAIConnections
+                                guard let current = connections.firstIndex(where: { $0.id == connection.id }),
+                                      connections.indices.contains(current + delta) else { return }
+                                connections.swapAt(current, current + delta)
+                                settings.openAIConnections = connections
+                            }, onRemove: {
+                                settings.openAIConnections.removeAll { $0.id == connection.id }
+                            })
+                        }
+                        Button {
+                            settings.openAIConnections.append(OpenAIConnection())
+                        } label: {
+                            SettingsButtonLabel(title: settings.t("openai.add_connection"), systemImage: "plus")
+                        }
+                        .buttonStyle(SettingsButtonStyle())
+                    }
+                }
+                .settingsRow("connection.field.openai.connections", flashing: flashRowID)
+            }
+            if !selectedProvider.translationOnly {
+                SettingsStackRow(title: settings.t("field.max_tokens")) {
+                    SettingsStepperField(label: settings.t("field.max_tokens"), value: maxTokensBinding, range: 256...65_536, step: 256,
+                                         decrementLabel: "\(settings.t("field.max_tokens")) −256",
+                                         incrementLabel: "\(settings.t("field.max_tokens")) +256")
+                }
+                .settingsRow("connection.field.field.max_tokens", flashing: flashRowID)
+                SettingsStackRow(title: settings.t("field.temperature")) {
+                    SettingsValueSlider(label: settings.t("field.temperature"), value: temperatureBinding, range: 0...2, step: 0.05,
+                                        unit: "", decimals: 2)
+                }
+                .settingsRow("connection.field.field.temperature", flashing: flashRowID)
+            }
+            SettingsStackRow(title: settings.t("field.api_key"), description: settings.t("field.api_key_desc")) {
+                TextEditor(text: $settings.apiKeys)
+                    .font(.body)
+                    .foregroundStyle(palette.text)
+                    .scrollContentBackground(.hidden)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .frame(minHeight: 86)
+                    .padding(8)
+                    .background(palette.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(palette.line2))
+                    .accessibilityLabel(settings.t("field.api_key"))
+            }
+            .settingsRow("connection.field.field.api_key", flashing: flashRowID)
+            if settings.providerId == "pollinations" {
+                SettingsStackRow(title: settings.t("pollinations.access_token")) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        SettingsSecureField(title: settings.t("pollinations.access_token"), text: $settings.pollinationsAccessToken,
+                                            showLabel: settings.t("settings.secret.show"), hideLabel: settings.t("settings.secret.hide"))
+                        SettingsStatusLine(text: model.pollinationsAuthStatusText, dot: model.pollinationsConnected ? palette.ok : nil,
+                                           busy: model.pollinationsAuthInFlight)
+                        SettingsFlowLayout(spacing: 8, lineSpacing: 8) {
+                            Button {
+                                model.startPollinationsLogin()
+                            } label: {
+                                SettingsButtonLabel(title: model.pollinationsConnected ? settings.t("pollinations.reconnect") : settings.t("pollinations.connect"))
+                            }
+                            .buttonStyle(SettingsButtonStyle())
+                            .disabled(model.pollinationsAuthInFlight)
+                            Button {
+                                model.openPollinationsLoginPage()
+                            } label: {
+                                SettingsButtonLabel(title: settings.t("pollinations.open_login"), systemImage: "arrow.up.right.square")
+                            }
+                            .buttonStyle(SettingsButtonStyle())
+                            .disabled(!model.pollinationsCanOpenLoginPage)
+                            Button {
+                                model.testPollinationsToken()
+                            } label: {
+                                SettingsButtonLabel(title: settings.t("pollinations.test"))
+                            }
+                            .buttonStyle(SettingsButtonStyle())
+                            .disabled(!model.pollinationsCanTestToken)
+                            Button(role: .destructive) {
+                                model.disconnectPollinationsLogin()
+                            } label: {
+                                SettingsButtonLabel(title: settings.t("pollinations.disconnect"))
+                            }
+                            .buttonStyle(SettingsButtonStyle(tone: .danger))
+                            .disabled(!model.pollinationsConnected || model.pollinationsAuthInFlight)
+                        }
+                    }
+                }
+                .settingsRow("connection.field.pollinations.access_token", flashing: flashRowID)
+            }
+            SettingsNoteRow(text: settings.t("settings.ai_autosave"))
+            SettingsFlowLayout(spacing: 8, lineSpacing: 8) {
+                Button {
+                    model.testAIConnection()
+                } label: {
+                    SettingsButtonLabel(title: settings.t(model.aiConnectionTesting ? "pollinations.status_testing" : "pollinations.test"),
+                                        busy: model.aiConnectionTesting)
+                }
+                .buttonStyle(SettingsButtonStyle())
+                .disabled(model.aiConnectionTesting)
+                Button {
+                    model.saveAiSettingsAndRegenerate()
+                } label: {
+                    SettingsButtonLabel(title: settings.t("button.save_regenerate"), systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(SettingsButtonStyle(tone: .primary))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .settingsRowSeparator()
+        }
+    }
+
+    private var culturalFontOptions: [(value: String, title: String)] {
+        [
+            ("pretendard", settings.t("font.pretendard")),
+            ("system", settings.t("font.system")),
+            ("serif", settings.t("font.serif")),
+            ("monospace", settings.t("font.monospace"))
+        ]
+    }
+
+    private var culturalAnnotationsGroup: some View {
+        let vinyl = culturalColumn == "vinyl"
+        let prefix = vinyl ? "cultural.vinyl." : "cultural.normal."
+        return SettingsGroup {
+            toggleRow("setting.cultural_annotations", descriptionKey: "setting.cultural_annotations_desc",
+                      isOn: culturalAnnotationsEnabledBinding, identifier: "settings.toggle.cultural")
+            VStack(alignment: .leading, spacing: 0) {
+                SettingsSegmentedPicker(
+                    title: settings.t("setting.cultural_annotations"),
+                    selection: $culturalColumn,
+                    options: [("normal", settings.t("settings.cultural.normal")), ("vinyl", settings.t("vinyl.mode"))]
+                )
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .settingsRowSeparator()
+                segmentedRow("setting.cultural_font_family", rowID: prefix + "setting.cultural_font_family",
+                             selection: vinyl ? $settings.culturalAnnotationsVinylFontFamily : $settings.culturalAnnotationsFontFamily,
+                             options: culturalFontOptions)
+                sliderRow("setting.cultural_font_size", rowID: prefix + "setting.cultural_font_size",
+                          value: vinyl ? culturalAnnotationVinylFontSizeBinding : culturalAnnotationFontSizeBinding,
+                          range: 10...28, unit: "px")
+                sliderRow("setting.cultural_font_weight", rowID: prefix + "setting.cultural_font_weight",
+                          value: vinyl ? culturalAnnotationVinylFontWeightBinding : culturalAnnotationFontWeightBinding,
+                          range: 100...900, step: 100, unit: "")
+                sliderRow("setting.cultural_opacity", rowID: prefix + "setting.cultural_opacity",
+                          value: vinyl ? culturalAnnotationVinylOpacityBinding : culturalAnnotationOpacityBinding,
+                          range: 20...100, step: 5, unit: "%")
+            }
+            .disabled(!settings.culturalAnnotationsEnabled)
+            .opacity(settings.culturalAnnotationsEnabled ? 1 : 0.42)
+        }
+    }
+
+    private var effectiveRuleSourceLang: String {
+        model.effectiveSelectedRuleSourceLang
+    }
+
+    private var selectedProvider: AppSettings.Provider {
+        AppSettings.providerById(settings.providerId)
     }
 
     private var aiModelConfiguration: AIProviderModels.Configuration {
@@ -10858,41 +10841,44 @@ struct SettingsView: View {
         aiModelsConfiguration == aiModelConfiguration ? aiModels : []
     }
 
+    private var aiModelChoices: [SettingsChoice] {
+        var choices = [SettingsChoice(value: "", title: settings.t("field.model_required"))]
+        if !settings.model.trimmed.isEmpty, !availableAIModels.contains(where: { $0.id == settings.model }) {
+            choices.append(SettingsChoice(value: settings.model, title: settings.model))
+        }
+        choices += availableAIModels.map { SettingsChoice(value: $0.id, title: $0.displayName) }
+        return choices
+    }
+
+    private var aiModelLabel: String {
+        if settings.model.trimmed.isEmpty { return settings.t("field.model_required") }
+        return availableAIModels.first(where: { $0.id == settings.model })?.displayName ?? settings.model
+    }
+
     private var aiModelSelector: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Picker(settings.t("field.model"), selection: $settings.model) {
-                    Text(settings.t("field.model_required")).tag("")
-                    if !settings.model.trimmed.isEmpty,
-                       !availableAIModels.contains(where: { $0.id == settings.model }) {
-                        Text(settings.model).tag(settings.model)
-                    }
-                    ForEach(availableAIModels) { model in
-                        Text(model.displayName).tag(model.id)
-                    }
+            HStack(spacing: 8) {
+                SettingsPickerButton(title: settings.t("field.model"), value: aiModelLabel) {
+                    activeSheet = .aiModel
                 }
-                .labelsHidden()
-                .settingsMenuSurface()
                 .disabled(aiModelsLoading || availableAIModels.isEmpty)
-                Button {
-                    Task { await refreshAIModels() }
-                } label: {
-                    if aiModelsLoading { ProgressView().frame(width: 44, height: 44) }
-                    else { Image(systemName: "arrow.clockwise").frame(width: 44, height: 44) }
+                if aiModelsLoading {
+                    ProgressView().frame(width: 44, height: 44)
+                } else {
+                    SettingsIconButton(systemImage: "arrow.clockwise", label: settings.t("button.refresh_models")) {
+                        Task { await refreshAIModels() }
+                    }
                 }
-                .buttonStyle(.bordered)
-                .disabled(aiModelsLoading)
-                .accessibilityLabel(settings.t("button.refresh_models"))
             }
             if aiModelsLoading {
                 Text(settings.t("status.models_loading"))
-                    .font(.caption).foregroundStyle(SettingsDesign.secondary)
+                    .font(.caption).foregroundStyle(palette.text3)
             } else if !aiModelsError.isEmpty {
                 Text(settings.t("status.models_unavailable"))
-                    .font(.caption).foregroundStyle(Color.orange.opacity(0.88))
+                    .font(.caption).foregroundStyle(palette.warn)
             } else if aiModelsBuiltIn {
                 Text(settings.t("status.models_builtin_sonar"))
-                    .font(.caption).foregroundStyle(SettingsDesign.secondary)
+                    .font(.caption).foregroundStyle(palette.text3)
             }
             settingsTextField(settings.t("field.model_id"), text: $settings.model)
         }
@@ -10922,6 +10908,988 @@ struct SettingsView: View {
             aiModels = []
             aiModelsError = error.localizedDescription
         }
+    }
+
+    private func settingsTextField(_ title: String, text: Binding<String>) -> some View {
+        TextField(title, text: text)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .settingsFieldChrome()
+    }
+
+    // MARK: Appearance
+
+    private static let alignmentIcons = ["left": "text.alignleft", "center": "text.aligncenter", "right": "text.alignright"]
+
+    private var alignmentOptions: [(value: String, title: String)] {
+        [
+            (value: "left", title: settings.t("alignment.left")),
+            (value: "center", title: settings.t("alignment.center")),
+            (value: "right", title: settings.t("alignment.right"))
+        ]
+    }
+
+    private var typographyWeightOptions: [(value: String, title: String)] {
+        [AppSettings.typoWeightRegular, AppSettings.typoWeightSemibold, AppSettings.typoWeightBold].map {
+            (value: $0, title: settings.t("typography.weight.\($0)"))
+        }
+    }
+
+    private var backgroundModeChoices: [SettingsChoice] {
+        [
+            SettingsChoice(value: AppSettings.backgroundGradient, title: settings.t("background.mode.gradient")),
+            SettingsChoice(value: AppSettings.backgroundBlurGradient, title: settings.t("background.mode.blur_gradient")),
+            SettingsChoice(value: AppSettings.backgroundVideo, title: settings.t("background.mode.video")),
+            SettingsChoice(value: AppSettings.backgroundSolid, title: settings.t("background.mode.solid"))
+        ]
+    }
+
+    private func backgroundModeLabel(_ mode: String) -> String {
+        backgroundModeChoices.first { $0.value == mode }?.title ?? mode
+    }
+
+    private var appearanceSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            section("appearance.layout", title: settings.t("section.layout"), tracksPreview: true) {
+                SettingsGroup {
+                    segmentedRow("setting.lyrics_alignment", descriptionKey: "setting.lyrics_alignment_desc",
+                                 selection: lyricsAlignmentBinding, options: alignmentOptions, icons: Self.alignmentIcons)
+                }
+            }
+            section("appearance.typography", title: settings.t("section.typography"), subtitle: settings.t("section.typography_desc"),
+                    tracksPreview: true) {
+                SettingsSegmentedPicker(
+                    title: settings.t("section.typography"),
+                    selection: $typographyGroup,
+                    options: [(value: "main", title: settings.t("settings.typography.main")),
+                              (value: "lyrics", title: settings.t("settings.typography.lyrics"))]
+                )
+                SettingsGroup {
+                    ForEach(AppSettings.typographySlots.filter { $0.id.hasPrefix(typographyGroup == "main" ? "main_" : "lyrics_") }) { slot in
+                        typographySettingsRow(slot)
+                    }
+                }
+            }
+            section("appearance.speakers", title: settings.t("section.speaker_colors"), subtitle: settings.t("section.speaker_colors_desc"),
+                    tracksPreview: true) {
+                speakerColorsGroup
+            }
+            backgroundSettingsSection
+            trackBackgroundSettingsSection
+        }
+    }
+
+    private func typographyRoleColor(_ slotId: String) -> Color {
+        if slotId.contains("original") { return palette.layerOriginal }
+        if slotId.contains("pronunciation") { return palette.layerPhonetic }
+        if slotId.contains("translation") { return palette.layerTranslation }
+        if slotId.contains("artist") { return palette.text4 }
+        return palette.text3
+    }
+
+    private func typographySettingsRow(_ slot: AppSettings.TypographySlot) -> some View {
+        let style = typographyStyle(slot)
+        let title = settings.t("typography.slot.\(slot.id)")
+        let heading = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
+        return VStack(alignment: .leading, spacing: 10) {
+            heading {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(typographyRoleColor(slot.id))
+                        .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
+                    Text(title)
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(palette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(style.sizePercent)% · \(settings.t("typography.weight.\(style.weight)"))")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(palette.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            SettingsValueSlider(label: title, value: typographySizeBinding(slot), range: 70...160, step: 1, unit: "%") { editing in
+                if !editing { model.showSavedToast(settings.t("toast.typography_saved")) }
+            }
+            .accessibilityHint(settings.t("typography.slot.\(slot.id)_desc"))
+            SettingsSegmentedPicker(title: title, selection: typographyWeightBinding(slot), options: typographyWeightOptions)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .settingsRowSeparator()
+        .settingsRow("typography.\(slot.id)", flashing: flashRowID)
+    }
+
+    private var speakerColorsGroup: some View {
+        SettingsGroup {
+            toggleRow("setting.creator_speaker_colors", descriptionKey: "setting.creator_speaker_colors_desc",
+                      isOn: settingsSavedBinding(\.useSyncCreatorSpeakerColors))
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(["normal", "duet", "male", "female"], id: \.self) { group in
+                    speakerSwatchGroup(group)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .settingsRowSeparator()
+            .settingsRow("speakers.palette", flashing: flashRowID)
+            if let slot = AppSettings.speakerColorSlots.first(where: { $0.id == selectedSpeakerColor }) {
+                SpeakerColorRow(slot: slot)
+                    .id(slot.id)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .settingsRowSeparator()
+            }
+            HStack {
+                Spacer(minLength: 0)
+                Button {
+                    settings.resetSpeakerColors()
+                    model.showSavedToast(settings.t("toast.speaker_colors_reset"))
+                } label: {
+                    SettingsButtonLabel(title: settings.t("button.reset"), systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(SettingsButtonStyle())
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .settingsRowSeparator()
+        }
+    }
+
+    private func speakerSwatchGroup(_ group: String) -> some View {
+        let slots = AppSettings.speakerColorSlots.filter { $0.id.hasPrefix(group) }
+        let colors = settings.speakerColorSettings()
+        let columnCount = dynamicTypeSize.isAccessibilitySize ? 2 : (dynamicTypeSize >= .xLarge ? 4 : 5)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(settings.t("speaker_color.\(group)"))
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(palette.text2)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount), alignment: .leading, spacing: 8) {
+                ForEach(slots) { slot in
+                    let hex = colors.hex(slot.id)
+                    let isOn = selectedSpeakerColor == slot.id
+                    Button { selectedSpeakerColor = slot.id } label: {
+                        VStack(spacing: 5) {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color(hex: hex))
+                                .frame(height: 30)
+                                .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Color.gray.opacity(0.25)))
+                            Text(hex.replacingOccurrences(of: "#", with: "").uppercased())
+                                .font(.caption.monospaced())
+                                .foregroundStyle(palette.text3)
+                                .lineLimit(1)
+                        }
+                        .padding(5)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(palette.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(isOn ? palette.accent : palette.line, lineWidth: isOn ? 2 : 1))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(slot.id == AppSettings.speakerColorNormal
+                                        ? settings.t("speaker_color.normal")
+                                        : "\(settings.t("speaker_color.\(group)")) \(slot.id.last.map(String.init) ?? "")")
+                    .accessibilityValue(hex)
+                    .accessibilityAddTraits(isOn ? [.isSelected] : [])
+                }
+            }
+        }
+    }
+
+    private var backgroundSettingsSection: some View {
+        let video = settings.backgroundMode == AppSettings.backgroundVideo
+        let solidUsed = settings.backgroundMode == AppSettings.backgroundSolid
+            || (video && settings.backgroundVideoFallback == AppSettings.backgroundSolid)
+            || AppSettings.normalizePipBackgroundMode(settings.pipBackgroundMode) == AppSettings.pipBackgroundSolid
+        let videoRows = ["setting.video_fallback", "setting.video_aspect", "setting.video_edge_to_edge", "setting.video_scale"]
+        let showVideo = video || videoRows.contains(revealedRowID ?? "")
+        let showSolid = solidUsed || revealedRowID == "field.solid_color"
+        return section("appearance.background", title: settings.t("section.background"), subtitle: settings.t("section.background_desc"),
+                       tracksPreview: true) {
+            SettingsGroup {
+                SettingsStackRow(title: settings.t("setting.background_mode"), description: settings.t("setting.background_mode_desc")) {
+                    SettingsOptionCards(title: settings.t("setting.background_mode"), options: backgroundModeChoices,
+                                        selection: backgroundModeBinding) { option in
+                        BackgroundModeSwatch(mode: option.value, solidColor: settings.backgroundSolidColor)
+                    }
+                }
+                .settingsRow("setting.background_mode", flashing: flashRowID)
+            }
+            if showVideo || showSolid {
+                SettingsGroup {
+                    if showVideo {
+                        if !video { conditionNote("setting.background_mode") }
+                        videoAppearanceRows(fallback: $settings.backgroundVideoFallback, aspect: $settings.backgroundVideoAspect,
+                                            edgeToEdge: $settings.backgroundVideoEdgeToEdge, scale: globalVideoScaleBinding,
+                                            scaleEditingChanged: backgroundSliderEditingChanged, rowPrefix: "")
+                    }
+                    if showSolid {
+                        if !solidUsed { conditionNote("setting.background_mode") }
+                        HexColorEditorRow(
+                            title: settings.t("field.solid_color"),
+                            hexColor: $settings.backgroundSolidColor,
+                            fallback: "#1e3a8a",
+                            onSave: { model.showSavedToast(settings.t("toast.background_saved")) }
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .settingsRowSeparator()
+                        .settingsRow("field.solid_color", flashing: flashRowID)
+                    }
+                }
+            }
+            SettingsGroup {
+                sliderRow("setting.brightness", value: Binding(get: { Double(settings.backgroundBrightness) },
+                                                               set: { settings.backgroundBrightness = Int($0.rounded()) }),
+                          range: 0...100, onEditingChanged: backgroundSliderEditingChanged)
+                sliderRow("setting.blur", value: Binding(get: { Double(settings.backgroundBlur) },
+                                                         set: { settings.backgroundBlur = Int($0.rounded()) }),
+                          range: 0...100, onEditingChanged: backgroundSliderEditingChanged)
+                toggleRow("setting.noise", isOn: backgroundNoiseBinding)
+                toggleRow("setting.reduce_motion", isOn: backgroundReduceMotionBinding)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func videoAppearanceRows(fallback: Binding<String>, aspect: Binding<String>, edgeToEdge: Binding<Bool>,
+                                     scale: Binding<Double>, scaleEditingChanged: @escaping (Bool) -> Void,
+                                     rowPrefix: String) -> some View {
+        segmentedRow("setting.video_fallback", rowID: rowPrefix + "setting.video_fallback", selection: fallback, options: [
+            (value: AppSettings.backgroundGradient, title: settings.t("background.mode.gradient")),
+            (value: AppSettings.backgroundBlurGradient, title: settings.t("background.mode.blur_gradient")),
+            (value: AppSettings.backgroundSolid, title: settings.t("background.mode.solid"))
+        ])
+        segmentedRow("setting.video_aspect", rowID: rowPrefix + "setting.video_aspect", selection: aspect, options: [
+            (value: "fit", title: settings.t("video_aspect.fit")),
+            (value: "fill", title: settings.t("video_aspect.fill")),
+            (value: "stretch", title: settings.t("video_aspect.stretch"))
+        ])
+        toggleRow("setting.video_edge_to_edge", descriptionKey: "setting.video_edge_to_edge_desc", isOn: edgeToEdge,
+                  identifier: "settings.toggle.\(rowPrefix)setting.video_edge_to_edge", rowID: rowPrefix + "setting.video_edge_to_edge")
+        sliderRow("setting.video_scale", rowID: rowPrefix + "setting.video_scale", value: scale, range: 100...180,
+                  onEditingChanged: scaleEditingChanged)
+    }
+
+    private var trackBackgroundSettingsSection: some View {
+        let hasTrack = !model.currentTrackKey.isEmpty
+        let track = editableTrackBackground
+        let trackVideo = track.mode == AppSettings.backgroundVideo
+        let trackSolid = track.mode == AppSettings.backgroundSolid || (trackVideo && track.videoFallback == AppSettings.backgroundSolid)
+        return section("appearance.trackBackground", title: settings.t("section.track_background"), tracksPreview: true) {
+            SettingsGroup {
+                trackBackgroundHeader(hasTrack: hasTrack)
+                    .settingsRow("lyrics.background.override", flashing: flashRowID)
+                if !hasTrack {
+                    SettingsNoteRow(text: settings.t("label.no_current_track"))
+                } else if currentTrackHasBackgroundOverride {
+                    SettingsStackRow(title: settings.t("setting.background_mode")) {
+                        SettingsOptionCards(title: settings.t("setting.background_mode"), options: backgroundModeChoices,
+                                            selection: trackBackgroundModeBinding) { option in
+                            BackgroundModeSwatch(mode: option.value, solidColor: track.solidColor, height: 40)
+                        }
+                    }
+                    if trackVideo {
+                        videoAppearanceRows(
+                            fallback: Binding(get: { editableTrackBackground.videoFallback },
+                                              set: { value in updateTrackBackground { $0.videoFallback = AppSettings.normalizeVideoFallback(value) } }),
+                            aspect: Binding(get: { editableTrackBackground.videoAspect },
+                                            set: { value in updateTrackBackground { $0.videoAspect = AppearancePolicy.videoAspect(value) } }),
+                            edgeToEdge: Binding(get: { editableTrackBackground.videoEdgeToEdge },
+                                                set: { value in updateTrackBackground { $0.videoEdgeToEdge = value } }),
+                            scale: trackBackgroundVideoScaleBinding,
+                            scaleEditingChanged: trackBackgroundSliderEditingChanged,
+                            rowPrefix: "track."
+                        )
+                    }
+                    sliderRow("setting.brightness", rowID: "track.setting.brightness", value: trackBackgroundBrightnessBinding,
+                              range: 0...100, onEditingChanged: trackBackgroundSliderEditingChanged)
+                    sliderRow("setting.blur", rowID: "track.setting.blur", value: trackBackgroundBlurBinding,
+                              range: 0...100, onEditingChanged: trackBackgroundSliderEditingChanged)
+                    toggleRow("setting.noise", isOn: trackBackgroundNoiseBinding, identifier: "settings.toggle.track.noise",
+                              rowID: "track.setting.noise")
+                    toggleRow("setting.reduce_motion", isOn: trackBackgroundReduceMotionBinding,
+                              identifier: "settings.toggle.track.reduce_motion", rowID: "track.setting.reduce_motion")
+                    if trackSolid {
+                        HexColorEditorRow(
+                            title: settings.t("field.solid_color"),
+                            hexColor: trackBackgroundSolidColorBinding,
+                            fallback: "#1e3a8a",
+                            onSave: { model.showSavedToast(settings.t("toast.track_background_saved")) }
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .settingsRowSeparator()
+                    }
+                }
+            }
+        }
+    }
+
+    private func trackBackgroundHeader(hasTrack: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                SettingsArtGradient()
+                    .frame(width: 40, height: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(hasTrack ? model.titleText : settings.t("label.no_current_track"))
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(palette.text)
+                    if hasTrack && !model.artistText.isEmpty {
+                        Text(model.artistText)
+                            .font(.footnote)
+                            .foregroundStyle(palette.text3)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .accessibilityElement(children: .combine)
+            Toggle(isOn: trackBackgroundOverrideBinding) {
+                SettingsTextBlock(title: settings.t("lyrics.background.override"))
+            }
+            .toggleStyle(SettingsSwitchStyle())
+            .disabled(!hasTrack)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .settingsRowSeparator()
+            .accessibilityIdentifier("settings.toggle.track_background")
+            .debugSettingsHitArea("settings.toggle.track_background")
+        }
+        .settingsRowSeparator()
+    }
+
+    // MARK: Behavior
+
+    private var karaokeGranularityOptions: [(value: String, title: String)] {
+        [
+            (value: AppSettings.karaokeDisplayCharacter, title: settings.t("karaoke.display.character")),
+            (value: AppSettings.karaokeDisplayWord, title: settings.t("karaoke.display.word")),
+            (value: AppSettings.karaokeDisplayLine, title: settings.t("karaoke.display.line"))
+        ]
+    }
+
+    private var lyricsSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            section("lyrics.interlude", title: settings.t("settings.section.interlude")) {
+                SettingsGroup {
+                    toggleRow("setting.auto_interlude", descriptionKey: "setting.auto_interlude_desc", isOn: autoInterludeBinding)
+                    // Labels also apply to interludes marked in the lyrics, so this stays visible when auto detection is off.
+                    toggleRow("setting.interlude_labels", descriptionKey: "setting.interlude_labels_desc",
+                              isOn: settingsSavedBinding(\.interludeLabelsEnabled), indent: true)
+                }
+            }
+            section("lyrics.karaoke", title: settings.t("settings.section.karaoke")) {
+                SettingsGroup {
+                    toggleRow("setting.synced_karaoke_animation", descriptionKey: "setting.synced_karaoke_animation_desc",
+                              isOn: settingsSavedBinding(\.syncedLyricsKaraokeAnimationEnabled))
+                    toggleRow("setting.karaoke_bounce_effect", descriptionKey: "setting.karaoke_bounce_effect_desc",
+                              isOn: settingsSavedBinding(\.karaokeBounceEffectEnabled))
+                    segmentedRow("setting.karaoke_display_granularity", descriptionKey: "setting.karaoke_display_granularity_desc",
+                                 selection: karaokeGranularityBinding, options: karaokeGranularityOptions)
+                }
+            }
+        }
+    }
+
+    private var karaokeGranularityBinding: Binding<String> {
+        Binding(
+            get: { AppSettings.normalizeKaraokeDisplayGranularity(settings.karaokeDisplayGranularity) },
+            set: { value in
+                settings.karaokeDisplayGranularity = value
+                model.showSavedToast(settings.t("toast.settings_saved"))
+            }
+        )
+    }
+
+    // MARK: Player
+
+    private var titleTapChoices: [SettingsChoice] {
+        [
+            SettingsChoice(value: "disabled", title: settings.t("title_action.disabled")),
+            SettingsChoice(value: "track", title: settings.t("title_action.track")),
+            SettingsChoice(value: "album", title: settings.t("title_action.album")),
+            SettingsChoice(value: "context", title: settings.t("title_action.context"))
+        ]
+    }
+
+    private var pipBackgroundChoices: [SettingsChoice] {
+        [
+            SettingsChoice(value: AppSettings.pipBackgroundCover, title: settings.t("pip.background.cover")),
+            SettingsChoice(value: AppSettings.pipBackgroundBlur, title: settings.t("pip.background.blur")),
+            SettingsChoice(value: AppSettings.pipBackgroundGradient, title: settings.t("pip.background.gradient")),
+            SettingsChoice(value: AppSettings.pipBackgroundSolid, title: settings.t("background.mode.solid"))
+        ]
+    }
+
+    private var tonearmStyleChoices: [SettingsChoice] {
+        [
+            SettingsChoice(value: AppSettings.vinylTonearmStyleS, title: settings.t("vinyl.settings.tonearm_style_s")),
+            SettingsChoice(value: AppSettings.vinylTonearmStyleStraight, title: settings.t("vinyl.settings.tonearm_style_straight")),
+            SettingsChoice(value: AppSettings.vinylTonearmStyleJ, title: settings.t("vinyl.settings.tonearm_style_j")),
+            SettingsChoice(value: AppSettings.vinylTonearmStyleLinear, title: settings.t("vinyl.settings.tonearm_style_linear"))
+        ]
+    }
+
+    private var playerSettingsPage: some View {
+        let pipSolid = AppSettings.normalizePipBackgroundMode(settings.pipBackgroundMode) == AppSettings.pipBackgroundSolid
+        return VStack(alignment: .leading, spacing: 0) {
+            section("player.player", title: settings.t("section.player")) {
+                SettingsGroup {
+                    cardsRow("setting.title_tap_action", selection: $settings.titleTapAction, options: titleTapChoices)
+                    toggleRow("setting.lyrics_not_found_notice", isOn: settingsSavedBinding(\.lyricsNotFoundNoticeEnabled))
+                    toggleRow("setting.keep_screen_on", descriptionKey: "setting.keep_screen_on_desc", isOn: keepScreenOnBinding)
+                }
+            }
+            section("player.landscape", title: settings.t("settings.section.landscape")) {
+                SettingsGroup {
+                    toggleRow("setting.landscape_original_lyrics", descriptionKey: "setting.landscape_original_lyrics_desc",
+                              isOn: settingsSavedBinding(\.landscapeOriginalLyricsEnabled))
+                    toggleRow("setting.landscape_artwork", isOn: settingsSavedBinding(\.landscapeArtworkEnabled))
+                    toggleRow("setting.landscape_auto_hide", descriptionKey: "setting.landscape_auto_hide_desc", isOn: landscapeAutoHideBinding)
+                    toggleRow("setting.landscape_center_no_lyrics", descriptionKey: "setting.landscape_center_no_lyrics_desc",
+                              isOn: landscapeCenterNoLyricsBinding)
+                }
+            }
+            section("player.pip", title: settings.t("section.pip"), subtitle: settings.t("section.pip_desc"), tracksPreview: true) {
+                SettingsGroup {
+                    toggleRow("setting.pip_show_artwork", descriptionKey: "setting.pip_show_artwork_desc", isOn: pipShowArtworkBinding)
+                    cardsRow("setting.pip_background", descriptionKey: "setting.pip_background_desc", selection: pipBackgroundBinding,
+                             options: pipBackgroundChoices)
+                    if pipSolid {
+                        // PiP's solid background uses the same colour as the lyrics background.
+                        HexColorEditorRow(
+                            title: settings.t("field.solid_color"),
+                            hexColor: $settings.backgroundSolidColor,
+                            fallback: "#1e3a8a",
+                            onSave: { model.showSavedToast(settings.t("toast.background_saved")) }
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .settingsRowSeparator()
+                    }
+                    segmentedRow("setting.pip_orientation", descriptionKey: "setting.pip_orientation_desc", selection: pipOrientationBinding,
+                                 options: [
+                                    (value: AppSettings.pipOrientationLandscape, title: settings.t("pip.orientation.landscape")),
+                                    (value: AppSettings.pipOrientationPortrait, title: settings.t("pip.orientation.portrait")),
+                                    (value: AppSettings.pipOrientationSquare, title: settings.t("pip.orientation.square"))
+                                 ],
+                                 icons: [AppSettings.pipOrientationLandscape: "rectangle",
+                                         AppSettings.pipOrientationPortrait: "rectangle.portrait",
+                                         AppSettings.pipOrientationSquare: "square"])
+                    segmentedRow("setting.pip_lyrics_alignment", descriptionKey: "setting.pip_lyrics_alignment_desc",
+                                 selection: pipAlignmentBinding, options: alignmentOptions, icons: Self.alignmentIcons)
+                    sliderRow("setting.pip_lyrics_size", descriptionKey: "setting.pip_lyrics_size_desc", value: pipLyricsSizeBinding,
+                              range: 50...180, onEditingChanged: pipSliderEditingChanged)
+                    sliderRow("setting.pip_translation_size", descriptionKey: "setting.pip_translation_size_desc",
+                              value: pipTranslationSizeBinding, range: 50...250, onEditingChanged: pipSliderEditingChanged)
+                }
+            }
+            section("player.vinyl", title: settings.t("vinyl.mode"), subtitle: settings.t("vinyl.settings.subtitle"), tracksPreview: true) {
+                SettingsGroup {
+                    sliderRow("vinyl.settings.album_size", descriptionKey: "vinyl.settings.album_size_desc", value: vinylAlbumSizeBinding,
+                              range: 70...140, step: 5, onEditingChanged: settingsSavedSliderEditingChanged)
+                    sliderRow("vinyl.settings.record_size", descriptionKey: "vinyl.settings.record_size_desc", value: vinylRecordSizeBinding,
+                              range: 70...140, step: 5, onEditingChanged: settingsSavedSliderEditingChanged)
+                    toggleRow("vinyl.settings.animations", descriptionKey: "vinyl.settings.animations_desc",
+                              isOn: settingsSavedBinding(\.vinylAnimationsEnabled))
+                    toggleRow("vinyl.settings.track_change_animations", descriptionKey: "vinyl.settings.track_change_animations_desc",
+                              isOn: settingsSavedBinding(\.vinylTrackChangeAnimationsEnabled))
+                    sliderRow("vinyl.settings.rotation_speed", descriptionKey: "vinyl.settings.rotation_speed_desc",
+                              value: vinylRotationSpeedBinding, range: 25...300, step: 5, onEditingChanged: settingsSavedSliderEditingChanged)
+                    toggleRow("vinyl.settings.center_rotation", descriptionKey: "vinyl.settings.center_rotation_desc",
+                              isOn: settingsSavedBinding(\.vinylCenterRotationEnabled))
+                    toggleRow("vinyl.settings.lyrics", descriptionKey: "vinyl.settings.lyrics_desc",
+                              isOn: settingsSavedBinding(\.vinylLyricsEnabled))
+                }
+            }
+            section("player.tonearm", title: settings.t("vinyl.settings.tonearm_title"), subtitle: settings.t("vinyl.settings.tonearm_subtitle"),
+                    tracksPreview: true) {
+                SettingsGroup {
+                    SettingsStackRow(title: settings.t("vinyl.settings.tonearm_style"), description: settings.t("vinyl.settings.tonearm_style_desc")) {
+                        SettingsOptionCards(title: settings.t("vinyl.settings.tonearm_style"), options: tonearmStyleChoices,
+                                            selection: tonearmStyleBinding) { option in
+                            TonearmGlyph(style: option.value)
+                                .stroke(palette.text2, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                                .frame(width: 32, height: 32)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(palette.surface2, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .settingsRow("vinyl.settings.tonearm_style", flashing: flashRowID)
+                    segmentedRow("vinyl.settings.tonearm_finish", descriptionKey: "vinyl.settings.tonearm_finish_desc",
+                                 selection: tonearmFinishBinding, options: [
+                                    (value: AppSettings.vinylTonearmFinishWhite, title: settings.t("vinyl.settings.tonearm_finish_white")),
+                                    (value: AppSettings.vinylTonearmFinishSilver, title: settings.t("vinyl.settings.tonearm_finish_silver")),
+                                    (value: AppSettings.vinylTonearmFinishBlack, title: settings.t("vinyl.settings.tonearm_finish_black"))
+                                 ],
+                                 swatches: [AppSettings.vinylTonearmFinishWhite: Color(hex: "#F2F2F2"),
+                                            AppSettings.vinylTonearmFinishSilver: Color(hex: "#B9BEC7"),
+                                            AppSettings.vinylTonearmFinishBlack: Color(hex: "#1D1F24")])
+                    sliderRow("vinyl.settings.tonearm_size", descriptionKey: "vinyl.settings.tonearm_size_desc", value: tonearmSizeBinding,
+                              range: 80...120, step: 5, onEditingChanged: settingsSavedSliderEditingChanged)
+                }
+            }
+            section("player.vinylTypography", title: settings.t("section.typography"), subtitle: settings.t("vinyl.settings.typography_desc"),
+                    tracksPreview: true) {
+                SettingsGroup {
+                    ForEach(AppSettings.vinylTypographySlots) { slot in
+                        typographySettingsRow(slot)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Advanced
+
+    private var systemSettingsPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            section("system.account", title: settings.t("section.account")) {
+                SettingsGroup {
+                    discordCard
+                        .settingsRow("account.discord", flashing: flashRowID)
+                    if model.creatorAccountConnected {
+                        SettingsActionRow(title: settings.t("creator_privacy.refresh"), busy: model.creatorPrivacyRequestInFlight) {
+                            model.refreshCreatorPrivacy()
+                        }
+                        .disabled(model.creatorPrivacyRequestInFlight)
+                    } else {
+                        SettingsActionRow(title: settings.t("creator_privacy.login"), busy: model.creatorPrivacyLoginInProgress) {
+                            model.startCreatorAccountLogin()
+                        }
+                        .disabled(model.creatorPrivacyRequestInFlight || model.creatorPrivacyLoginInProgress)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle(isOn: creatorPrivacyBinding) {
+                            SettingsTextBlock(title: settings.t("creator_privacy.private_title"), description: settings.t("creator_privacy.private_desc"))
+                        }
+                        .toggleStyle(SettingsSwitchStyle())
+                        .disabled(!model.creatorPrivacyCanEdit)
+                        .accessibilityValue(model.creatorPrivacyStatusText)
+                        .accessibilityIdentifier("settings.toggle.creator_privacy")
+                        SettingsStatusLine(text: model.creatorPrivacyStatusText, dot: creatorPrivacyStatusColor,
+                                           busy: model.creatorPrivacyRequestInFlight)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .settingsRowSeparator()
+                    .settingsRow("creator_privacy.private_title", flashing: flashRowID)
+                }
+                if model.creatorAccountConnected {
+                    SettingsGroup {
+                        SettingsActionRow(title: settings.t("creator_privacy.disconnect"), role: .danger) {
+                            model.disconnectCreatorAccount()
+                        }
+                        .disabled(model.creatorPrivacyRequestInFlight)
+                    }
+                }
+                SettingsGroup {
+                    SettingsSubhead(title: settings.t("cloud_sync.section"),
+                                    description: settings.t("cloud_sync.monthly_required") + "\n" + settings.t("cloud_sync.section_desc"))
+                        .settingsRow("cloud_sync.section", flashing: flashRowID)
+                    cloudStatusRow
+                    SettingsActionRow(title: settings.t("cloud_sync.refresh")) { model.refreshCloudSettings() }
+                        .disabled(!model.cloudSettingsActionsEnabled)
+                        .settingsRow("cloud_sync.refresh", flashing: flashRowID)
+                    SettingsActionRow(title: settings.t("cloud_sync.upload")) { model.uploadCloudSettings() }
+                        .disabled(!model.cloudSettingsActionsEnabled)
+                        .settingsRow("cloud_sync.upload", flashing: flashRowID)
+                    SettingsActionRow(title: settings.t("cloud_sync.apply")) { cloudApplyConfirmationPresented = true }
+                        .disabled(!model.cloudSettingsCanApply)
+                        .settingsRow("cloud_sync.apply", flashing: flashRowID)
+                }
+                SettingsGroup {
+                    SettingsActionRow(title: settings.t("cloud_sync.delete"), role: .danger) { cloudDeleteConfirmationPresented = true }
+                        .disabled(!model.cloudSettingsActionsEnabled)
+                }
+                .settingsRow("cloud_sync.delete", flashing: flashRowID)
+            }
+            section("system.spotify", title: settings.t("section.spotify_api"), subtitle: settings.t("section.spotify_api_option_desc")) {
+                SpotifySetupInstructionsPanel()
+                    .settingsRow("spotify.setup.instructions", flashing: flashRowID)
+                SettingsGroup {
+                    SettingsStackRow(title: settings.t("field.spotify_client_id")) {
+                        settingsTextField(settings.t("field.spotify_client_id"), text: $settings.spotifyClientId)
+                    }
+                    .settingsRow("field.spotify_client_id", flashing: flashRowID)
+                    SettingsStackRow(title: settings.t("field.spotify_client_secret"), description: settings.t("field.spotify_client_secret_role")) {
+                        SettingsSecureField(title: settings.t("field.spotify_client_secret"), text: $settings.spotifyClientSecret,
+                                            showLabel: settings.t("settings.secret.show"), hideLabel: settings.t("settings.secret.hide"))
+                    }
+                    .settingsRow("field.spotify_client_secret", flashing: flashRowID)
+                    SettingsStackRow(title: settings.t("field.redirect_uri")) {
+                        // The URI stays on one line next to Copy when it fits; otherwise Copy moves below it.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 10) {
+                                redirectURIChip
+                                    .fixedSize()
+                                Spacer(minLength: 0)
+                                redirectURICopyButton
+                            }
+                            VStack(alignment: .leading, spacing: 8) {
+                                redirectURIChip
+                                    .fixedSize(horizontal: false, vertical: true)
+                                redirectURICopyButton
+                            }
+                        }
+                    }
+                    .settingsRow("field.redirect_uri", flashing: flashRowID)
+                    spotifyWebAPIOptInRow
+                        .settingsRow("setting.spotify_web_api", flashing: flashRowID)
+                    if !model.spotifyValidationStatus.trimmed.isEmpty {
+                        SettingsNoteRow(text: model.spotifyValidationStatus, systemImage: nil)
+                    }
+                    SettingsActionRow(
+                        title: model.spotifyCredentialsValidationInFlight ? settings.t("spotify.validate_checking") : settings.t("button.spotify_save"),
+                        busy: model.spotifyCredentialsValidationInFlight
+                    ) {
+                        model.validateSpotifyApiCredentials(reloadOnChange: true)
+                    }
+                    .disabled(model.spotifyCredentialsValidationInFlight)
+                    .settingsRow("button.spotify_save", flashing: flashRowID)
+                }
+                SettingsGroup {
+                    SettingsSubhead(title: settings.t("field.live_source"))
+                    SettingsStatusLine(text: liveSourceText,
+                                       dot: model.spotifyAppRemoteConnected || model.spotifyLivePolling ? palette.ok : nil)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    SettingsActionRow(title: model.spotifyLivePolling ? settings.t("spotify.live.stop") : settings.t("spotify.live.connect")) {
+                        model.spotifyLivePolling ? model.stopSpotifyLivePolling() : model.connectSpotifyUserAndStartPolling()
+                    }
+                }
+                .settingsRow("field.live_source", flashing: flashRowID)
+                if model.spotifyWebAPIAuthorizationStored {
+                    SettingsGroup {
+                        SettingsActionRow(title: settings.t("spotify.disconnect_oauth"), subtitle: settings.t("spotify.disconnect_oauth_desc"),
+                                          role: .danger) {
+                            model.disconnectSpotifyUser()
+                        }
+                    }
+                    .settingsRow("spotify.disconnect_oauth", flashing: flashRowID)
+                }
+            }
+            section("system.sync", title: settings.t("lyrics.tab.sync"), subtitle: settings.t("lyrics.global_sync.help")) {
+                offsetSumPanel
+                SettingsGroup {
+                    offsetRow(id: "lyrics.global_sync.title", title: settings.t("lyrics.global_sync.title"), help: "",
+                              value: model.globalOffsetMs, resetTitle: settings.t("lyrics.global_sync.reset"),
+                              adjust: { model.adjustGlobalOffsetMs($0) }, reset: { model.setGlobalOffsetMs(0, notify: true) })
+                    offsetRow(id: "lyrics.sync.title", title: settings.t("lyrics.sync.title"), context: trackContext,
+                              help: settings.t("lyrics.sync.help"), value: model.trackOffsetMs, resetTitle: settings.t("lyrics.sync.reset"),
+                              adjust: { model.adjustTrackOffsetMs($0) }, reset: { model.setTrackOffsetMs(0, notify: true) })
+                    offsetRow(id: "lyrics.bluetooth_sync.title", title: settings.t("lyrics.bluetooth_sync.title"),
+                              context: model.hasBluetoothAudioDevice ? model.bluetoothAudioDeviceName : nil, contextIcon: "headphones",
+                              subtitle: bluetoothScopeText, help: settings.t("lyrics.bluetooth_sync.help"), value: model.bluetoothOffsetMs,
+                              resetTitle: settings.t("lyrics.bluetooth_sync.reset"), dimmed: !model.hasBluetoothAudioDevice,
+                              adjust: { model.adjustBluetoothOffsetMs($0) }, reset: { model.setBluetoothOffsetMs(0, notify: true) })
+                    offsetRow(id: "lyrics.video_sync.title", title: settings.t("lyrics.video_sync.title"), context: trackContext,
+                              help: settings.t("lyrics.video_sync.help"), value: model.videoOffsetMs,
+                              resetTitle: settings.t("lyrics.video_sync.reset"),
+                              adjust: { model.adjustVideoOffsetMs($0) }, reset: { model.setVideoOffsetMs(0, notify: true) })
+                }
+            }
+            section("system.update", title: settings.t("section.update")) {
+                SettingsGroup {
+                    SettingsStatusLine(text: model.updateStatus)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    SettingsActionRow(title: model.updateCheckInFlight ? settings.t("update.checking") : settings.t("update.check"),
+                                      busy: model.updateCheckInFlight) {
+                        model.checkForUpdates(manual: true)
+                    }
+                    .disabled(model.updateCheckInFlight)
+                    .settingsRow("update.check", flashing: flashRowID)
+                    SettingsActionRow(title: settings.t("button.open_release"), systemImage: "arrow.up.right") {
+                        model.openUpdateReleasePage()
+                    }
+                    .settingsRow("button.open_release", flashing: flashRowID)
+                }
+            }
+            section("system.tools", title: settings.t("section.tools"), subtitle: settings.t("section.tools_desc")) {
+                SettingsGroup {
+                    SettingsActionRow(title: settings.t("button.reload_current")) { model.reloadLyrics(bypassCache: true) }
+                        .settingsRow("button.reload_current", flashing: flashRowID)
+                    SettingsActionRow(title: settings.t("button.debug_log")) { settingsLogsPresented = true }
+                        .settingsRow("button.debug_log", flashing: flashRowID)
+                    SettingsActionRow(title: settings.t("button.ai_cache_clear")) { aiCacheConfirmationPresented = true }
+                        .settingsRow("button.ai_cache_clear", flashing: flashRowID)
+                }
+                // Data-deleting actions sit in their own block, away from everyday tools.
+                SettingsGroup {
+                    SettingsActionRow(title: settings.t("button.clear_current"), role: .danger) { model.clearCachesForCurrentTrack() }
+                        .settingsRow("button.clear_current", flashing: flashRowID)
+                    SettingsActionRow(title: settings.t("button.clear_all"), role: .danger) { clearAllConfirmationPresented = true }
+                        .settingsRow("button.clear_all", flashing: flashRowID)
+                }
+            }
+        }
+    }
+
+    private var discordCard: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "person.2.fill")
+                .font(.subheadline.weight(.semibold))
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .foregroundStyle(Color.white)
+                .frame(width: 40, height: 40)
+                .background(Color(hex: "#5865F2"), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Discord")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(palette.text)
+                Text(settings.t("creator_privacy.section_desc"))
+                    .font(.footnote)
+                    .foregroundStyle(palette.text3)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .settingsRowSeparator()
+        .accessibilityElement(children: .combine)
+    }
+
+    private var cloudStatusRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Group {
+                if model.cloudSettingsRequestInFlight {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: model.cloudSettingsSupportBlocked
+                          ? "exclamationmark.triangle.fill"
+                          : (model.cloudSettingsExists ? "checkmark.icloud" : "icloud"))
+                        .foregroundStyle(model.cloudSettingsSupportBlocked
+                                         ? palette.warn
+                                         : (model.cloudSettingsExists ? palette.ok : palette.text3))
+                }
+            }
+            .accessibilityHidden(true)
+            Text(model.cloudSettingsStatusText)
+                .font(.footnote)
+                .foregroundStyle(palette.text2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel(model.cloudSettingsStatusText)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .settingsRowSeparator()
+    }
+
+    private var redirectURIChip: some View {
+        Text(SpotifyRedirectConfiguration.uri)
+            .font(.footnote.monospaced())
+            .foregroundStyle(palette.text)
+            .textSelection(.enabled)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(palette.surface3, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
+
+    private var redirectURICopyButton: some View {
+        Button {
+            UIPasteboard.general.string = SpotifyRedirectConfiguration.uri
+            model.showSavedToast(settings.tf("toast.copied_format", SpotifyRedirectConfiguration.uri))
+        } label: {
+            SettingsButtonLabel(title: settings.t("button.copy"), systemImage: "doc.on.doc")
+        }
+        .buttonStyle(SettingsButtonStyle())
+    }
+
+    private var spotifyWebAPIOptInRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(isOn: spotifyWebAPIEnabledBinding) {
+                SettingsTextBlock(title: settings.t("setting.spotify_web_api"), description: settings.t("setting.spotify_web_api_desc"))
+            }
+            .toggleStyle(SettingsSwitchStyle())
+            .accessibilityIdentifier("settings.toggle.spotify_web_api")
+            SettingsStatusLine(text: spotifyWebAPIStatusText, dot: spotifyWebAPIStatusColor)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .settingsRowSeparator()
+    }
+
+    private var liveSourceText: String {
+        model.spotifyAppRemoteConnected
+            ? settings.t("spotify.source.app_remote")
+            : (model.spotifyLivePolling ? settings.t("spotify.source.web_api") : settings.t("spotify.source.off"))
+    }
+
+    private var trackContext: String? {
+        model.currentTrackKey.isEmpty ? nil : model.titleText
+    }
+
+    private var bluetoothScopeText: String {
+        model.hasBluetoothAudioDevice
+            ? settings.tf("lyrics.bluetooth_sync.device_scope", model.bluetoothAudioDeviceName)
+            : settings.t("lyrics.bluetooth_sync.no_device")
+    }
+
+    /// Global + current song + Bluetooth = what the lyrics use (video has its own offset on top).
+    private var offsetSumPanel: some View {
+        let parts: [(title: String, value: Int)] = [
+            (title: settings.t("lyrics.global_sync.title"), value: model.globalOffsetMs),
+            (title: settings.t("lyrics.sync.title"), value: model.trackOffsetMs),
+            (title: settings.t("lyrics.bluetooth_sync.title"), value: model.bluetoothOffsetMs)
+        ]
+        let total = parts.reduce(0) { $0 + $1.value }
+        return SettingsFlowLayout(spacing: 6, lineSpacing: 6) {
+            ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
+                HStack(spacing: 6) {
+                    if index > 0 {
+                        Text("+").font(.subheadline.weight(.medium)).foregroundStyle(palette.text3)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(part.title)
+                            .font(.caption)
+                            .foregroundStyle(palette.text3)
+                        Text(formatSignedMs(part.value))
+                            .font(.subheadline.weight(.medium).monospacedDigit())
+                            .foregroundStyle(palette.text)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(part.value != 0 ? palette.accentSoft : palette.surface2, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(part.value != 0 ? palette.accentLine : palette.line))
+                }
+            }
+            HStack(spacing: 6) {
+                Text("=").font(.subheadline.weight(.medium)).foregroundStyle(palette.text3)
+                Text(formatSignedMs(total))
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(palette.text)
+            }
+            .frame(minHeight: 44)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(palette.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(palette.line))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func offsetRow(id: String, title: String, context: String? = nil, contextIcon: String = "music.note",
+                           subtitle: String = "", help: String, value: Int, resetTitle: String, dimmed: Bool = false,
+                           adjust: @escaping (Int) -> Void, reset: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsFlowLayout(spacing: 8, lineSpacing: 6) {
+                Text(title)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(palette.text)
+                if let context, !context.isEmpty {
+                    SettingsPill(text: context, systemImage: contextIcon)
+                }
+            }
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(palette.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !help.isEmpty {
+                Text(help)
+                    .font(.footnote)
+                    .foregroundStyle(palette.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(formatSignedMs(value))
+                .font(.title2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(value == 0 ? palette.text3 : palette.text)
+                .accessibilityLabel("\(title), \(formatSignedMs(value))")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: dynamicTypeSize.isAccessibilitySize ? 2 : 3),
+                      spacing: 8) {
+                ForEach([-100, -50, -10, 10, 50, 100], id: \.self) { delta in
+                    Button { adjust(delta) } label: {
+                        Text(formatSignedMs(delta))
+                            .font(.subheadline.weight(.medium).monospacedDigit())
+                    }
+                    .buttonStyle(SettingsButtonStyle(fullWidth: true))
+                    .accessibilityLabel("\(title) \(formatSignedMs(delta))")
+                }
+            }
+            Button { reset() } label: {
+                SettingsButtonLabel(title: resetTitle, systemImage: "arrow.counterclockwise")
+            }
+            .buttonStyle(SettingsButtonStyle(fullWidth: true))
+        }
+        .opacity(dimmed ? 0.45 : 1)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .settingsRowSeparator()
+        .settingsRow(id, flashing: flashRowID)
+    }
+
+    // MARK: Bindings (same keys, saving paths, toasts and regenerations as before)
+
+    private var spotifyWebAPIEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.spotifyWebAPIEnabled },
+            set: { value in
+                model.setSpotifyWebAPIEnabled(value)
+                model.showSavedToast(settings.t("toast.settings_saved"))
+            }
+        )
+    }
+
+    private var spotifyWebAPIStatusText: String {
+        guard settings.spotifyWebAPIEnabled else {
+            return settings.t("setting.spotify_web_api_status_off")
+        }
+        return model.spotifyWebAPIConnected
+            ? settings.t("setting.spotify_web_api_status_connected")
+            : settings.t("setting.spotify_web_api_status_pending")
+    }
+
+    private var spotifyWebAPIStatusColor: Color {
+        guard settings.spotifyWebAPIEnabled else { return palette.text4 }
+        return model.spotifyWebAPIConnected ? palette.ok : palette.warn
+    }
+
+    private var creatorPrivacyBinding: Binding<Bool> {
+        Binding(
+            get: { model.creatorPrivacyIsPrivate },
+            set: { model.setCreatorPrivacy($0) }
+        )
+    }
+
+    private var creatorPrivacyStatusColor: Color {
+        switch model.creatorPrivacyState {
+        case .privateProfile:
+            return palette.accent
+        case .publicProfile:
+            return palette.ok
+        case .loading, .notLoaded:
+            return palette.text3
+        case .signedOut:
+            return palette.text4
+        }
+    }
+
+    private func aiProviderEnabledBinding(_ providerId: String) -> Binding<Bool> {
+        Binding(
+            get: { settings.aiProviderEnabled[providerId] ?? false },
+            set: { enabled in
+                settings.setAIProviderEnabled(providerId, enabled: enabled)
+                model.translationProviderSettingsChanged()
+            }
+        )
     }
 
     private var uiLanguageBinding: Binding<String> {
@@ -10954,16 +11922,6 @@ struct SettingsView: View {
                 guard settings.pronunciationNotation != normalized else { return }
                 settings.pronunciationNotation = normalized
                 model.pronunciationNotationChanged()
-            }
-        )
-    }
-
-    private var providerBinding: Binding<String> {
-        Binding(
-            get: { settings.providerId },
-            set: { value in
-                settings.setProvider(value)
-                model.showSavedToast(settings.t("toast.provider_saved"))
             }
         )
     }
@@ -11100,6 +12058,24 @@ struct SettingsView: View {
         )
     }
 
+    private var backgroundModeBinding: Binding<String> {
+        Binding(
+            get: { settings.backgroundMode },
+            set: { value in
+                settings.backgroundMode = value
+                model.refreshBackgroundForCurrentTrack()
+                model.showSavedToast(settings.t("toast.background_saved"))
+            }
+        )
+    }
+
+    private var globalVideoScaleBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.backgroundVideoScale) },
+            set: { settings.backgroundVideoScale = AppSettings.clampBackgroundVideoScale(Int($0.rounded())) }
+        )
+    }
+
     private var keepScreenOnBinding: Binding<Bool> {
         boolSettingBinding(\.keepScreenOn, onToastKey: "toast.keep_screen_on_on", offToastKey: "toast.keep_screen_on_off")
     }
@@ -11114,6 +12090,116 @@ struct SettingsView: View {
 
     private var pipShowArtworkBinding: Binding<Bool> {
         boolSettingBinding(\.pipShowArtwork, toastKey: "toast.pip_settings_saved")
+    }
+
+    private var pipBackgroundBinding: Binding<String> {
+        Binding(
+            get: { AppSettings.normalizePipBackgroundMode(settings.pipBackgroundMode) },
+            set: { value in
+                settings.pipBackgroundMode = value
+                model.showSavedToast(settings.t("toast.pip_settings_saved"))
+            }
+        )
+    }
+
+    private var pipOrientationBinding: Binding<String> {
+        Binding(
+            get: { AppSettings.normalizePipOrientation(settings.pipOrientation) },
+            set: { value in
+                settings.pipOrientation = value
+                model.showSavedToast(settings.t("toast.pip_settings_saved"))
+            }
+        )
+    }
+
+    private var pipAlignmentBinding: Binding<String> {
+        Binding(
+            get: { AppSettings.normalizeLyricsAlignment(settings.pipLyricsTextAlignment) },
+            set: { value in
+                settings.pipLyricsTextAlignment = value
+                model.showSavedToast(settings.t("toast.pip_settings_saved"))
+            }
+        )
+    }
+
+    private var pipLyricsSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(AppSettings.clampPipLyricsSizePercent(settings.pipLyricsSizePercent)) },
+            set: { value in
+                settings.pipLyricsSizePercent = AppSettings.clampPipLyricsSizePercent(Int(value.rounded()))
+            }
+        )
+    }
+
+    private var pipTranslationSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent)) },
+            set: { value in
+                settings.pipTranslationSizePercent = AppSettings.clampPipTranslationSizePercent(Int(value.rounded()))
+            }
+        )
+    }
+
+    private func pipSliderEditingChanged(_ editing: Bool) {
+        if !editing { model.showSavedToast(settings.t("toast.pip_settings_saved")) }
+    }
+
+    private func settingsSavedSliderEditingChanged(_ editing: Bool) {
+        if !editing { model.showSavedToast(settings.t("toast.settings_saved")) }
+    }
+
+    private var vinylAlbumSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent)) },
+            set: { value in
+                settings.vinylAlbumSizePercent = AppSettings.clampVinylSizePercent(Int(value.rounded()))
+            }
+        )
+    }
+
+    private var vinylRecordSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(AppSettings.clampVinylSizePercent(settings.vinylRecordSizePercent)) },
+            set: { value in
+                settings.vinylRecordSizePercent = AppSettings.clampVinylSizePercent(Int(value.rounded()))
+            }
+        )
+    }
+
+    private var vinylRotationSpeedBinding: Binding<Double> {
+        Binding(
+            get: { Double(settings.vinylRotationSpeedPercent) },
+            set: { settings.vinylRotationSpeedPercent = VinylMotionPolicy.speedPercent(Int($0.rounded())) }
+        )
+    }
+
+    private var tonearmStyleBinding: Binding<String> {
+        Binding(
+            get: { AppSettings.normalizeVinylTonearmStyle(settings.vinylTonearmStyle) },
+            set: { value in
+                settings.vinylTonearmStyle = AppSettings.normalizeVinylTonearmStyle(value)
+                model.showSavedToast(settings.t("toast.settings_saved"))
+            }
+        )
+    }
+
+    private var tonearmFinishBinding: Binding<String> {
+        Binding(
+            get: { AppSettings.normalizeVinylTonearmFinish(settings.vinylTonearmFinish) },
+            set: { value in
+                settings.vinylTonearmFinish = AppSettings.normalizeVinylTonearmFinish(value)
+                model.showSavedToast(settings.t("toast.settings_saved"))
+            }
+        )
+    }
+
+    private var tonearmSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(AppSettings.clampVinylTonearmSizePercent(settings.vinylTonearmSizePercent)) },
+            set: { value in
+                settings.vinylTonearmSizePercent = AppSettings.clampVinylTonearmSizePercent(Int(value.rounded()))
+            }
+        )
     }
 
     private var backgroundNoiseBinding: Binding<Bool> {
@@ -11186,43 +12272,6 @@ struct SettingsView: View {
         Binding(
             get: { model.selectedRuleSourceLang },
             set: { model.setSelectedRuleSourceLang($0) }
-        )
-    }
-
-    private var selectedRule: AppSettings.LanguageRule {
-        _ = settings.languageRulesRevision
-        return settings.languageRule(for: effectiveRuleSourceLang)
-    }
-
-    private var selectedRuleTranslationBinding: Binding<Bool> {
-        Binding(
-            get: { selectedRule.translationEnabled },
-            set: { enabled in
-                let rule = selectedRule
-                settings.setLanguageRule(
-                    sourceLang: effectiveRuleSourceLang,
-                    translationEnabled: enabled,
-                    pronunciationEnabled: rule.pronunciationEnabled,
-                    targetLang: settings.outputLang
-                )
-                model.saveLanguageRuleAndRegenerate()
-            }
-        )
-    }
-
-    private var selectedRulePronunciationBinding: Binding<Bool> {
-        Binding(
-            get: { selectedRule.pronunciationEnabled },
-            set: { enabled in
-                let rule = selectedRule
-                settings.setLanguageRule(
-                    sourceLang: effectiveRuleSourceLang,
-                    translationEnabled: rule.translationEnabled,
-                    pronunciationEnabled: enabled,
-                    targetLang: settings.outputLang
-                )
-                model.saveLanguageRuleAndRegenerate()
-            }
         )
     }
 
@@ -11388,17 +12437,11 @@ struct SettingsView: View {
     }
 }
 
-private extension View {
-    func settingsMenuSurface() -> some View {
-        self
-            .pickerStyle(.menu)
-            .font(.body)
-            .tint(SettingsDesign.text)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(minHeight: 48)
-            .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+private struct SettingsSectionOffsetKey: PreferenceKey {
+    static let defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 
@@ -11515,130 +12558,6 @@ private extension View {
     }
 }
 
-struct SpeakerColorRow: View {
-    @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var model: AppViewModel
-    let slot: AppSettings.SpeakerColorSlot
-
-    var body: some View {
-        HexColorEditorRow(
-            title: slotTitle,
-            hexColor: colorBinding,
-            fallback: slot.defaultColor,
-            onSave: { model.showSavedToast(settings.t("toast.speaker_colors_saved")) }
-        )
-    }
-
-    private var colorBinding: Binding<String> {
-        Binding(
-            get: { settings.speakerColorSettings().hex(slot.id) },
-            set: { settings.setSpeakerColor(slotId: slot.id, color: $0) }
-        )
-    }
-
-    private var slotTitle: String {
-        if slot.id == AppSettings.speakerColorNormal {
-            return settings.t("speaker_color.normal")
-        }
-        let baseKey: String
-        if slot.id.hasPrefix("duet") {
-            baseKey = "speaker_color.duet"
-        } else if slot.id.hasPrefix("male") {
-            baseKey = "speaker_color.male"
-        } else if slot.id.hasPrefix("female") {
-            baseKey = "speaker_color.female"
-        } else {
-            return slot.label
-        }
-        guard let number = Int(slot.id.replacingOccurrences(of: #"^\D+"#, with: "", options: .regularExpression)) else {
-            return settings.t(baseKey)
-        }
-        return "\(settings.t(baseKey)) \(number)"
-    }
-}
-
-struct HexColorEditorRow: View {
-    @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var model: AppViewModel
-    let title: String
-    @Binding var hexColor: String
-    let fallback: String
-    var onSave: (() -> Void)? = nil
-    @State private var draft = ""
-    @State private var invalidDraft = false
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color(hex: normalizedColor))
-                .frame(width: 22, height: 22)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(.secondary.opacity(0.35)))
-            Text(title)
-            Spacer()
-            ColorPicker("", selection: colorBinding, supportsOpacity: false)
-                .labelsHidden()
-                .frame(width: 32)
-            TextField(fallback, text: $draft)
-                .multilineTextAlignment(.trailing)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.caption.monospaced())
-                .foregroundStyle(invalidDraft ? .red : .primary)
-                .frame(maxWidth: 110)
-                .focused($focused)
-                .onChange(of: draft) { _, value in
-                    invalidDraft = !value.trimmed.isEmpty && !AppSettings.isHexColor(value)
-                }
-                .onSubmit(saveDraft)
-        }
-        .onAppear {
-            draft = normalizedColor
-        }
-        .onChange(of: focused) { _, isFocused in
-            if !isFocused {
-                saveDraft()
-            }
-        }
-        .onChange(of: hexColor) { _, _ in
-            if !focused {
-                draft = normalizedColor
-                invalidDraft = false
-            }
-        }
-    }
-
-    private var normalizedColor: String {
-        AppSettings.normalizeHexColor(hexColor, fallback: fallback)
-    }
-
-    private var colorBinding: Binding<Color> {
-        Binding(
-            get: { Color(hex: normalizedColor) },
-            set: { color in
-                guard let hex = color.hexRGB else { return }
-                hexColor = hex
-                draft = hex
-                invalidDraft = false
-                onSave?()
-            }
-        )
-    }
-
-    private func saveDraft() {
-        guard AppSettings.isHexColor(draft) else {
-            invalidDraft = true
-            model.showSavedToast(settings.tf("toast.invalid_color_format", title))
-            return
-        }
-        let normalized = AppSettings.normalizeHexColor(draft, fallback: fallback)
-        hexColor = normalized
-        draft = normalized
-        invalidDraft = false
-        onSave?()
-    }
-}
-
 struct PlayerTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
@@ -11715,101 +12634,5 @@ extension Color {
         #else
         return nil
         #endif
-    }
-}
-
-private struct OpenAIConnectionEditor: View {
-    @EnvironmentObject private var settings: AppSettings
-    @Binding var connection: OpenAIConnection
-    var position: Int
-    var count: Int
-    var onMove: (Int) -> Void
-    var onRemove: () -> Void
-    @State private var models: [AIProviderModels.Model] = []
-    @State private var loadedConfiguration: AIProviderModels.Configuration?
-    @State private var loading = false
-    @State private var error = false
-    @State private var requestID = UUID()
-    @State private var revision = 0
-
-    private var configuration: AIProviderModels.Configuration {
-        .init(provider: "chatgpt", baseURL: connection.baseUrl.trimmed.isEmpty ? "https://api.openai.com/v1" : connection.baseUrl,
-              apiKeys: connection.apiKeys, pollinationsAccessToken: "")
-    }
-
-    private var availableModels: [AIProviderModels.Model] { loadedConfiguration == configuration ? models : [] }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("\(position + 2). \(connection.name)", isOn: $connection.enabled)
-                HStack(spacing: 12) {
-                Button { onMove(-1) } label: { Image(systemName: "arrow.up") }
-                    .frame(width: 44, height: 44).contentShape(Rectangle())
-                    .disabled(position == 0).accessibilityLabel(settings.t("openai.move_up"))
-                Button { onMove(1) } label: { Image(systemName: "arrow.down") }
-                    .frame(width: 44, height: 44).contentShape(Rectangle())
-                    .disabled(position == count - 1).accessibilityLabel(settings.t("openai.move_down"))
-                Button(role: .destructive, action: onRemove) { Image(systemName: "trash") }
-                    .frame(width: 44, height: 44).contentShape(Rectangle())
-                    .accessibilityLabel(settings.t("openai.remove_connection"))
-                }
-            }
-            TextField(settings.t("openai.connection_name"), text: $connection.name)
-            TextField(settings.t("field.base_url"), text: $connection.baseUrl)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-            SecureField(settings.t("field.api_key"), text: $connection.apiKeys)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-            HStack {
-                Picker(settings.t("field.model"), selection: $connection.model) {
-                    if !availableModels.contains(where: { $0.id == connection.model }) {
-                        Text(connection.model.isEmpty ? settings.t("field.model_required") : connection.model).tag(connection.model)
-                    }
-                    ForEach(availableModels) { model in Text(model.displayName).tag(model.id) }
-                }
-                .labelsHidden().settingsMenuSurface().disabled(loading || availableModels.isEmpty)
-                Button { revision += 1 } label: {
-                    if loading { ProgressView().frame(width: 44, height: 44) }
-                    else { Image(systemName: "arrow.clockwise").frame(width: 44, height: 44) }
-                }
-                    .disabled(loading).accessibilityLabel(settings.t("button.refresh_models"))
-            }
-            TextField(settings.t("field.model_id"), text: $connection.model)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-            if loading {
-                Text(settings.t("status.models_loading")).font(.caption)
-            } else if error {
-                Text(settings.t("status.models_unavailable")).font(.caption).foregroundStyle(.orange)
-            }
-        }
-        .textFieldStyle(SettingsTextFieldStyle())
-        .padding(12)
-        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-        .task(id: configuration) { await loadModels() }
-        .task(id: revision) { if revision > 0 { await loadModels() } }
-    }
-
-    @MainActor private func loadModels() async {
-#if DEBUG
-        if DebugSettingsUIHarness.enabled { return }
-#endif
-        let context = configuration
-        let id = UUID()
-        requestID = id
-        models = []
-        loading = true
-        error = false
-        defer { if requestID == id { loading = false } }
-        do {
-            try await Task.sleep(for: .milliseconds(350))
-            let catalog = try await AIProviderModels.fetch(context)
-            try Task.checkCancellation()
-            guard id == requestID, context == configuration else { return }
-            models = catalog.models
-            loadedConfiguration = context
-            error = models.isEmpty
-        } catch {
-            if !Task.isCancelled, id == requestID, context == configuration { self.error = true }
-        }
     }
 }

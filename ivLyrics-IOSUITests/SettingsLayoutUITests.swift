@@ -18,16 +18,19 @@ final class SettingsLayoutUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
-    private func launch(_ surface: String = "settings", tab: String = "general", language: String = "en",
-                        landscape: Bool = false, textSize: String = "large") {
+    /// Settings open on the home list (menus + search); `tab` opens one menu page directly.
+    private func launch(_ surface: String = "settings", tab: String = "home", language: String = "en",
+                        landscape: Bool = false, textSize: String = "large", theme: String = "dark") {
         XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
         app = XCUIApplication()
         app.launchArguments = ["--ivlyrics-ui-test"]
         app.launchEnvironment = ["IVLYRICS_UI_SURFACE": surface, "IVLYRICS_DEBUG_SETTINGS_TAB": tab,
                                  "IVLYRICS_UI_LANGUAGE": language,
-                                 "IVLYRICS_UI_TEXT_SIZE": textSize]
+                                 "IVLYRICS_UI_TEXT_SIZE": textSize,
+                                 "IVLYRICS_UI_THEME": theme]
         app.launch()
-        let marker = app.descendants(matching: .any)[surface == "settings" ? "settings.search" : "lyrics.menu.close"]
+        let settingsMarker = tab == "home" ? "settings.search" : "settings.scroll"
+        let marker = app.descendants(matching: .any)[surface == "settings" ? settingsMarker : "lyrics.menu.close"]
         let ready = marker.waitForExistence(timeout: 10)
         if !ready { capture("launch-\(surface)-missing-marker") }
         XCTAssertTrue(ready, "Native launch marker is missing: \(marker)")
@@ -141,7 +144,7 @@ final class SettingsLayoutUITests: XCTestCase {
         let search = app.textFields["settings.search"]
         assertTouchTarget(search)
         XCTAssertGreaterThan(search.frame.width, app.windows.firstMatch.frame.width * 0.5)
-        capture("general-portrait")
+        capture("home-portrait")
         // The top edge of the 48pt native input must focus too, not only its text baseline.
         search.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4))
@@ -150,6 +153,7 @@ final class SettingsLayoutUITests: XCTestCase {
         XCTAssertTrue(result.waitForExistence(timeout: 4))
         assertTouchTarget(app.buttons["settings.search.clear"])
         capture("settings-search-keyboard")
+        // A result opens its menu and scrolls to the row.
         result.tap()
         wait(NSPredicate(format: "exists == false"), on: app.keyboards.firstMatch)
         let toggle = app.switches["settings.toggle.metadata"]
@@ -179,7 +183,11 @@ final class SettingsLayoutUITests: XCTestCase {
     func testGeneralLandscapeAccessibilityText() {
         launch(landscape: true, textSize: "accessibility5")
         assertTouchTarget(app.textFields["settings.search"])
-        capture("general-landscape-AX5")
+        capture("home-landscape-AX5")
+        let general = app.buttons["settings.menu.general"]
+        reveal(general, scrollID: "settings.home")
+        assertTouchTarget(general)
+        general.tap()
         let toggle = app.switches["settings.toggle.metadata"]
         reveal(toggle, scrollID: "settings.scroll")
         assertNativeToggle(toggle)
@@ -187,6 +195,52 @@ final class SettingsLayoutUITests: XCTestCase {
         toggle.tap()
         XCTAssertNotEqual(toggle.value as? String, before)
         capture("general-landscape-AX5-switch")
+    }
+
+    func testThemeSwitchAndMenuNavigation() {
+        launch()
+        let light = app.buttons["settings.theme.light"]
+        assertTouchTarget(light)
+        light.tap()
+        wait(NSPredicate(format: "isSelected == true"), on: light)
+        capture("home-light")
+        let providers = app.buttons["settings.menu.providers"]
+        reveal(providers, scrollID: "settings.home")
+        assertTouchTarget(providers)
+        providers.tap()
+        let toggle = app.switches["settings.lyrics.toggle.lrclib"]
+        reveal(toggle, scrollID: "settings.scroll")
+        assertNativeToggle(toggle)
+        capture("providers-light")
+    }
+
+    /// Screenshot matrix of every settings menu in both themes, plus large-text landscape pages.
+    /// Evidence for review only: each capture follows a real launch of the native page.
+    func testSettingsMenusScreenshotMatrix() {
+        let menus = ["general", "providers", "ai", "appearance", "lyrics", "player", "system"]
+        for theme in ["dark", "light"] {
+            launch(language: "ko", theme: theme)
+            capture("matrix-\(theme)-home")
+            app.terminate()
+            for menu in menus {
+                launch(tab: menu, language: "ko", theme: theme)
+                capture("matrix-\(theme)-\(menu)-1")
+                let scroll = app.scrollViews["settings.scroll"]
+                for page in 2...3 {
+                    // Start low: an expanded live preview can be pinned over the top of the scroll view.
+                    let start = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.88))
+                    let end = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+                    start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+                    capture("matrix-\(theme)-\(menu)-\(page)")
+                }
+                app.terminate()
+            }
+        }
+        for menu in ["appearance", "ai", "system"] {
+            launch(tab: menu, landscape: true, textSize: "accessibility5")
+            capture("matrix-landscape-AX5-\(menu)")
+            app.terminate()
+        }
     }
 
     func testLanguagePopupPortraitActions() {

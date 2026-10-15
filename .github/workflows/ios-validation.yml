@@ -5,6 +5,9 @@ on:
   push:
     paths:
       - 'ivLyrics-IOS/SettingsDesign.swift'
+      - 'ivLyrics-IOS/SettingsComponents.swift'
+      - 'ivLyrics-IOS/SettingsPreviews.swift'
+      - 'ivLyrics-IOS/SettingsSupportViews.swift'
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
@@ -17,6 +20,9 @@ on:
   pull_request:
     paths:
       - 'ivLyrics-IOS/SettingsDesign.swift'
+      - 'ivLyrics-IOS/SettingsComponents.swift'
+      - 'ivLyrics-IOS/SettingsPreviews.swift'
+      - 'ivLyrics-IOS/SettingsSupportViews.swift'
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'

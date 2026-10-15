@@ -5,8 +5,10 @@ import SwiftUI
 struct LocalAISettingsPanel: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
+    @Environment(\.settingsPalette) private var palette
     @ObservedObject private var controller = LocalAIController.shared
     @State private var confirmingDelete = false
+    @State private var choosingIdle = false
 
     private var tier: LocalAI.Tier { .stored(settings.localAITier) }
     private var phase: LocalAI.Phase { controller.state.phase(for: tier) }
@@ -23,16 +25,18 @@ struct LocalAISettingsPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            statusRow
             qualityRow
+            statusRow
             processorRow
             idleRow
             Text(settings.t("local_ai.privacy"))
-                .font(.pretendard(12))
-                .foregroundStyle(SettingsDesign.muted)
+                .font(.footnote)
+                .foregroundStyle(palette.text3)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.vertical, 12)
+                .settingsRowSeparator()
         }
         .onAppear { controller.refresh() }
         .onChange(of: settings.localAITier) { _, _ in
@@ -42,6 +46,23 @@ struct LocalAISettingsPanel: View {
         .onChange(of: settings.localAIProcessor) { _, _ in
             controller.configurationChanged(configuration)
         }
+        .sheet(isPresented: $choosingIdle) {
+            SettingsOptionSheet(
+                title: settings.t("local_ai.idle_unload"),
+                options: LocalAI.idleMinuteOptions.map { SettingsChoice(value: String($0), title: idleLabel($0)) },
+                selection: String(LocalAI.normalizedIdleMinutes(settings.localAIIdleMinutes)),
+                searchPrompt: settings.t("button.search"),
+                closeLabel: settings.t("button.close"),
+                emptyText: settings.t("settings.no_results"),
+                onSelect: { value in
+                    guard let minutes = Int(value) else { return }
+                    settings.localAIIdleMinutes = minutes
+                    controller.setIdleMinutes(minutes)
+                    model.showSavedToast(settings.t("toast.settings_saved"))
+                }
+            )
+            .environment(\.settingsPalette, palette)
+        }
     }
 
     // MARK: Status and actions
@@ -49,20 +70,21 @@ struct LocalAISettingsPanel: View {
     private var statusRow: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(statusText)
-                .font(.pretendard(13.5, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(statusColor)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.updatesFrequently)
             if phase == .downloading {
                 ProgressView(value: downloadFraction)
-                    .tint(SettingsDesign.accent)
+                    .tint(palette.accent)
                     .accessibilityHidden(true)
             }
-            VStack(spacing: 8) {
+            SettingsFlowLayout(spacing: 8, lineSpacing: 8) {
                 if phase == .downloading {
                     actionButton(settings.t("local_ai.cancel")) { controller.cancelDownload() }
                 } else if !fileReady {
-                    actionButton(LocalAI.format(settings.t("local_ai.download"), ["size": LocalAI.formatGigabytes(tier.byteCount)])) {
+                    actionButton(LocalAI.format(settings.t("local_ai.download"), ["size": LocalAI.formatGigabytes(tier.byteCount)]),
+                                 tone: .primary, systemImage: "arrow.down.circle") {
                         confirmingDelete = false
                         controller.download(tier)
                     }
@@ -82,7 +104,7 @@ struct LocalAISettingsPanel: View {
                     actionButton(settings.t("local_ai.unload")) { controller.freeMemory() }
                 }
                 if fileReady {
-                    actionButton(settings.t(confirmingDelete ? "local_ai.confirm_remove" : "local_ai.remove"), role: .destructive) {
+                    actionButton(settings.t(confirmingDelete ? "local_ai.confirm_remove" : "local_ai.remove"), tone: .danger) {
                         guard confirmingDelete else {
                             confirmingDelete = true
                             return
@@ -95,9 +117,9 @@ struct LocalAISettingsPanel: View {
             }
             switch controller.test {
             case let .passed(message)?:
-                testResult(message, color: SettingsDesign.mint)
+                testResult(message, color: palette.ok)
             case let .failed(message)?:
-                testResult(message, color: SettingsDesign.accent)
+                testResult(message, color: palette.danger)
             default:
                 EmptyView()
             }
@@ -133,9 +155,9 @@ struct LocalAISettingsPanel: View {
 
     private var statusColor: Color {
         switch phase {
-        case .ready: return SettingsDesign.mint
-        case .error: return SettingsDesign.accent
-        default: return SettingsDesign.secondary
+        case .ready: return palette.ok
+        case .error: return palette.danger
+        default: return palette.text2
         }
     }
 
@@ -146,7 +168,7 @@ struct LocalAISettingsPanel: View {
 
     private func testResult(_ message: String, color: Color) -> some View {
         Text(message)
-            .font(.pretendard(12.5))
+            .font(.footnote)
             .foregroundStyle(color)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
@@ -156,14 +178,14 @@ struct LocalAISettingsPanel: View {
 
     private var qualityRow: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(settings.t("local_ai.quality"))
-                    .font(.pretendard(15, weight: .semibold))
-                    .foregroundStyle(SettingsDesign.text)
-                Spacer(minLength: 8)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(palette.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text(settings.t(tier.titleKey))
-                    .font(.pretendard(13))
-                    .foregroundStyle(SettingsDesign.secondary)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(palette.text3)
             }
             // A three-step slider the user drags; each step is one model file.
             SettingsSlider(value: tierBinding, in: 0...Double(LocalAI.Tier.allCases.count - 1), step: 1) { editing in
@@ -179,8 +201,8 @@ struct LocalAISettingsPanel: View {
                 }
             }
             Text(settings.t("local_ai.tier_hint"))
-                .font(.pretendard(12.5))
-                .foregroundStyle(SettingsDesign.muted)
+                .font(.footnote)
+                .foregroundStyle(palette.text3)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -202,20 +224,19 @@ struct LocalAISettingsPanel: View {
     private func tierLabel(_ step: LocalAI.Tier) -> some View {
         VStack(alignment: stackAlignment(step), spacing: 2) {
             Text(settings.t(step.titleKey))
-                .font(.pretendard(12.5, weight: step == tier ? .bold : .regular))
-                .foregroundStyle(step == tier ? SettingsDesign.text : SettingsDesign.secondary)
+                .font(.footnote.weight(step == tier ? .semibold : .regular))
+                .foregroundStyle(step == tier ? palette.text : palette.text3)
             Text(LocalAI.formatGigabytes(step.byteCount))
-                .font(.pretendard(11.5))
-                .monospacedDigit()
-                .foregroundStyle(SettingsDesign.muted)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(palette.text3)
             if controller.state.downloadedTiers.contains(step) {
                 HStack(spacing: 3) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                     Text(settings.t("local_ai.tier_downloaded"))
-                        .font(.pretendard(11, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                 }
-                .foregroundStyle(SettingsDesign.mint)
+                .foregroundStyle(palette.ok)
             }
         }
         .multilineTextAlignment(textAlignment(step))
@@ -237,10 +258,10 @@ struct LocalAISettingsPanel: View {
     // MARK: Processor and idle release
 
     private var processorRow: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(settings.t("local_ai.device"))
-                .font(.pretendard(15, weight: .semibold))
-                .foregroundStyle(SettingsDesign.text)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(palette.text)
             SettingsSegmentedPicker(
                 title: settings.t("local_ai.device"),
                 selection: Binding(
@@ -252,8 +273,8 @@ struct LocalAISettingsPanel: View {
                     }
                 ),
                 options: [
-                    (LocalAI.Processor.auto.rawValue, settings.t("local_ai.device_auto")),
-                    (LocalAI.Processor.cpu.rawValue, settings.t("local_ai.device_cpu"))
+                    (value: LocalAI.Processor.auto.rawValue, title: settings.t("local_ai.device_auto")),
+                    (value: LocalAI.Processor.cpu.rawValue, title: settings.t("local_ai.device_cpu"))
                 ]
             )
             .disabled(busy)
@@ -265,30 +286,16 @@ struct LocalAISettingsPanel: View {
     }
 
     private var idleRow: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(settings.t("local_ai.idle_unload"))
-                .font(.pretendard(15, weight: .semibold))
-                .foregroundStyle(SettingsDesign.text)
-            Picker(settings.t("local_ai.idle_unload"), selection: Binding(
-                get: { LocalAI.normalizedIdleMinutes(settings.localAIIdleMinutes) },
-                set: { minutes in
-                    settings.localAIIdleMinutes = minutes
-                    controller.setIdleMinutes(minutes)
-                    model.showSavedToast(settings.t("toast.settings_saved"))
-                }
-            )) {
-                ForEach(LocalAI.idleMinuteOptions, id: \.self) { minutes in
-                    Text(idleLabel(minutes)).tag(minutes)
-                }
+                .font(.callout.weight(.medium))
+                .foregroundStyle(palette.text)
+            SettingsPickerButton(
+                title: settings.t("local_ai.idle_unload"),
+                value: idleLabel(LocalAI.normalizedIdleMinutes(settings.localAIIdleMinutes))
+            ) {
+                choosingIdle = true
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .font(.pretendard(14.5, weight: .semibold))
-            .tint(SettingsDesign.text)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 48)
-            .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
@@ -304,15 +311,12 @@ struct LocalAISettingsPanel: View {
         return LocalAI.format(settings.t("local_ai.idle_after"), ["minutes": String(minutes)])
     }
 
-    private func actionButton(_ title: String, role: ButtonRole? = nil, busy: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(role: role, action: action) {
-            SettingsActionLabel(title: title, busy: busy)
-                .font(.pretendard(13.5, weight: .semibold))
-                .foregroundStyle(role == .destructive ? SettingsDesign.accent : SettingsDesign.text)
-                .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 11).stroke(SettingsDesign.strongBorder))
+    private func actionButton(_ title: String, tone: SettingsButtonStyle.Tone = .normal, systemImage: String? = nil,
+                              busy: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(role: tone == .danger ? .destructive : nil, action: action) {
+            SettingsButtonLabel(title: title, systemImage: systemImage, busy: busy)
         }
-        .buttonStyle(SettingsActionButtonStyle())
+        .buttonStyle(SettingsButtonStyle(tone: tone))
     }
 }
 

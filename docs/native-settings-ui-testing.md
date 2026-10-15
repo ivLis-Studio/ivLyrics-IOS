@@ -1,7 +1,7 @@
 # Native settings and lyric-popup UI checks
 
 The shared **ivLyrics-IOS** scheme contains the **ivLyrics-IOSUITests** UI-testing
-target. Its seven tests launch the actual SwiftUI settings and per-track popup,
+target. Its nine tests launch the actual SwiftUI settings and per-track popup,
 use native accessibility frames and interactions, and retain both PNG screenshots
 and accessibility-tree text attachments in the `.xcresult`. They are not HTML
 screenshots or a substitute for physical-device testing.
@@ -31,11 +31,16 @@ Choose a fresh result-bundle path for each run. CI should retain the result bund
 and exported attachments even when an assertion fails. To focus the run, append
 `-only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests`.
 
-The suite covers General/AI settings, search with the keyboard open and dismissed,
-English/Korean long descriptions, actual toggle changes, Language/Video popup
-actions, portrait, landscape and `DynamicTypeSize.accessibility3` / `accessibility5`.
+The suite covers the settings home (menu list and search), General/AI settings,
+search with the keyboard open and dismissed (a result opens its menu and scrolls
+to the row), the light/dark theme switch and menu navigation, English/Korean long
+descriptions, actual toggle changes, Language/Video popup actions, portrait,
+landscape and `DynamicTypeSize.accessibility3` / `accessibility5`. The home page,
 General settings and the Language popup use AX5 in landscape, including actual
-toggle/regeneration actions; the Video landscape case retains AX3 coverage. It checks
+toggle/regeneration actions; the Video landscape case retains AX3 coverage. A
+screenshot matrix captures the home page and every settings menu (three scroll
+positions each) in Korean in both themes, plus Appearance, AI and Advanced in
+landscape at AX5; those captures are review evidence, not assertions. It checks
 button/input frames against the 44-point minimum and verifies that popup close and
 footer controls remain fully inside the window. Search asserts the native input's
 own frame and taps near its top edge to verify focus across its height. Reveal
@@ -63,19 +68,24 @@ After installing a **Debug** build, launch without Spotify, AI credentials or lo
 SIMCTL_CHILD_IVLYRICS_UI_SURFACE=settings \
 SIMCTL_CHILD_IVLYRICS_DEBUG_SETTINGS_TAB=ai \
 SIMCTL_CHILD_IVLYRICS_UI_LANGUAGE=ko \
+SIMCTL_CHILD_IVLYRICS_UI_THEME=light \
 xcrun simctl launch booted kr.ivlis.ivlyrics.ios --ivlyrics-ui-test
 ```
 
 Supported surfaces are `settings`, `language`, `video`, `background`, `sync` and
-`lrclib`; settings tab values are `general`, `providers`, `ai`, `appearance`,
-`lyrics`, `player` and `system`. Set
+`lrclib`; settings tab values are `home` (the default menu list with search),
+`general`, `providers`, `ai`, `appearance`, `lyrics`, `player` and `system`.
+`IVLYRICS_UI_THEME` is `dark` (default) or `light`. Set
 `SIMCTL_CHILD_IVLYRICS_UI_TEXT_SIZE=accessibility3` or `accessibility5` for accessibility text, and
 rotate the Simulator to inspect landscape. The default is English and standard
 Large text. Stable identifiers include:
 
 - `settings.search`, `settings.search.clear`, `settings.close`, `settings.scroll`
+- `settings.home`, `settings.menu.<menu>`, `settings.theme.light`, `settings.theme.dark`,
+  `settings.preview.toggle`
 - `settings.result.setting.metadata_translation`, `settings.toggle.metadata`
-- `settings.ai.toggle.local-ai`, `settings.toggle.cultural`
+- `settings.ai.toggle.local-ai`, `settings.ai.expand.<provider>`, `settings.toggle.cultural`,
+  `settings.lyrics.toggle.<provider>`
 - `lyrics.menu.close`, `lyrics.menu.scroll`, `lyrics.menu.regenerate`
 - `lyrics.menu.video.url`, `lyrics.menu.video.apply`
 

@@ -332,6 +332,8 @@ final class AppSettings: ObservableObject {
     @Published var localAITier: String { didSet { set("local_ai_tier_v1", LocalAI.Tier.stored(localAITier).rawValue) } }
     @Published var localAIProcessor: String { didSet { set("local_ai_processor_v1", LocalAI.Processor.stored(localAIProcessor).rawValue) } }
     @Published var localAIIdleMinutes: Int { didSet { set("local_ai_idle_minutes_v1", LocalAI.normalizedIdleMinutes(localAIIdleMinutes)) } }
+    /// Manual light/dark choice of the settings screens; a device preference, not cloud-synced.
+    @Published var settingsTheme: String { didSet { set("settings_theme", SettingsTheme.normalized(settingsTheme)) } }
     @Published private(set) var languageRulesRevision = 0
     @Published private(set) var backgroundSettingsRevision = 0
     @Published private(set) var typographyRevision = 0
@@ -452,6 +454,7 @@ final class AppSettings: ObservableObject {
         localAITier = LocalAI.Tier.stored(defaults.string(forKey: "local_ai_tier_v1")).rawValue
         localAIProcessor = LocalAI.Processor.stored(defaults.string(forKey: "local_ai_processor_v1")).rawValue
         localAIIdleMinutes = LocalAI.normalizedIdleMinutes(defaults.object(forKey: "local_ai_idle_minutes_v1") as? Int)
+        settingsTheme = SettingsTheme.normalized(defaults.string(forKey: "settings_theme"))
         isBootstrapping = false
         snapshotInvalidationCancellable = objectWillChange.sink { [weak self] _ in
             self?.cachedSnapshot = nil

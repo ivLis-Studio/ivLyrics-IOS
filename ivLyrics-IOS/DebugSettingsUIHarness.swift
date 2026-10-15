@@ -50,6 +50,7 @@ struct DebugSettingsUIRoot: View {
     init() {
         let defaults = UserDefaults(suiteName: "ivlyrics-ui-\(UUID().uuidString)")!
         defaults.set(ProcessInfo.processInfo.environment["IVLYRICS_UI_LANGUAGE"] ?? "en", forKey: "ui_lang")
+        defaults.set(ProcessInfo.processInfo.environment["IVLYRICS_UI_THEME"] ?? "dark", forKey: "settings_theme")
         defaults.set(true, forKey: "cultural_annotations_enabled")
         // Explicitly empty profiles stop credential migration; this suite never uses real saved settings.
         defaults.set("{}", forKey: "ai_provider_enabled_v1")
