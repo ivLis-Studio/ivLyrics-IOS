@@ -8,13 +8,18 @@ on:
       - 'ivLyrics-IOS/SettingsComponents.swift'
       - 'ivLyrics-IOS/SettingsPreviews.swift'
       - 'ivLyrics-IOS/SettingsSupportViews.swift'
+      - 'ivLyrics-IOS/SetupViews.swift'
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
       - 'ivLyrics-IOS/AppViewModel.swift'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
+      - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
       - 'scripts/test-settings-ui.py'
+      - 'scripts/test-setup-flows.py'
+      - 'scripts/sync-setup-i18n.py'
+      - 'ivLyrics-IOS/Resources/AppI18nStrings.json'
       - 'ivLyrics-IOS.xcodeproj/**'
       - '.github/workflows/ios-validation.yml'
   pull_request:
@@ -23,13 +28,18 @@ on:
       - 'ivLyrics-IOS/SettingsComponents.swift'
       - 'ivLyrics-IOS/SettingsPreviews.swift'
       - 'ivLyrics-IOS/SettingsSupportViews.swift'
+      - 'ivLyrics-IOS/SetupViews.swift'
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
       - 'ivLyrics-IOS/AppViewModel.swift'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
+      - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
       - 'scripts/test-settings-ui.py'
+      - 'scripts/test-setup-flows.py'
+      - 'scripts/sync-setup-i18n.py'
+      - 'ivLyrics-IOS/Resources/AppI18nStrings.json'
       - 'ivLyrics-IOS.xcodeproj/**'
       - '.github/workflows/ios-validation.yml'
 
@@ -89,8 +99,11 @@ jobs:
           python3 scripts/test-vinyl.py
           python3 scripts/test-interlude.py
           python3 scripts/test-settings-ui.py
+          python3 scripts/test-setup-flows.py
 
-      - name: Check native settings and track popup UI
+      # The unfiltered test action runs both SettingsLayoutUITests and SetupFlowUITests.
+      # ivLyrics-IOSUITests/** above includes SetupFlowUITests.swift in both event filters.
+      - name: Check native settings, onboarding and language prompts
         id: settings_ui
         env:
           IVLYRICS_LLAMA_STUB: "1"

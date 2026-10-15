@@ -213,6 +213,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var spotifyAppRemoteConnected = false
     @Published private(set) var spotifyCredentialsValidationInFlight = false
     @Published private(set) var spotifyValidationStatus = ""
+    @Published private(set) var spotifyCredentialsValidationFailed = false
     @Published private(set) var bluetoothAudioDeviceName = ""
     @Published private(set) var bluetoothAudioDeviceKey = ""
     @Published private(set) var inAppBrowserURL: URL?
@@ -477,7 +478,12 @@ final class AppViewModel: ObservableObject {
     private var spotifyDJLyricsOffsetMs: Int64 = 0
     private var currentSpotifyDJContext = false
     private var automaticUpdateCheckStarted = false
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults = {
+#if DEBUG
+        if DebugSettingsUIHarness.enabled { return DebugSettingsUIHarness.defaults }
+#endif
+        return .standard
+    }()
 #if DEBUG
     @Published private(set) var debugSettingsUIActionCount = 0
     private func debugSettingsUIConsumesAction() -> Bool {
@@ -1205,7 +1211,11 @@ final class AppViewModel: ObservableObject {
 
     func setSpotifyWebAPIEnabled(_ enabled: Bool) {
 #if DEBUG
-        if debugSettingsUIConsumesAction() { return }
+        if DebugSettingsUIHarness.enabled {
+            settings.spotifyWebAPIEnabled = enabled
+            debugSettingsUIActionCount += 1
+            return
+        }
 #endif
         guard settings.spotifyWebAPIEnabled != enabled else { return }
         settings.spotifyWebAPIEnabled = enabled
@@ -1924,10 +1934,9 @@ final class AppViewModel: ObservableObject {
         _ choice: FirstLanguagePromptChoice,
         prompt selectedPrompt: FirstLanguagePrompt? = nil
     ) {
-        guard let prompt = selectedPrompt ?? firstLanguagePrompt else { return }
-        if firstLanguagePrompt?.id == prompt.id {
-            firstLanguagePrompt = nil
-        }
+        guard let prompt = selectedPrompt ?? firstLanguagePrompt,
+              firstLanguagePrompt?.id == prompt.id else { return }
+        firstLanguagePrompt = nil
         let pronunciationEnabled: Bool
         let translationEnabled: Bool
         switch choice {
@@ -1954,8 +1963,9 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func dismissFirstLanguagePrompt() {
-        guard let prompt = firstLanguagePrompt else { return }
+    func dismissFirstLanguagePrompt(prompt selectedPrompt: FirstLanguagePrompt? = nil) {
+        guard let prompt = selectedPrompt ?? firstLanguagePrompt,
+              firstLanguagePrompt?.id == prompt.id else { return }
         firstLanguagePrompt = nil
         if currentTrack?.stableKey == prompt.trackKey {
             reloadLyrics(bypassCache: false)
@@ -1964,11 +1974,13 @@ final class AppViewModel: ObservableObject {
 
 #if DEBUG
     func applyDebugFirstLanguagePrompt() {
+        settings.markFirstLanguagePrompted("ja")
         let locale = Locale(identifier: settings.uiLang)
         firstLanguagePrompt = FirstLanguagePrompt(
             sourceLang: "ja",
             languageName: locale.localizedString(forLanguageCode: "ja") ?? "日本語",
-            trackKey: currentTrack?.stableKey ?? "debug-first-language"
+            trackKey: ProcessInfo.processInfo.environment["IVLYRICS_UI_STALE_TRACK"] == "1"
+                ? "previous-track" : (currentTrack?.stableKey ?? "debug-first-language")
         )
     }
 #endif
@@ -2746,18 +2758,14 @@ final class AppViewModel: ObservableObject {
         initialSetupPresented = false
     }
 
-    func finishInitialSetup() {
-        guard settings.snapshot.hasSpotifyClientId else {
-            status = .setupRequired
-            appendLog("initial setup: Spotify Client ID is required")
-            return
-        }
-        if settings.spotifyClientSecret.trimmed.isEmpty {
+    func finishInitialSetup(validateMetadata: Bool = true) {
+        // Metadata enrichment is separate from Web API/PKCE playback authorization.
+        // An old optional Secret must not prevent the basic Client ID connection.
+        if !validateMetadata && settings.snapshot.hasSpotifyClientId {
             setSpotifyValidationStatus { $0.t("spotify.status_app_remote_ready") }
             defaults.set(true, forKey: keyInitialSetupDismissed)
             initialSetupPresented = false
             showSavedToast(settings.t("toast.spotify_saved"))
-            appendLog("initial setup: App Remote configured with Client ID; API metadata enrichment disabled")
             connectSpotifyUserAndStartPolling()
             return
         }
@@ -2765,16 +2773,15 @@ final class AppViewModel: ObservableObject {
     }
 
     func validateSpotifyApiCredentials(reloadOnChange: Bool = true, startLiveAfterSuccess: Bool = false) {
-#if DEBUG
-        if debugSettingsUIConsumesAction() { return }
-#endif
         guard !spotifyCredentialsValidationInFlight else {
             appendLog("spotify api validation: already in flight")
             return
         }
         let clientId = settings.spotifyClientId.trimmed
         let clientSecret = settings.spotifyClientSecret.trimmed
+        spotifyCredentialsValidationFailed = false
         guard !clientId.isEmpty else {
+            spotifyCredentialsValidationFailed = true
             setSpotifyValidationStatus { $0.t("toast.spotify_client_id_missing") }
             status = .setupRequired
             showSavedToast(spotifyValidationStatus)
@@ -2795,19 +2802,39 @@ final class AppViewModel: ObservableObject {
         spotifyCredentialsValidationInFlight = true
         setSpotifyValidationStatus { $0.t("spotify.status_checking") }
         showSavedToast(settings.t("toast.spotify_checking"))
+#if DEBUG
+        if DebugSettingsUIHarness.enabled {
+            // Exercise the real form's failure/retry state without contacting Spotify or
+            // treating an offline fixture as authenticated. Successful handoff uses ID-only.
+            debugSettingsUIActionCount += 1
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard let self else { return }
+                spotifyCredentialsValidationInFlight = false
+                spotifyCredentialsValidationFailed = true
+                setSpotifyValidationStatus { $0.tf("spotify.status_invalid_format", $0.t("error.unknown")) }
+            }
+            return
+        }
+#endif
         Task { [weak self] in
             guard let self else { return }
+            defer { spotifyCredentialsValidationInFlight = false }
             do {
                 let validation = try await lyricsRepository.validateSpotifyCredentials(
                     clientId: clientId,
                     clientSecret: clientSecret,
                     uiLanguage: settings.uiLang
                 )
+                guard settings.spotifyClientId.trimmed == clientId,
+                      settings.spotifyClientSecret.trimmed == clientSecret else {
+                    setSpotifyValidationStatus { _ in "" }
+                    return
+                }
                 appendLogs(validation.logs)
                 let sourceKey = spotifyCredentialsSourceKey(clientId: clientId, clientSecret: clientSecret)
                 let changed = defaults.string(forKey: keySpotifyValidatedSourceKey) != sourceKey
                 defaults.set(sourceKey, forKey: keySpotifyValidatedSourceKey)
-                spotifyCredentialsValidationInFlight = false
                 setSpotifyValidationStatus { $0.t("spotify.status_configured") }
                 showSavedToast(settings.t("toast.spotify_saved"))
                 appendLog("spotify api validation: token verified, ttl=\(validation.expiresInSeconds)s")
@@ -2817,16 +2844,28 @@ final class AppViewModel: ObservableObject {
                     spotifyMetadataHydrationRetryAfter.removeAll()
                     appendLog("spotify api settings changed: token verified, credentials saved, lyrics cache cleared")
                 }
+                guard settings.spotifyClientId.trimmed == clientId,
+                      settings.spotifyClientSecret.trimmed == clientSecret else {
+                    setSpotifyValidationStatus { _ in "" }
+                    return
+                }
                 if changed && reloadOnChange && currentTrack?.hasUsableMetadata == true {
                     reloadLyrics(bypassCache: true)
                 }
-                if startLiveAfterSuccess {
+                // Back may leave a valid credential check running, but should not
+                // unexpectedly close another phase or launch Spotify from there.
+                if startLiveAfterSuccess && initialSetupPresented && onboardingStep == 2 {
                     defaults.set(true, forKey: keyInitialSetupDismissed)
                     initialSetupPresented = false
                     connectSpotifyUserAndStartPolling()
                 }
             } catch {
-                spotifyCredentialsValidationInFlight = false
+                guard settings.spotifyClientId.trimmed == clientId,
+                      settings.spotifyClientSecret.trimmed == clientSecret else {
+                    setSpotifyValidationStatus { _ in "" }
+                    return
+                }
+                spotifyCredentialsValidationFailed = true
                 let detail = error.localizedDescription.trimmed
                 let message = errorMessageText(error)
                 setSpotifyValidationStatus { $0.tf("spotify.status_invalid_format", message($0)) }
@@ -3973,7 +4012,7 @@ final class AppViewModel: ObservableObject {
     }
 
     private func presentFirstLanguagePromptIfNeeded(track: TrackSnapshot, base: LyricsResult) -> Bool {
-        guard !base.lines.isEmpty else { return false }
+        guard currentTrack?.stableKey == track.stableKey, !base.lines.isEmpty else { return false }
         let source = effectiveSelectedSourceLang(lines: base.lines)
         guard settings.shouldPromptForFirstLanguage(source) else { return false }
         settings.markFirstLanguagePrompted(source)

@@ -6,6 +6,7 @@ import UIKit
 enum DebugSettingsUIHarness {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("--ivlyrics-ui-test") }
     static let credentialService = "kr.ivlis.ivlyrics.debug-ui.\(UUID().uuidString)"
+    static let defaults = UserDefaults(suiteName: "ivlyrics-ui-\(ProcessInfo.processInfo.environment["IVLYRICS_UI_DEFAULTS_ID"] ?? UUID().uuidString)")!
     static var surface: String { ProcessInfo.processInfo.environment["IVLYRICS_UI_SURFACE"] ?? "settings" }
     static var textSize: DynamicTypeSize {
         switch ProcessInfo.processInfo.environment["IVLYRICS_UI_TEXT_SIZE"] {
@@ -48,13 +49,23 @@ struct DebugSettingsUIRoot: View {
     @State private var tab: LyricsMetaMenuTab
 
     init() {
-        let defaults = UserDefaults(suiteName: "ivlyrics-ui-\(UUID().uuidString)")!
+        let defaults = DebugSettingsUIHarness.defaults
         defaults.set(ProcessInfo.processInfo.environment["IVLYRICS_UI_LANGUAGE"] ?? "en", forKey: "ui_lang")
         defaults.set(ProcessInfo.processInfo.environment["IVLYRICS_UI_THEME"] ?? "dark", forKey: "settings_theme")
         defaults.set(true, forKey: "cultural_annotations_enabled")
-        // Explicitly empty profiles stop credential migration; this suite never uses real saved settings.
-        defaults.set("{}", forKey: "ai_provider_enabled_v1")
+        // Explicit provider flags stop credential migration; this suite never uses real saved settings.
+        defaults.set("{\"google-translate\":false,\"bing-translate\":false}", forKey: "ai_provider_enabled_v1")
+        if ProcessInfo.processInfo.environment["IVLYRICS_UI_TRANSLATION_PROVIDER"] == "keyless" {
+            defaults.set("{\"google-translate\":true,\"bing-translate\":true}", forKey: "ai_provider_enabled_v1")
+        }
+        if ProcessInfo.processInfo.environment["IVLYRICS_UI_CONFIGURED_LANGUAGE"] == "1" {
+            defaults.set(true, forKey: "translation_enabled")
+            defaults.set(true, forKey: "pronunciation_enabled")
+        }
         let settings = AppSettings(defaults: defaults)
+        if ProcessInfo.processInfo.environment["IVLYRICS_UI_SAVED_SECRET"] == "1" {
+            settings.spotifyClientSecret = "fixture-stale-secret"
+        }
         _settings = StateObject(wrappedValue: settings)
         _model = StateObject(wrappedValue: AppViewModel(settings: settings))
         _tab = State(initialValue: LyricsMetaMenuTab(rawValue: DebugSettingsUIHarness.surface) ?? .language)
@@ -71,17 +82,29 @@ struct DebugSettingsUIRoot: View {
                     Text("Offline UI fixture").accessibilityIdentifier("ui.harness.offline")
                     Text("Actions: \(model.debugSettingsUIActionCount)")
                         .accessibilityIdentifier("ui.harness.actions")
-                    if !showingSettings && !showingPopup {
+                    Text("translation=\(settings.languageRule(for: "ja").translationEnabled);pronunciation=\(settings.languageRule(for: "ja").pronunciationEnabled);prompt=\(settings.shouldPromptForFirstLanguage("ja"));rule=\(settings.snapshot.languageRules["ja"] != nil);webAPI=\(settings.spotifyWebAPIEnabled);ai=\(settings.snapshot.hasEnabledAIProvider);auth=\(model.spotifyAppRemoteConnected || model.spotifyWebAPIConnected);reducedMotion=\(UIAccessibility.isReduceMotionEnabled);secretRetained=\(!settings.spotifyClientSecret.trimmed.isEmpty)")
+                        .accessibilityIdentifier("ui.harness.preferences")
+                    if !showingSettings && !showingPopup && !model.initialSetupPresented && model.firstLanguagePrompt == nil {
                         Text("Closed").accessibilityIdentifier("ui.harness.closed")
                     }
                 }
                 .foregroundStyle(.white)
                 .padding(24)
-                .accessibilityHidden(showingPopup || showingSettings)
+                // Debug diagnostics can exceed a landscape window at AX5. They
+                // must not enlarge the overlay's proposed viewport beyond it.
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
+                .accessibilityHidden(showingPopup || showingSettings || model.initialSetupPresented || model.firstLanguagePrompt != nil)
                 if showingPopup {
                     LyricsMetaMenuOverlay(visible: $showingPopup, selectedTab: $tab, screenHeight: geometry.size.height)
                 }
+                if let prompt = model.firstLanguagePrompt {
+                    FirstLanguagePromptSheetView(prompt: prompt)
+                        .id(prompt.id)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .environmentObject(settings)
         .environmentObject(model)
@@ -95,9 +118,23 @@ struct DebugSettingsUIRoot: View {
                 .environmentObject(model.playbackClock)
                 .environment(\.dynamicTypeSize, DebugSettingsUIHarness.textSize)
         }
+        .fullScreenCover(isPresented: $model.initialSetupPresented) {
+            InitialSetupView()
+                .environmentObject(settings)
+                .environmentObject(model)
+                .environment(\.dynamicTypeSize, DebugSettingsUIHarness.textSize)
+        }
         .onAppear {
             showingSettings = DebugSettingsUIHarness.surface == "settings"
-            showingPopup = !showingSettings
+            if DebugSettingsUIHarness.surface == "onboarding" {
+                model.showInitialSetup()
+            } else if DebugSettingsUIHarness.surface == "first-language" {
+                if settings.shouldPromptForFirstLanguage("ja") || ProcessInfo.processInfo.environment["IVLYRICS_UI_FORCE_PROMPT"] == "1" {
+                    model.applyDebugFirstLanguagePrompt()
+                }
+            } else {
+                showingPopup = !showingSettings
+            }
         }
     }
 }

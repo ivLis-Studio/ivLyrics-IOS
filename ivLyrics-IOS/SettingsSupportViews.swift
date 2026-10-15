@@ -70,10 +70,12 @@ struct SpotifySetupInstructionsPanel: View {
             }
             .buttonStyle(SettingsButtonStyle())
             .disabled(step == 0)
+            .accessibilityIdentifier("spotify.setup.previous")
             Button(step == stepCount - 1 ? settings.t("button.restart") : settings.t("button.next")) {
                 step = step == stepCount - 1 ? 0 : step + 1
             }
             .buttonStyle(SettingsButtonStyle(tone: .primary))
+            .accessibilityIdentifier("spotify.setup.next")
         }
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 8) {
