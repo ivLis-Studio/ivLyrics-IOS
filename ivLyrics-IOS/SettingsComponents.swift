@@ -1093,6 +1093,25 @@ struct SettingsLayerChipStyle: ToggleStyle {
 
 // MARK: - Search reveal
 
+/// Gives its content the natural height for the offered width, never more and never above `maxHeight`
+/// (content taller than the cap is clipped by the caller). Flexible frames would instead stretch to the offer.
+struct SettingsNaturalHeightLayout: Layout {
+    var maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let natural = content.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
+        return CGSize(width: proposal.width ?? natural.width, height: min(natural.height, maxHeight))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let content = subviews.first else { return }
+        let natural = content.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+        content.place(at: bounds.origin, anchor: .topLeading,
+                      proposal: ProposedViewSize(width: bounds.width, height: natural.height))
+    }
+}
+
 private struct SettingsRevealHighlight: ViewModifier {
     @Environment(\.settingsPalette) private var palette
     var isFlashing: Bool

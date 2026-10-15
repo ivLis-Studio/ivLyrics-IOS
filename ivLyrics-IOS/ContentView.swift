@@ -8919,6 +8919,9 @@ struct SettingsView: View {
     @State private var scrollMemory = SettingsScrollMemory()
     @State private var previewExpanded: [Menu: Bool] = [:]
     @State private var previewSectionID = ""
+    /// Height of the settings screen, used to decide whether the live preview can stay pinned and how tall it may be.
+    /// Measured on the navigation stack so a collapsing large title does not change it.
+    @State private var settingsHeight: CGFloat = 0
     @State private var typographyGroup = "main"
     @State private var culturalColumn = "normal"
     @State private var selectedSpeakerColor = AppSettings.speakerColorNormal
@@ -8942,6 +8945,11 @@ struct SettingsView: View {
                 .navigationDestination(for: Menu.self) { menu in
                     menuPage(menu)
                 }
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { height in
+            if abs(height - settingsHeight) > 0.5 { settingsHeight = height }
         }
         .tint(palette.accentText)
         .toggleStyle(SettingsSwitchStyle())
@@ -9648,7 +9656,9 @@ struct SettingsView: View {
 
     private func menuPage(_ menu: Menu) -> some View {
         let hasPreview = [Menu.ai, .appearance, .player].contains(menu)
-        let pinned = hasPreview && verticalSizeClass != .compact && !dynamicTypeSize.isAccessibilitySize
+        // Short pages scroll the preview away with the content instead of covering most of the screen.
+        let tallEnough = settingsHeight == 0 || settingsHeight >= Self.pinnedPreviewMinScreenHeight
+        let pinned = hasPreview && tallEnough && verticalSizeClass != .compact && !dynamicTypeSize.isAccessibilitySize
         return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -9664,6 +9674,8 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity)
                 .background(SettingsScrollKeeper(key: menu.rawValue, memory: scrollMemory, restores: reveal?.menu != menu))
             }
+            // Identify the scroll view itself; set after the inset it would also rename the pinned preview toggle.
+            .accessibilityIdentifier("settings.scroll")
             .coordinateSpace(.named(Self.pageSpace))
             .safeAreaInset(edge: .top, spacing: 0) {
                 if pinned { previewPanel(menu, pinned: true) }
@@ -9672,7 +9684,6 @@ struct SettingsView: View {
                 updatePreviewSection(offsets)
             }
             .scrollDismissesKeyboard(.interactively)
-            .accessibilityIdentifier("settings.scroll")
             .task(id: reveal?.token) {
                 await performReveal(menu: menu, proxy: proxy)
             }
@@ -9747,6 +9758,13 @@ struct SettingsView: View {
         }
     }
 
+    private static let pinnedPreviewMinScreenHeight: CGFloat = 700
+
+    /// A pinned preview keeps its natural height but never takes much more than a third of the screen.
+    private var pinnedPreviewMaxHeight: CGFloat {
+        settingsHeight > 0 ? max(180, settingsHeight * 0.36) : .infinity
+    }
+
     private func previewPanel(_ menu: Menu, pinned: Bool) -> some View {
         let expanded = previewExpanded[menu] ?? (menu == .appearance)
         return VStack(spacing: 8) {
@@ -9776,8 +9794,13 @@ struct SettingsView: View {
             .accessibilityValue(settings.t(expanded ? "label.on" : "label.off"))
             .accessibilityIdentifier("settings.preview.toggle")
             if expanded {
-                previewContent(previewKind(menu))
-                    .transition(.opacity)
+                // The previews draw full-bleed backgrounds; without a fixed vertical size they would grow to fill
+                // whatever height the pinned inset is offered.
+                SettingsNaturalHeightLayout(maxHeight: pinned ? pinnedPreviewMaxHeight : .infinity) {
+                    previewContent(previewKind(menu))
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .transition(.opacity)
             }
         }
         .padding(.horizontal, pinned ? 16 : 0)
@@ -10170,14 +10193,15 @@ struct SettingsView: View {
             Text(line.original)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(palette.text)
+            // Lines of a layer that is off turn neutral grey instead of fading out, so they stay readable on both themes.
             Text(line.pronunciation)
                 .font(.system(size: 13))
-                .foregroundStyle(palette.layerPhonetic)
-                .opacity(settings.pronunciationEnabled ? 1 : 0.2)
+                .foregroundStyle(settings.pronunciationEnabled ? palette.layerPhonetic : palette.text3)
+                .opacity(settings.pronunciationEnabled ? 1 : 0.8)
             Text(settings.t(line.translationKey))
                 .font(.system(size: 14))
-                .foregroundStyle(palette.layerTranslation)
-                .opacity(settings.translationEnabled ? 1 : 0.2)
+                .foregroundStyle(settings.translationEnabled ? palette.layerTranslation : palette.text3)
+                .opacity(settings.translationEnabled ? 1 : 0.8)
         }
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 16)

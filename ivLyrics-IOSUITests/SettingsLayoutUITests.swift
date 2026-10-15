@@ -214,6 +214,19 @@ final class SettingsLayoutUITests: XCTestCase {
         capture("providers-light")
     }
 
+    /// The pinned live preview keeps its natural height, so the first settings of the page stay in view.
+    func testPinnedPreviewLeavesRoomForSettings() {
+        launch(tab: "appearance")
+        let toggle = app.buttons["settings.preview.toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        let header = app.staticTexts.matching(identifier: "Layout").firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: 5))
+        let window = app.windows.firstMatch.frame
+        capture("appearance-pinned-preview")
+        XCTAssertLessThan(header.frame.maxY, window.minY + window.height * 0.8,
+                          "The pinned preview must leave the first section of the page on screen")
+    }
+
     /// Screenshot matrix of every settings menu in both themes, plus large-text landscape pages.
     /// Evidence for review only: each capture follows a real launch of the native page.
     func testSettingsMenusScreenshotMatrix() {
