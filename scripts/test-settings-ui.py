@@ -94,6 +94,20 @@ assert "attachment.lifetime = .keepAlways" in ui_tests and "XCUIScreen.main.scre
 assert "launch-\\(surface)-missing-marker" in ui_tests and "invalid-touch-target-" in ui_tests
 assert "XCTAssertGreaterThanOrEqual(element.frame.height, 44" in ui_tests
 
+# Navigation has its own observable completion condition. A slow CI AX snapshot
+# must not be mistaken for a missing scroll container or cause a second tap.
+navigation_wait = declaration(ui_tests, "private func waitForSettingsPage()")
+assert 'scroll.exists && scroll.isHittable && !self.app.scrollViews["settings.home"].exists' in navigation_wait
+assert "timeout: 30" in navigation_wait and ".tap()" not in navigation_wait
+for method_name, tap in [
+    ("testGeneralPortraitSearchKeyboardAndSwitch", "result.tap()"),
+    ("testGeneralLandscapeAccessibilityText", "general.tap()"),
+    ("testThemeSwitchAndMenuNavigation", "providers.tap()"),
+]:
+    flow = declaration(ui_tests, f"func {method_name}()")
+    assert flow.count(tap) == 1
+    assert flow.index(tap) < flow.index("waitForSettingsPage()") < flow.index("reveal(toggle,")
+
 drag_math = declaration(ui_tests, "private static func revealDragDistance(").replace("private static func", "func", 1)
 drag_checks = r'''
 let viewport = CGRect(x: 236, y: 96, width: 402, height: 262)

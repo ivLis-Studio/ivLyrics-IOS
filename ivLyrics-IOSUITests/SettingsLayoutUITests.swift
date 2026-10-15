@@ -46,6 +46,17 @@ final class SettingsLayoutUITests: XCTestCase {
         XCTAssertEqual(result, .completed)
     }
 
+    private func waitForSettingsPage() {
+        // A completed tap/idle wait does not guarantee a fresh SwiftUI navigation
+        // AX tree on a loaded CI Simulator. Run 38743069235 timed out in reveal's
+        // 4s container check, yet its failure tree already showed General open.
+        // Observe the destination after the single native tap; never tap again.
+        let scroll = app.scrollViews["settings.scroll"]
+        wait(NSPredicate { _, _ in
+            scroll.exists && scroll.isHittable && !self.app.scrollViews["settings.home"].exists
+        }, on: scroll, timeout: 30)
+    }
+
     private func capture(_ name: String) {
         // Application-cropped screenshots were malformed after landscape rotation
         // in CI. Preserve the actual full native display, plus the application's AX tree.
@@ -155,6 +166,7 @@ final class SettingsLayoutUITests: XCTestCase {
         capture("settings-search-keyboard")
         // A result opens its menu and scrolls to the row.
         result.tap()
+        waitForSettingsPage()
         wait(NSPredicate(format: "exists == false"), on: app.keyboards.firstMatch)
         let toggle = app.switches["settings.toggle.metadata"]
         reveal(toggle, scrollID: "settings.scroll")
@@ -188,6 +200,8 @@ final class SettingsLayoutUITests: XCTestCase {
         reveal(general, scrollID: "settings.home")
         assertTouchTarget(general)
         general.tap()
+        waitForSettingsPage()
+        capture("general-landscape-AX5-opened")
         let toggle = app.switches["settings.toggle.metadata"]
         reveal(toggle, scrollID: "settings.scroll")
         assertNativeToggle(toggle)
@@ -208,6 +222,7 @@ final class SettingsLayoutUITests: XCTestCase {
         reveal(providers, scrollID: "settings.home")
         assertTouchTarget(providers)
         providers.tap()
+        waitForSettingsPage()
         let toggle = app.switches["settings.lyrics.toggle.lrclib"]
         reveal(toggle, scrollID: "settings.scroll")
         assertNativeToggle(toggle)

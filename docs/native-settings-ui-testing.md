@@ -1,7 +1,7 @@
 # Native settings and lyric-popup UI checks
 
 The shared **ivLyrics-IOS** scheme contains the **ivLyrics-IOSUITests** UI-testing
-target. Its nine tests launch the actual SwiftUI settings and per-track popup,
+target. Its ten settings tests launch the actual SwiftUI settings and per-track popup,
 use native accessibility frames and interactions, and retain both PNG screenshots
 and accessibility-tree text attachments in the `.xcresult`. They are not HTML
 screenshots or a substitute for physical-device testing.
@@ -45,6 +45,10 @@ button/input frames against the 44-point minimum and verifies that popup close a
 footer controls remain fully inside the window. Search asserts the native input's
 own frame and taps near its top edge to verify focus across its height. Reveal
 gestures scroll in either direction and require visibility, not just `isHittable`.
+After one native menu/result tap, navigation waits for the home scroll to disappear
+and the destination scroll to exist and be hittable (up to 30 seconds for loaded CI
+Simulators). This is a state wait, not a tap retry; reveal's container check, native
+pointer actions, 44-point targets and full-frame scroll containment remain unchanged.
 The Video portrait path also measures and taps all six offset buttons and reset,
 checking their displayed values and restoring zero before dismissal. Input borders
 are drawn inside their bounds rather than relying on test geometry tolerances.
