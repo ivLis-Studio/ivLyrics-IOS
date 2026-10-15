@@ -122,6 +122,95 @@ final class SetupFlowUITests: XCTestCase {
     private func credentials() { next(); next() }
     private var preferences: String { app.staticTexts["ui.harness.preferences"].label }
 
+    private var welcome: XCUIElement { app.staticTexts["onboarding.title"] }
+    private var welcomeState: String { welcome.value as? String ?? "" }
+
+    private func stays(_ condition: @escaping () -> Bool, duration: TimeInterval = 4.2) {
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !condition() }, object: app)
+        changed.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: duration), .completed)
+    }
+
+    func testWelcomeRotatesWithoutMutatingLanguageAndSelectionStopsIt() {
+        launch("onboarding", language: "de", theme: "light")
+        let description = app.staticTexts["onboarding.description"].label
+        let descriptionY = app.staticTexts["onboarding.description"].frame.minY
+        let state = welcomeState
+        XCTAssertTrue(state.contains("ui=de;savedUI=de;output="))
+        XCTAssertTrue(state.contains("rotating=true;stopped=false"))
+        wait { self.welcome.label == "안녕하세요" }
+        XCTAssertEqual(welcomeState, state, "Greeting ticks cannot write app/output language preferences")
+        XCTAssertEqual(app.staticTexts["onboarding.description"].label, description)
+        XCTAssertEqual(app.staticTexts["onboarding.description"].frame.minY, descriptionY, accuracy: 0.5)
+        capture("welcome-de-light-korean-greeting-only")
+        wait { self.welcome.label == "Hello" }
+        XCTAssertEqual(welcomeState, state)
+        app.buttons["onboarding.language"].tap()
+        app.buttons["한국어"].tap()
+        XCTAssertEqual(welcome.label, "안녕하세요")
+        XCTAssertTrue(welcomeState.contains("ui=ko;savedUI=ko;output="))
+        XCTAssertTrue(welcomeState.contains("rotating=false;stopped=true"))
+        XCTAssertNotEqual(app.staticTexts["onboarding.description"].label, description)
+        let selectedState = welcomeState
+        stays { self.welcome.label == "안녕하세요" && self.welcomeState == selectedState }
+        capture("welcome-explicit-korean-selection-stable")
+    }
+
+    func testWelcomePickerDismissalAndBackKeepGreetingStable() {
+        launch("onboarding", language: "ko")
+        wait { self.welcome.label == "Hello" }
+        app.buttons["onboarding.language"].tap()
+        app.buttons["닫기"].tap()
+        XCTAssertEqual(welcome.label, "안녕하세요", "Opening the picker settles to the current UI language, even on cancel")
+        XCTAssertTrue(welcomeState.contains("rotating=false;stopped=true"))
+        stays { self.welcome.label == "안녕하세요" }
+        next()
+        reveal(app.buttons["onboarding.back"])
+        app.buttons["onboarding.back"].tap()
+        app.buttons["onboarding.theme.light"].tap()
+        let state = welcomeState
+        stays { self.welcome.label == "안녕하세요" && self.welcomeState == state }
+        capture("welcome-picker-cancel-back-theme-still-stable")
+    }
+
+    func testWelcomeBackgroundPauseAndPhaseExit() {
+        launch("onboarding")
+        wait { self.welcome.label == "안녕하세요" }
+        XCUIDevice.shared.press(.home)
+        let background = expectation(description: "Longer than the greeting interval in the background")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.2) { background.fulfill() }
+        wait(for: [background], timeout: 5)
+        app.activate()
+        XCTAssertEqual(welcome.label, "안녕하세요", "Background time must not advance or catch up the greeting")
+        wait { self.welcome.label == "Hello" }
+        next()
+        reveal(app.buttons["onboarding.back"])
+        app.buttons["onboarding.back"].tap()
+        XCTAssertTrue(welcomeState.contains("rotating=false;stopped=true"))
+        stays { self.welcome.label == "Hello" }
+        capture("welcome-background-return-and-back-stable")
+    }
+
+    func testWelcomeAccessibilityStaticAndLargeTextLandscape() throws {
+        launch("onboarding", language: "ko")
+        try XCTSkipIf(!welcomeState.contains("reducedMotion=true"), "Enable the real Simulator Reduce Motion preference for this focused case")
+        XCTAssertTrue(welcomeState.contains("rotating=false;stopped=true"))
+        stays { self.welcome.label == "안녕하세요" }
+        capture("welcome-system-reduce-motion-static")
+        launch("onboarding", language: "de", theme: "light", landscape: true,
+               textSize: "accessibility5")
+        reveal(welcome)
+        let viewport = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(welcome.frame.minX, viewport.minX)
+        XCTAssertLessThanOrEqual(welcome.frame.maxX, viewport.maxX)
+        capture("welcome-de-light-landscape-AX5-greeting")
+        reveal(app.buttons["onboarding.language"])
+        touchTarget(app.buttons["onboarding.language"])
+        capture("welcome-de-light-landscape-AX5-language")
+        next()
+        XCTAssertTrue(app.switches["onboarding.web-api"].exists)
+    }
+
     private func enterID() {
         let field = app.textFields["onboarding.client-id"]
         reveal(field)
@@ -139,7 +228,7 @@ final class SetupFlowUITests: XCTestCase {
         touchTarget(app.buttons["onboarding.language"])
         app.buttons["onboarding.language"].tap()
         app.buttons["English"].tap()
-        XCTAssertEqual(app.staticTexts["onboarding.title"].label, "Make it yours")
+        XCTAssertEqual(app.staticTexts["onboarding.title"].label, "Hello")
         app.buttons["onboarding.theme.light"].tap()
         XCTAssertTrue(app.buttons["onboarding.theme.light"].isSelected)
         capture("onboarding-en-light-display")

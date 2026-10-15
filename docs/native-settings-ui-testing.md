@@ -128,7 +128,7 @@ requires the full-Xcode CI command above.
 
 ## First-install setup and first-language prompt
 
-`SetupFlowUITests` adds eight native flow tests and retained screenshot/AX-tree
+`SetupFlowUITests` adds twelve native flow tests and retained screenshot/AX-tree
 attachments. Run it with the same Simulator command above, replacing the filter
 with `-only-testing:ivLyrics-IOSUITests/SetupFlowUITests`. The tested production
 views live in `SetupViews.swift`:
@@ -140,6 +140,11 @@ views live in `SetupViews.swift`:
   registration guide is disclosed on demand; its redirect URI remains copyable.
 - Language switching, both themes, native 48pt credential inputs, keyboard Return,
   empty-ID gating, secret failure/retry, and exact ID/secret drafts after Back.
+- First-phase Hello / 안녕하세요 crossfades every 3.5 seconds without changing
+  persisted UI/output language or other localized copy. Opening the picker settles
+  to Korean or the English fallback even if cancelled; explicit selection, Back,
+  theme recomposition and leaving the phase retain that stopped session state.
+  Backgrounding cancels the wait and foregrounding starts a fresh interval.
 - ID-only setup hands off to the connection action. The fixture consumes this
   action and asserts that authentication is still false; it never reports a fake
   OAuth login. With the metadata disclosure selected and a nonempty secret, a controlled failed validation response
@@ -161,6 +166,18 @@ afterward:
 xcrun simctl spawn <SIMULATOR_UUID> defaults read com.apple.Accessibility ReduceMotionEnabled
 xcrun simctl spawn <SIMULATOR_UUID> defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
 ```
+
+For focused welcome checks, run `testWelcomeRotatesWithoutMutatingLanguageAndSelectionStopsIt`,
+`testWelcomePickerDismissalAndBackKeepGreetingStable` and
+`testWelcomeBackgroundPauseAndPhaseExit` with Reduce Motion off. Then enable the
+real preference and run `testWelcomeAccessibilityStaticAndLargeTextLandscape`;
+that test skips when the system preference is off. It checks the stable Korean
+greeting and German/light AX5 landscape language/action reachability. Restore the
+previous Simulator preference afterward. The welcome title's Debug-only AX value
+records actual UI/output settings, saved preference values, rotation eligibility
+and system Reduce Motion; no accessibility environment is injected. Host checks
+execute the production greeting policy for every lifecycle/accessibility input
+combination, including VoiceOver. Real VoiceOver speech/focus still needs a device.
 
 The closed fixture's `ui.harness.preferences` AX label records the actual
 `UIAccessibility.isReduceMotionEnabled` result along with persisted rules and

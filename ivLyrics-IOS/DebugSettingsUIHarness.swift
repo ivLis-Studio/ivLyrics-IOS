@@ -33,6 +33,14 @@ private struct DebugSettingsHitAreaProbe: UIViewRepresentable {
 }
 
 extension View {
+    @ViewBuilder
+    func debugSetupWelcomeState(_ settings: AppSettings, rotating: Bool, stopped: Bool) -> some View {
+        if DebugSettingsUIHarness.enabled {
+            let state = "ui=\(settings.uiLang);savedUI=\(DebugSettingsUIHarness.defaults.string(forKey: "ui_lang") ?? "unset");output=\(settings.outputLang);savedOutput=\(DebugSettingsUIHarness.defaults.string(forKey: "output_lang") ?? "unset");rotating=\(rotating);stopped=\(stopped);reducedMotion=\(UIAccessibility.isReduceMotionEnabled)"
+            accessibilityValue(state)
+        } else { self }
+    }
+
     func debugSettingsHitArea(_ identifier: String) -> some View {
         background {
             if DebugSettingsUIHarness.enabled { DebugSettingsHitAreaProbe(identifier: identifier) }
@@ -143,6 +151,7 @@ struct DebugSettingsUIRoot: View {
 #if !DEBUG
 import SwiftUI
 extension View {
+    func debugSetupWelcomeState(_ settings: AppSettings, rotating: Bool, stopped: Bool) -> some View { self }
     func debugSettingsHitArea(_ identifier: String) -> some View { self }
 }
 #endif

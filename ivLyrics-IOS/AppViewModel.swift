@@ -252,6 +252,7 @@ final class AppViewModel: ObservableObject {
     @Published var updateDialogPresented = false
     @Published var initialSetupPresented = false
     @Published var onboardingStep = 0
+    @Published var setupWelcomeGreeting = SetupWelcomeGreeting()
     @Published private(set) var firstLanguagePrompt: FirstLanguagePrompt?
 
     var lyricsLoadingText: String {

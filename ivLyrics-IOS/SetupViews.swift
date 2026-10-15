@@ -1,11 +1,48 @@
 import SwiftUI
 import UIKit
 
+/// Presentation-only state, owned by the setup session so Back/view rebuilds cannot restart it.
+/// No app language or output-language preference is written by the greeting rotation.
+struct SetupWelcomeGreeting {
+    static let interval: Duration = .milliseconds(3500)
+    private var rotatingLanguage: String?
+    private(set) var stopped = false
+
+    func language(uiLanguage: String) -> String {
+        rotatingLanguage ?? Self.fallbackLanguage(uiLanguage)
+    }
+
+    func title(uiLanguage: String) -> String {
+        language(uiLanguage: uiLanguage) == "ko" ? "안녕하세요" : "Hello"
+    }
+
+    func canRotate(phase: Int, visible: Bool, active: Bool, reduceMotion: Bool, voiceOver: Bool) -> Bool {
+        !stopped && phase == 0 && visible && active && !reduceMotion && !voiceOver
+    }
+
+    mutating func advance(uiLanguage: String) {
+        guard !stopped else { return }
+        rotatingLanguage = language(uiLanguage: uiLanguage) == "ko" ? "en" : "ko"
+    }
+
+    mutating func stop(uiLanguage: String) {
+        rotatingLanguage = Self.fallbackLanguage(uiLanguage)
+        stopped = true
+    }
+
+    private static func fallbackLanguage(_ uiLanguage: String) -> String {
+        uiLanguage == "ko" ? "ko" : "en"
+    }
+}
+
 /// Three useful decisions, with settings-backed drafts that survive Back and retries.
 struct InitialSetupView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var welcomeVisible = false
     @State private var languagePicker = false
     @State private var setupHelp = false
     @State private var metadataCheck = false
@@ -13,6 +50,12 @@ struct InitialSetupView: View {
     private var palette: SettingsPalette { SettingsTheme.palette(settings.settingsTheme) }
     private var phase: Int { min(2, max(0, model.onboardingStep)) }
     private var phaseKey: String { ["display", "connection", "credentials"][phase] }
+    private var rotateWelcome: Bool {
+        model.setupWelcomeGreeting.canRotate(
+            phase: phase, visible: welcomeVisible && model.initialSetupPresented && !languagePicker,
+            active: scenePhase == .active, reduceMotion: reduceMotion, voiceOver: voiceOver
+        )
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -20,14 +63,14 @@ struct InitialSetupView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     progress.id("setup.top")
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(settings.t("onboarding.\(phaseKey).title"))
+                        title
                             .font(.largeTitle.weight(.bold))
                             .foregroundStyle(palette.text)
                             .accessibilityAddTraits(.isHeader)
-                            .accessibilityIdentifier("onboarding.title")
                         Text(settings.t("onboarding.\(phaseKey).desc"))
                             .font(.subheadline)
                             .foregroundStyle(palette.text2)
+                            .accessibilityIdentifier("onboarding.description")
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     phaseContent
@@ -41,6 +84,7 @@ struct InitialSetupView: View {
             .accessibilityIdentifier("onboarding.scroll")
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: phase) { _, _ in
+                if phase != 0 { stopWelcome() }
                 endEditing()
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
                     proxy.scrollTo("setup.top", anchor: .top)
@@ -52,6 +96,26 @@ struct InitialSetupView: View {
         .environment(\.colorScheme, palette.colorScheme)
         .preferredColorScheme(palette.colorScheme)
         .interactiveDismissDisabled(!model.initialSetupComplete || model.spotifyCredentialsValidationInFlight)
+        .onAppear { welcomeVisible = true }
+        .onDisappear {
+            welcomeVisible = false
+            stopWelcome()
+        }
+        .onChange(of: settings.uiLang) { _, _ in stopWelcome() }
+        .onChange(of: reduceMotion || voiceOver, initial: true) { _, staticGreeting in
+            if staticGreeting { stopWelcome() }
+        }
+        .task(id: rotateWelcome) {
+            guard rotateWelcome else { return }
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: SetupWelcomeGreeting.interval) }
+                catch { return }
+                guard !Task.isCancelled, rotateWelcome else { return }
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    model.setupWelcomeGreeting.advance(uiLanguage: settings.uiLang)
+                }
+            }
+        }
         .sheet(isPresented: $languagePicker) {
             SettingsOptionSheet(
                 title: settings.t("setting.ui_language"),
@@ -60,11 +124,35 @@ struct InitialSetupView: View {
                 searchPrompt: settings.t("settings.search"), closeLabel: settings.t("button.close"),
                 emptyText: settings.t("settings.no_results")
             ) { value in
+                model.setupWelcomeGreeting.stop(uiLanguage: value)
                 settings.uiLang = value
                 model.uiLanguageChanged()
             }
             .environment(\.settingsPalette, palette)
         }
+    }
+
+    @ViewBuilder
+    private var title: some View {
+        if phase == 0 {
+            // Reserve both greetings' wrapped height so only opacity changes, even at AX sizes.
+            ZStack(alignment: .topLeading) {
+                Text("Hello").hidden().accessibilityHidden(true)
+                Text("안녕하세요").hidden().accessibilityHidden(true)
+                Text(model.setupWelcomeGreeting.title(uiLanguage: settings.uiLang))
+                    .id(model.setupWelcomeGreeting.language(uiLanguage: settings.uiLang))
+                    .transition(.opacity)
+                    .accessibilityIdentifier("onboarding.title")
+                    .debugSetupWelcomeState(settings, rotating: rotateWelcome, stopped: model.setupWelcomeGreeting.stopped)
+            }
+        } else {
+            Text(settings.t("onboarding.\(phaseKey).title"))
+                .accessibilityIdentifier("onboarding.title")
+        }
+    }
+
+    private func stopWelcome() {
+        model.setupWelcomeGreeting.stop(uiLanguage: settings.uiLang)
     }
 
     private var progress: some View {
@@ -95,6 +183,7 @@ struct InitialSetupView: View {
                 SettingsStackRow(title: settings.t("setting.ui_language")) {
                     SettingsPickerButton(title: settings.t("setting.ui_language"),
                                          value: AppI18n.uiLanguages.first { $0.code == settings.uiLang }?.nativeName ?? settings.uiLang) {
+                        stopWelcome()
                         languagePicker = true
                     }
                     .accessibilityIdentifier("onboarding.language")

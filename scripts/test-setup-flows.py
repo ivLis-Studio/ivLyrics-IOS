@@ -10,6 +10,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / "ivLyrics-IOS/AppViewModel.swift").read_text()
+welcome_source = (ROOT / "ivLyrics-IOS/SetupViews.swift").read_text()
 workflow = (ROOT / ".github/workflows/ios-validation.yml").read_text()
 for path in ["ivLyrics-IOS/SetupViews.swift", "ivLyrics-IOSUITests/SetupFlowUITests.swift", "scripts/test-setup-flows.py"]:
     assert workflow.count(f"      - '{path}'") == 2, f"Both push and PR filters must cover {path}"
@@ -17,14 +18,14 @@ assert "python3 scripts/test-setup-flows.py" in workflow
 assert "-only-testing:" not in workflow, "CI's native action must run the whole UITest target, including SetupFlowUITests"
 
 
-def declaration(prefix):
-    start = source.index(prefix)
-    end = source.index("{", start) + 1
+def declaration(prefix, text=source):
+    start = text.index(prefix)
+    end = text.index("{", start) + 1
     depth = 1
     while depth:
-        depth += (source[end] == "{") - (source[end] == "}")
+        depth += (text[end] == "{") - (text[end] == "}")
         end += 1
-    return source[start:end].replace("private ", "")
+    return text[start:end].replace("private ", "")
 
 
 code = r'''
@@ -96,6 +97,7 @@ for prefix in ["func advanceOnboarding()", "func retreatOnboarding()", "func fin
                "func dismissFirstLanguagePrompt("]:
     code += declaration(prefix) + "\n"
 code += "}\n"
+code += declaration("struct SetupWelcomeGreeting", welcome_source) + "\n"
 code += r'''
 @MainActor func pump() async { for _ in 0..<100 { await Task.yield() } }
 @MainActor var checks = 0
@@ -105,6 +107,41 @@ code += r'''
 }
 @main struct Checks {
     @MainActor static func main() async {
+        check(SetupWelcomeGreeting.interval == .milliseconds(3500), "Welcome rotates every 3.5 seconds")
+        for language in ["ko", "en", "zh-CN", "zh-TW", "ja", "hi", "es", "fr", "ar", "fa", "de",
+                         "ru", "sv", "pt", "bn", "cs", "it", "th", "vi", "id", "ms", "tr"] {
+            var greeting = SetupWelcomeGreeting()
+            let initial = language == "ko" ? "안녕하세요" : "Hello"
+            check(greeting.title(uiLanguage: language) == initial, "Korean greeting or English fallback for all 22 languages")
+            greeting.advance(uiLanguage: language)
+            check(greeting.title(uiLanguage: language) != initial, "Only the greeting alternates")
+            greeting.advance(uiLanguage: language)
+            check(greeting.title(uiLanguage: language) == initial, "Second tick returns to the initial greeting")
+            greeting.stop(uiLanguage: language)
+            var rebuilt = greeting
+            rebuilt.advance(uiLanguage: language)
+            check(rebuilt.stopped && rebuilt.title(uiLanguage: language) == initial,
+                  "Picker interaction/phase exit stays locked across Back or a view rebuild")
+            check(!rebuilt.canRotate(phase: 0, visible: true, active: true, reduceMotion: false, voiceOver: false),
+                  "Locked setup sessions never schedule another timer")
+            rebuilt.stop(uiLanguage: "ko")
+            check(rebuilt.title(uiLanguage: "ko") == "안녕하세요", "Explicit selection updates the locked greeting")
+        }
+        let greeting = SetupWelcomeGreeting()
+        for phase in 0...2 {
+            for visible in [false, true] {
+                for active in [false, true] {
+                    for reduceMotion in [false, true] {
+                        for voiceOver in [false, true] {
+                            check(greeting.canRotate(phase: phase, visible: visible, active: active,
+                                                     reduceMotion: reduceMotion, voiceOver: voiceOver)
+                                  == (phase == 0 && visible && active && !reduceMotion && !voiceOver),
+                                  "Only the visible, active first phase can rotate; accessibility stays static")
+                        }
+                    }
+                }
+            }
+        }
         let blank = Flow()
         blank.finishInitialSetup()
         check(blank.status == .setupRequired && blank.spotifyCredentialsValidationFailed, "ID is required")
@@ -200,7 +237,7 @@ code += r'''
         check(changed.onboardingStep == 2, "Three phases only")
         for _ in 0..<10 { changed.retreatOnboarding() }
         check(changed.onboardingStep == 0, "Back stays in bounds")
-        print("Setup flow regression: \(checks) production callback/choice checks passed")
+        print("Setup flow regression: \(checks) production callback/choice and welcome policy checks passed")
     }
 }
 '''
