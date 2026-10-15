@@ -143,9 +143,10 @@ struct InitialSetupView: View {
                     .accessibilityIdentifier("onboarding.title")
                     .debugSetupWelcomeState(settings, rotating: rotateWelcome, stopped: model.setupWelcomeGreeting.stopped)
             }
-            // Keep the crossfade local: a greeting tick must not animate the
-            // setup controls or their sheet presentation transaction.
-            .animation(.easeInOut(duration: 0.3), value: model.setupWelcomeGreeting.language(uiLanguage: settings.uiLang))
+            // Only automatic ticks crossfade, locally to the title. Stopping or
+            // enabling accessibility preferences must settle without animation.
+            .animation(rotateWelcome ? .easeInOut(duration: 0.3) : nil,
+                       value: model.setupWelcomeGreeting.language(uiLanguage: settings.uiLang))
             .allowsHitTesting(false)
         } else {
             Text(settings.t("onboarding.\(phaseKey).title"))
