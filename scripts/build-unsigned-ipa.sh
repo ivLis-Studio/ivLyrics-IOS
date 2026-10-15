@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+if [[ "${IVLYRICS_LLAMA_STUB:-0}" == "1" ]]; then
+    echo "Device archives require the real llama.cpp engine; unset IVLYRICS_LLAMA_STUB." >&2
+    exit 1
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR_INPUT="${1:-${ROOT_DIR}/build/unsigned-ipa}"
 mkdir -p "$OUTPUT_DIR_INPUT"
