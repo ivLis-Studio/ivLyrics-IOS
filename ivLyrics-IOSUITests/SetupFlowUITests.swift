@@ -122,6 +122,19 @@ final class SetupFlowUITests: XCTestCase {
     private func credentials() { next(); next() }
     private var preferences: String { app.staticTexts["ui.harness.preferences"].label }
 
+    private func openLanguagePicker() {
+        let picker = app.buttons["onboarding.language"]
+        reveal(picker)
+        touchTarget(picker)
+        picker.tap()
+        // Observe presentation after one native tap, including during the welcome crossfade.
+        // A missing sheet must fail here, rather than retrying the opening action.
+        let close = app.buttons["settings.options.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "The language picker must open after one tap")
+        wait { close.isHittable }
+        touchTarget(close)
+    }
+
     private var welcome: XCUIElement { app.staticTexts["onboarding.title"] }
     private var welcomeState: String { welcome.value as? String ?? "" }
 
@@ -145,7 +158,7 @@ final class SetupFlowUITests: XCTestCase {
         capture("welcome-de-light-korean-greeting-only")
         wait { self.welcome.label == "Hello" }
         XCTAssertEqual(welcomeState, state)
-        app.buttons["onboarding.language"].tap()
+        openLanguagePicker()
         app.buttons["한국어"].tap()
         XCTAssertEqual(welcome.label, "안녕하세요")
         XCTAssertTrue(welcomeState.contains("ui=ko;savedUI=ko;output="))
@@ -159,8 +172,12 @@ final class SetupFlowUITests: XCTestCase {
     func testWelcomePickerDismissalAndBackKeepGreetingStable() {
         launch("onboarding", language: "ko")
         wait { self.welcome.label == "Hello" }
-        app.buttons["onboarding.language"].tap()
-        app.buttons["닫기"].tap()
+        openLanguagePicker()
+        let close = app.buttons["settings.options.close"]
+        XCTAssertEqual(close.label, "닫기")
+        capture("welcome-korean-language-picker-open")
+        close.tap()
+        wait { !close.exists }
         XCTAssertEqual(welcome.label, "안녕하세요", "Opening the picker settles to the current UI language, even on cancel")
         XCTAssertTrue(welcomeState.contains("rotating=false;stopped=true"))
         stays { self.welcome.label == "안녕하세요" }
@@ -225,9 +242,9 @@ final class SetupFlowUITests: XCTestCase {
     func testOnboardingLanguageThemeDraftsAndValidationRetry() {
         launch("onboarding", language: "ko")
         capture("onboarding-ko-dark-display")
-        touchTarget(app.buttons["onboarding.language"])
-        app.buttons["onboarding.language"].tap()
+        openLanguagePicker()
         app.buttons["English"].tap()
+        wait { self.welcomeState.contains("ui=en;savedUI=en;output=") }
         XCTAssertEqual(app.staticTexts["onboarding.title"].label, "Hello")
         app.buttons["onboarding.theme.light"].tap()
         XCTAssertTrue(app.buttons["onboarding.theme.light"].isSelected)

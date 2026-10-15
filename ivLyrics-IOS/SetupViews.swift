@@ -111,9 +111,7 @@ struct InitialSetupView: View {
                 do { try await Task.sleep(for: SetupWelcomeGreeting.interval) }
                 catch { return }
                 guard !Task.isCancelled, rotateWelcome else { return }
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    model.setupWelcomeGreeting.advance(uiLanguage: settings.uiLang)
-                }
+                model.setupWelcomeGreeting.advance(uiLanguage: settings.uiLang)
             }
         }
         .sheet(isPresented: $languagePicker) {
@@ -145,6 +143,10 @@ struct InitialSetupView: View {
                     .accessibilityIdentifier("onboarding.title")
                     .debugSetupWelcomeState(settings, rotating: rotateWelcome, stopped: model.setupWelcomeGreeting.stopped)
             }
+            // Keep the crossfade local: a greeting tick must not animate the
+            // setup controls or their sheet presentation transaction.
+            .animation(.easeInOut(duration: 0.3), value: model.setupWelcomeGreeting.language(uiLanguage: settings.uiLang))
+            .allowsHitTesting(false)
         } else {
             Text(settings.t("onboarding.\(phaseKey).title"))
                 .accessibilityIdentifier("onboarding.title")

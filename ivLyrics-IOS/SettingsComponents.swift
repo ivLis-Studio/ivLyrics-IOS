@@ -723,6 +723,7 @@ struct SettingsOptionSheet: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(closeLabel)
+                .accessibilityIdentifier("settings.options.close")
             }
             .padding(.leading, 20)
             .padding(.trailing, 8)
