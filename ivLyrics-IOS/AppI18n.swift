@@ -671,6 +671,20 @@ enum AppI18n {
         return key
     }
 
+    /// The key whose text in `lang` is exactly `text`, so a message that was built from a key
+    /// (an error description, for example) can be shown again after the UI language changes.
+    /// Nil for text that did not come from the bundled strings, such as server messages.
+    static func key(forText text: String, language lang: String?) -> String? {
+        let target = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty else { return nil }
+        let normalized = normalize(lang)
+        // Sorted so that texts shared by several keys always resolve to the same key.
+        return androidStrings[normalized]?
+            .filter { $0.value.trimmingCharacters(in: .whitespacesAndNewlines) == target }
+            .keys.sorted()
+            .first { t(normalized, $0).trimmingCharacters(in: .whitespacesAndNewlines) == target }
+    }
+
     private static func nonBlank(_ value: String?) -> String? {
         guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil

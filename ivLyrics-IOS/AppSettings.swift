@@ -473,16 +473,27 @@ final class AppSettings: ObservableObject {
     }
 
     /// The language's name in the UI language, e.g. "일본어" for "ja" in Korean; the code itself
-    /// only when the system has no name for it.
+    /// only when the system has no name for it. The name never contains parentheses because the
+    /// auto label already wraps it in them ("자동(중국어 간체)", not "자동(중국어(간체))").
     func languageDisplayName(_ code: String) -> String {
         let normalized = Self.normalizeLanguageCode(code)
-        let identifier: String
         switch normalized {
-        case "zh-CN": identifier = "zh-Hans"
-        case "zh-TW": identifier = "zh-Hant"
-        default: identifier = normalized
+        case "zh-CN": return t("language.chinese_simplified")
+        case "zh-TW": return t("language.chinese_traditional")
+        default: break
         }
-        let name = Locale(identifier: uiLang).localizedString(forIdentifier: identifier)?.trimmed ?? ""
+        let locale = Locale(identifier: uiLang)
+        var name = locale.localizedString(forIdentifier: normalized)?.trimmed ?? ""
+        if name.contains("(") || name.contains("（") {
+            // Script or region variants read "Name (Variant)"; use the plain language name.
+            let base = normalized.split(separator: "-").first.map(String.init) ?? normalized
+            name = locale.localizedString(forLanguageCode: base)?.trimmed ?? name
+        }
+        name = name.replacingOccurrences(
+            of: #"\s*[(（]\s*([^)）]*?)\s*[)）]"#,
+            with: " $1",
+            options: .regularExpression
+        ).trimmed
         return name.isEmpty ? code : name
     }
 

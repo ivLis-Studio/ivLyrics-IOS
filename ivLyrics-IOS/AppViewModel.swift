@@ -436,6 +436,8 @@ final class AppViewModel: ObservableObject {
     private var manualLrclibStatusText: (AppSettings) -> String = { $0.t("lyrics.lrclib_search.ready") }
     private var updateStatusText: (AppSettings) -> String = { $0.t("update.status_idle") }
     private var spotifyValidationStatusText: (AppSettings) -> String = { _ in "" }
+    private var pollinationsAuthStatusSource: (AppSettings) -> String = { _ in "" }
+    private var failedStatusSource: (message: String, text: (AppSettings) -> String)?
     private var creatorSupportTask: Task<Void, Never>?
     private var creatorSupportRequestKey = ""
     private var spotifyPollTask: Task<Void, Never>?
@@ -905,6 +907,38 @@ final class AppViewModel: ObservableObject {
         manualLrclibStatus = manualLrclibStatusText(settings)
         updateStatus = updateStatusText(settings)
         spotifyValidationStatus = spotifyValidationStatusText(settings)
+        pollinationsAuthStatus = pollinationsAuthStatusSource(settings)
+        if let failed = failedStatusSource, status == .failed(failed.message) {
+            let message = failed.text(settings)
+            failedStatusSource = (message, failed.text)
+            if lyricsResult == LyricsResult.empty(failed.message) {
+                lyricsResult = .empty(message)
+            }
+            status = .failed(message)
+        }
+        relocalizeEmptyLyricsDetail()
+    }
+
+    /// Keys whose text is shown in place of lyrics (the detail of an empty result).
+    private static let emptyLyricsDetailKeys = [
+        "repo.lyrics_not_found", "repo.instrumental", "repo.no_renderable_lyrics",
+        "repo.metadata_waiting", "status.lyrics_waiting"
+    ]
+
+    /// Messages shown in place of lyrics ("Lyrics not found", "Instrumental track") were built in
+    /// the previous UI language; show them in the current one.
+    private func relocalizeEmptyLyricsDetail() {
+        let current = lyricsResult
+        guard current.lines.isEmpty, !current.detail.isEmpty,
+              let key = Self.emptyLyricsDetailKeys.first(where: { key in
+                  AppI18n.uiLanguages.contains { AppI18n.t($0.code, key) == current.detail }
+              })
+        else { return }
+        var rebuilt = current
+        rebuilt.detail = settings.t(key)
+        guard rebuilt != current else { return }
+        if baseLyricsResult == current { baseLyricsResult = rebuilt }
+        lyricsResult = rebuilt
     }
 
     private func setManualLrclibStatus(_ text: @escaping (AppSettings) -> String) {
@@ -920,6 +954,27 @@ final class AppViewModel: ObservableObject {
     private func setSpotifyValidationStatus(_ text: @escaping (AppSettings) -> String) {
         spotifyValidationStatusText = text
         spotifyValidationStatus = text(settings)
+    }
+
+    private func setPollinationsAuthStatus(_ text: @escaping (AppSettings) -> String) {
+        pollinationsAuthStatusSource = text
+        pollinationsAuthStatus = text(settings)
+    }
+
+    private func setFailedStatus(_ text: @escaping (AppSettings) -> String) {
+        let message = text(settings)
+        failedStatusSource = (message, text)
+        status = .failed(message)
+    }
+
+    /// An error's message for a status line. A message that was built from an i18n key is rebuilt
+    /// in the current UI language every time; server, HTTP and system messages keep their text.
+    private func errorMessageText(_ error: Error) -> (AppSettings) -> String {
+        let message = error.localizedDescription.trimmed
+        if let key = AppI18n.key(forText: message, language: settings.uiLang) {
+            return { $0.t(key) }
+        }
+        return { message.isEmpty ? $0.t("error.unknown") : message }
     }
 
 #if DEBUG
@@ -1041,7 +1096,7 @@ final class AppViewModel: ObservableObject {
         let raw = inputSpotifyId
         let trackId = TrackSnapshot.extractSpotifyTrackId(raw)
         guard !trackId.isEmpty else {
-            status = .failed(settings.t("status.spotify_track_required"))
+            setFailedStatus { $0.t("status.spotify_track_required") }
             return
         }
         let canUseUserToken = SpotifyWebAPIFeaturePolicy.canUseUserToken(
@@ -1066,7 +1121,7 @@ final class AppViewModel: ObservableObject {
                     spotifyUserAccessToken: userAccessToken
                 ) else {
                     resolvingSpotifyMetadata = false
-                    status = .failed(settings.t("status.spotify_metadata_not_found"))
+                    setFailedStatus { $0.t("status.spotify_metadata_not_found") }
                     appendLog("spotify manual metadata: no track found")
                     return
                 }
@@ -1114,7 +1169,7 @@ final class AppViewModel: ObservableObject {
                 }
             } catch {
                 resolvingSpotifyMetadata = false
-                status = .failed(error.localizedDescription)
+                setFailedStatus(errorMessageText(error))
                 appendLog("spotify manual metadata failed: \(error.localizedDescription)")
             }
         }
@@ -1848,7 +1903,7 @@ final class AppViewModel: ObservableObject {
             applyManualTrack(loadImmediately: false)
         }
         guard let track = currentTrack, track.hasUsableMetadata else {
-            status = .failed(settings.t("status.manual_track_required"))
+            setFailedStatus { $0.t("status.manual_track_required") }
             return
         }
         cancelLyricsLoadTask()
@@ -2384,10 +2439,11 @@ final class AppViewModel: ObservableObject {
             } catch {
                 guard isLyricsLoadCurrent(requestID, trackKey: track.stableKey) else { return }
                 let detail = error.localizedDescription.trimmed
+                let message = errorMessageText(error)
                 baseLyricsResult = previousBase
                 lyricsResult = previousResult
                 lyricsLoadingProviderName = ""
-                setManualLrclibStatus { $0.tf("lyrics.lrclib_search.error_format", detail.isEmpty ? $0.t("error.unknown") : detail) }
+                setManualLrclibStatus { $0.tf("lyrics.lrclib_search.error_format", message($0)) }
                 status = previousStatus
                 showSavedToast(manualLrclibStatus)
                 appendLog("manual LRCLIB apply failed: \(detail.isEmpty ? "unknown error" : detail)")
@@ -2772,7 +2828,8 @@ final class AppViewModel: ObservableObject {
             } catch {
                 spotifyCredentialsValidationInFlight = false
                 let detail = error.localizedDescription.trimmed
-                setSpotifyValidationStatus { $0.tf("spotify.status_invalid_format", detail.isEmpty ? $0.t("error.unknown") : detail) }
+                let message = errorMessageText(error)
+                setSpotifyValidationStatus { $0.tf("spotify.status_invalid_format", message($0)) }
                 showSavedToast(settings.t("toast.spotify_invalid"))
                 appendLog("spotify api validation failed: \(detail.isEmpty ? "unknown error" : detail)")
             }
@@ -3031,14 +3088,14 @@ final class AppViewModel: ObservableObject {
         pollinationsAuthInFlight = true
         pollinationsAuthVerificationURL = nil
         pollinationsAuthUserCode = ""
-        pollinationsAuthStatus = settings.t("pollinations.status_requesting")
+        setPollinationsAuthStatus { $0.t("pollinations.status_requesting") }
         pollinationsAuthTask = Task { [weak self] in
             guard let self else { return }
             do {
                 let device = try await pollinationsAuthClient.requestDeviceCode()
                 pollinationsAuthVerificationURL = device.verificationURL
                 pollinationsAuthUserCode = device.userCode
-                pollinationsAuthStatus = settings.tf("pollinations.status_code_format", device.userCode)
+                setPollinationsAuthStatus { $0.tf("pollinations.status_code_format", device.userCode) }
                 openPollinationsLoginPage()
 
                 var intervalMs = device.intervalMs
@@ -3055,7 +3112,7 @@ final class AppViewModel: ObservableObject {
                     finishPollinationsLogin(result.accessToken)
                     return
                 }
-                throw NSError(domain: "ivLyrics.Pollinations", code: -3, userInfo: [NSLocalizedDescriptionKey: "Pollinations login timed out."])
+                throw NSError(domain: "ivLyrics.Pollinations", code: -3, userInfo: [NSLocalizedDescriptionKey: settings.t("pollinations.error_login_timeout")])
             } catch {
                 if Task.isCancelled { return }
                 failPollinationsLogin(error)
@@ -3086,7 +3143,7 @@ final class AppViewModel: ObservableObject {
         pollinationsAuthVerificationURL = nil
         pollinationsAuthUserCode = ""
         settings.pollinationsAccessToken = ""
-        pollinationsAuthStatus = settings.t("pollinations.status_disconnected")
+        setPollinationsAuthStatus { $0.t("pollinations.status_disconnected") }
         appendLog("pollinations auth: disconnected")
         showSavedToast(settings.t("pollinations.toast_disconnected"))
     }
@@ -3094,24 +3151,29 @@ final class AppViewModel: ObservableObject {
     func testPollinationsToken() {
         let token = firstPollinationsAuthToken()
         guard !token.isEmpty else {
-            pollinationsAuthStatus = settings.t("pollinations.status_no_token")
+            setPollinationsAuthStatus { $0.t("pollinations.status_no_token") }
             return
         }
-        pollinationsAuthStatus = settings.t("pollinations.status_testing")
+        setPollinationsAuthStatus { $0.t("pollinations.status_testing") }
         Task { [weak self] in
             guard let self else { return }
             do {
                 let info = try await pollinationsAuthClient.fetchKeyInfo(accessToken: token)
                 let type = info.type.trimmed.isEmpty ? "API" : info.type.trimmed
-                let expires = info.expiresInSeconds > 0
-                    ? " · " + settings.tf("pollinations.expires_days_format", Int(max(Int64(1), (info.expiresInSeconds + 86_399) / 86_400)))
-                    : ""
-                pollinationsAuthStatus = (info.valid ? settings.t("pollinations.status_valid") : settings.t("pollinations.status_invalid")) + " · " + type + expires
+                let expiresDays: Int? = info.expiresInSeconds > 0
+                    ? Int(max(Int64(1), (info.expiresInSeconds + 86_399) / 86_400))
+                    : nil
+                let valid = info.valid
+                setPollinationsAuthStatus { strings in
+                    let expires = expiresDays.map { " · " + strings.tf("pollinations.expires_days_format", $0) } ?? ""
+                    return strings.t(valid ? "pollinations.status_valid" : "pollinations.status_invalid") + " · " + type + expires
+                }
                 appendLog(info.valid ? "pollinations auth: token verified" : "pollinations auth: token invalid")
                 showSavedToast(info.valid ? settings.t("pollinations.toast_valid") : settings.t("pollinations.toast_failed"))
             } catch {
                 let detail = error.localizedDescription.trimmed
-                pollinationsAuthStatus = settings.tf("pollinations.status_failed_format", detail.isEmpty ? settings.t("error.unknown") : detail)
+                let message = errorMessageText(error)
+                setPollinationsAuthStatus { $0.tf("pollinations.status_failed_format", message($0)) }
                 appendLog("pollinations auth failed: \(detail.isEmpty ? "unknown error" : detail)")
                 showSavedToast(settings.t("pollinations.toast_failed"))
             }
@@ -3321,8 +3383,9 @@ final class AppViewModel: ObservableObject {
                 base: LyricsResult.empty(error.localizedDescription),
                 bypassCache: false
             )
-            lyricsResult = .empty(error.localizedDescription)
-            status = .failed(error.localizedDescription)
+            let message = errorMessageText(error)
+            lyricsResult = .empty(message(settings))
+            setFailedStatus(message)
             appendLog("lyrics pipeline failed: \(error.localizedDescription)")
         }
     }
@@ -3678,7 +3741,7 @@ final class AppViewModel: ObservableObject {
             enabled: settings.spotifyWebAPIEnabled
         ) else {
             finishSpotifyWebAPIFallbackUnavailable(
-                message: settings.t("error.spotify_web_api_disabled")
+                message: { $0.t("error.spotify_web_api_disabled") }
             )
             return
         }
@@ -3699,7 +3762,7 @@ final class AppViewModel: ObservableObject {
             appendLog("spotify Web API: authorization skipped because the feature is disabled")
             if requiresPollingFallback, !spotifyAppRemotePlaybackService.connected {
                 finishSpotifyWebAPIFallbackUnavailable(
-                    message: settings.t("error.spotify_web_api_disabled")
+                    message: { $0.t("error.spotify_web_api_disabled") }
                 )
             }
             return
@@ -3742,7 +3805,7 @@ final class AppViewModel: ObservableObject {
         case .suppressedAfterFailure:
             if requiresPollingFallback && !spotifyAppRemotePlaybackService.connected {
                 finishSpotifyWebAPIFallbackUnavailable(
-                    message: settings.t("error.spotify_web_api_authorization_failed")
+                    message: { $0.t("error.spotify_web_api_authorization_failed") }
                 )
             }
         case .authorize:
@@ -3818,10 +3881,9 @@ final class AppViewModel: ObservableObject {
         case .startWebAPIPolling:
             startSpotifyLivePolling()
         case .fallbackUnavailable:
-            finishSpotifyWebAPIFallbackUnavailable(
-                message: error?.localizedDescription
-                    ?? settings.t("error.spotify_web_api_authorization_failed")
-            )
+            let message: (AppSettings) -> String = error.map { errorMessageText($0) }
+                ?? { $0.t("error.spotify_web_api_authorization_failed") }
+            finishSpotifyWebAPIFallbackUnavailable(message: message)
         }
     }
 
@@ -3838,14 +3900,14 @@ final class AppViewModel: ObservableObject {
         spotifyWebAPIAuthorizationStored = spotifyUserPlaybackService.hasStoredAuthorization
         if completion == .fallbackUnavailable {
             finishSpotifyWebAPIFallbackUnavailable(
-                message: settings.t("error.spotify_web_api_validation_unavailable"),
+                message: { $0.t("error.spotify_web_api_validation_unavailable") },
                 preserveLiveModeForRetry: true
             )
         }
     }
 
     private func finishSpotifyWebAPIFallbackUnavailable(
-        message: String,
+        message: @escaping (AppSettings) -> String,
         preserveLiveModeForRetry: Bool = false
     ) {
         spotifyUserConnected = SpotifyWebAPIFeaturePolicy.canUseUserToken(
@@ -3858,7 +3920,7 @@ final class AppViewModel: ObservableObject {
             spotifyLivePolling = false
         }
         spotifyAppRemoteConnected = false
-        status = .failed(message)
+        setFailedStatus(message)
         appendLog("spotify live auth failed: Web API authorization unavailable")
     }
 
@@ -4676,7 +4738,7 @@ final class AppViewModel: ObservableObject {
         pollinationsAuthVerificationURL = nil
         pollinationsAuthUserCode = ""
         settings.pollinationsAccessToken = accessToken.trimmed
-        pollinationsAuthStatus = settings.t("pollinations.status_saved")
+        setPollinationsAuthStatus { $0.t("pollinations.status_saved") }
         appendLog("pollinations auth: connected through device login")
         showSavedToast(settings.t("pollinations.toast_connected"))
         if currentTrack?.hasUsableMetadata == true {
@@ -4689,7 +4751,8 @@ final class AppViewModel: ObservableObject {
         pollinationsAuthVerificationURL = nil
         pollinationsAuthUserCode = ""
         let detail = error.localizedDescription.trimmed
-        pollinationsAuthStatus = settings.tf("pollinations.status_failed_format", detail.isEmpty ? settings.t("error.unknown") : detail)
+        let message = errorMessageText(error)
+        setPollinationsAuthStatus { $0.tf("pollinations.status_failed_format", message($0)) }
         appendLog("pollinations auth failed: \(detail.isEmpty ? "unknown error" : detail)")
         showSavedToast(settings.t("pollinations.toast_failed"))
     }
