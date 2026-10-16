@@ -1,7 +1,9 @@
+<img width="2208" height="512" alt="ko" src="https://github.com/ivLis-Studio/ivLyrics/blob/main/preview_readme_ko.png?raw=true" /><br>
+PLATFORM : <a href="https://github.com/ivLis-Studio/ivLyrics">PC</a> | <a href="https://github.com/ivLis-Studio/ivLyrics-Android">Android</a> | <a href="https://github.com/ivLis-Studio/ivLyrics-IOS">IOS</a><br>
+MODULE : <a href="https://github.com/ivLis-Studio/ivLyrics-overlay">Overlay</a> | <a href="https://github.com/ivLis-Studio/ivLyrics-helper">Helper</a>
+
 > [!IMPORTANT]
 > GitHub Releases의 IPA는 무서명 파일입니다. AltStore 같은 도구에서 사용자 Apple ID로 서명한 뒤 설치해야 합니다.
-
-<img width="1122" height="1402" alt="image" src="https://github.com/user-attachments/assets/93f24505-a80d-4636-a622-2d8a8ba5f1f8" />
 
 # ivLyrics iOS
 
