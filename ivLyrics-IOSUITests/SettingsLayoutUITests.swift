@@ -14,14 +14,21 @@ final class SettingsLayoutUITests: XCTestCase {
         if let app, app.exists, (testRun?.failureCount ?? 0) > 0 {
             capture("failure-\(name)")
         }
+        // Reset a changed orientation while the tested app is still active.
+        // Repeated portrait assignments after termination can stall CI's AX
+        // active-application lookup even when no rotation is needed.
+        if XCUIDevice.shared.orientation != .portrait {
+            XCUIDevice.shared.orientation = .portrait
+        }
         app?.terminate()
-        XCUIDevice.shared.orientation = .portrait
     }
 
     /// Settings open on the home list (menus + search); `tab` opens one menu page directly.
     private func launch(_ surface: String = "settings", tab: String = "home", language: String = "en",
                         landscape: Bool = false, textSize: String = "large", theme: String = "dark") {
-        XCUIDevice.shared.orientation = .portrait
+        if XCUIDevice.shared.orientation != .portrait {
+            XCUIDevice.shared.orientation = .portrait
+        }
         app = XCUIApplication()
         app.launchArguments = ["--ivlyrics-ui-test"]
         app.launchEnvironment = ["IVLYRICS_UI_SURFACE": surface, "IVLYRICS_DEBUG_SETTINGS_TAB": tab,
@@ -85,8 +92,9 @@ final class SettingsLayoutUITests: XCTestCase {
                 wait(NSPredicate { _, _ in element.exists && element.isHittable && viewport.contains(element.frame) }, on: element)
                 return
             }
-            // Match the actual overflow, not a fixed swipe fraction. Slow movement
-            // and a stationary end hold prevent momentum from skipping a short control.
+            // Move a clipped control toward the visible center. A tiny edge-only
+            // correction can stay below the native pan threshold indefinitely.
+            // Slow movement and an end hold prevent momentum from skipping it.
             let start = scroll.coordinate(withNormalizedOffset: .zero)
                 .withOffset(CGVector(dx: viewport.midX - scroll.frame.minX, dy: viewport.midY - scroll.frame.minY))
             let end = start.withOffset(CGVector(dx: 0, dy: distance))
@@ -99,11 +107,13 @@ final class SettingsLayoutUITests: XCTestCase {
     private static func revealDragDistance(for frame: CGRect?, in viewport: CGRect) -> CGFloat {
         let limit = viewport.height * 0.4 // Both finger endpoints stay inside the viewport.
         guard let frame, !frame.isEmpty else { return -limit }
-        // A drag of 8–10pt can remain inside UIScrollView's pan-recognition slop.
-        // Include enough finger travel to scroll even a control clipped by 1–2pt.
-        let recognitionTravel: CGFloat = 24
-        if frame.minY < viewport.minY { return min(limit, viewport.minY - frame.minY + recognitionTravel) }
-        if frame.maxY > viewport.maxY { return -min(limit, frame.maxY - viewport.maxY + recognitionTravel) }
+        // Aim for the center, rather than adding a guessed recognition margin.
+        // In CI a 31.3pt gesture left a 44pt field clipped by 7.3pt on every
+        // attempt. Centering gives short controls enough real finger travel,
+        // while the cap keeps both endpoints inside the viewport.
+        if frame.minY < viewport.minY || frame.maxY > viewport.maxY {
+            return max(-limit, min(limit, viewport.midY - frame.midY))
+        }
         return 0
     }
 
