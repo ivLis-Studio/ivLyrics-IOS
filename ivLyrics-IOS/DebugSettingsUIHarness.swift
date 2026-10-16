@@ -113,6 +113,8 @@ struct DebugSettingsUIRoot: View {
                     Text("Offline UI fixture").accessibilityIdentifier("ui.harness.offline")
                     Text("Actions: \(model.debugSettingsUIActionCount)")
                         .accessibilityIdentifier("ui.harness.actions")
+                    Text("\(SettingsView.debugMenuContentSize)")
+                        .accessibilityIdentifier("ui.harness.navigation-content-bytes")
                     Text("translation=\(settings.languageRule(for: "ja").translationEnabled);pronunciation=\(settings.languageRule(for: "ja").pronunciationEnabled);prompt=\(settings.shouldPromptForFirstLanguage("ja"));rule=\(settings.snapshot.languageRules["ja"] != nil);webAPI=\(settings.spotifyWebAPIEnabled);ai=\(settings.snapshot.hasEnabledAIProvider);auth=\(model.spotifyAppRemoteConnected || model.spotifyWebAPIConnected);reducedMotion=\(UIAccessibility.isReduceMotionEnabled);secretRetained=\(!settings.spotifyClientSecret.trimmed.isEmpty)")
                         .accessibilityIdentifier("ui.harness.preferences")
                     if !showingSettings && !showingPopup && !model.initialSetupPresented && model.firstLanguagePrompt == nil {

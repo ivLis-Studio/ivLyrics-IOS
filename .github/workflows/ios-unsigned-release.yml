@@ -82,6 +82,18 @@ jobs:
           python3 scripts/test-interlude.py
           python3 scripts/test-settings-ui.py
 
+      - name: Verify optimized settings navigation on iPhone Simulator
+        run: bash scripts/test-settings-navigation.sh "$RUNNER_TEMP/settings-navigation"
+
+      - name: Save optimized navigation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-settings-navigation
+          path: ${{ runner.temp }}/settings-navigation/navigation.xcresult
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Run static analyzer
         run: |
           xcodebuild \

@@ -17,6 +17,7 @@ on:
       - 'ivLyrics-IOSUITests/**'
       - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
       - 'scripts/test-settings-ui.py'
+      - 'scripts/test-settings-navigation.sh'
       - 'scripts/test-setup-flows.py'
       - 'scripts/sync-setup-i18n.py'
       - 'ivLyrics-IOS/Resources/AppI18nStrings.json'
@@ -37,6 +38,7 @@ on:
       - 'ivLyrics-IOSUITests/**'
       - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
       - 'scripts/test-settings-ui.py'
+      - 'scripts/test-settings-navigation.sh'
       - 'scripts/test-setup-flows.py'
       - 'scripts/sync-setup-i18n.py'
       - 'ivLyrics-IOS/Resources/AppI18nStrings.json'
@@ -148,6 +150,19 @@ jobs:
           path: |
             ${{ runner.temp }}/settings-ui.xcresult
             ${{ runner.temp }}/settings-ui-screenshots
+
+      - name: Verify optimized settings navigation
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-settings-navigation.sh "$RUNNER_TEMP/settings-navigation"
+
+      - name: Save optimized navigation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-settings-navigation
+          path: ${{ runner.temp }}/settings-navigation/navigation.xcresult
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Run static analyzer
         run: |

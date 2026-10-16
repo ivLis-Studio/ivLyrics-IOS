@@ -49,6 +49,24 @@ assert harness.startswith("#if DEBUG\n") and "#if !DEBUG\nimport SwiftUI" in har
 release_extension = harness.split("#if !DEBUG", 1)[1]
 assert "{ self }" in release_extension and "DebugSettingsUIHarness" not in release_extension
 assert ui_tests.startswith("#if DEBUG\n") and ui_tests.rstrip().endswith("#endif")
+# A single inferred switch payload previously retained the size of every settings category.
+# Keep the erasure inside each branch; wrapping the entire ViewBuilder is too late.
+menu_content = declaration(content, "private func menuSections(")
+assert "-> AnyView" in menu_content
+assert menu_content.count("return AnyView(") == 8
+assert menu_content.count("AnyView(SettingsPageContent {") == 8
+components = (SRC / "SettingsComponents.swift").read_text()
+page_boundary = declaration(components, "struct SettingsPageContent<")
+assert "var content: () -> Content" in page_boundary and "var body: some View { content() }" in page_boundary
+assert "MemoryLayout<Content>.size" in declaration(content, "static var debugMenuContentSize:")
+assert "testEverySettingsCategoryOpensFromHomeAndReturns" in ui_tests
+assert '"ui.harness.navigation-content-bytes"' in harness and "64," in ui_tests
+navigation_check = (ROOT / "scripts/test-settings-navigation.sh").read_text()
+for flag in ["-configuration Release", "SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG",
+             "SWIFT_ENABLE_OPAQUE_TYPE_ERASURE=NO", "testEverySettingsCategoryOpensFromHomeAndReturns"]:
+    assert flag in navigation_check
+for workflow in ["ios-validation.yml", "ios-unsigned-release.yml"]:
+    assert 'bash scripts/test-settings-navigation.sh' in (ROOT / ".github/workflows" / workflow).read_text()
 assert "--ivlyrics-ui-test" in harness and "UserDefaults(suiteName:" in harness
 assert "ContentView()" not in harness and "AppSettings.shared" not in harness
 assert "DebugSettingsUIHarness.credentialService" in (SRC / "SecureStringStore.swift").read_text()

@@ -8404,6 +8404,14 @@ struct SettingsView: View {
 
     private static let pageSpace = "settings.page"
 
+#if DEBUG
+    /// Metadata-only probe: never evaluates a view or reads an uninstalled environment object.
+    static var debugMenuContentSize: Int {
+        func size<Content: View>(of build: (Menu) -> Content) -> Int { MemoryLayout<Content>.size }
+        return size(of: SettingsView().menuSections)
+    }
+#endif
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -9204,25 +9212,33 @@ struct SettingsView: View {
         .toolbarBackground(palette.background, for: .navigationBar)
     }
 
-    @ViewBuilder
-    private func menuSections(_ menu: Menu) -> some View {
+    // Bound the navigation payload independently of the largest settings page. A ViewBuilder
+    // switch combines every page into nested _ConditionalContent values (31KB before boxing).
+    // Release builds copy/allocate those values along the entire destination builder chain;
+    // Debug's implicit opaque type erasure can conceal the device-side stack pressure.
+    // Erase a deferred page before it enters that chain, not the already-built switch.
+    // The small wrapper also prevents the optimizer from reserving every page's temporary
+    // construction storage in this function before it knows which category was selected.
+    private func menuSections(_ menu: Menu) -> AnyView {
         switch menu {
         case .currentTrack:
-            LyricsMetaMenuOverlay(
-                visible: .constant(true),
-                selectedTab: $currentTrackTab,
-                screenHeight: settingsHeight,
-                isSettingsPage: true
-            )
-            .id(model.currentTrackKey)
-            .settingsRow("tab.current_track", flashing: flashRowID)
-        case .general: generalSettingsPage
-        case .providers: lyricsProvidersSettingsPage
-        case .ai: aiSettingsPage
-        case .appearance: appearanceSettingsPage
-        case .lyrics: lyricsSettingsPage
-        case .player: playerSettingsPage
-        case .system: systemSettingsPage
+            return AnyView(SettingsPageContent {
+                LyricsMetaMenuOverlay(
+                    visible: .constant(true),
+                    selectedTab: $currentTrackTab,
+                    screenHeight: settingsHeight,
+                    isSettingsPage: true
+                )
+                .id(model.currentTrackKey)
+                .settingsRow("tab.current_track", flashing: flashRowID)
+            })
+        case .general: return AnyView(SettingsPageContent { generalSettingsPage })
+        case .providers: return AnyView(SettingsPageContent { lyricsProvidersSettingsPage })
+        case .ai: return AnyView(SettingsPageContent { aiSettingsPage })
+        case .appearance: return AnyView(SettingsPageContent { appearanceSettingsPage })
+        case .lyrics: return AnyView(SettingsPageContent { lyricsSettingsPage })
+        case .player: return AnyView(SettingsPageContent { playerSettingsPage })
+        case .system: return AnyView(SettingsPageContent { systemSettingsPage })
         }
     }
 

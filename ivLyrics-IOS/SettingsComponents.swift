@@ -886,6 +886,16 @@ struct SettingsFlowLayout: Layout {
     }
 }
 
+// MARK: - Navigation construction boundary
+
+/// Store the builder, not the page's full value. SwiftUI constructs the selected page's body
+/// after the navigation builder has returned, instead of stacking all category temporaries.
+struct SettingsPageContent<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View { content() }
+}
+
 // MARK: - Scroll position
 
 /// Remembers each settings page's scroll offset while the settings stay open.

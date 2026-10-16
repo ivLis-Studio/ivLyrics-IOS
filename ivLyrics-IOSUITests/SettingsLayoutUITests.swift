@@ -269,6 +269,30 @@ final class SettingsLayoutUITests: XCTestCase {
         capture("providers-light")
     }
 
+    /// Exercise the reported home -> category route rather than seeding the destination path.
+    /// Also run this test with Release optimization and opaque type erasure disabled: Debug's
+    /// implicit AnyView wrapping can hide oversized SwiftUI navigation destinations.
+    func testEverySettingsCategoryOpensFromHomeAndReturns() {
+        for menu in ["current_track", "general", "providers", "ai", "appearance", "lyrics", "player", "system"] {
+            launch(language: "ko")
+            let row = app.buttons["settings.menu.\(menu)"]
+            reveal(row, scrollID: "settings.home")
+            row.tap()
+            waitForSettingsPage()
+            XCTAssertEqual(app.state, .runningForeground, "Opening \(menu) must not terminate the app")
+            capture("navigation-\(menu)-opened")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.scrollViews["settings.home"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.textFields["settings.search"].exists)
+            app.buttons["settings.close"].tap()
+            let size = app.staticTexts["ui.harness.navigation-content-bytes"]
+            XCTAssertTrue(size.waitForExistence(timeout: 5))
+            XCTAssertLessThanOrEqual(Int(size.label) ?? Int.max, 64,
+                                    "Navigation must not copy a union as large as every settings page")
+            app.terminate()
+        }
+    }
+
     /// The pinned live preview keeps its natural height, so the first settings of the page stay in view.
     func testPinnedPreviewLeavesRoomForSettings() {
         launch(tab: "appearance")
