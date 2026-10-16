@@ -8992,6 +8992,8 @@ struct SettingsView: View {
                   options: [settings.t("lyrics.provider.type_karaoke"), settings.t("lyrics.provider.type_synced"), settings.t("lyrics.provider.type_plain")],
                   value: onOff(settings.lyricsProviderEnabled[provider.id] ?? true))
         }
+        entries.append(entry("lyrics.lrclib_endpoint.title", .providers, section: "section.lyrics_providers",
+                             description: "lyrics.lrclib_endpoint.description", value: settings.lrclibCustomEndpoint))
         entries += [
             entry("ai.translation", .ai, section: "section.ai_lyrics", label: settings.t("lyrics.translation"),
                   value: onOff(settings.translationEnabled)),
@@ -9661,6 +9663,10 @@ struct SettingsView: View {
             .opacity(enabled ? 1 : 0.5)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(settings.t("lyrics.provider.allowed_types"))
+            if provider.id == "lrclib" {
+                LrclibEndpointSettingsView()
+                    .settingsRow("lyrics.lrclib_endpoint.title", flashing: flashRowID)
+            }
             if let projectURL = provider.projectURL, let url = URL(string: projectURL) {
                 Button { openURL(url) } label: {
                     SettingsButtonLabel(title: settings.t("lyrics.provider.open_project"), systemImage: "arrow.up.right.square")

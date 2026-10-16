@@ -1,0 +1,143 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로컬 네트워크의 사용자 지정 LRCLIB 서버에서 가사를 불러와요."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to your custom LRCLIB server to load lyrics on your local network."
+          }
+        },
+        "zh-CN": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接本地网络中的自定义 LRCLIB 服务器以获取歌词。"
+          }
+        },
+        "zh-TW": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線至區域網路中的自訂 LRCLIB 伺服器以取得歌詞。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカルネットワーク上のカスタム LRCLIB サーバーに接続して歌詞を取得します。"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "स्थानीय नेटवर्क पर आपके कस्टम LRCLIB सर्वर से बोल प्राप्त करने के लिए कनेक्ट करें।"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conecta con tu servidor LRCLIB personalizado para cargar letras en tu red local."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connectez-vous à votre serveur LRCLIB personnalisé pour charger les paroles sur votre réseau local."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الاتصال بخادم LRCLIB المخصص لتحميل الكلمات عبر شبكتك المحلية."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "برای دریافت متن در شبکهٔ محلی به سرور سفارشی LRCLIB خود متصل شوید."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinde dich mit deinem eigenen LRCLIB-Server, um Liedtexte im lokalen Netzwerk zu laden."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключение к вашему серверу LRCLIB для загрузки текстов в локальной сети."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anslut till din egen LRCLIB-server för att läsa in låttexter i ditt lokala nätverk."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conecte ao seu servidor LRCLIB personalizado para carregar letras na sua rede local."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "স্থানীয় নেটওয়ার্কে গানের কথা লোড করতে আপনার কাস্টম LRCLIB সার্ভারে সংযোগ করুন।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Připojení k vlastnímu serveru LRCLIB pro načítání textů v místní síti."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connettiti al tuo server LRCLIB personalizzato per caricare testi sulla rete locale."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เชื่อมต่อเซิร์ฟเวอร์ LRCLIB ที่กำหนดเองเพื่อโหลดเนื้อเพลงผ่านเครือข่ายภายในของคุณ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối với máy chủ LRCLIB tùy chỉnh để tải lời bài hát trên mạng cục bộ của bạn."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hubungkan ke server LRCLIB khusus Anda untuk memuat lirik di jaringan lokal."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sambung ke pelayan LRCLIB tersuai anda untuk memuatkan lirik pada rangkaian setempat."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel ağınızda şarkı sözlerini yüklemek için özel LRCLIB sunucunuza bağlanın."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

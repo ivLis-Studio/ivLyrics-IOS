@@ -1906,6 +1906,26 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    @discardableResult
+    func updateLrclibCustomEndpoint(_ value: String) -> Bool {
+        guard let endpoint = LrclibEndpoint.normalized(value) else { return false }
+        guard endpoint != settings.lrclibCustomEndpoint else { return true }
+        cancelLyricsLoadTask()
+        manualTask?.cancel()
+        manualSearchRequestID = UUID()
+        manualCandidates = []
+        searchingManualCandidates = false
+        settings.setLrclibCustomEndpoint(endpoint)
+        if currentTrack != nil { showLyricsLoadingPlaceholder() }
+        Task { [weak self] in
+            guard let self, settings.lrclibCustomEndpoint == endpoint else { return }
+            await lyricsRepository.updateLrclibEndpoint(endpoint)
+            guard settings.lrclibCustomEndpoint == endpoint else { return }
+            if currentTrack != nil { reloadLyrics(bypassCache: true) }
+        }
+        return true
+    }
+
     func reloadLyrics(bypassCache: Bool) {
 #if DEBUG
         if debugSettingsUIConsumesAction() { return }

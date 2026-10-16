@@ -84,7 +84,7 @@ final class AppSettings: ObservableObject {
         "vinyl_track_change_animations", "vinyl_rotation_speed_percent", "simplify_title",
         "lyrics_provider_enabled_v1", "lyrics_provider_types_v1", "lyrics_prefer_sync_data_provider",
         "lyrics_prefer_type_over_provider", "typography_settings_v1", "speaker_color_settings_v1",
-        "global_sync_offset_ms"
+        "global_sync_offset_ms", "lrclib_custom_endpoint_v1"
     ]
 
     static let lyricsProviders: [LyricsProvider] = [
@@ -323,6 +323,7 @@ final class AppSettings: ObservableObject {
     @Published private(set) var lyricsProviderOrder: [String] { didSet { saveLyricsProviderSettingsIfNeeded() } }
     @Published private(set) var lyricsProviderEnabled: [String: Bool] { didSet { saveLyricsProviderSettingsIfNeeded() } }
     @Published private(set) var lyricsProviderTypes: [String: [String: Bool]] { didSet { saveLyricsProviderSettingsIfNeeded() } }
+    @Published private(set) var lrclibCustomEndpoint: String { didSet { set(LrclibEndpoint.settingsKey, lrclibCustomEndpoint) } }
     @Published private(set) var aiProviderOrder: [String] { didSet { saveAIProviderSettingsIfNeeded() } }
     @Published private(set) var aiProviderEnabled: [String: Bool] { didSet { saveAIProviderSettingsIfNeeded() } }
     @Published private(set) var aiProviderProfiles: [String: AIProviderProfile] { didSet { saveAIProviderSettingsIfNeeded() } }
@@ -446,6 +447,12 @@ final class AppSettings: ObservableObject {
         lyricsProviderOrder = Self.loadLyricsProviderOrder(defaults: defaults)
         lyricsProviderEnabled = Self.loadLyricsProviderEnabled(defaults: defaults)
         lyricsProviderTypes = Self.loadLyricsProviderTypes(defaults: defaults)
+        let storedLrclibEndpoint = defaults.string(forKey: LrclibEndpoint.settingsKey)
+        let normalizedLrclibEndpoint = LrclibEndpoint.normalized(storedLrclibEndpoint ?? "") ?? ""
+        lrclibCustomEndpoint = normalizedLrclibEndpoint
+        if let storedLrclibEndpoint, storedLrclibEndpoint != normalizedLrclibEndpoint {
+            defaults.set(normalizedLrclibEndpoint, forKey: LrclibEndpoint.settingsKey)
+        }
         aiProviderOrder = Self.loadAIProviderOrder(defaults: defaults)
         aiProviderEnabled = loadedAIProviderEnabled
         aiProviderProfiles = loadedAIProviderProfiles
@@ -505,6 +512,11 @@ final class AppSettings: ObservableObject {
         return Self.cloudSettingKeys.reduce(into: [String: Any]()) { result, key in
             guard let value = stored[key],
                   value is String || value is NSNumber || value is Bool else { return }
+            if key == LrclibEndpoint.settingsKey {
+                guard let raw = value as? String, let endpoint = LrclibEndpoint.normalized(raw) else { return }
+                result[key] = endpoint
+                return
+            }
             result[key] = value
         }
     }
@@ -513,6 +525,11 @@ final class AppSettings: ObservableObject {
         for key in Self.cloudSettingKeys {
             guard let value = values[key], !(value is NSNull),
                   value is String || value is NSNumber || value is Bool else { continue }
+            if key == LrclibEndpoint.settingsKey {
+                guard let raw = value as? String, let endpoint = LrclibEndpoint.normalized(raw) else { continue }
+                defaults.set(endpoint, forKey: key)
+                continue
+            }
             defaults.set(value, forKey: key)
         }
 
@@ -591,6 +608,7 @@ final class AppSettings: ObservableObject {
         lyricsProviderOrder = loaded.lyricsProviderOrder
         lyricsProviderEnabled = loaded.lyricsProviderEnabled
         lyricsProviderTypes = loaded.lyricsProviderTypes
+        lrclibCustomEndpoint = loaded.lrclibCustomEndpoint
         preferSyncDataProvider = loaded.preferSyncDataProvider
         preferLyricsTypeOverProviderOrder = loaded.preferLyricsTypeOverProviderOrder
         isSwitchingAIProviderProfile = false
@@ -690,6 +708,7 @@ final class AppSettings: ObservableObject {
             lyricsProviderOrder: lyricsProviderOrder,
             lyricsProviderEnabled: lyricsProviderEnabled,
             lyricsProviderTypes: lyricsProviderTypes,
+            lrclibCustomEndpoint: lrclibCustomEndpoint,
             preferSyncDataProvider: preferSyncDataProvider,
             preferLyricsTypeOverProviderOrder: preferLyricsTypeOverProviderOrder,
             localAITier: LocalAI.Tier.stored(localAITier).rawValue,
@@ -759,6 +778,13 @@ final class AppSettings: ObservableObject {
         var values = lyricsProviderTypes[providerId] ?? Self.defaultLyricsProviderTypes()
         values[type] = enabled
         lyricsProviderTypes[providerId] = values
+    }
+
+    @discardableResult
+    func setLrclibCustomEndpoint(_ value: String) -> Bool {
+        guard let normalized = LrclibEndpoint.normalized(value) else { return false }
+        lrclibCustomEndpoint = normalized
+        return true
     }
 
     func moveLyricsProvider(_ providerId: String, offset: Int) {
@@ -1939,6 +1965,7 @@ final class AppSettings: ObservableObject {
         var lyricsProviderOrder: [String]
         var lyricsProviderEnabled: [String: Bool]
         var lyricsProviderTypes: [String: [String: Bool]]
+        var lrclibCustomEndpoint: String
         var preferSyncDataProvider: Bool
         var preferLyricsTypeOverProviderOrder: Bool
         var localAITier: String
@@ -2064,7 +2091,7 @@ final class AppSettings: ObservableObject {
                 let plain = isLyricsTypeEnabled(providerId: providerId, type: AppSettings.lyricsTypePlain)
                 return "\(providerId):\(enabled ? 1 : 0):\(karaoke ? 1 : 0)\(synced ? 1 : 0)\(plain ? 1 : 0)"
             }.joined(separator: ",")
-            return "provider-policy-v1|\(preferSyncDataProvider ? 1 : 0)|\(preferLyricsTypeOverProviderOrder ? 1 : 0)|\(providers)"
+            return "provider-policy-v2|\(preferSyncDataProvider ? 1 : 0)|\(preferLyricsTypeOverProviderOrder ? 1 : 0)|\(providers)|\(LrclibEndpoint.cacheIdentity(lrclibCustomEndpoint))"
         }
 
         var enabled: Bool {

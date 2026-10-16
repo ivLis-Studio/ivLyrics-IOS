@@ -74,6 +74,7 @@ jobs:
           python3 scripts/test-pip-selection-cache.py
           python3 scripts/test-pip-static-frame-cache.py
           python3 scripts/test-sync-load-reuse.py
+          python3 scripts/test-lrclib-playback.py
           python3 scripts/test-ai-models.py
           python3 scripts/test-openai-connections.py
           python3 scripts/test-local-ai.py

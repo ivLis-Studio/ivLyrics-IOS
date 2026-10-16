@@ -316,6 +316,51 @@ final class SettingsLayoutUITests: XCTestCase {
         capture("providers-light")
     }
 
+    func testLrclibEndpointValidationPersistenceAndClear() {
+        launch()
+        let providers = app.buttons["settings.menu.providers"]
+        reveal(providers, scrollID: "settings.home")
+        providers.tap()
+        waitForSettingsPage()
+        let field = app.textFields["settings.lrclib.endpoint"]
+        reveal(field, scrollID: "settings.scroll")
+        assertTouchTarget(field)
+        field.tap()
+        let invalid = "http://mirror.example/api"
+        field.typeText(invalid + "\n")
+        let error = app.descendants(matching: .any)["settings.lrclib.endpoint.error"]
+        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        let endpoint = "https://mirror.example/api"
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: invalid.count) + endpoint + "/\n")
+        wait(NSPredicate { _, _ in (field.value as? String) == endpoint && !error.exists }, on: field)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.scrollViews["settings.home"].waitForExistence(timeout: 5))
+        reveal(providers, scrollID: "settings.home")
+        providers.tap()
+        waitForSettingsPage()
+        reveal(field, scrollID: "settings.scroll")
+        XCTAssertEqual(field.value as? String, endpoint, "Reopening settings reads the saved endpoint")
+        field.tap()
+        field.press(forDuration: 1.1)
+        let selectAll = app.descendants(matching: .any).matching(NSPredicate(format: "label IN %@", ["Select All", "전체 선택", "모두 선택"])).firstMatch
+        XCTAssertTrue(selectAll.waitForExistence(timeout: 5), "Clear the entire saved URL using the native text selection menu")
+        selectAll.tap()
+        field.typeText(XCUIKeyboardKey.delete.rawValue + "\n")
+        wait(NSPredicate { _, _ in (field.value as? String) == "https://lrclib.net/api" && !error.exists }, on: field)
+        capture("lrclib-endpoint-cleared")
+    }
+
+    func testLrclibEndpointLargeTextLayout() {
+        launch(tab: "providers", language: "ko", landscape: true, textSize: "accessibility5", theme: "light")
+        let field = app.textFields["settings.lrclib.endpoint"]
+        reveal(field, scrollID: "settings.scroll")
+        assertTouchTarget(field)
+        let save = app.buttons["settings.lrclib.endpoint.save"]
+        reveal(save, scrollID: "settings.scroll")
+        assertTouchTarget(save)
+        capture("lrclib-endpoint-landscape-accessibility")
+    }
+
     /// Exercise the reported home -> category route rather than seeding the destination path.
     /// Also run this test with Release optimization and opaque type erasure disabled: Debug's
     /// implicit AnyView wrapping can hide oversized SwiftUI navigation destinations.

@@ -10,6 +10,13 @@ on:
       - 'ivLyrics-IOS/SettingsSupportViews.swift'
       - 'ivLyrics-IOS/SettingsHomeWordmark.swift'
       - 'ivLyrics-IOS/FontLoader.swift'
+      - 'ivLyrics-IOS/Lrclib*.swift'
+      - 'ivLyrics-IOS/LyricsRepository.swift'
+      - 'ivLyrics-IOS/AppSettings.swift'
+      - 'ivLyrics-IOS/Info.plist'
+      - 'ivLyrics-IOS/InfoPlist.xcstrings'
+      - 'scripts/test-lrclib-playback.py'
+      - 'scripts/LrclibPlaybackChecks.swift'
       - 'ivLyrics-IOS/Resources/Fonts/**'
       - 'ivLyrics-IOS/SetupViews.swift'
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
@@ -34,6 +41,13 @@ on:
       - 'ivLyrics-IOS/SettingsSupportViews.swift'
       - 'ivLyrics-IOS/SettingsHomeWordmark.swift'
       - 'ivLyrics-IOS/FontLoader.swift'
+      - 'ivLyrics-IOS/Lrclib*.swift'
+      - 'ivLyrics-IOS/LyricsRepository.swift'
+      - 'ivLyrics-IOS/AppSettings.swift'
+      - 'ivLyrics-IOS/Info.plist'
+      - 'ivLyrics-IOS/InfoPlist.xcstrings'
+      - 'scripts/test-lrclib-playback.py'
+      - 'scripts/LrclibPlaybackChecks.swift'
       - 'ivLyrics-IOS/Resources/Fonts/**'
       - 'ivLyrics-IOS/SetupViews.swift'
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
@@ -100,6 +114,7 @@ jobs:
           python3 scripts/test-pip-selection-cache.py
           python3 scripts/test-pip-static-frame-cache.py
           python3 scripts/test-sync-load-reuse.py
+          python3 scripts/test-lrclib-playback.py
           python3 scripts/test-ai-models.py
           python3 scripts/test-openai-connections.py
           python3 scripts/test-local-ai.py

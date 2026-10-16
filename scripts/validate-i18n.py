@@ -33,6 +33,15 @@ for locale, strings in locales.items():
         elif key in locales["ko"] and sorted(placeholders.findall(value)) != sorted(placeholders.findall(locales["ko"][key])):
             errors.append(f"{locale}.{key}: translation placeholders do not match Korean")
 
+permission_catalog = json.loads((source.parents[1] / "InfoPlist.xcstrings").read_text(encoding="utf-8"))
+permission_locales = permission_catalog["strings"]["NSLocalNetworkUsageDescription"]["localizations"]
+if set(permission_locales) != set(locales):
+    errors.append("Local Network permission locales must match the app's supported locales")
+for locale, entry in permission_locales.items():
+    unit = entry.get("stringUnit", {})
+    if unit.get("state") != "translated" or not unit.get("value", "").strip():
+        errors.append(f"{locale}: missing Local Network permission translation")
+
 if errors:
     raise SystemExit("\n".join(errors))
 

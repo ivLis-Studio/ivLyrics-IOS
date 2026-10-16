@@ -31,6 +31,8 @@ IVLYRICS_LLAMA_STUB=1 xcodebuild \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testEverySettingsCategoryOpensFromHomeAndReturns \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testHomeWordmarkExactWeightsAndLocalizedNavigation \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testHomeWordmarkLandscapeAccessibilityText \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLrclibEndpointValidationPersistenceAndClear \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLrclibEndpointLargeTextLayout \
     SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
     SWIFT_ENABLE_OPAQUE_TYPE_ERASURE=NO \
     CODE_SIGNING_ALLOWED=NO \

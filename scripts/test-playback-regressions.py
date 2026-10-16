@@ -371,5 +371,6 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-ios-regression-") as path:
     work = Path(path)
     (work / "main.swift").write_text(fixtures + track_snapshot + motion + baseline_motion + settings_probe + cache + checks)
     sources = [ROOT / "ivLyrics-IOS/KaraokeMotionProfile.swift", ROOT / "ivLyrics-IOS/SupplementProviderProgress.swift", ROOT / "ivLyrics-IOS/OpenDBRefreshPolicy.swift", ROOT / "ivLyrics-IOS/DisplayRefreshClock.swift", ROOT / "ivLyrics-IOS/BoundedLRUCache.swift", ROOT / "ivLyrics-IOS/SpotifyPlaybackRetryPolicy.swift", ROOT / "ivLyrics-IOS/LyricsTravelMotion.swift", work / "main.swift"]
+    sources.append(ROOT / "ivLyrics-IOS/LrclibEndpoint.swift")
     subprocess.run(["xcrun", "swiftc", *map(str, sources), "-o", str(work / "regression")], check=True)
     subprocess.run([str(work / "regression")], check=True)

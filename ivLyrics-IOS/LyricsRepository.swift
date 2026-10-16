@@ -8,6 +8,7 @@ enum SpotifyMetadataTokenRecoveryPolicy {
 
 actor LyricsRepository {
     private let lrclibBase = "https://lrclib.net/api"
+    private let lrclibClient = LrclibHTTPClient()
     private let syncDataBase = "https://lyrics.api.ivl.is/lyrics/sync-data"
     private let syncDataRequestVersion = "20260701"
     private let openDbOrigin = "https://ivlis.kr"
@@ -73,6 +74,7 @@ actor LyricsRepository {
     private var syncDataServerCacheBypassUntil: [String: Int64] = [:]
     private var syncDataServerCacheBypassAllUntilMs: Int64 = 0
     private var activeSyncDataLoads: [UUID: SyncDataLoadContext] = [:]
+    private var lrclibEndpointIdentity: String?
 
     // Actor-confined, short-lived response reuse. A new lyric load must refresh
     // contributor privacy again, even when the previous load fetched this song.
@@ -110,6 +112,7 @@ actor LyricsRepository {
     }
 
     init() {
+        lrclibEndpointIdentity = LrclibEndpoint.cacheIdentity(defaults.string(forKey: LrclibEndpoint.settingsKey) ?? "")
 #if DEBUG
         if DebugSettingsUIHarness.enabled { return }
 #endif
@@ -296,6 +299,7 @@ actor LyricsRepository {
         onProviderLoading: ((String) async -> Void)? = nil,
         onSpotifyMetadataResolved: ((ResolvedSpotifyMetadata) async -> Void)? = nil
     ) async throws -> LoadedLyrics {
+        updateLrclibEndpoint(settings.lrclibCustomEndpoint)
         let syncDataLoad = SyncDataLoadContext(trackKey: track.stableKey, isrc: track.isrc)
         activeSyncDataLoads[syncDataLoad.id] = syncDataLoad
         defer { activeSyncDataLoads.removeValue(forKey: syncDataLoad.id) }
@@ -652,6 +656,13 @@ actor LyricsRepository {
         return LoadedLyrics(trackKey: key, result: result, artworkURL: spotifyMatch?.artworkURL, logs: logs, resolvedIsrc: isrc, resolvedSpotifyTrackId: spotifyTrackId)
     }
 
+    func updateLrclibEndpoint(_ endpoint: String) {
+        let identity = LrclibEndpoint.cacheIdentity(endpoint)
+        guard lrclibEndpointIdentity != identity else { return }
+        clearCache()
+        lrclibEndpointIdentity = identity
+    }
+
     private func lyricsCacheKey(trackKey: String, settings: AppSettings.Snapshot) -> String {
         "\(trackKey)|\(settings.lyricsProviderPolicySignature)"
     }
@@ -869,25 +880,17 @@ actor LyricsRepository {
         settings: AppSettings.Snapshot,
         log: @escaping (String) -> Void
     ) async throws -> ProviderVariants? {
-        var candidate: LrclibCandidate?
-        var loadedFromSyncSource = false
+        // Resolve the saved source once, then share it across both complete host stages.
         let syncDataContext = syncData.map(SyncDataCandidateContext.init)
-        let sourceId = syncDataContext?.lrclibId ?? 0
-        if sourceId > 0 {
-            log("sync-data source: lrclibId=\(sourceId), direct loading LRCLIB")
-            candidate = await fetchLrclibCandidateById(sourceId, log: log)
-            if let candidate {
-                decorateCandidateForSyncData(candidate, syncData: syncDataContext)
-                loadedFromSyncSource = true
-            }
-        }
-        if candidate == nil {
-            candidate = try await searchBestCandidate(track: track, spotifyMatch: spotifyMatch, syncData: syncDataContext, log: log)
-        }
-        guard let candidate else {
+        guard let candidate = try await findLrclibPlaybackCandidate(
+            track: track, spotifyMatch: spotifyMatch, syncData: syncDataContext,
+            customEndpoint: settings.lrclibCustomEndpoint, log: log
+        ) else {
             log("lrclib: no candidate selected")
             return nil
         }
+        let loadedFromSyncSource = candidate.canonicalLrclibId > 0
+            && candidate.canonicalLrclibId == syncDataContext?.lrclibId
         log("lrclib selected: \(describeLrclibCandidate(candidate))" + (loadedFromSyncSource ? " / source=sync-data.lrclibId" : " / source=search"))
         if candidate.instrumental, !candidate.hasLyrics { return nil }
 
@@ -916,7 +919,7 @@ actor LyricsRepository {
             spotifyTrackId: spotifyTrackId,
             detail: ui(loadedFromSyncSource ? "repo.detail.sync_applied_direct" : "repo.detail.sync_applied_search", settings: settings),
             currentProvider: "lrclib",
-            currentLrclibId: candidate.id,
+            currentLrclibId: candidate.canonicalLrclibId,
             log: log
         )
         return variants.karaoke == nil && variants.synced == nil && variants.plain == nil ? nil : variants
@@ -1162,41 +1165,117 @@ actor LyricsRepository {
         return SpotifyCredentialValidation(expiresInSeconds: response.expiresInSeconds, logs: logs)
     }
 
-    private func searchBestCandidate(track: TrackSnapshot, spotifyMatch: SpotifyTrackMatch?, syncData: SyncDataCandidateContext?, log: @escaping (String) -> Void) async throws -> LrclibCandidate? {
+    private func findLrclibPlaybackCandidate(
+        track: TrackSnapshot, spotifyMatch: SpotifyTrackMatch?, syncData: SyncDataCandidateContext?,
+        customEndpoint: String, log: @escaping (String) -> Void
+    ) async throws -> LrclibCandidate? {
+        for base in LrclibEndpoint.playbackBases(customEndpoint) {
+            try Task.checkCancellation()
+            let stage = LrclibLookupStage(base: base)
+            log("lrclib playback stage: \(stage.isOfficial ? "official" : "custom")")
+            do {
+                let sourceId = syncData?.hasLrclibSource == true ? (syncData?.lrclibId ?? 0) : 0
+                if sourceId > 0,
+                   let direct = try await fetchLrclibCandidateById(sourceId, stage: stage, log: log),
+                   prepareLrclibPlaybackCandidate(direct, syncData: syncData, stage: stage, track: track, log: log) {
+                    return direct
+                }
+                if let candidate = try await searchBestCandidate(
+                    track: track, spotifyMatch: spotifyMatch, syncData: syncData, stage: stage, log: log
+                ) { return candidate }
+            } catch {
+                if isCancellationError(error) || Task.isCancelled { throw CancellationError() }
+                log("lrclib playback stage ended: \(stage.isOfficial ? "official" : "custom") / \(error.localizedDescription)")
+            }
+        }
+        return nil
+    }
+
+    /// A mirror's ID is never a new authoring identity. Saved content constraints
+    /// must all agree, even when the mirror uses the official source's numeric ID.
+    private func prepareLrclibPlaybackCandidate(
+        _ candidate: LrclibCandidate, syncData: SyncDataCandidateContext?, stage: LrclibLookupStage,
+        track: TrackSnapshot, log: (String) -> Void
+    ) -> Bool {
+        guard !LrcParser.parseSynced(candidate.syncedLyrics, durationMs: track.durationMs).isEmpty
+                || !LrcParser.parsePlain(candidate.plainLyrics).isEmpty else { return false }
+        candidate.canonicalLrclibId = stage.isOfficial ? candidate.id : 0
+        if !stage.isOfficial, let syncData {
+            let fingerprint = syncData.sourceLyricsFingerprint
+            let counts = syncData.sourceLineCharCounts.isEmpty ? syncData.lineCharCounts : syncData.sourceLineCharCounts
+            let pinnedId = syncData.hasLrclibSource ? syncData.lrclibId : 0
+            if pinnedId > 0 && candidate.id != pinnedId && fingerprint.isEmpty {
+                log("lrclib custom: character counts cannot validate a different source ID")
+                return false
+            }
+            if pinnedId > 0 && fingerprint.isEmpty && counts.isEmpty {
+                guard candidate.id == pinnedId else {
+                    log("lrclib custom: rejected legacy pinned ID mismatch")
+                    return false
+                }
+                candidate.canonicalLrclibId = pinnedId
+            }
+            if !fingerprint.isEmpty || !counts.isEmpty {
+                let sources = ([syncData.preferredLyricsSource] + ["synced", "plain"]).filter { !$0.isEmpty }
+                guard let matched = sources.first(where: { source in
+                    let payload = source == "synced" ? candidate.syncedLyrics : candidate.plainLyrics
+                    guard payload?.trimmed.isEmpty == false else { return false }
+                    if source == "synced" && LrcParser.parseSynced(payload, durationMs: track.durationMs).isEmpty { return false }
+                    let text = candidateComparableText(candidate, preferredSource: source, normalizeParentheticalLines: syncData.shouldNormalizeParentheticalLines)
+                    let actualCounts = candidateLineCharCounts(payload, stripTimestamps: source == "synced", normalizeParentheticalLines: syncData.shouldNormalizeParentheticalLines)
+                    return (fingerprint.isEmpty || fingerprint == IvLyricsUtilities.lyricsFingerprint(text))
+                        && (counts.isEmpty || hasExactLineShape(counts, actualCounts))
+                }) else {
+                    log("lrclib custom: rejected saved source fingerprint/line-shape mismatch")
+                    return false
+                }
+                candidate.validatedLyricsSource = matched
+                // This ID came from trusted ivSync metadata, never from the mirror.
+                candidate.canonicalLrclibId = pinnedId
+            }
+        }
+        decorateCandidateForSyncData(candidate, syncData: syncData)
+        return true
+    }
+
+    private func searchBestCandidate(track: TrackSnapshot, spotifyMatch: SpotifyTrackMatch?, syncData: SyncDataCandidateContext?, stage: LrclibLookupStage, log: @escaping (String) -> Void) async throws -> LrclibCandidate? {
         var candidates: [LrclibCandidate] = []
         let spotifySearchTrack = buildSpotifyLrclibSearchTrack(track: track, spotifyMatch: spotifyMatch, log: log)
         let spotifySearchLabelPrefix = spotifyMatch?.hasEnglishMetadata == true ? "spotify-en" : "spotify"
 
-        if let signatureCandidate = try await fetchLrclibCandidateBySignature(track: track, spotifyMatch: spotifyMatch, log: log) {
+        if let signatureCandidate = try await fetchLrclibCandidateBySignature(track: track, spotifyMatch: spotifyMatch, stage: stage, log: log),
+           prepareLrclibPlaybackCandidate(signatureCandidate, syncData: syncData, stage: stage, track: track, log: log) {
             appendUniqueCandidates(&candidates, [signatureCandidate])
         }
-
-        let signatureNeedsFallback = candidates.isEmpty
-            || needsLegacySyncLineShapeMatch(syncData, candidates)
-            || (shouldPreferSyncedLrclibFallback(syncData) && !candidates.contains(where: hasSyncedLyricsPayload))
-        if signatureNeedsFallback {
-            let trackMatches = try await searchLrclibFallbackBatch(
-                track: track,
-                labelPrefix: "",
-                includeAlbum: true,
-                log: log
-            )
-            appendUniqueCandidates(&candidates, trackMatches)
-            if let spotifySearchTrack {
-                let spotifyMatches = try await searchLrclibFallbackBatch(
-                    track: spotifySearchTrack,
-                    labelPrefix: spotifySearchLabelPrefix,
-                    includeAlbum: false,
-                    log: log
-                )
-                appendUniqueCandidates(&candidates, spotifyMatches)
-            }
+        func selection(final: Bool = false) -> LrclibCandidate? {
+            guard let best = rankLrclibPlaybackCandidates(candidates, track: track, spotifySearchTrack: spotifySearchTrack, syncData: syncData, log: log) else { return nil }
+            if !final && needsLegacySyncLineShapeMatch(syncData, [best]) { return nil }
+            if !final && shouldPreferSyncedLrclibFallback(syncData) && !best.useSyncedLyrics() { return nil }
+            return best
         }
-        guard !candidates.isEmpty else {
-            log("lrclib search: no candidates")
-            return nil
-        }
+        if let best = selection() { return best }
 
+        // Keep host stages sequential: no official lyric request may race a custom query.
+        var searches: [([String: String], String)] = [(buildStructuredQuery(track), "structured")]
+        if !track.album.isEmpty { searches.append((buildStructuredQuery(track, includeAlbum: false), "no-album")) }
+        searches += [(["q": "\(track.title) \(track.artist)"], "q:title+artist"), (["q": track.title], "q:title")]
+        if let spotifySearchTrack {
+            searches.append((buildStructuredQuery(spotifySearchTrack, includeAlbum: false), "\(spotifySearchLabelPrefix):structured"))
+            searches += [(["q": "\(spotifySearchTrack.title) \(spotifySearchTrack.artist)"], "\(spotifySearchLabelPrefix):q:title+artist"),
+                         (["q": spotifySearchTrack.title], "\(spotifySearchLabelPrefix):q:title")]
+        }
+        for (params, label) in searches {
+            let matches = try await searchLrclibFallback(params: params, label: label, stage: stage, log: log)
+            let accepted = matches.filter { prepareLrclibPlaybackCandidate($0, syncData: syncData, stage: stage, track: track, log: log) }
+            appendUniqueCandidates(&candidates, accepted)
+            if let best = selection() { return best }
+        }
+        return selection(final: true)
+    }
+
+    private func rankLrclibPlaybackCandidates(_ candidates: [LrclibCandidate], track: TrackSnapshot, spotifySearchTrack: TrackSnapshot?, syncData: SyncDataCandidateContext?, log: (String) -> Void) -> LrclibCandidate? {
+        var candidates = candidates
+        if candidates.isEmpty { return nil }
         for candidate in candidates {
             decorateCandidateForSyncData(candidate, syncData: syncData)
             candidate.albumMatchScore = 0
@@ -1388,10 +1467,16 @@ actor LyricsRepository {
         )
     }
 
-    private func searchLrclib(params: [String: String], label: String, log: (String) -> Void) async throws -> [LrclibCandidate] {
+    private func searchLrclib(params: [String: String], label: String, stage: LrclibLookupStage? = nil, log: (String) -> Void) async throws -> [LrclibCandidate] {
         let startedAt = ProcessInfo.processInfo.systemUptime
         log("lrclib search [\(label)]: \(describeParams(params))")
-        let body = try await get("\(lrclibBase)/search?\(IvLyricsUtilities.encodeParams(params))")
+        let body: String
+        if let stage {
+            body = try await lrclibClient.get(base: stage.base, path: "search", params: params, timeout: stage.timeout(default: networkRequestTimeout))
+        } else {
+            // Manual/editor searches stay official-only.
+            body = try await get("\(lrclibBase)/search?\(IvLyricsUtilities.encodeParams(params))")
+        }
         let array = try jsonArray(body)
         let candidates = array.compactMap { item -> LrclibCandidate? in
             guard let object = item as? [String: Any] else { return nil }
@@ -1402,11 +1487,12 @@ actor LyricsRepository {
         return candidates
     }
 
-    private func searchLrclibFallback(params: [String: String], label: String, log: (String) -> Void) async throws -> [LrclibCandidate] {
+    private func searchLrclibFallback(params: [String: String], label: String, stage: LrclibLookupStage? = nil, log: (String) -> Void) async throws -> [LrclibCandidate] {
         let startedAt = ProcessInfo.processInfo.systemUptime
         do {
-            return try await searchLrclib(params: params, label: label, log: log)
+            return try await searchLrclib(params: params, label: label, stage: stage, log: log)
         } catch {
+            try stage?.continueAfter(error)
             if isCancellationError(error) {
                 throw error
             }
@@ -1415,34 +1501,7 @@ actor LyricsRepository {
         }
     }
 
-    private func searchLrclibFallbackBatch(track: TrackSnapshot, labelPrefix: String, includeAlbum: Bool, log: @escaping (String) -> Void) async throws -> [LrclibCandidate] {
-        guard !track.title.isEmpty else { return [] }
-        let prefix = labelPrefix.trimmed.isEmpty ? "" : "\(labelPrefix.trimmed):"
-        async let structured = searchLrclibFallback(
-            params: buildStructuredQuery(track, includeAlbum: includeAlbum),
-            label: "\(prefix)structured",
-            log: log
-        )
-        async let titleArtist = searchLrclibFallback(
-            params: ["q": "\(track.title) \(track.artist)"],
-            label: "\(prefix)q:title+artist",
-            log: log
-        )
-        async let titleOnly = searchLrclibFallback(
-            params: ["q": track.title],
-            label: "\(prefix)q:title",
-            log: log
-        )
-
-        let batches = try await (structured, titleArtist, titleOnly)
-        var candidates: [LrclibCandidate] = []
-        appendUniqueCandidates(&candidates, batches.0)
-        appendUniqueCandidates(&candidates, batches.1)
-        appendUniqueCandidates(&candidates, batches.2)
-        return candidates
-    }
-
-    private func fetchLrclibCandidateBySignature(track: TrackSnapshot, spotifyMatch: SpotifyTrackMatch?, log: (String) -> Void) async throws -> LrclibCandidate? {
+    private func fetchLrclibCandidateBySignature(track: TrackSnapshot, spotifyMatch: SpotifyTrackMatch?, stage: LrclibLookupStage, log: (String) -> Void) async throws -> LrclibCandidate? {
         let title = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.title, track.title)
         let artist = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.artist, track.artist)
         let album = IvLyricsUtilities.firstNonEmpty(spotifyMatch?.album, track.album)
@@ -1462,10 +1521,8 @@ actor LyricsRepository {
         let startedAt = ProcessInfo.processInfo.systemUptime
         log("lrclib signature: \(describeParams(params))")
         do {
-            let body = try await get(
-                "\(lrclibBase)/get?\(IvLyricsUtilities.encodeParams(params))",
-                timeoutInterval: lrclibSignatureTimeout
-            )
+            let body = try await lrclibClient.get(base: stage.base, path: "get", params: params,
+                                                timeout: stage.timeout(default: lrclibSignatureTimeout))
             let candidate = LrclibCandidate(json: try jsonObject(body))
             guard candidate.hasLyrics else {
                 log("lrclib signature: response has no lyrics payload")
@@ -1477,6 +1534,7 @@ actor LyricsRepository {
             log("lrclib signature: no exact match after \(fmt(ProcessInfo.processInfo.systemUptime - startedAt))s")
             return nil
         } catch {
+            try stage.continueAfter(error)
             if isCancellationError(error) {
                 throw error
             }
@@ -1486,10 +1544,19 @@ actor LyricsRepository {
     }
 
     private func fetchLrclibCandidateById(_ lrclibId: Int64, log: (String) -> Void) async -> LrclibCandidate? {
+        // Manual selection is explicitly an official LRCLIB operation.
+        try? await fetchLrclibCandidateById(lrclibId, stage: LrclibLookupStage(base: lrclibBase), log: log)
+    }
+
+    private func fetchLrclibCandidateById(_ lrclibId: Int64, stage: LrclibLookupStage, log: (String) -> Void) async throws -> LrclibCandidate? {
         guard lrclibId > 0 else { return nil }
         do {
-            let body = try await get("\(lrclibBase)/get/\(lrclibId)")
+            let body = try await lrclibClient.get(base: stage.base, path: "get/\(lrclibId)", timeout: stage.timeout(default: networkRequestTimeout))
             let candidate = LrclibCandidate(json: try jsonObject(body))
+            guard candidate.id == lrclibId || !stage.isOfficial else {
+                log("lrclib direct: response ID does not match requested official ID")
+                return nil
+            }
             if candidate.hasLyrics {
                 log("lrclib direct: \(describeLrclibCandidate(candidate))")
                 return candidate
@@ -1497,6 +1564,7 @@ actor LyricsRepository {
             log("lrclib direct: id=\(lrclibId) has no lyrics payload")
             return nil
         } catch {
+            try stage.continueAfter(error)
             log("lrclib direct error: id=\(lrclibId) / \(error.localizedDescription)")
             return nil
         }
@@ -2171,7 +2239,7 @@ actor LyricsRepository {
     }
 
     private func decorateCandidateForSyncData(_ candidate: LrclibCandidate, syncData: SyncDataCandidateContext?) {
-        candidate.preferredLyricsSource = ""
+        candidate.preferredLyricsSource = candidate.validatedLyricsSource
         candidate.syncLineExactMatch = false
         candidate.exactSyncedLineMatch = false
         candidate.exactPlainLineMatch = false
@@ -2197,14 +2265,15 @@ actor LyricsRepository {
         candidate.exactSyncedLineMatch = hasExactLineShape(syncLineCounts, syncedLineCharCounts)
         candidate.exactPlainLineMatch = hasExactLineShape(syncLineCounts, plainLineCharCounts)
         candidate.syncLineExactMatch = candidate.exactSyncedLineMatch || candidate.exactPlainLineMatch
-        candidate.preferredLyricsSource = candidate.exactSyncedLineMatch ? "synced" : (candidate.exactPlainLineMatch ? "plain" : syncData.preferredLyricsSource)
+        candidate.preferredLyricsSource = IvLyricsUtilities.firstNonEmpty(candidate.validatedLyricsSource,
+            candidate.exactSyncedLineMatch ? "synced" : (candidate.exactPlainLineMatch ? "plain" : syncData.preferredLyricsSource))
         let initialPreferredSource = candidate.preferredLyricsSource
         let initialCandidateText = candidateComparableText(candidate, preferredSource: initialPreferredSource, normalizeParentheticalLines: normalizeParentheticalLines)
         candidate.hasOriginalLyricsScript = IvLyricsUtilities.hasOriginalLyricsScript(initialCandidateText)
 
         guard syncData.hasLrclibSource else { return }
         let sourceId = syncData.lrclibId
-        candidate.syncSourceIdMatch = sourceId > 0 && candidate.id == sourceId
+        candidate.syncSourceIdMatch = sourceId > 0 && candidate.canonicalLrclibId == sourceId
         let sourceLineCounts = syncData.sourceLineCharCounts
         let sourceSyncedLineMatch = hasExactLineShape(sourceLineCounts, syncedLineCharCounts)
         let sourcePlainLineMatch = hasExactLineShape(sourceLineCounts, plainLineCharCounts)
@@ -2748,6 +2817,8 @@ private extension ManualLrclibCandidate {
 
 private final class LrclibCandidate {
     let id: Int64
+    var canonicalLrclibId: Int64 = 0
+    var validatedLyricsSource = ""
     let trackName: String
     let artistName: String
     let albumName: String
