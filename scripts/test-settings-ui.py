@@ -78,7 +78,9 @@ update_search = declaration(native_search, "func updateUIView(")
 assert "scheduleFocus(field)" in update_search
 assert "becomeFirstResponder()" not in update_search and "resignFirstResponder()" not in update_search
 assert "if field.font != font" in update_search
-assert ".strokeBorder(SettingsDesign.strongBorder)" in controls
+text_field = declaration(controls, "struct SettingsTextFieldStyle:")
+assert ".background(palette?.surface2 ?? SettingsDesign.control" in text_field
+assert ".strokeBorder(palette?.line2 ?? SettingsDesign.strongBorder)" in text_field
 assert 'SettingsActionLabel(title: resetTitle)' in popup
 assert 'SettingsActionLabel(title: delta > 0' in popup
 assert 'lyrics.menu.offset.video.delta.' in ui_tests and 'lyrics.menu.offset.video.reset' in ui_tests
