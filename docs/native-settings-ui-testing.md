@@ -1,7 +1,7 @@
 # Native settings and lyric-popup UI checks
 
 The shared **ivLyrics-IOS** scheme contains the **ivLyrics-IOSUITests** UI-testing
-target. Its twelve settings tests launch the actual SwiftUI settings and per-track popup,
+target. Its settings tests launch the actual SwiftUI settings and per-track popup,
 use native accessibility frames and interactions, and retain both PNG screenshots
 and accessibility-tree text attachments in the `.xcresult`. They are not HTML
 screenshots or a substitute for physical-device testing.
@@ -85,7 +85,7 @@ rotate the Simulator to inspect landscape. The default is English and standard
 Large text. Stable identifiers include:
 
 - `settings.search`, `settings.search.clear`, `settings.close`, `settings.scroll`
-- `settings.home`, `settings.menu.<menu>`, `settings.theme.light`, `settings.theme.dark`,
+- `settings.home`, `settings.wordmark`, `settings.menu.<menu>`, `settings.theme.light`, `settings.theme.dark`,
   `settings.preview.toggle`
 - `settings.result.setting.metadata_translation`, `settings.toggle.metadata`
 - `settings.ai.toggle.local-ai`, `settings.ai.expand.<provider>`, `settings.toggle.cultural`,
@@ -102,6 +102,19 @@ retain their 22pt minimum; connection badges remain exactly 30pt. Debug-only
 `ui.badge.<rank.N|connection.provider>.text` / `.frame` probes are exposed only in
 the isolated fixture; decorative badges stay hidden from accessibility otherwise.
 These tests require a native Simulator run; host checks do not prove centering.
+
+The home heading is a single accessible `ivLyrics` header, using Pretendard's
+variable `wght` axis at 800 for `iv` and 250 for `Lyrics`. It scales with Dynamic
+Type and fits on one line; category navigation titles remain localized. The
+focused `testHomeWordmarkExactWeightsAndLocalizedNavigation` and
+`testHomeWordmarkLandscapeAccessibilityText` retain English/dark, Korean/light,
+and landscape AX5 screenshots. Their fixture-only AX value reads the actual two
+CoreText fonts handed to SwiftUI, asserting both weights and the absence of font
+fallback. The optimized navigation gate runs these cases alongside all eight
+categories. Physical-device typography and VoiceOver speech remain device checks.
+Settings tests rotate after the real launch marker appears, so rotation targets
+the mounted full-screen cover. They still require the native window to become
+landscape before measuring controls; no viewport or orientation is injected.
 
 ## Isolation and release boundaries
 

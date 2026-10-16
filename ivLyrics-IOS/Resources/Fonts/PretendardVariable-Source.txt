@@ -1,0 +1,3 @@
+PretendardVariable.ttf is the unmodified official Pretendard variable font.
+Source: https://github.com/orioncactus/pretendard/blob/7aeb0698819be2b4097dae8ec8fe6a795e5cf3ae/packages/pretendard/dist/public/variable/PretendardVariable.ttf
+License: Pretendard-OFL.txt (SIL Open Font License 1.1)

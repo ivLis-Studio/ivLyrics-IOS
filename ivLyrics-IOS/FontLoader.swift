@@ -11,7 +11,8 @@ enum IvLyricsFontLoader {
         let names = [
             "Pretendard-Regular",
             "Pretendard-SemiBold",
-            "Pretendard-Bold"
+            "Pretendard-Bold",
+            "PretendardVariable"
         ]
         for name in names {
             let candidates = [
@@ -22,6 +23,15 @@ enum IvLyricsFontLoader {
             guard let url = candidates.compactMap({ $0 }).first else { continue }
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
         }
+    }
+
+    /// Preserve the numeric weight instead of mapping it to one of the static faces.
+    static func variableFont(_ size: CGFloat, weight: CGFloat) -> CTFont {
+        let descriptor = CTFontDescriptorCreateWithAttributes([
+            kCTFontNameAttribute: "PretendardVariable-Regular",
+            kCTFontVariationAttribute: [NSNumber(value: 0x77676874): weight] // OpenType wght
+        ] as CFDictionary)
+        return CTFontCreateWithFontDescriptor(descriptor, size, nil)
     }
 }
 

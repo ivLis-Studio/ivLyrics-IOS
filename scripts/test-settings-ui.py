@@ -67,6 +67,44 @@ for flag in ["-configuration Release", "SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBU
     assert flag in navigation_check
 for workflow in ["ios-validation.yml", "ios-unsigned-release.yml"]:
     assert 'bash scripts/test-settings-navigation.sh' in (ROOT / ".github/workflows" / workflow).read_text()
+
+# Execute the production font factory; source checks alone cannot detect fallback.
+home = declaration(content, "private var homePage:")
+assert home.index("SettingsHomeWordmark()") < home.index("searchBox")
+assert '.navigationTitle("")' in home and '.navigationBarTitleDisplayMode(.inline)' in home
+assert '.navigationTitle(settings.t(menu.titleKey))' in declaration(content, "private func menuPage(")
+wordmark = (SRC / "SettingsHomeWordmark.swift").read_text()
+for token in ['weight: 800', 'weight: 250', '.minimumScaleFactor(0.5)',
+              '.accessibilityLabel(Text(verbatim: "ivLyrics"))', '.accessibilityAddTraits(.isHeader)',
+              '@ScaledMetric(relativeTo: .largeTitle)', '.leftToRight', 'CTFontCopyVariation(font)']:
+    assert token in wordmark
+assert 'UINavigationBar.appearance' not in wordmark + home
+assert 'testHomeWordmarkExactWeightsAndLocalizedNavigation' in ui_tests
+assert 'testHomeWordmarkLandscapeAccessibilityText' in ui_tests
+font_checks = r'''
+import CoreText
+import Foundation
+@main struct FontChecks {
+    static func main() {
+        let url = URL(fileURLWithPath: CommandLine.arguments[1])
+        precondition(CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil))
+        for weight: CGFloat in [800, 250] {
+            let font = IvLyricsFontLoader.variableFont(34, weight: weight)
+            let variations = CTFontCopyVariation(font) as! [NSNumber: NSNumber]
+            precondition(variations[NSNumber(value: 0x77676874)]?.doubleValue == Double(weight))
+            precondition((CTFontCopyPostScriptName(font) as String).hasPrefix("PretendardVariable"))
+            precondition(CTFontGetSize(font) == 34)
+        }
+        print("Settings wordmark: production CoreText factory resolves Pretendard wght 800/250")
+    }
+}
+'''
+with tempfile.TemporaryDirectory(prefix="ivlyrics-wordmark-") as temp:
+    path = Path(temp)
+    (path / "FontChecks.swift").write_text(font_checks)
+    subprocess.run(["xcrun", "swiftc", "-parse-as-library", str(SRC / "FontLoader.swift"),
+                    str(path / "FontChecks.swift"), "-o", str(path / "fonts")], check=True)
+    subprocess.run([str(path / "fonts"), str(SRC / "Resources/Fonts/PretendardVariable.ttf")], check=True)
 assert "--ivlyrics-ui-test" in harness and "UserDefaults(suiteName:" in harness
 assert "ContentView()" not in harness and "AppSettings.shared" not in harness
 assert "DebugSettingsUIHarness.credentialService" in (SRC / "SecureStringStore.swift").read_text()

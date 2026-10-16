@@ -21,7 +21,7 @@ final class SettingsLayoutUITests: XCTestCase {
     /// Settings open on the home list (menus + search); `tab` opens one menu page directly.
     private func launch(_ surface: String = "settings", tab: String = "home", language: String = "en",
                         landscape: Bool = false, textSize: String = "large", theme: String = "dark") {
-        XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--ivlyrics-ui-test"]
         app.launchEnvironment = ["IVLYRICS_UI_SURFACE": surface, "IVLYRICS_DEBUG_SETTINGS_TAB": tab,
@@ -35,7 +35,9 @@ final class SettingsLayoutUITests: XCTestCase {
         if !ready { capture("launch-\(surface)-missing-marker") }
         XCTAssertTrue(ready, "Native launch marker is missing: \(marker)")
         if landscape {
-            wait(NSPredicate { _, _ in self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height }, on: app.windows.firstMatch)
+            // Rotate the mounted full-screen cover, rather than racing its launch presentation.
+            XCUIDevice.shared.orientation = .landscapeLeft
+            wait(NSPredicate { _, _ in self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height }, on: app.windows.firstMatch, timeout: 15)
         }
     }
 
@@ -190,6 +192,51 @@ final class SettingsLayoutUITests: XCTestCase {
         capture("video-popup-offset-buttons-and-reset")
     }
 
+    private func assertHomeWordmark(file: StaticString = #filePath, line: UInt = #line) {
+        let wordmark = app.staticTexts["settings.wordmark"]
+        XCTAssertTrue(wordmark.waitForExistence(timeout: 5), file: file, line: line)
+        XCTAssertEqual(wordmark.label, "ivLyrics", file: file, line: line)
+        let fonts = wordmark.value as? String ?? ""
+        XCTAssertTrue(fonts.contains("iv=800;Lyrics=250;"), fonts, file: file, line: line)
+        XCTAssertTrue(fonts.contains("ivFont=PretendardVariable"), fonts, file: file, line: line)
+        XCTAssertTrue(fonts.contains("lyricsFont=PretendardVariable"), fonts, file: file, line: line)
+        XCTAssertTrue(app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1).contains(wordmark.frame), file: file, line: line)
+        XCTAssertLessThanOrEqual(wordmark.frame.maxY, app.textFields["settings.search"].frame.minY, file: file, line: line)
+    }
+
+    func testHomeWordmarkExactWeightsAndLocalizedNavigation() {
+        for (language, theme, title) in [("en", "dark", "General"), ("ko", "light", "일반")] {
+            launch(language: language, theme: theme)
+            assertHomeWordmark()
+            assertTouchTarget(app.textFields["settings.search"])
+            assertTouchTarget(app.buttons["settings.close"])
+            assertTouchTarget(app.buttons["settings.theme.light"])
+            capture("wordmark-\(language)-\(theme)-portrait")
+            let general = app.buttons["settings.menu.general"]
+            reveal(general, scrollID: "settings.home")
+            assertTouchTarget(general)
+            general.tap()
+            waitForSettingsPage()
+            XCTAssertTrue(app.navigationBars[title].exists, "Category title must remain localized")
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            XCTAssertFalse(back.label.isEmpty, "The native Back control must retain an accessibility label")
+            assertTouchTarget(back)
+            back.tap()
+            XCTAssertTrue(app.scrollViews["settings.home"].waitForExistence(timeout: 5))
+            XCTAssertEqual(app.staticTexts["settings.wordmark"].label, "ivLyrics")
+            app.terminate()
+        }
+    }
+
+    func testHomeWordmarkLandscapeAccessibilityText() {
+        launch(language: "ko", landscape: true, textSize: "accessibility5", theme: "light")
+        assertHomeWordmark()
+        assertTouchTarget(app.textFields["settings.search"])
+        assertTouchTarget(app.buttons["settings.close"])
+        capture("wordmark-ko-light-landscape-AX5")
+    }
+
+
     func testGeneralPortraitSearchKeyboardAndSwitch() {
         launch()
         let search = app.textFields["settings.search"]
@@ -275,6 +322,7 @@ final class SettingsLayoutUITests: XCTestCase {
     func testEverySettingsCategoryOpensFromHomeAndReturns() {
         for menu in ["current_track", "general", "providers", "ai", "appearance", "lyrics", "player", "system"] {
             launch(language: "ko")
+            assertHomeWordmark()
             let row = app.buttons["settings.menu.\(menu)"]
             reveal(row, scrollID: "settings.home")
             row.tap()

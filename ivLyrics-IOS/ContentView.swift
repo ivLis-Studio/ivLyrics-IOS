@@ -8573,6 +8573,9 @@ struct SettingsView: View {
     private var homePage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                SettingsHomeWordmark()
+                    .padding(.top, 8)
+                    .padding(.bottom, 22)
                 searchBox
                     .padding(.bottom, 18)
                 if settingsSearch.trimmed.isEmpty {
@@ -8592,8 +8595,8 @@ struct SettingsView: View {
         .scrollDismissesKeyboard(.interactively)
         .accessibilityIdentifier("settings.home")
         .background(palette.background.ignoresSafeArea())
-        .navigationTitle(settings.t("settings.title"))
-        .navigationBarTitleDisplayMode(.large)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { themeSwitch }
             ToolbarItem(placement: .topBarTrailing) { closeButton }
