@@ -68,6 +68,8 @@ struct YouTubeBackdropView: UIViewRepresentable {
         view.backgroundColor = .clear
         view.alpha = 0
         view.scrollView.isScrollEnabled = false
+        // Use the background's full bounds without reintroducing UIKit safe-area padding.
+        view.scrollView.contentInsetAdjustmentBehavior = .never
         view.loadHTMLString(Self.html(videoId: info.youtubeVideoId, videoScale: videoScale, videoAspect: videoAspect), baseURL: URL(string: Self.htmlOrigin))
         context.coordinator.webView = view
         context.coordinator.videoId = info.youtubeVideoId
@@ -192,7 +194,7 @@ struct YouTubeBackdropView: UIViewRepresentable {
         <!doctype html>
         <html data-video-aspect="\#(AppearancePolicy.videoAspect(videoAspect))">
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
           <style>
             html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;}
             :root{--video-scale:\#(cssScale(videoScale));}

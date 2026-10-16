@@ -1379,7 +1379,9 @@ private struct YouTubeBackdropSection: View {
             .blur(radius: youtubeBackgroundBlurRadius(background.blur))
             Color.black.opacity(videoVisible ? AppearancePolicy.videoDimOpacity(background.brightness) : 0)
         }
-        .ignoresSafeArea(.container, edges: background.videoEdgeToEdge || !isLandscape ? .all : [])
+        // The decorative video and dimming always cover the home indicator area.
+        // Keep landscape top/side insets when edge-to-edge is disabled.
+        .ignoresSafeArea(.container, edges: background.videoEdgeToEdge || !isLandscape ? .all : .bottom)
     }
 }
 
