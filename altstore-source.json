@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.1",
+          "buildVersion": "64",
+          "date": "2026-10-16",
+          "localizedDescription": "v2.0.1에서는 현재 재생 중인 곡의 설정을 메뉴에서 바로 확인하고 조정할 수 있도록 개선했습니다. 설정 화면의 제공자 배지 정렬을 안정화하고, 관련 테마 설정 및 레이아웃에 대한 검증을 확대했습니다. 또한 AltStore 소스의 이전 v2.0.0 배포 메타데이터를 실제 IPA 정보에 맞게 정정했습니다.\n\nv2.0.1 makes current-track settings available directly from the menu. It also stabilizes provider-badge alignment in Settings and expands validation for related themed settings and layouts. In addition, the AltStore source corrects the distribution metadata for the earlier v2.0.0 release.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.1/ivLyrics-IOS-v2.0.1-unsigned.ipa",
+          "size": 11464492,
+          "sha256": "3378bed1496404b47ccabfca61c869cf086ba34d0194d5911c40efc57248bdcd",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.0",
           "buildVersion": "62",
           "date": "2026-10-15",
