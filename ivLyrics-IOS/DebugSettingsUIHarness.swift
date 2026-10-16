@@ -19,14 +19,15 @@ enum DebugSettingsUIHarness {
 
 /// Non-interactive, Debug-only AX geometry probe for the real laid-out hit area.
 /// The switch itself retains its native intrinsic visual size (usually 51 x 31pt).
-private struct DebugSettingsHitAreaProbe: UIViewRepresentable {
+private struct DebugSettingsGeometryProbe: UIViewRepresentable {
     var identifier: String
+    var label: String
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
         view.isUserInteractionEnabled = false
         view.isAccessibilityElement = true
-        view.accessibilityIdentifier = "ui.hit.\(identifier)"
-        view.accessibilityLabel = "Native toggle hit area"
+        view.accessibilityIdentifier = identifier
+        view.accessibilityLabel = label
         return view
     }
     func updateUIView(_ uiView: UIView, context: Context) {}
@@ -43,8 +44,30 @@ extension View {
 
     func debugSettingsHitArea(_ identifier: String) -> some View {
         background {
-            if DebugSettingsUIHarness.enabled { DebugSettingsHitAreaProbe(identifier: identifier) }
+            if DebugSettingsUIHarness.enabled {
+                DebugSettingsGeometryProbe(identifier: "ui.hit.\(identifier)", label: "Native toggle hit area")
+            }
         }
+    }
+
+    /// Measure the actual Text before its badge frame adds space around it.
+    func debugSettingsBadgeTextBounds(_ identifier: String) -> some View {
+        background {
+            if DebugSettingsUIHarness.enabled {
+                DebugSettingsGeometryProbe(identifier: "ui.badge.\(identifier).text", label: "Native badge text bounds")
+            }
+        }
+    }
+
+    func debugSettingsBadgeBounds(_ identifier: String) -> some View {
+        background {
+            if DebugSettingsUIHarness.enabled {
+                DebugSettingsGeometryProbe(identifier: "ui.badge.\(identifier).frame", label: "Native badge frame")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        // Decorations stay hidden in normal launches; only the isolated fixture exposes the probes.
+        .accessibilityHidden(!DebugSettingsUIHarness.enabled)
     }
 }
 
@@ -153,5 +176,7 @@ import SwiftUI
 extension View {
     func debugSetupWelcomeState(_ settings: AppSettings, rotating: Bool, stopped: Bool) -> some View { self }
     func debugSettingsHitArea(_ identifier: String) -> some View { self }
+    func debugSettingsBadgeTextBounds(_ identifier: String) -> some View { self }
+    func debugSettingsBadgeBounds(_ identifier: String) -> some View { accessibilityHidden(true) }
 }
 #endif

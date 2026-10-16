@@ -1,7 +1,7 @@
 # Native settings and lyric-popup UI checks
 
 The shared **ivLyrics-IOS** scheme contains the **ivLyrics-IOSUITests** UI-testing
-target. Its ten settings tests launch the actual SwiftUI settings and per-track popup,
+target. Its twelve settings tests launch the actual SwiftUI settings and per-track popup,
 use native accessibility frames and interactions, and retain both PNG screenshots
 and accessibility-tree text attachments in the `.xcresult`. They are not HTML
 screenshots or a substitute for physical-device testing.
@@ -92,6 +92,16 @@ Large text. Stable identifiers include:
   `settings.lyrics.toggle.<provider>`
 - `lyrics.menu.close`, `lyrics.menu.scroll`, `lyrics.menu.regenerate`
 - `lyrics.menu.video.url`, `lyrics.menu.video.apply`
+
+The focused `testProviderBadgeCenters` and
+`testAIProviderBadgeCentersWithAccessibilityText` cases compare native text bounds
+against their badge frames (both axes, 0.5pt tolerance), retaining screenshots and
+AX trees. They cover single/double-digit ranks, the shared lyrics-provider rank,
+and GG/OC/PA connection initials in English/dark and Korean/light AX5. Rank badges
+retain their 22pt minimum; connection badges remain exactly 30pt. Debug-only
+`ui.badge.<rank.N|connection.provider>.text` / `.frame` probes are exposed only in
+the isolated fixture; decorative badges stay hidden from accessibility otherwise.
+These tests require a native Simulator run; host checks do not prove centering.
 
 ## Isolation and release boundaries
 

@@ -128,6 +128,46 @@ final class SettingsLayoutUITests: XCTestCase {
         XCTAssertFalse(toggle.frame.isEmpty)
     }
 
+    private func assertBadgeCentered(_ identifier: String, size: CGFloat, fixed: Bool = false) {
+        let badge = app.otherElements["ui.badge.\(identifier).frame"]
+        reveal(badge, scrollID: "settings.scroll")
+        let text = app.otherElements["ui.badge.\(identifier).text"]
+        XCTAssertTrue(text.waitForExistence(timeout: 4))
+        capture("centered-\(identifier)")
+        XCTAssertFalse(text.frame.isEmpty)
+        XCTAssertGreaterThanOrEqual(badge.frame.width, size)
+        XCTAssertGreaterThanOrEqual(badge.frame.height, size)
+        XCTAssertEqual(text.frame.midX, badge.frame.midX, accuracy: 0.5)
+        XCTAssertEqual(text.frame.midY, badge.frame.midY, accuracy: 0.5)
+        if fixed {
+            XCTAssertEqual(badge.frame.width, size, accuracy: 0.5)
+            XCTAssertEqual(badge.frame.height, size, accuracy: 0.5)
+            XCTAssertLessThan(text.frame.width, badge.frame.width, "Measure the text separately from its square")
+        }
+    }
+
+    private func checkAIProviderBadges() {
+        for rank in [1, 10] { assertBadgeCentered("rank.\(rank)", size: 22) }
+        // Production initials are GG, OC and PA (Pollinations.ai), respectively.
+        for provider in ["gemini", "chatgpt", "pollinations"] {
+            assertBadgeCentered("connection.\(provider)", size: 30, fixed: true)
+        }
+    }
+
+    func testProviderBadgeCenters() {
+        launch(tab: "ai")
+        checkAIProviderBadges()
+        app.terminate()
+        // Lyrics providers reuse the very same rank badge.
+        launch(tab: "providers")
+        assertBadgeCentered("rank.1", size: 22)
+    }
+
+    func testAIProviderBadgeCentersWithAccessibilityText() {
+        launch(tab: "ai", language: "ko", textSize: "accessibility5", theme: "light")
+        checkAIProviderBadges()
+    }
+
     private func checkVideoOffsets() {
         var value = 0
         for delta in [-100, -50, -10, 10, 50, 100] {

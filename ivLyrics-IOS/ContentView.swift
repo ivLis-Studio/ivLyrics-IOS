@@ -9433,9 +9433,11 @@ struct SettingsView: View {
         Text("\(rank)")
             .font(.caption.weight(.semibold).monospacedDigit())
             .foregroundStyle(palette.text3)
-            .frame(minWidth: 22, minHeight: 22)
+            .multilineTextAlignment(.center)
+            .debugSettingsBadgeTextBounds("rank.\(rank)")
+            .frame(minWidth: 22, minHeight: 22, alignment: .center)
             .background(palette.surface3, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-            .accessibilityHidden(true)
+            .debugSettingsBadgeBounds("rank.\(rank)")
     }
 
     private func providerMoveButtons(index: Int, count: Int, name: String, move: @escaping (Int) -> Void) -> some View {
@@ -10092,10 +10094,12 @@ struct SettingsView: View {
                         .font(.caption.weight(.semibold))
                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .foregroundStyle(palette.text2)
-                        .frame(width: 30, height: 30)
+                        .multilineTextAlignment(.center)
+                        .debugSettingsBadgeTextBounds("connection.\(provider.id)")
+                        .frame(width: 30, height: 30, alignment: .center)
                         .background(palette.surface3, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(palette.line))
-                        .accessibilityHidden(true)
+                        .debugSettingsBadgeBounds("connection.\(provider.id)")
                     VStack(alignment: .leading, spacing: 2) {
                         Text(provider.label)
                             .font(.callout.weight(.medium))
