@@ -46,6 +46,7 @@ extension LocalAI {
         var sample: String
         var line: String
         var seconds: Double
+        var performance: GenerationPerformance? = nil
     }
 
     /// A failure the app can explain in its UI language.
@@ -287,11 +288,19 @@ actor LocalAIService {
         messages: LocalAI.Messages
     ) async throws -> LocalAI.TestResult {
         let sample = LocalAI.testSample(targetLanguage: targetLanguage)
+        let language = try LocalAI.resolveTargetLanguage(targetLanguage, messages: messages)
+        try checkReady(configuration.tier, messages: messages)
+        idleMinutes = LocalAI.normalizedIdleMinutes(configuration.idleMinutes)
         let started = ProcessInfo.processInfo.systemUptime
-        let lines = try await translate(lines: [sample], targetLanguage: targetLanguage, configuration: configuration,
-                                        priority: .interactive, messages: messages)
+        // Keep statistics with this request; a concurrent lyric completion cannot replace them.
+        let (lines, performance) = try await schedule(.interactive) { cancellation in
+            try await self.measuredBlock([sample], language: language, configuration: configuration,
+                                        messages: messages, cancellation: cancellation)
+        }
+        try Task.checkCancellation()
         guard let line = lines.first, !LocalAI.trimmed(line).isEmpty else { throw LocalAIError.emptyReply }
-        return LocalAI.TestResult(sample: sample, line: line, seconds: ProcessInfo.processInfo.systemUptime - started)
+        return LocalAI.TestResult(sample: sample, line: line, seconds: ProcessInfo.processInfo.systemUptime - started,
+                                  performance: performance)
     }
 
     private func checkReady(_ tier: LocalAI.Tier, messages: LocalAI.Messages) throws {
@@ -312,6 +321,17 @@ actor LocalAIService {
         messages: LocalAI.Messages,
         cancellation: LocalAICancellation
     ) async throws -> [String] {
+        try await measuredBlock(block, language: language, configuration: configuration,
+                                messages: messages, cancellation: cancellation).0
+    }
+
+    private func measuredBlock(
+        _ block: [String],
+        language: String,
+        configuration: LocalAI.Configuration,
+        messages: LocalAI.Messages,
+        cancellation: LocalAICancellation
+    ) async throws -> ([String], LocalAI.GenerationPerformance?) {
         let engine = try await ensureLoaded(configuration, messages: messages)
         let usesGPU = engine.usesGPU
         let gate = self.gate
@@ -322,9 +342,14 @@ actor LocalAIService {
         }
         do {
             return try await runOnEngineQueue {
-                try LocalAI.translateBlock(block, language: language) { prompt, maxTokens in
-                    try engine.complete(prompt: prompt, maxTokens: maxTokens, shouldStop: shouldStop)
+                var performance: LocalAI.GenerationPerformance?
+                let lines = try LocalAI.translateBlock(block, language: language) { prompt, maxTokens in
+                    let completion = try engine.complete(prompt: prompt, maxTokens: maxTokens, shouldStop: shouldStop)
+                    performance = completion.performance
+                    return completion
                 }
+                if shouldStop() { throw CancellationError() }
+                return (lines, performance)
             }
         } catch is CancellationError {
             // Stopped cleanly between tokens.

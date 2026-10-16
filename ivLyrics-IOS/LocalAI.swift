@@ -104,10 +104,23 @@ enum LocalAI {
     static let partSeparator = " / "
     private static let maxOutputTokens = 1536
 
+    struct GenerationPerformance: Equatable, Sendable {
+        var tokens: Int
+        var seconds: Double
+
+        var tokensPerSecond: Double? {
+            guard tokens > 0, seconds.isFinite, seconds > 0 else { return nil }
+            let speed = Double(tokens) / seconds
+            return speed.isFinite ? speed : nil
+        }
+    }
+
     struct Completion: Equatable, Sendable {
         var text: String
         /// The reply ended because it reached the token budget (finish_reason "length").
         var stoppedAtLimit: Bool
+        /// Actual sampled output tokens and monotonic generation time, after prompt prefill.
+        var performance: GenerationPerformance? = nil
     }
 
     /// Characters are counted in UTF-16 code units, like JavaScript's String.length on PC.

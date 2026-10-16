@@ -137,7 +137,10 @@ final class LlamaInferenceEngine: LocalAIInferenceEngine, @unchecked Sendable {
         var piece = [CChar](repeating: 0, count: 256)
         var generated = 0
         var stoppedAtLimit = false
+        // Prompt tokenization/prefill and model loading are finished before this clock starts.
+        let decodeStarted = ProcessInfo.processInfo.systemUptime
         while true {
+            if shouldStop() { throw CancellationError() }
             var token = llama_sampler_sample(sampler, context, -1)
             if llama_vocab_is_eog(vocab, token) { break }
             var count = llama_token_to_piece(vocab, token, &piece, Int32(piece.count), 0, false)
@@ -157,7 +160,9 @@ final class LlamaInferenceEngine: LocalAIInferenceEngine, @unchecked Sendable {
             let status = llama_decode(context, llama_batch_get_one(&token, 1))
             guard status == 0 else { throw LocalAIError.engine("Decoding failed (\(status)).") }
         }
-        return LocalAI.Completion(text: String(decoding: output, as: UTF8.self), stoppedAtLimit: stoppedAtLimit)
+        if shouldStop() { throw CancellationError() }
+        return LocalAI.Completion(text: String(decoding: output, as: UTF8.self), stoppedAtLimit: stoppedAtLimit,
+                                  performance: .init(tokens: generated, seconds: ProcessInfo.processInfo.systemUptime - decodeStarted))
     }
 
     /// One user message through the model's chat template; no system prompt.

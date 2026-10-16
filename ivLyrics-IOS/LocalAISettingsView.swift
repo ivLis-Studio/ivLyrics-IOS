@@ -39,6 +39,9 @@ struct LocalAISettingsPanel: View {
                 .settingsRowSeparator()
         }
         .onAppear { controller.refresh() }
+        .onDisappear { controller.clearTest() }
+        .onChange(of: settings.snapshot.targetLanguage) { _, _ in controller.clearTest() }
+        .onChange(of: settings.uiLang) { _, _ in controller.clearTest() }
         .onChange(of: settings.localAITier) { _, _ in
             confirmingDelete = false
             controller.configurationChanged(configuration)
@@ -116,8 +119,28 @@ struct LocalAISettingsPanel: View {
                 }
             }
             switch controller.test {
-            case let .passed(message)?:
-                testResult(message, color: palette.ok)
+            case let .passed(result)?:
+                VStack(alignment: .leading, spacing: 4) {
+                    testResult("✓ \(result.sample) → \(result.line)", color: palette.ok)
+                    testResult(LocalAI.format(settings.t("local_ai.test_total_time"), [
+                        "seconds": String(format: "%.1f", result.seconds)
+                    ]), color: palette.text2)
+                    if let performance = result.performance, let speed = performance.tokensPerSecond {
+                        testResult(LocalAI.format(settings.t("local_ai.test_speed"), [
+                            "speed": String(format: "%.1f", speed), "tokens": String(performance.tokens),
+                            "seconds": String(format: "%.2f", performance.seconds)
+                        ]), color: palette.text2)
+                        testResult(settings.t("local_ai.test_speed_scope"), color: palette.text3)
+                    } else {
+                        testResult(settings.t("local_ai.test_speed_unavailable"), color: palette.text2)
+                    }
+                    if tier.sliderIndex > 0 {
+                        testResult(LocalAI.format(settings.t("local_ai.test_smaller_hint"), [
+                            "tier": settings.t(LocalAI.Tier(sliderIndex: tier.sliderIndex - 1).titleKey)
+                        ]), color: palette.text3)
+                    }
+                }
+                .accessibilityElement(children: .combine)
             case let .failed(message)?:
                 testResult(message, color: palette.danger)
             default:

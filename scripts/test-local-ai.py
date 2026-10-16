@@ -45,6 +45,14 @@ assert sorted(bundle) == sorted(languages), sorted(bundle)
 for code, strings in bundle.items():
     assert strings.get("local_ai.performance_note", "").strip(), f"{code}: missing the Local AI performance note"
     assert not re.search(r"(?i)click|clic|cliqu|klick|klik", strings["local_ai.confirm_remove"]), f"{code}: say tap, not click"
+    for key, placeholders in {
+        "test_total_time": ["seconds"], "test_speed": ["speed", "tokens", "seconds"],
+        "test_speed_unavailable": [], "test_speed_scope": [], "test_smaller_hint": ["tier"]
+    }.items():
+        value = strings.get("local_ai." + key, "")
+        assert value.strip(), f"{code}: missing {key}"
+        assert sorted(re.findall(r"\{(\w+)\}", value)) == sorted(placeholders), f"{code}: {key} placeholders"
+        assert not re.search(r"Hy-MT|GGUF|Tencent|wllama|https?://", value, re.I), f"{code}: {key} leaks internals"
 assert bundle["ko"]["local_ai.performance_note"] == "기기 성능에 따라 속도와 안정성이 크게 달라집니다. 고사양 기기가 아니라면 사용을 권장하지 않습니다."
 
 helpers = '''import Foundation
@@ -76,6 +84,12 @@ enum AppSettings {
         }
 // GATES
     }
+}
+enum AppI18n {
+    static func t(_ language: String, _ key: String) -> String { key }
+}
+extension LocalAIService {
+    static let shared = LocalAIService(directory: FileManager.default.temporaryDirectory, loader: nil)
 }
 '''
 helpers = helpers.replace("// PROVIDERS", section(settings, "    static let providers: [Provider] = [", "    static let languages: [Language] = ["))
@@ -283,6 +297,8 @@ struct Regression {
         algorithm()
         providerList()
         try await translation()
+        try await outputPerformance()
+        try await controllerPerformance()
         try await failuresAndGates()
         try await idleAndMemory()
         try await downloads()
@@ -452,6 +468,68 @@ struct Regression {
         _ = try await (prefetch.value, onScreen.value)
         let sequence = order.allPrompts.map { source($0).components(separatedBy: "\n")[0] }
         check(sequence == ["bg0", "fg0", "bg8", "bg16"], "on-screen lyrics first: \(sequence)")
+    }
+
+    static func outputPerformance() async throws {
+        let measured = LocalAI.GenerationPerformance(tokens: 8, seconds: 2)
+        check(measured.tokensPerSecond == 4, "actual output tokens / decode time")
+        for performance in [LocalAI.GenerationPerformance(tokens: 0, seconds: 1),
+                            .init(tokens: -1, seconds: 1), .init(tokens: 8, seconds: 0),
+                            .init(tokens: 8, seconds: -1), .init(tokens: 8, seconds: .infinity),
+                            .init(tokens: 8, seconds: .nan), .init(tokens: 8, seconds: .leastNonzeroMagnitude)] {
+            check(performance.tokensPerSecond == nil, "invalid measurement stays unavailable")
+        }
+        let available = LocalAIService(directory: try directory([.light]), loader: makeLoader(Recorder()) { _ in
+            .init(text: "short", stoppedAtLimit: false, performance: measured)
+        })
+        let first = try await available.testTranslation(targetLanguage: "ko", configuration: light, messages: messages)
+        check(first.line == "short" && first.performance == measured, "statistics stay with the completion, not text length or wall time")
+        let unmeasured = LocalAIService(directory: try directory([.light]), loader: makeLoader(Recorder()))
+        let missing = try await unmeasured.testTranslation(targetLanguage: "ko", configuration: light, messages: messages)
+        check(missing.performance == nil, "no statistics means unavailable, not an estimate")
+        let cancelled = LocalAIService(directory: try directory([.light]), loader: makeLoader(Recorder(), hold: Hold()))
+        let task = Task { try await cancelled.testTranslation(targetLanguage: "ko", configuration: light, messages: messages) }
+        task.cancel()
+        do { _ = try await task.value; fatalError("cancelled test returned statistics") }
+        catch is CancellationError { check(true, "cancelled test has no result") }
+    }
+
+    @MainActor
+    static func controllerPerformance() async throws {
+        let recorder = Recorder()
+        let hold = Hold()
+        let firstLoad = FailOnce()
+        let loader: LocalAIEngineLoader = { url, processor in
+            recorder.load(url.lastPathComponent)
+            return FixtureEngine(usesGPU: processor == .auto, recorder: recorder, reply: { _ in
+                .init(text: "fixture", stoppedAtLimit: false, performance: .init(tokens: 12, seconds: 3))
+            }, hold: firstLoad.take() ? hold : nil)
+        }
+        let service = LocalAIService(directory: try directory([.light, .medium]), loader: loader)
+        let controller = LocalAIController(service: service)
+        controller.runTest(targetLanguage: "ko", configuration: light, uiLanguage: "en")
+        await hold.waitStarted()
+        controller.configurationChanged(.init(tier: .medium))
+        check(controller.test == nil, "configuration clears a running test")
+        hold.release()
+        try await waitUntil("cancelled engine finished") {
+            let queued = await service.queuedBlockCounts
+            return recorder.allPrompts.count == 0 && queued.interactive == 0
+        }
+        controller.runTest(targetLanguage: "ko", configuration: light, uiLanguage: "en")
+        try await waitUntil("new test finished") { await MainActor.run { controller.test != .running } }
+        if case let .passed(result)? = controller.test {
+            check(result.performance?.tokensPerSecond == 4, "new test exposes its own statistics")
+        } else { fatalError("new test did not pass") }
+        controller.freeMemory()
+        check(controller.test == nil, "Free memory clears the previous result")
+        controller.runTest(targetLanguage: "ko", configuration: light, uiLanguage: "en")
+        controller.clearTest()
+        check(controller.test == nil, "closing the panel invalidates the request")
+        controller.runTest(targetLanguage: "sv", configuration: light, uiLanguage: "en")
+        try await waitUntil("failed test finished") { await MainActor.run { controller.test != .running } }
+        if case .failed? = controller.test { check(true, "failure replaces the previous speed") }
+        else { fatalError("failure left a successful result") }
     }
 
     static func failuresAndGates() async throws {
@@ -739,6 +817,7 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-local-ai-") as directory:
     (directory / "Regression.swift").write_text(checks, encoding="utf-8")
     executable = directory / "regression"
     subprocess.run(["swiftc", str(directory / "Helpers.swift"), str(SRC / "LocalAI.swift"), str(SRC / "LocalAIService.swift"),
+                    str(SRC / "LocalAIController.swift"),
                     str(directory / "Regression.swift"), "-o", str(executable)], check=True)
     work = directory / "work"
     work.mkdir()

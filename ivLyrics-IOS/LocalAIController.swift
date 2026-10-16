@@ -50,7 +50,7 @@ final class LocalAIController: ObservableObject {
 
     enum TestState: Equatable {
         case running
-        case passed(String)
+        case passed(LocalAI.TestResult)
         case failed(String)
     }
 
@@ -61,6 +61,7 @@ final class LocalAIController: ObservableObject {
     private var started = false
     private var observers: [NSObjectProtocol] = []
     private var testToken = 0
+    private var testTask: Task<Void, Never>?
 
     init(service: LocalAIService = .shared) {
         self.service = service
@@ -103,29 +104,31 @@ final class LocalAIController: ObservableObject {
     }
 
     func download(_ tier: LocalAI.Tier) {
-        test = nil
+        clearTest()
         let service = self.service
         Task { await service.startDownload(tier) }
     }
 
     func cancelDownload() {
+        clearTest()
         let service = self.service
         Task { await service.cancelDownload() }
     }
 
     func delete(_ tier: LocalAI.Tier) {
-        test = nil
+        clearTest()
         let service = self.service
         Task { try? await service.delete(tier) }
     }
 
     func freeMemory() {
+        clearTest()
         let service = self.service
         Task { await service.releaseEngine() }
     }
 
     func configurationChanged(_ configuration: LocalAI.Configuration) {
-        test = nil
+        clearTest()
         let service = self.service
         Task {
             await service.configurationChanged(configuration)
@@ -140,11 +143,11 @@ final class LocalAIController: ObservableObject {
 
     /// "Test translation": loads the model if needed and translates the sample line.
     func runTest(targetLanguage: String, configuration: LocalAI.Configuration, uiLanguage: String) {
-        testToken += 1
+        clearTest()
         let token = testToken
         test = .running
         let service = self.service
-        Task {
+        testTask = Task {
             let outcome: TestState
             do {
                 let result = try await service.testTranslation(
@@ -152,16 +155,22 @@ final class LocalAIController: ObservableObject {
                     configuration: configuration,
                     messages: .app(uiLanguage: uiLanguage)
                 )
-                outcome = .passed("✓ \(result.sample) → \(result.line) (\(String(format: "%.1f", result.seconds))s)")
+                try Task.checkCancellation()
+                outcome = .passed(result)
             } catch {
                 outcome = .failed("✗ \(LocalAI.Failure(error).message(uiLanguage: uiLanguage))")
             }
-            if token == testToken { test = outcome }
+            if token == testToken {
+                test = outcome
+                testTask = nil
+            }
         }
     }
 
     func clearTest() {
         testToken += 1
+        testTask?.cancel()
+        testTask = nil
         test = nil
     }
 }
