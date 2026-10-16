@@ -5,6 +5,9 @@ import XCTest
 @MainActor
 final class SettingsLayoutUITests: XCTestCase {
     private var app: XCUIApplication!
+    // AX subtracts fractional screen coordinates when reporting a CGRect.
+    // A genuine 44pt control can arrive as 43.99999999999994pt after scrolling.
+    private let minimumTouchExtent: CGFloat = 44 - 0.000001
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -119,11 +122,11 @@ final class SettingsLayoutUITests: XCTestCase {
 
     private func assertTouchTarget(_ element: XCUIElement, contained: Bool = true, file: StaticString = #filePath, line: UInt = #line) {
         let frame = app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1)
-        if !element.exists || element.frame.width < 44 || element.frame.height < 44 || !element.isHittable || (contained && !frame.contains(element.frame)) {
+        if !element.exists || element.frame.width < minimumTouchExtent || element.frame.height < minimumTouchExtent || !element.isHittable || (contained && !frame.contains(element.frame)) {
             capture("invalid-touch-target-\(element.exists ? element.identifier : "missing-control")")
         }
-        XCTAssertGreaterThanOrEqual(element.frame.width, 44, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(element.frame.height, 44, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(element.frame.width, minimumTouchExtent, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(element.frame.height, minimumTouchExtent, file: file, line: line)
         XCTAssertTrue(element.isHittable, file: file, line: line)
         if contained {
             XCTAssertTrue(frame.contains(element.frame), "Control extends outside the window: \(element.frame)", file: file, line: line)
@@ -135,8 +138,8 @@ final class SettingsLayoutUITests: XCTestCase {
         // AX may expose the 31pt native switch rather than its 44pt wrapper.
         let hitArea = app.otherElements["ui.hit.\(toggle.identifier)"]
         XCTAssertTrue(hitArea.exists)
-        XCTAssertGreaterThanOrEqual(hitArea.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(hitArea.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(hitArea.frame.width, minimumTouchExtent)
+        XCTAssertGreaterThanOrEqual(hitArea.frame.height, minimumTouchExtent)
         XCTAssertFalse(toggle.frame.isEmpty)
     }
 

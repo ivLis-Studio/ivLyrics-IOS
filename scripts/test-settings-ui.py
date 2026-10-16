@@ -150,7 +150,8 @@ assert 'settings.t("tmi.regenerate")' not in popup
 assert 'Color.black.opacity(0.56)' in popup and 'scrollableContentHeight' not in popup
 assert "attachment.lifetime = .keepAlways" in ui_tests and "XCUIScreen.main.screenshot()" in ui_tests
 assert "launch-\\(surface)-missing-marker" in ui_tests and "invalid-touch-target-" in ui_tests
-assert "XCTAssertGreaterThanOrEqual(element.frame.height, 44" in ui_tests
+assert "minimumTouchExtent: CGFloat = 44 - 0.000001" in ui_tests
+assert "XCTAssertGreaterThanOrEqual(element.frame.height, minimumTouchExtent" in ui_tests
 
 # Navigation has its own observable completion condition. A slow CI AX snapshot
 # must not be mistaken for a missing scroll container or cause a second tap.
@@ -168,6 +169,11 @@ for method_name, tap in [
 
 drag_math = declaration(ui_tests, "private static func revealDragDistance(").replace("private static func", "func", 1)
 drag_checks = r'''
+// AX floating-point subtraction must preserve a true 44pt target without
+// allowing a physically smaller one through the native hit-target assertion.
+let minimumTouchExtent: CGFloat = 44 - 0.000001
+precondition(43.99999999999994 >= minimumTouchExtent)
+precondition(43.999 < minimumTouchExtent)
 let viewport = CGRect(x: 236, y: 96, width: 402, height: 262)
 let above = CGRect(x: 236, y: 42.3, width: 402, height: 68) // Exact fourth-CI failure.
 let below = CGRect(x: 236, y: 357, width: 402, height: 68)
