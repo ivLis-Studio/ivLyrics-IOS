@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.2",
+          "buildVersion": "66",
+          "date": "2026-10-16",
+          "localizedDescription": "ivLyrics iOS 2.0.2는 설정 홈의 브랜드 표현과 설정 카테고리 전환 구조를 개선하고, 로컬 AI 테스트에서 토큰 생성 속도를 확인할 수 있도록 업데이트했습니다. 또한 동영상 배경의 하단 안전 영역 표시를 보완했으며, 릴리스 및 배포 메타데이터 검증을 강화했습니다.\n\nivLyrics iOS 2.0.2 improves the Settings home branding and the way Settings categories are constructed, while adding token-generation speed reporting for Local AI tests. It also corrects bottom safe-area coverage for video backdrops and strengthens release and distribution metadata validation.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.2/ivLyrics-IOS-v2.0.2-unsigned.ipa",
+          "size": 14401799,
+          "sha256": "b3bfdc67157cb09155970cd83ceb9d3dc23940b544c7e9aedfd083db15d1a2b6",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.1",
           "buildVersion": "64",
           "date": "2026-10-16",
