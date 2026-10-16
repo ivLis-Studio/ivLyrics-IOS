@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.3",
+          "buildVersion": "70",
+          "date": "2026-10-16",
+          "localizedDescription": "v2.0.3는 이전 릴리스 이후의 8개 변경을 기능별로 정리하고 AltStore 설치용 무서명 IPA를 함께 제공하는 업데이트입니다.\n\nv2.0.3 contains 8 changes since the previous release, organized by product area and accompanied by an unsigned IPA for AltStore.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.3/ivLyrics-IOS-v2.0.3-unsigned.ipa",
+          "size": 14442696,
+          "sha256": "22f272bfec9f52c17bca79eb73c0c07e29b318b20a907abf8ca6de8397fc87c4",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.2",
           "buildVersion": "66",
           "date": "2026-10-16",
@@ -622,7 +632,9 @@
       ],
       "appPermissions": {
         "entitlements": [],
-        "privacy": {}
+        "privacy": {
+          "NSLocalNetworkUsageDescription": "Connect to your custom LRCLIB server to load lyrics on your local network."
+        }
       }
     }
   ],
