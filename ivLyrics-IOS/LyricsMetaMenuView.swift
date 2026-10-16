@@ -32,6 +32,7 @@ struct LyricsMetaMenuOverlay: View {
     @Binding var selectedTab: LyricsMetaMenuTab
     var screenHeight: CGFloat
     var openPictureInPicture: () -> Void = {}
+    var isSettingsPage = false
     @State private var videoURL = ""
     @State private var videoError = ""
     @State private var communityVideos: [YouTubeVideoInfo] = []
@@ -49,8 +50,60 @@ struct LyricsMetaMenuOverlay: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.settingsPalette) private var palette
 
     var body: some View {
+        Group {
+            if isSettingsPage {
+                settingsPageContent
+            } else {
+                overlay
+            }
+        }
+        .onChange(of: selectedTab) { _, _ in focusedField = nil; backgroundColorFieldFocused = false }
+        .onChange(of: model.currentTrackKey) { _, _ in
+            communityRequestID = UUID()
+            communityTask?.cancel()
+            videoSelectionTask?.cancel()
+            videoSelectionID = UUID(); selectingVideo = false
+            communityVideos = []; communityLoading = false; videoURL = ""; videoError = ""
+        }
+        .onDisappear {
+            communityTask?.cancel(); videoSelectionTask?.cancel()
+            communityRequestID = UUID(); videoSelectionID = UUID()
+        }
+    }
+
+    private var settingsPageContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if model.currentTrackKey.isEmpty {
+                SettingsNoteRow(text: settings.t("label.no_current_track"), systemImage: "music.note")
+            } else {
+                Text([model.titleText, model.artistText].filter { !$0.trimmed.isEmpty }.joined(separator: " · "))
+                    .font(.subheadline)
+                    .foregroundStyle(palette.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                sectionSelector
+                tabContent
+            }
+        }
+        .padding(.top, 12)
+        .foregroundStyle(palette.text)
+        .tint(palette.accentText)
+        .accessibilityIdentifier("settings.currentTrack")
+    }
+
+    private var textColor: Color { isSettingsPage ? palette.text : .white }
+    private var selectedTextColor: Color { isSettingsPage ? palette.inkText : .black }
+    private var accentColor: Color {
+        isSettingsPage ? palette.accent : Color(red: 116.0 / 255.0, green: 207.0 / 255.0, blue: 203.0 / 255.0)
+    }
+
+    private func controlBackground(_ opacity: Double = 0.14) -> Color {
+        isSettingsPage ? palette.surface3 : .white.opacity(opacity)
+    }
+
+    private var overlay: some View {
         GeometryReader { geometry in
         ZStack {
             Color.black.opacity(0.56)
@@ -72,18 +125,6 @@ struct LyricsMetaMenuOverlay: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
         .accessibilityIdentifier("lyrics.menu.root")
-        .onChange(of: selectedTab) { _, _ in focusedField = nil; backgroundColorFieldFocused = false }
-        .onChange(of: model.currentTrackKey) { _, _ in
-            communityRequestID = UUID()
-            communityTask?.cancel()
-            videoSelectionTask?.cancel()
-            videoSelectionID = UUID(); selectingVideo = false
-            communityVideos = []; communityLoading = false; videoURL = ""; videoError = ""
-        }
-        .onDisappear {
-            communityTask?.cancel(); videoSelectionTask?.cancel()
-            communityRequestID = UUID(); videoSelectionID = UUID()
-        }
     }
 
     private var panel: some View {
@@ -93,7 +134,7 @@ struct LyricsMetaMenuOverlay: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Button { openPictureInPicture(); dismiss() } label: {
                             SettingsActionLabel(title: settings.t("pip.open_lyrics"), systemImage: "pip")
-                                .background(.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
+                                .background(controlBackground(0.15), in: RoundedRectangle(cornerRadius: 10))
                         }
                         .buttonStyle(SettingsActionButtonStyle())
                     tabContent
@@ -107,7 +148,7 @@ struct LyricsMetaMenuOverlay: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .foregroundStyle(.white)
+        .foregroundStyle(textColor)
         .background(
             Color(red: 18.0 / 255.0, green: 20.0 / 255.0, blue: 30.0 / 255.0),
             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -116,16 +157,7 @@ struct LyricsMetaMenuOverlay: View {
 
     private var topRow: some View {
         HStack(spacing: 8) {
-            if dynamicTypeSize.isAccessibilitySize || verticalSizeClass == .compact {
-                Picker(settings.t("settings.title"), selection: $selectedTab) {
-                    ForEach(LyricsMetaMenuTab.allCases) { tab in Text(tabTitle(tab)).tag(tab) }
-                }
-                .pickerStyle(.menu)
-                .font(.body)
-                .tint(.white)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .accessibilityIdentifier("lyrics.menu.sections")
-            } else { tabRow }
+            sectionSelector
             Button(action: dismiss) {
                 Image(systemName: "xmark")
                     .frame(width: 44, height: 44)
@@ -136,6 +168,20 @@ struct LyricsMetaMenuOverlay: View {
             .accessibilityIdentifier("lyrics.menu.close")
         }
         .simultaneousGesture(dismissDragGesture)
+    }
+
+    @ViewBuilder
+    private var sectionSelector: some View {
+        if dynamicTypeSize.isAccessibilitySize || verticalSizeClass == .compact {
+            Picker(settings.t("settings.title"), selection: $selectedTab) {
+                ForEach(LyricsMetaMenuTab.allCases) { tab in Text(tabTitle(tab)).tag(tab) }
+            }
+            .pickerStyle(.menu)
+            .font(.body)
+            .tint(isSettingsPage ? palette.accentText : .white)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .accessibilityIdentifier("lyrics.menu.sections")
+        } else { tabRow }
     }
 
     private var tabRow: some View {
@@ -153,9 +199,9 @@ struct LyricsMetaMenuOverlay: View {
                                 .frame(minWidth: 72)
                                 .padding(.vertical, 8)
                                 .frame(minHeight: 44)
-                                .foregroundStyle(selectedTab == tab ? Color.black : Color.white)
+                                .foregroundStyle(selectedTab == tab ? selectedTextColor : textColor)
                                 .background(
-                                    selectedTab == tab ? Color.white.opacity(0.96) : Color.white.opacity(0.14),
+                                    selectedTab == tab ? textColor.opacity(0.96) : controlBackground(),
                                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 )
                         }
@@ -223,7 +269,7 @@ struct LyricsMetaMenuOverlay: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(languageRuleSummary)
                 .font(.pretendard(12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(textColor.opacity(0.82))
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -249,10 +295,10 @@ struct LyricsMetaMenuOverlay: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .frame(minHeight: 44)
-                .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
-            .tint(.white)
+            .tint(textColor)
 
             VStack(spacing: 8) {
                 metaToggleCell(
@@ -278,7 +324,7 @@ struct LyricsMetaMenuOverlay: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .frame(minHeight: 44)
-                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(model.culturalAnnotationsLoading)
@@ -289,7 +335,7 @@ struct LyricsMetaMenuOverlay: View {
                 dismiss()
             } label: {
                 SettingsActionLabel(title: settings.t("button.save_regenerate"), systemImage: "arrow.clockwise", busy: model.lyricsGenerationLoadingText != nil)
-                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+                    .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10))
             }
             .buttonStyle(SettingsActionButtonStyle())
             .disabled(model.lyricsResult.lines.isEmpty || model.lyricsGenerationLoadingText != nil)
@@ -338,8 +384,8 @@ struct LyricsMetaMenuOverlay: View {
             TextField(settings.t("video.url"), text: $videoURL)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .textFieldStyle(SettingsTextFieldStyle())
-                .foregroundStyle(.primary)
+                .textFieldStyle(SettingsTextFieldStyle(palette: isSettingsPage ? palette : nil))
+                .foregroundStyle(isSettingsPage ? textColor : .primary)
                 .focused($focusedField, equals: "video")
                 .submitLabel(.done)
                 .onSubmit { focusedField = nil }
@@ -356,7 +402,7 @@ struct LyricsMetaMenuOverlay: View {
                     selectVideo(info, trackKey: track.stableKey)
                 } label: {
                     SettingsActionLabel(title: settings.t("button.done"), busy: selectingVideo)
-                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+                        .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10))
                 }
                 .accessibilityIdentifier("lyrics.menu.video.apply")
                 Button {
@@ -365,7 +411,7 @@ struct LyricsMetaMenuOverlay: View {
                     selectVideo(nil, trackKey: key)
                 } label: {
                     SettingsActionLabel(title: settings.t("label.auto"))
-                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+                        .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10))
                 }
             }
             .buttonStyle(SettingsActionButtonStyle())
@@ -391,7 +437,7 @@ struct LyricsMetaMenuOverlay: View {
                 }
             } label: {
                 SettingsActionLabel(title: settings.t("video.community"), busy: communityLoading)
-                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+                    .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10))
             }
             .buttonStyle(SettingsActionButtonStyle())
             .disabled(communityLoading || selectingVideo || model.currentTrackKey.isEmpty)
@@ -435,7 +481,7 @@ struct LyricsMetaMenuOverlay: View {
                 .font(.pretendard(14, weight: .bold))
             Text(settings.t("lyrics.background.desc"))
                 .font(.pretendard(11))
-                .foregroundStyle(.white.opacity(0.66))
+                .foregroundStyle(textColor.opacity(0.66))
                 .lineSpacing(2)
 
             metaToggleCell(
@@ -448,7 +494,7 @@ struct LyricsMetaMenuOverlay: View {
             if model.currentTrackKey.isEmpty {
                 Text(settings.t("label.no_current_track"))
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(textColor.opacity(0.58))
             } else {
                 metaSettingGroup(
                     title: settings.t("setting.background_mode"),
@@ -509,7 +555,7 @@ struct LyricsMetaMenuOverlay: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .frame(minHeight: 44)
-                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -533,7 +579,7 @@ struct LyricsMetaMenuOverlay: View {
                 .font(.pretendard(14, weight: .bold))
             Text(settings.t("lyrics.lrclib_search.desc"))
                 .font(.pretendard(11))
-                .foregroundStyle(.white.opacity(0.66))
+                .foregroundStyle(textColor.opacity(0.66))
                 .lineSpacing(2)
                 .padding(.top, 5)
 
@@ -556,8 +602,8 @@ struct LyricsMetaMenuOverlay: View {
             } label: {
                 SettingsActionLabel(title: settings.t("lyrics.lrclib_search.button"), busy: model.searchingManualCandidates)
                     .font(.pretendard(14, weight: .bold))
-                    .foregroundStyle(.black)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .foregroundStyle(selectedTextColor)
+                    .background(textColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(model.searchingManualCandidates || model.inputTitle.trimmed.isEmpty)
@@ -566,14 +612,14 @@ struct LyricsMetaMenuOverlay: View {
 
             Text(model.manualLrclibStatus)
                 .font(.pretendard(11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.67))
+                .foregroundStyle(textColor.opacity(0.67))
                 .lineSpacing(2)
                 .padding(.top, 9)
 
             VStack(spacing: 8) {
                 if model.searchingManualCandidates {
                     ProgressView()
-                        .tint(.white)
+                        .tint(textColor)
                         .frame(maxWidth: .infinity, minHeight: 164)
                 } else {
                     ForEach(model.manualCandidates) { candidate in
@@ -588,17 +634,17 @@ struct LyricsMetaMenuOverlay: View {
                                 if !manualLrclibArtistAlbumText(candidate).isEmpty {
                                     Text(manualLrclibArtistAlbumText(candidate))
                                         .font(.pretendard(12))
-                                        .foregroundStyle(.white.opacity(0.64))
+                                        .foregroundStyle(textColor.opacity(0.64))
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                                 Text(manualLrclibMetaText(candidate))
                                     .font(.caption2.monospacedDigit())
-                                    .foregroundStyle(.white.opacity(0.50))
+                                    .foregroundStyle(textColor.opacity(0.50))
                                     .lineLimit(1)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(10)
-                            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+                            .background(controlBackground(0.07), in: RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
                     }
@@ -606,7 +652,7 @@ struct LyricsMetaMenuOverlay: View {
             }
             .frame(maxWidth: .infinity, minHeight: 180, alignment: .top)
             .padding(8)
-            .background(.white.opacity(22.0 / 255.0), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(controlBackground(22.0 / 255.0), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.top, 8)
         }
     }
@@ -617,7 +663,7 @@ struct LyricsMetaMenuOverlay: View {
                 .font(.pretendard(14, weight: .bold))
             Text(detail)
                 .font(.pretendard(11))
-                .foregroundStyle(.white.opacity(0.66))
+                .foregroundStyle(textColor.opacity(0.66))
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -626,7 +672,7 @@ struct LyricsMetaMenuOverlay: View {
                 .monospacedDigit()
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 54)
-                .background(.white.opacity(34.0 / 255.0), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(controlBackground(34.0 / 255.0), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.top, 4)
                 .accessibilityIdentifier("lyrics.menu.offset.\(identifier).value")
 
@@ -639,7 +685,7 @@ struct LyricsMetaMenuOverlay: View {
             } label: {
                 SettingsActionLabel(title: resetTitle)
                     .font(.pretendard(13, weight: .semibold))
-                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(SettingsActionButtonStyle())
             .accessibilityIdentifier("lyrics.menu.offset.\(identifier).reset")
@@ -656,7 +702,7 @@ struct LyricsMetaMenuOverlay: View {
                     SettingsActionLabel(title: delta > 0 ? "+\(delta)" : "\(delta)")
                         .font(.pretendard(13, weight: .semibold))
                         .monospacedDigit()
-                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(SettingsActionButtonStyle())
                 .accessibilityIdentifier("lyrics.menu.offset.\(identifier).delta.\(delta)")
@@ -754,12 +800,12 @@ struct LyricsMetaMenuOverlay: View {
                 .font(.pretendard(13, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(selected ? Color.black : Color.white)
+                .foregroundStyle(selected ? selectedTextColor : textColor)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .frame(minHeight: 44)
                 .background(
-                    selected ? Color.white.opacity(0.94) : Color.white.opacity(0.14),
+                    selected ? textColor.opacity(0.94) : controlBackground(),
                     in: RoundedRectangle(cornerRadius: 11, style: .continuous)
                 )
         }
@@ -777,7 +823,7 @@ struct LyricsMetaMenuOverlay: View {
             if !subtitle.trimmed.isEmpty {
                 Text(subtitle)
                     .font(.pretendard(11))
-                    .foregroundStyle(.white.opacity(150.0 / 255.0))
+                    .foregroundStyle(textColor.opacity(150.0 / 255.0))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 5)
@@ -788,7 +834,7 @@ struct LyricsMetaMenuOverlay: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(30.0 / 255.0), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(controlBackground(30.0 / 255.0), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func metaSliderGroup(
@@ -807,11 +853,11 @@ struct LyricsMetaMenuOverlay: View {
                 })
                 .frame(minHeight: 44)
                 .accessibilityLabel(title)
-                .tint(Color(red: 116.0 / 255.0, green: 207.0 / 255.0, blue: 203.0 / 255.0))
+                .tint(accentColor)
                 Text("\(Int(value.wrappedValue.rounded()))%")
                     .font(.pretendard(12, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(.white.opacity(180.0 / 255.0))
+                    .foregroundStyle(textColor.opacity(180.0 / 255.0))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -826,21 +872,21 @@ struct LyricsMetaMenuOverlay: View {
                 if let subtitle, !subtitle.trimmed.isEmpty {
                     Text(subtitle)
                         .font(.pretendard(11))
-                        .foregroundStyle(.white.opacity(0.64))
+                        .foregroundStyle(textColor.opacity(0.64))
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
         .toggleStyle(.switch)
-        .tint(Color(red: 116.0 / 255.0, green: 207.0 / 255.0, blue: 203.0 / 255.0))
+        .tint(accentColor)
         .accessibilityIdentifier("lyrics.menu.toggle.\(title)")
         .padding(.horizontal, subtitle == nil ? 12 : 14)
         .padding(.vertical, subtitle == nil ? 0 : 12)
         .frame(maxWidth: .infinity)
         .frame(minHeight: subtitle == nil ? 48 : 62)
         .background(
-            .white.opacity(subtitle == nil ? 0.14 : 34.0 / 255.0),
+            controlBackground(subtitle == nil ? 0.14 : 34.0 / 255.0),
             in: RoundedRectangle(cornerRadius: subtitle == nil ? 10 : 12, style: .continuous)
         )
     }
@@ -849,7 +895,7 @@ struct LyricsMetaMenuOverlay: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(settings.t("speaker_color.hex_hint"))
                 .font(.body)
-                .foregroundStyle(.white.opacity(0.76))
+                .foregroundStyle(textColor.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
             ColorPicker("", selection: trackBackgroundColorPickerBinding, supportsOpacity: false)
@@ -867,10 +913,10 @@ struct LyricsMetaMenuOverlay: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .font(.pretendard(12, weight: .semibold).monospaced())
-                .foregroundStyle(backgroundColorDraftInvalid ? Color.red : Color.white)
+                .foregroundStyle(backgroundColorDraftInvalid ? Color.red : textColor)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .accessibilityLabel(settings.t("field.solid_color"))
-                .background(.white.opacity(38.0 / 255.0), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(controlBackground(38.0 / 255.0), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .focused($backgroundColorFieldFocused)
                 .onChange(of: backgroundColorDraft) { _, value in
                     backgroundColorDraftInvalid = !value.trimmed.isEmpty && !AppSettings.isHexColor(value)
@@ -935,32 +981,32 @@ struct LyricsMetaMenuOverlay: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.pretendard(14, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(textColor)
             TextField(prompt, text: text)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .font(.pretendard(14))
-                .foregroundStyle(.white)
+                .foregroundStyle(textColor)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 48)
-                .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .focused($focusedField, equals: title)
                 .submitLabel(.done)
                 .onSubmit { focusedField = nil }
                 .accessibilityLabel(title)
         }
         .padding(8)
-        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func statusText(_ title: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
-                .foregroundStyle(.white.opacity(0.54))
+                .foregroundStyle(textColor.opacity(0.54))
             Spacer(minLength: 16)
             Text(value)
                 .multilineTextAlignment(.trailing)
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(textColor.opacity(0.82))
         }
         .font(.caption)
     }
@@ -986,6 +1032,7 @@ struct LyricsMetaMenuOverlay: View {
     private func dismiss() {
         focusedField = nil
         backgroundColorFieldFocused = false
+        guard !isSettingsPage else { return }
         communityTask?.cancel(); videoSelectionTask?.cancel()
         communityRequestID = UUID(); videoSelectionID = UUID()
         dragOffset = 0

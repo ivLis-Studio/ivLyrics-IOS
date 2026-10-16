@@ -159,16 +159,18 @@ struct SettingsSwitchStyle: ToggleStyle {
     }
 }
 
-/// Text fields of the dark lyrics popup.
+/// Shared text fields; the lyrics popup keeps its dark styling by default.
 struct SettingsTextFieldStyle: TextFieldStyle {
+    var palette: SettingsPalette? = nil
+
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .font(.body)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(minHeight: 48)
-            .background(SettingsDesign.control, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(SettingsDesign.strongBorder))
+            .background(palette?.surface2 ?? SettingsDesign.control, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(palette?.line2 ?? SettingsDesign.strongBorder))
     }
 }
 

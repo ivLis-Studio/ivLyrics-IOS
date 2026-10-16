@@ -1,5 +1,6 @@
 {
   "ko": {
+    "tab.current_track": "현재 재생 곡 설정",
     "button.clear_search": "검색어 지우기",
     "section.account": "계정",
     "section.layout": "레이아웃",
@@ -885,6 +886,7 @@
     "onboarding.metadata_optional": "메타데이터 보강 (선택)"
   },
   "en": {
+    "tab.current_track": "Current track settings",
     "button.clear_search": "Clear search",
     "section.account": "Account",
     "section.layout": "Layout",
@@ -1770,6 +1772,7 @@
     "onboarding.metadata_optional": "Metadata enrichment (optional)"
   },
   "zh-CN": {
+    "tab.current_track": "当前播放歌曲设置",
     "button.clear_search": "清除搜索",
     "section.account": "账户",
     "section.layout": "布局",
@@ -2655,6 +2658,7 @@
     "onboarding.metadata_optional": "元数据增强（可选）"
   },
   "zh-TW": {
+    "tab.current_track": "目前播放歌曲設定",
     "button.clear_search": "清除搜尋",
     "section.account": "帳戶",
     "section.layout": "版面配置",
@@ -3540,6 +3544,7 @@
     "onboarding.metadata_optional": "中繼資料增強（選用）"
   },
   "ja": {
+    "tab.current_track": "再生中の曲の設定",
     "button.clear_search": "検索をクリア",
     "section.account": "アカウント",
     "section.layout": "レイアウト",
@@ -4425,6 +4430,7 @@
     "onboarding.metadata_optional": "メタデータの補完（任意）"
   },
   "hi": {
+    "tab.current_track": "वर्तमान में चल रहे गाने की सेटिंग",
     "button.clear_search": "खोज साफ़ करें",
     "section.account": "खाता",
     "section.layout": "लेआउट",
@@ -5310,6 +5316,7 @@
     "onboarding.metadata_optional": "मेटाडेटा संवर्धन (वैकल्पिक)"
   },
   "es": {
+    "tab.current_track": "Ajustes de la canción actual",
     "button.clear_search": "Borrar búsqueda",
     "section.account": "Cuenta",
     "section.layout": "Diseño",
@@ -6195,6 +6202,7 @@
     "onboarding.metadata_optional": "Ampliar metadatos (opcional)"
   },
   "fr": {
+    "tab.current_track": "Réglages du morceau en cours",
     "button.clear_search": "Effacer la recherche",
     "section.account": "Compte",
     "section.layout": "Disposition",
@@ -7080,6 +7088,7 @@
     "onboarding.metadata_optional": "Enrichir les métadonnées (facultatif)"
   },
   "ar": {
+    "tab.current_track": "إعدادات المقطع الحالي",
     "button.clear_search": "مسح البحث",
     "section.account": "الحساب",
     "section.layout": "التخطيط",
@@ -7965,6 +7974,7 @@
     "onboarding.metadata_optional": "إثراء البيانات الوصفية (اختياري)"
   },
   "fa": {
+    "tab.current_track": "تنظیمات آهنگ در حال پخش",
     "button.clear_search": "پاک کردن جستجو",
     "section.account": "حساب",
     "section.layout": "چیدمان",
@@ -8850,6 +8860,7 @@
     "onboarding.metadata_optional": "تکمیل فراداده (اختیاری)"
   },
   "de": {
+    "tab.current_track": "Einstellungen für den aktuellen Titel",
     "button.clear_search": "Suche löschen",
     "section.account": "Konto",
     "section.layout": "Layout",
@@ -9735,6 +9746,7 @@
     "onboarding.metadata_optional": "Metadaten ergänzen (optional)"
   },
   "ru": {
+    "tab.current_track": "Настройки текущего трека",
     "button.clear_search": "Очистить поиск",
     "section.account": "Аккаунт",
     "section.layout": "Макет",
@@ -10620,6 +10632,7 @@
     "onboarding.metadata_optional": "Дополнение метаданных (необязательно)"
   },
   "sv": {
+    "tab.current_track": "Inställningar för aktuell låt",
     "button.clear_search": "Rensa sökning",
     "section.account": "Konto",
     "section.layout": "Layout",
@@ -11505,6 +11518,7 @@
     "onboarding.metadata_optional": "Utöka metadata (valfritt)"
   },
   "pt": {
+    "tab.current_track": "Configurações da faixa atual",
     "button.clear_search": "Limpar pesquisa",
     "section.account": "Conta",
     "section.layout": "Layout",
@@ -12390,6 +12404,7 @@
     "onboarding.metadata_optional": "Enriquecer metadados (opcional)"
   },
   "bn": {
+    "tab.current_track": "বর্তমানে বাজানো গানের সেটিংস",
     "button.clear_search": "অনুসন্ধান মুছুন",
     "section.account": "অ্যাকাউন্ট",
     "section.layout": "বিন্যাস",
@@ -13275,6 +13290,7 @@
     "onboarding.metadata_optional": "মেটাডেটা সমৃদ্ধি (ঐচ্ছিক)"
   },
   "cs": {
+    "tab.current_track": "Nastavení aktuální skladby",
     "button.clear_search": "Vymazat hledání",
     "section.account": "Účet",
     "section.layout": "Rozložení",
@@ -14160,6 +14176,7 @@
     "onboarding.metadata_optional": "Doplnit metadata (volitelné)"
   },
   "it": {
+    "tab.current_track": "Impostazioni del brano attuale",
     "button.clear_search": "Cancella ricerca",
     "section.account": "Account",
     "section.layout": "Layout",
@@ -15045,6 +15062,7 @@
     "onboarding.metadata_optional": "Arricchire i metadati (facoltativo)"
   },
   "th": {
+    "tab.current_track": "การตั้งค่าเพลงที่กำลังเล่น",
     "button.clear_search": "ล้างการค้นหา",
     "section.account": "บัญชี",
     "section.layout": "เค้าโครง",
@@ -15930,6 +15948,7 @@
     "onboarding.metadata_optional": "เพิ่มข้อมูลเมตา (ไม่บังคับ)"
   },
   "vi": {
+    "tab.current_track": "Cài đặt bài hát đang phát",
     "button.clear_search": "Xóa tìm kiếm",
     "section.account": "Tài khoản",
     "section.layout": "Bố cục",
@@ -16815,6 +16834,7 @@
     "onboarding.metadata_optional": "Bổ sung siêu dữ liệu (không bắt buộc)"
   },
   "id": {
+    "tab.current_track": "Pengaturan lagu yang sedang diputar",
     "button.clear_search": "Hapus pencarian",
     "section.account": "Akun",
     "section.layout": "Tata letak",
@@ -17700,6 +17720,7 @@
     "onboarding.metadata_optional": "Pelengkapan metadata (opsional)"
   },
   "ms": {
+    "tab.current_track": "Tetapan lagu yang sedang dimainkan",
     "button.clear_search": "Kosongkan carian",
     "section.account": "Akaun",
     "section.layout": "Susun atur",
@@ -18585,6 +18606,7 @@
     "onboarding.metadata_optional": "Pengayaan metadata (pilihan)"
   },
   "tr": {
+    "tab.current_track": "Çalan parçanın ayarları",
     "button.clear_search": "Aramayı temizle",
     "section.account": "Hesap",
     "section.layout": "Düzen",

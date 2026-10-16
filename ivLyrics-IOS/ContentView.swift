@@ -8298,6 +8298,7 @@ private extension View {
 
 struct SettingsView: View {
     enum Menu: String, CaseIterable, Identifiable, Hashable {
+        case currentTrack = "current_track"
         case general
         case providers
         case ai
@@ -8311,6 +8312,7 @@ struct SettingsView: View {
 
         var symbol: String {
             switch self {
+            case .currentTrack: return "music.note"
             case .general: return "slider.horizontal.3"
             case .providers: return "music.note.list"
             case .ai: return "sparkles"
@@ -8341,7 +8343,7 @@ struct SettingsView: View {
 
         var menus: [Menu] {
             switch self {
-            case .general: return [.general]
+            case .general: return [.currentTrack, .general]
             case .sources: return [.providers, .ai]
             case .display: return [.appearance, .lyrics, .player]
             case .manage: return [.system]
@@ -8408,6 +8410,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @State private var path: [Menu] = []
+    @State private var currentTrackTab: LyricsMetaMenuTab = .language
     @State private var settingsSearch = ""
     @State private var settingsSearchFocused = false
     @State private var reveal: RevealRequest?
@@ -8685,6 +8688,8 @@ struct SettingsView: View {
 
     private func menuSectionTitleKeys(_ menu: Menu) -> [String] {
         switch menu {
+        case .currentTrack:
+            return ["lyrics.tab.language", "lyrics.tab.sync", "lyrics.tab.video", "lyrics.tab.background", "section.lyrics_providers"]
         case .general:
             return ["section.language", "settings.section.lyrics_display"]
         case .providers:
@@ -8939,7 +8944,10 @@ struct SettingsView: View {
 
     /// Every row that search can find, with the row identifier that the pages scroll to.
     private var searchCatalog: [SearchEntry] {
-        var entries: [SearchEntry] = []
+        var entries: [SearchEntry] = [
+            entry("tab.current_track", .currentTrack, section: "tab.current_track",
+                  options: menuSectionTitleKeys(.currentTrack).map { settings.t($0) })
+        ]
         let language = "section.language"
         let display = "settings.section.lyrics_display"
         entries += [
@@ -9197,6 +9205,15 @@ struct SettingsView: View {
     @ViewBuilder
     private func menuSections(_ menu: Menu) -> some View {
         switch menu {
+        case .currentTrack:
+            LyricsMetaMenuOverlay(
+                visible: .constant(true),
+                selectedTab: $currentTrackTab,
+                screenHeight: settingsHeight,
+                isSettingsPage: true
+            )
+            .id(model.currentTrackKey)
+            .settingsRow("tab.current_track", flashing: flashRowID)
         case .general: generalSettingsPage
         case .providers: lyricsProvidersSettingsPage
         case .ai: aiSettingsPage
