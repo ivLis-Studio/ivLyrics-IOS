@@ -127,5 +127,5 @@ assert vinyl.count('.clipped()') >= 2
 with tempfile.TemporaryDirectory(prefix="ivlyrics-vinyl-") as temp:
     path = Path(temp)
     (path / "main.swift").write_text(code + checks)
-    subprocess.run(["xcrun", "swiftc", str(SRC / "VinylMotionPolicy.swift"), str(path / "main.swift"), "-o", str(path / "checks")], check=True)
+    subprocess.run(["xcrun", "swiftc", str(SRC / "VinylMotionPolicy.swift"), str(SRC / "LrclibEndpoint.swift"), str(path / "main.swift"), "-o", str(path / "checks")], check=True)
     subprocess.run([str(path / "checks")], check=True)
