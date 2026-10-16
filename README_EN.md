@@ -1,7 +1,9 @@
+<img width="2208" height="512" alt="en" src="https://github.com/ivLis-Studio/ivLyrics/blob/main/preview_readme_en.png?raw=true" /><br>
+PLATFORM : <a href="https://github.com/ivLis-Studio/ivLyrics">PC</a> | <a href="https://github.com/ivLis-Studio/ivLyrics-Android">Android</a> | <a href="https://github.com/ivLis-Studio/ivLyrics-IOS">IOS</a><br>
+MODULE : <a href="https://github.com/ivLis-Studio/ivLyrics-overlay">Overlay</a> | <a href="https://github.com/ivLis-Studio/ivLyrics-helper">Helper</a>
+
 > [!IMPORTANT]
 > IPA files on GitHub Releases are unsigned. They must be signed with your Apple ID through AltStore or another signing tool before installation.
-
-<img width="1122" height="1402" alt="image" src="https://github.com/user-attachments/assets/4e0850bf-092f-45d3-8645-4ed9f1b4dfba" />
 
 # ivLyrics iOS
 
