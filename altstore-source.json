@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.4",
+          "buildVersion": "71",
+          "date": "2026-10-17",
+          "localizedDescription": "v2.0.4는 가사 렌더링, 화면 속 화면(PiP), Spotify DJ 탐색, LP 모드 아트워크 전환의 안정성과 성능을 개선합니다. 가사 기반 계산과 언어 판별을 재사용해 불필요한 작업을 줄이고, 재생 상태가 빠르게 바뀌는 상황에서 오래된 정보가 표시될 가능성을 낮췄습니다. 또한 배포 메타데이터와 빌드 설정을 갱신했습니다.\n\nv2.0.4 improves the stability and performance of lyric rendering, Picture in Picture (PiP), Spotify DJ seeking, and LP-mode artwork transitions. It reuses lyric-derived calculations and language detection results to reduce unnecessary work, while lowering the chance of stale information appearing during rapid playback changes. Distribution metadata and build settings were also updated.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.4/ivLyrics-IOS-v2.0.4-unsigned.ipa",
+          "size": 14461354,
+          "sha256": "e65838e8b622c348b8168010b041c4e1d9835038dc70fe817e104a5b3279921b",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.3",
           "buildVersion": "70",
           "date": "2026-10-16",
