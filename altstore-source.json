@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.5",
+          "buildVersion": "73",
+          "date": "2026-10-17",
+          "localizedDescription": "홈 화면으로 이동할 때 의도치 않게 화면 속 화면(PiP)이 시작되는 경로를 차단하고, 앨범 커버 탭으로 LP 모드에 들어갈지 선택하는 설정을 추가했습니다. 동영상 타이밍 팝업에서는 현재 플레이어가 준비 완료한 영상과 적용된 시간만 명시적으로 공유할 수 있습니다.\n\nThis update blocks unintended Picture in Picture (PiP) entry when leaving the app and adds a persistent switch for album-cover tap entry into LP mode. The video timing popup now offers explicit sharing of only the current player-acknowledged video and its applied timing.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.5/ivLyrics-IOS-v2.0.5-unsigned.ipa",
+          "size": 14369509,
+          "sha256": "979e877f8f429bc4500c325ce04fcb67e6fceab6d4bf9224f8c943625c752fb3",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.4",
           "buildVersion": "71",
           "date": "2026-10-17",
