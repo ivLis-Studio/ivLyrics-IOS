@@ -8,6 +8,20 @@ final class PictureInPictureLyricsTimeline {
         var activeIndices: [Int]
         var nextLineIndex: Int?
         var hasTimedKaraoke: Bool
+        var hasSyntheticKaraoke = false
+        var hasInlineStyles = false
+        var hasContinuousEffects = false
+
+        func usesAnimatedKaraoke(syncedAnimationEnabled: Bool, lineDisplay: Bool) -> Bool {
+            guard !lineDisplay || hasInlineStyles else { return false }
+            return hasTimedKaraoke || (syncedAnimationEnabled && hasSyntheticKaraoke)
+        }
+
+        func framesPerSecond(syncedAnimationEnabled: Bool, lineDisplay: Bool) -> Int32 {
+            hasContinuousEffects || usesAnimatedKaraoke(
+                syncedAnimationEnabled: syncedAnimationEnabled, lineDisplay: lineDisplay
+            ) ? 30 : 12
+        }
 
         static let empty = Selection(activeIndex: nil, activeIndices: [], nextLineIndex: nil, hasTimedKaraoke: false)
     }
@@ -15,6 +29,18 @@ final class PictureInPictureLyricsTimeline {
     private var lines: [LyricsLine] = []
     private var markerFlags: [Bool] = []
     private var timedKaraokeFlags: [Bool] = []
+    private var animationFlags: [AnimationFlags] = []
+
+    private struct AnimationFlags {
+        var synthetic = false
+        var inline = false
+        var continuous = false
+    }
+
+    private static let continuousEffectKinds: Set<String> = [
+        "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
+        "wave", "sparkle", "echo", "whisper", "glow", "blur", "flicker"
+    ]
 
     func update(lines nextLines: [LyricsLine]) {
         guard lines != nextLines else { return }
@@ -25,6 +51,23 @@ final class PictureInPictureLyricsTimeline {
                 || line.vocalParts.contains { part in
                     part.syllables.contains { $0.endTimeMs > $0.startTimeMs }
                 }
+        }
+        animationFlags = lines.map { line in
+            let parts = line.vocalParts
+            let syllables = parts.isEmpty ? line.syllables : parts.flatMap(\.syllables)
+            let kinds = parts.isEmpty ? [line.kind] : parts.map(\.kind)
+            let synthetic = parts.isEmpty
+                ? !line.text.trimmed.isEmpty && line.endTimeMs > line.startTimeMs
+                : parts.contains { !$0.text.trimmed.isEmpty && $0.endTimeMs > $0.startTimeMs }
+            return AnimationFlags(
+                synthetic: synthetic,
+                inline: syllables.contains { $0.inlineStyle == true },
+                continuous: kinds.contains { Self.continuousEffectKinds.contains($0.trimmed.lowercased()) }
+                    || syllables.contains {
+                        $0.inlineStyle == true
+                            && Self.continuousEffectKinds.contains(($0.styleKind ?? "").trimmed.lowercased())
+                    }
+            )
         }
     }
 
@@ -58,7 +101,13 @@ final class PictureInPictureLyricsTimeline {
             activeIndices = [activeIndex]
             hasTimedKaraoke = timedKaraokeFlags[activeIndex]
         }
-        return Selection(activeIndex: activeIndex, activeIndices: activeIndices,
-                         nextLineIndex: nextLineIndex, hasTimedKaraoke: hasTimedKaraoke)
+        var selection = Selection(activeIndex: activeIndex, activeIndices: activeIndices,
+                                  nextLineIndex: nextLineIndex, hasTimedKaraoke: hasTimedKaraoke)
+        for index in activeIndices {
+            selection.hasSyntheticKaraoke = selection.hasSyntheticKaraoke || animationFlags[index].synthetic
+            selection.hasInlineStyles = selection.hasInlineStyles || animationFlags[index].inline
+            selection.hasContinuousEffects = selection.hasContinuousEffects || animationFlags[index].continuous
+        }
+        return selection
     }
 }

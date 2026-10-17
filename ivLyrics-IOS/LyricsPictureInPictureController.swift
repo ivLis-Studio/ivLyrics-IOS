@@ -690,6 +690,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     }
 
     private func drawLyrics(in lyricRect: CGRect) {
+        guard lyricRect.width > 0, lyricRect.height > 0 else { return }
         guard let active = state.activeLine else {
             let hasStatusText = state.lines.isEmpty && !state.statusText.isEmpty
             let fontSize = max(18, lyricRect.width * 0.055 * (hasStatusText ? 0.85 : 1))
@@ -720,18 +721,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             let primarySize = max(12, min(34, lyricRect.width * 0.061 * scale, rowHeight / 2.8))
             for (offset, visible) in visibleLines.enumerated() {
                 let rect = CGRect(x: lyricRect.minX, y: lyricRect.minY + CGFloat(offset) * (rowHeight + gap), width: lyricRect.width, height: rowHeight)
-                let supplements = visible.supplementLines.prefix(2)
                 let supplementSize = max(9, primarySize * 0.48 * CGFloat(AppSettings.clampPipTranslationSizePercent(state.translationSizePercent)) / 100)
-                let supplementHeight = supplementSize * 1.25
-                let primaryRect = CGRect(x: rect.minX, y: rect.minY, width: rect.width,
-                                         height: max(1, rect.height - CGFloat(supplements.count) * supplementHeight))
-                drawKaraokeText(visible, in: primaryRect, fontSize: primarySize)
-                for (supplementIndex, text) in supplements.enumerated() {
-                    drawText(text, in: CGRect(x: rect.minX, y: primaryRect.maxY + CGFloat(supplementIndex) * supplementHeight,
-                                            width: rect.width, height: supplementHeight),
-                             font: typographyFont(slotId: AppSettings.typoLyricsPronunciation, baseSize: supplementSize),
-                             color: UIColor.white.withAlphaComponent(0.72), alignment: state.textAlignment, lineLimit: 1)
-                }
+                drawCurrentLyrics(visible, in: rect, primarySize: primarySize, supplementSize: supplementSize)
             }
             return
         }
@@ -739,72 +730,97 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         let scale = Double(max(70, min(280, state.lyricsSizePercent))) / 100
         let primarySize = max(15, min(34, lyricRect.width * 0.061 * scale))
         let supplementSize = max(10, primarySize * 0.48 * CGFloat(AppSettings.clampPipTranslationSizePercent(state.translationSizePercent)) / 100)
-        let nextSize = max(11, primarySize * 0.56)
-        let renderedPrimarySize = state.typography.scaledSize(slotId: AppSettings.typoLyricsOriginal, baseSize: primarySize)
-        let visiblePartCount = active.line.vocalParts.reduce(0) { count, part in
-            LyricsTimelineDisplayBuilder.vocalPartDisplayText(part).trimmed.isEmpty ? count : count + 1
-        }
-        let stackMultiplier = 2.45 + CGFloat(max(0, min(3, visiblePartCount - 1))) * 1.35
-        let primaryHeight = min(lyricRect.height * 0.74, renderedPrimarySize * stackMultiplier)
-        let centeredPrimaryY = lyricRect.midY - primaryHeight / 2
-        let primaryY = min(
-            max(lyricRect.minY, centeredPrimaryY),
-            max(lyricRect.minY, lyricRect.maxY - primaryHeight)
-        )
-        let primaryRect = CGRect(x: lyricRect.minX, y: primaryY, width: lyricRect.width, height: primaryHeight)
-        drawKaraokeText(active, in: primaryRect, fontSize: primarySize)
-        var cursor = primaryRect.maxY + 2
+        drawCurrentLyrics(active, in: lyricRect, primarySize: primarySize,
+                          supplementSize: supplementSize, nextText: state.nextLineText)
+    }
 
-        for supplement in active.supplementLines.prefix(2) {
-            let supplementRect = CGRect(x: lyricRect.minX, y: cursor, width: lyricRect.width, height: supplementSize * 1.5)
-            drawText(
-                supplement,
-                in: supplementRect,
-                font: typographyFont(slotId: AppSettings.typoLyricsPronunciation, baseSize: supplementSize),
-                color: UIColor.white.withAlphaComponent(0.72),
-                alignment: state.textAlignment,
-                lineLimit: 1
-            )
-            cursor = supplementRect.maxY
+    private func drawCurrentLyrics(
+        _ active: ActiveLine, in rect: CGRect, primarySize: CGFloat,
+        supplementSize: CGFloat, nextText: String? = nil
+    ) {
+        guard let image = currentLyricsImage(active, width: rect.width,
+                                             primaryFontSize: primarySize,
+                                             supplementFontSize: supplementSize),
+              image.size.width > 0, image.size.height > 0 else { return }
+        let scale = min(1, rect.width / image.size.width, rect.height / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let nextFont = typographyFont(slotId: AppSettings.typoLyricsOriginal, baseSize: max(11, primarySize * 0.56))
+        let nextHeight = nextText.map { measuredTextHeight($0, width: rect.width, font: nextFont) } ?? 0
+        let includesNext = nextText != nil && scale == 1 && size.height + 4 + nextHeight <= rect.height
+        let groupHeight = size.height + (includesNext ? 4 + nextHeight : 0)
+        let x: CGFloat
+        switch state.textAlignment {
+        case .right: x = rect.maxX - size.width
+        case .center: x = rect.midX - size.width / 2
+        default: x = rect.minX
         }
-
-        if let next = state.nextLineText, cursor < lyricRect.maxY - nextSize {
-            let nextRect = CGRect(x: lyricRect.minX, y: max(cursor + 4, lyricRect.maxY - nextSize * 1.75), width: lyricRect.width, height: nextSize * 1.45)
+        let imageRect = CGRect(x: x, y: rect.minY + max(0, (rect.height - groupHeight) / 2),
+                               width: size.width, height: size.height)
+        image.draw(in: imageRect)
+        if includesNext, let nextText {
             drawText(
-                next,
-                in: nextRect,
-                font: typographyFont(slotId: AppSettings.typoLyricsOriginal, baseSize: nextSize),
+                nextText,
+                in: CGRect(x: rect.minX, y: imageRect.maxY + 4, width: rect.width, height: nextHeight),
+                font: nextFont,
                 color: UIColor.white.withAlphaComponent(0.34),
                 alignment: state.textAlignment,
-                lineLimit: 1
+                lineLimit: 0
             )
         }
     }
 
-    private func drawKaraokeText(_ active: ActiveLine, in rect: CGRect, fontSize: CGFloat) {
-        guard rect.width > 0, rect.height > 0 else { return }
-        let content = PictureInPictureKaraokeContent(
-            line: active.line,
-            positionMs: state.positionMs,
-            alignment: state.swiftUITextAlignment,
-            frameAlignment: state.swiftUIFrameAlignment,
-            fontSize: fontSize,
-            speakerColors: state.speakerColors,
-            useCreatorSpeakerColors: state.useSyncCreatorSpeakerColors,
-            karaokeDisplayGranularity: state.karaokeDisplayGranularity,
-            syncedLyricsKaraokeAnimationEnabled: state.syncedLyricsKaraokeAnimationEnabled,
-            bounceEnabled: state.karaokeBounceEffectEnabled,
-            typography: state.typography,
-            preparationStore: karaokePreparationStore,
-            sourceLineIndex: active.index
-        )
+    private func currentLyricsImage(
+        _ active: ActiveLine, width: CGFloat, primaryFontSize: CGFloat, supplementFontSize: CGFloat
+    ) -> UIImage? {
+        guard width > 0 else { return nil }
+        let effectInset = max(6, state.typography.scaledSize(
+            slotId: AppSettings.typoLyricsOriginal, baseSize: primaryFontSize) * 0.28)
+        let typography = state.typography
+        let textAlignment = state.swiftUITextAlignment
+        let frameAlignment = state.swiftUIFrameAlignment
+        let content = VStack(alignment: state.swiftUIHorizontalAlignment, spacing: 2) {
+            PictureInPictureKaraokeContent(
+                line: active.line,
+                positionMs: state.positionMs,
+                alignment: state.swiftUITextAlignment,
+                frameAlignment: state.swiftUIFrameAlignment,
+                fontSize: primaryFontSize,
+                speakerColors: state.speakerColors,
+                useCreatorSpeakerColors: state.useSyncCreatorSpeakerColors,
+                karaokeDisplayGranularity: state.karaokeDisplayGranularity,
+                syncedLyricsKaraokeAnimationEnabled: state.syncedLyricsKaraokeAnimationEnabled,
+                bounceEnabled: state.karaokeBounceEffectEnabled,
+                typography: state.typography,
+                preparationStore: karaokePreparationStore,
+                sourceLineIndex: active.index
+            )
+            .padding(.vertical, effectInset)
+            ForEach(active.supplements) { supplement in
+                Text(supplement.text)
+                    .font(typography.font(slotId: supplement.typographySlotID, baseSize: supplementFontSize))
+                    .foregroundStyle(Color.white.opacity(0.72))
+                    .multilineTextAlignment(textAlignment)
+                    .frame(maxWidth: .infinity, alignment: frameAlignment)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
         .environment(\.lyricsSegmentationLocale, state.lyricsLocale)
-        .frame(width: rect.width, height: rect.height, alignment: state.swiftUIFrameAlignment)
+        .frame(width: width, alignment: state.swiftUIFrameAlignment)
+        .fixedSize(horizontal: false, vertical: true)
 
         let renderer = ImageRenderer(content: content)
         renderer.scale = 1
-        renderer.proposedSize = ProposedViewSize(rect.size)
-        renderer.uiImage?.draw(in: rect)
+        renderer.proposedSize = ProposedViewSize(width: width, height: nil)
+        return renderer.uiImage
+    }
+
+    private func measuredTextHeight(_ text: String, width: CGFloat, font: UIFont) -> CGFloat {
+        ceil((text as NSString).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: textAttributes(font: font, color: .white, alignment: state.textAlignment, lineLimit: 0),
+            context: nil
+        ).height)
     }
 
     private func drawText(
@@ -825,9 +841,11 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             shadow.shadowOffset = CGSize(width: 0, height: 1)
             attributes[.shadow] = shadow
         }
+        var options: NSStringDrawingOptions = [.usesLineFragmentOrigin, .usesFontLeading]
+        if lineLimit > 0 { options.insert(.truncatesLastVisibleLine) }
         (text as NSString).draw(
             with: rect,
-            options: [.usesLineFragmentOrigin, .usesFontLeading, .truncatesLastVisibleLine],
+            options: options,
             attributes: attributes,
             context: nil
         )
@@ -868,8 +886,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         case AppSettings.pipOrientationPortrait:
             let artworkRect = CGRect(x: 22, y: 26, width: 112, height: 112)
             let textX = artworkRect.maxX + 16
+            let lyricsTop = artworkRect.maxY + 18
             return PictureInPictureFrameLayout(
-                lyricsRect: CGRect(x: 18, y: 0, width: rect.width - 36, height: rect.height),
+                lyricsRect: CGRect(x: 18, y: lyricsTop, width: rect.width - 36,
+                                   height: max(0, rect.maxY - 18 - lyricsTop)),
                 artworkRect: artworkRect,
                 artworkCornerRadius: 12,
                 titleRect: CGRect(x: textX, y: 55, width: rect.maxX - 22 - textX, height: 29),
@@ -880,8 +900,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         case AppSettings.pipOrientationSquare:
             let artworkRect = CGRect(x: 24, y: 22, width: 96, height: 96)
             let textX = artworkRect.maxX + 16
+            let lyricsTop = artworkRect.maxY + 18
             return PictureInPictureFrameLayout(
-                lyricsRect: CGRect(x: 20, y: 0, width: rect.width - 40, height: rect.height),
+                lyricsRect: CGRect(x: 20, y: lyricsTop, width: rect.width - 40,
+                                   height: max(0, rect.maxY - 16 - lyricsTop)),
                 artworkRect: artworkRect,
                 artworkCornerRadius: 10,
                 titleRect: CGRect(x: textX, y: 43, width: rect.maxX - 24 - textX, height: 30),
@@ -1088,7 +1110,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private func makeSampleBuffer(pixelBuffer: CVPixelBuffer) -> CMSampleBuffer? {
         guard let videoFormatDescription else { return nil }
         var timing = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: state.usesTimedKaraoke ? 30 : 12),
+            duration: CMTime(value: 1, timescale: state.framesPerSecond),
             presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
             decodeTimeStamp: .invalid
         )
@@ -1190,6 +1212,14 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             }
         }
 
+        var swiftUIHorizontalAlignment: HorizontalAlignment {
+            switch AppSettings.normalizeLyricsAlignment(alignment) {
+            case "right": return .trailing
+            case "center": return .center
+            default: return .leading
+            }
+        }
+
         var activeLine: ActiveLine? {
             selection.activeIndex.map(activeLine(at:))
         }
@@ -1212,15 +1242,23 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         }
 
         var usesTimedKaraoke: Bool {
-            guard syncedLyricsKaraokeAnimationEnabled,
-                  AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
-                    != AppSettings.karaokeDisplayLine,
-                  selection.hasTimedKaraoke else { return false }
-            return true
+            selection.usesAnimatedKaraoke(
+                syncedAnimationEnabled: syncedLyricsKaraokeAnimationEnabled,
+                lineDisplay: AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
+                    == AppSettings.karaokeDisplayLine
+            )
+        }
+
+        var framesPerSecond: Int32 {
+            selection.framesPerSecond(
+                syncedAnimationEnabled: syncedLyricsKaraokeAnimationEnabled,
+                lineDisplay: AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
+                    == AppSettings.karaokeDisplayLine
+            )
         }
 
         var preferredFrameInterval: TimeInterval {
-            usesTimedKaraoke ? 1.0 / 30.0 : 1.0 / 12.0
+            1.0 / TimeInterval(framesPerSecond)
         }
 
         func renderIdentity(for line: ActiveLine?) -> String {
@@ -1302,17 +1340,29 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var index: Int
         var progress: CGFloat
 
-        var supplementLines: [String] {
+        var supplements: [PictureInPictureSupplementLine] {
             let rawPronunciation = line.pronunciationText.trimmed
             let pronunciation = IvLyricsUtilities.lyricsTextsEquivalent(rawPronunciation, line.text)
                 ? ""
                 : rawPronunciation
             let translation = line.translationText.trimmed
-            if pronunciation.isEmpty {
-                return translation.isEmpty ? [] : [translation]
+            var result: [PictureInPictureSupplementLine] = []
+            if !pronunciation.isEmpty {
+                result.append(.init(id: "pronunciation", text: pronunciation,
+                                    typographySlotID: AppSettings.typoLyricsPronunciation))
             }
-            return translation.isEmpty ? [pronunciation] : [pronunciation, translation]
+            if !translation.isEmpty {
+                result.append(.init(id: "translation", text: translation,
+                                    typographySlotID: AppSettings.typoLyricsTranslation))
+            }
+            return result
         }
+    }
+
+    private struct PictureInPictureSupplementLine: Identifiable {
+        let id: String
+        let text: String
+        let typographySlotID: String
     }
 
     private struct RenderIdentityInput {

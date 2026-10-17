@@ -30,6 +30,10 @@ struct VinylPlayerModeView: View {
     @State private var spinToken = UUID()
     @State private var accentColors: [String: Color] = [:]
     @State private var artworkImages: [String: UIImage] = [:]
+    @State private var artworkKeys: [String: VinylArtworkRequests.Key] = [:]
+    @State private var artworkRequests = VinylArtworkRequests()
+    @State private var artworkTasks: [String: Task<Void, Never>] = [:]
+    @State private var artworkAssets = BoundedLRUCache<VinylArtworkRequests.Key, VinylArtworkAccent.Asset>(capacity: 12)
 
     var body: some View {
         GeometryReader { proxy in
@@ -99,9 +103,11 @@ struct VinylPlayerModeView: View {
         }
         .onChange(of: displayedTrack?.stableKey) { _, _ in
             rememberCurrentLabels()
+            pruneArtworkRequests()
         }
         .onChange(of: incomingTrack?.stableKey) { _, _ in
             rememberCurrentLabels()
+            pruneArtworkRequests()
         }
         .onChange(of: model.currentTrack?.playing == true) { _, playing in
             updatePlaying(playing, animated: true)
@@ -133,6 +139,9 @@ struct VinylPlayerModeView: View {
             updateAnimationPreference(settings.vinylAnimationsEnabled && !reduceMotion)
         }
         .onDisappear {
+            artworkTasks.values.forEach { $0.cancel() }
+            artworkTasks.removeAll()
+            artworkRequests.removeAll()
             trackTransitionToken = UUID()
             spinToken = UUID()
             playbackSequenceToken = UUID()
@@ -438,10 +447,16 @@ struct VinylPlayerModeView: View {
         rememberCurrentLabels()
         guard let displayedTrack else {
             self.displayedTrack = next
+            loadAccent(for: next)
             return
         }
         if displayedTrack.stableKey == next.stableKey {
+            trackTransitionToken = UUID()
             self.displayedTrack = next
+            incomingTrack = nil
+            trackTransitionProgress = 0
+            outgoingRecordBehindSleeve = false
+            loadAccent(for: next)
             return
         }
         trackTransitionToken = UUID()
@@ -456,24 +471,12 @@ struct VinylPlayerModeView: View {
 
         let token = UUID()
         trackTransitionToken = token
+        // Start with the cached cover or deterministic fallback. Network latency
+        // must not delay the record sequence; hydration can update either layer.
+        incomingTrack = next
+        loadAccent(for: next)
         Task { @MainActor in
-            var preparedTrack = next
-            for _ in 0..<8 {
-                guard preparedTrack.artworkURL == displayedTrack.artworkURL else { break }
-                try? await Task.sleep(nanoseconds: 40_000_000)
-                guard trackTransitionToken == token,
-                      let current = model.currentTrack,
-                      current.stableKey == next.stableKey else { return }
-                preparedTrack = current
-            }
-            let asset = await VinylArtworkAccent.asset(for: preparedTrack)
-            guard trackTransitionToken == token,
-                  model.currentTrack?.stableKey == preparedTrack.stableKey else { return }
-            accentColors[preparedTrack.stableKey] = asset.color
-            if let image = asset.image {
-                artworkImages[preparedTrack.stableKey] = image
-            }
-            incomingTrack = preparedTrack
+            guard trackTransitionToken == token else { return }
             trackTransitionProgress = 0
             outgoingRecordBehindSleeve = false
             withAnimation(.timingCurve(0.20, 0.74, 0.24, 1, duration: 0.18)) {
@@ -514,7 +517,7 @@ struct VinylPlayerModeView: View {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                self.displayedTrack = incomingTrack ?? preparedTrack
+                self.displayedTrack = incomingTrack ?? next
             }
             withAnimation(.linear(duration: 0.096)) {
                 trackTransitionProgress = 1
@@ -538,8 +541,9 @@ struct VinylPlayerModeView: View {
     private func refreshCurrentTrackAsset() {
         guard let current = model.currentTrack else { return }
         if incomingTrack?.stableKey == current.stableKey {
-            return
-        } else if displayedTrack?.stableKey == current.stableKey {
+            incomingTrack = current
+        }
+        if displayedTrack?.stableKey == current.stableKey {
             displayedTrack = current
         }
         loadAccent(for: current)
@@ -560,21 +564,48 @@ struct VinylPlayerModeView: View {
 
     private func loadAccent(for track: TrackSnapshot) {
         let key = track.stableKey
-        let assetKey = key + "|" + (track.artworkURL?.absoluteString ?? "")
-        Task { @MainActor in
-            let asset = await VinylArtworkAccent.asset(for: track)
-            guard !Task.isCancelled else { return }
-            let currentAssetKeys = [displayedTrack, incomingTrack]
-                .compactMap { candidate -> String? in
-                    guard let candidate else { return nil }
-                    return candidate.stableKey + "|" + (candidate.artworkURL?.absoluteString ?? "")
-                }
-            guard currentAssetKeys.contains(assetKey) else { return }
+        let assetKey = VinylArtworkRequests.Key(trackKey: key, artworkURL: track.artworkURL)
+        if artworkKeys[key] != assetKey {
+            artworkKeys[key] = assetKey
+            artworkImages.removeValue(forKey: key)
+            accentColors[key] = VinylArtworkAccent.fallbackColor(key: key)
+        }
+        if let asset = artworkAssets.value(forKey: assetKey) {
+            artworkTasks.removeValue(forKey: key)?.cancel()
+            artworkRequests.cancel(trackKey: key)
             accentColors[key] = asset.color
+            artworkImages[key] = asset.image
+            return
+        }
+        guard let request = artworkRequests.begin(key: assetKey) else { return }
+        artworkTasks.removeValue(forKey: key)?.cancel()
+        artworkTasks[key] = Task { @MainActor in
+            let asset = await VinylArtworkAccent.asset(for: track)
+            guard !Task.isCancelled, artworkRequests.finish(request) else { return }
+            artworkTasks.removeValue(forKey: key)
+            guard [displayedTrack, incomingTrack].contains(where: {
+                $0?.stableKey == key && $0?.artworkURL == assetKey.artworkURL
+            }) else { return }
+            // Failed/cancelled fetches never replace a previously resolved asset
+            // or poison the cache with a fallback for this URL.
             if let image = asset.image {
+                artworkAssets.insert(asset, forKey: assetKey)
+                accentColors[key] = asset.color
                 artworkImages[key] = image
             }
         }
+    }
+
+    private func pruneArtworkRequests() {
+        let visible = Set([displayedTrack?.stableKey, incomingTrack?.stableKey,
+                           model.currentTrack?.stableKey].compactMap { $0 })
+        for key in Array(artworkTasks.keys) where !visible.contains(key) {
+            artworkTasks.removeValue(forKey: key)?.cancel()
+            artworkRequests.cancel(trackKey: key)
+        }
+        artworkKeys = artworkKeys.filter { visible.contains($0.key) }
+        artworkImages = artworkImages.filter { visible.contains($0.key) }
+        accentColors = accentColors.filter { visible.contains($0.key) }
     }
 
     private func updatePlaying(_ playing: Bool, animated: Bool) {

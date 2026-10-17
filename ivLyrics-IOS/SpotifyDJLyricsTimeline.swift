@@ -21,12 +21,17 @@ struct SpotifyDJLyricsTimeline {
         playing: Bool,
         spotifyDJContext: Bool,
         spotifyDJSegment: Bool,
+        spotifyContextKnown: Bool,
         uptime: TimeInterval
     ) -> Int64 {
         let safePlayerPositionMs = max(0, playerPositionMs)
         let safeUptime = max(0, uptime)
 
-        if spotifyDJContext || spotifyDJSegment {
+        if spotifyContextKnown && !spotifyDJContext && !spotifyDJSegment {
+            djSessionActiveUntil = 0
+            handoffPending = false
+            lyricsOffsetMs = 0
+        } else if spotifyDJContext || spotifyDJSegment {
             djSessionActiveUntil = safeUptime + Self.sessionRetentionSeconds
         }
         let djSessionActive = spotifyDJContext
@@ -69,6 +74,18 @@ struct SpotifyDJLyricsTimeline {
 
     var offsetMs: Int64 {
         lyricsOffsetMs
+    }
+
+    mutating func registerExplicitSeek(
+        trackKey incomingTrackKey: String,
+        playerPositionMs: Int64,
+        uptime: TimeInterval
+    ) {
+        guard incomingTrackKey == trackKey else { return }
+        handoffPending = false
+        lastPlayerPositionMs = max(0, playerPositionMs)
+        lastLyricsPositionMs = lastPlayerPositionMs + lyricsOffsetMs
+        lastSampleAt = max(0, uptime)
     }
 
     mutating func reset() {

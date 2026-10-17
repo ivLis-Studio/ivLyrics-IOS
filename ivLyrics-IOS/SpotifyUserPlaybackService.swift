@@ -568,7 +568,8 @@ final class SpotifyUserPlaybackService: NSObject, ObservableObject, ASWebAuthent
             spotifyDJContext: SpotifyPlaybackSnapshot.detectsSpotifyDJContext(
                 title: "",
                 uri: contextURI
-            )
+            ),
+            spotifyContextKnown: root["context"] is NSNull || context != nil
         )
     }
 

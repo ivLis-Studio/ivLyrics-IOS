@@ -183,10 +183,13 @@ final class AppViewModel: ObservableObject {
         didSet {
             cachedTimelineContext = nil
             culturalAnnotationLineCache.removeAll()
+            cachedCurrentLyricsSourceLang = nil
             refreshCreatorSupportPresentations(for: lyricsResult)
         }
     }
-    @Published private(set) var baseLyricsResult = LyricsResult.empty("")
+    @Published private(set) var baseLyricsResult = LyricsResult.empty("") {
+        didSet { cachedCurrentLyricsSourceLang = nil }
+    }
     @Published private(set) var creatorSupportPresentations: [String: CreatorSupportPresentation] = [:]
     @Published private(set) var lyricsSupplementLayoutRevision = 0
     @Published private(set) var status: AppStatus = .idle
@@ -457,6 +460,7 @@ final class AppViewModel: ObservableObject {
     #endif
     private var lastPiPClockUpdateUptime: TimeInterval = 0
     private var cachedTimelineContext: LyricsTimelineContext?
+    private var cachedCurrentLyricsSourceLang: String?
     private let culturalAnnotationLineCache = CulturalAnnotationLineCache()
     private var audioRouteObserver: NSObjectProtocol?
     private var spotifyMetadataHydrationTrackId = ""
@@ -478,6 +482,7 @@ final class AppViewModel: ObservableObject {
     private var spotifyDJLyricsTimeline = SpotifyDJLyricsTimeline()
     private var spotifyDJLyricsOffsetMs: Int64 = 0
     private var currentSpotifyDJContext = false
+    private var currentSpotifyContextKnown = false
     private var automaticUpdateCheckStarted = false
     private let defaults: UserDefaults = {
 #if DEBUG
@@ -890,12 +895,13 @@ final class AppViewModel: ObservableObject {
     }
 
     var effectiveDetectedLyricsSourceLang: String {
-        let lines = baseLyricsResult.lines.isEmpty ? lyricsResult.lines : baseLyricsResult.lines
-        return detectedSourceLang(lines: lines)
+        currentLyricsSourceLang()
     }
 
     var effectiveSelectedRuleSourceLang: String {
-        effectiveSelectedSourceLang(lines: baseLyricsResult.lines.isEmpty ? lyricsResult.lines : baseLyricsResult.lines)
+        selectedRuleSourceLang.caseInsensitiveCompare("auto") == .orderedSame
+            ? currentLyricsSourceLang()
+            : AppSettings.normalizeSourceLanguageKey(selectedRuleSourceLang)
     }
 
     var activeLineIndex: Int {
@@ -2281,6 +2287,11 @@ final class AppViewModel: ObservableObject {
         track = track.withPlayback(positionMs: position, playing: track.playing)
         currentTrack = track
         nowPositionMs = position
+        spotifyDJLyricsTimeline.registerExplicitSeek(
+            trackKey: track.stableKey,
+            playerPositionMs: position,
+            uptime: ProcessInfo.processInfo.systemUptime
+        )
         guard shouldSendSeekCommand(target: position) else { return }
         if spotifyAppRemotePlaybackService.connected || spotifyLivePolling {
             spotifyPlaybackInteractionGuard.registerSeek(
@@ -2309,32 +2320,7 @@ final class AppViewModel: ObservableObject {
     func skip(by deltaMs: Int64) {
         guard var track = currentTrack else { return }
         let target = max(0, min(track.durationMs > 0 ? track.durationMs : Int64.max, track.positionNow() + deltaMs))
-        track = track.withPlayback(positionMs: target, playing: track.playing)
-        currentTrack = track
-        nowPositionMs = target
-        guard shouldSendSeekCommand(target: target) else { return }
-        if spotifyAppRemotePlaybackService.connected || spotifyLivePolling {
-            spotifyPlaybackInteractionGuard.registerSeek(
-                trackKey: track.stableKey,
-                positionMs: target,
-                uptime: ProcessInfo.processInfo.systemUptime
-            )
-        }
-        if spotifyAppRemotePlaybackService.connected {
-            spotifyAppRemotePlaybackService.seek(positionMs: target)
-            scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: false)
-            return
-        }
-        guard settings.spotifyWebAPIEnabled,
-              spotifyLivePolling,
-              spotifyUserPlaybackService.connected else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let clientId = self.settings.spotifyClientId
-            await self.sendSpotifyPlaybackCommand {
-                try await self.spotifyUserPlaybackService.seek(positionMs: target, clientId: clientId)
-            }
-        }
+        seekPlayer(to: target, track: &track)
     }
 
     func skipToNextTrack() {
@@ -3530,7 +3516,8 @@ final class AppViewModel: ObservableObject {
                     playing: playback.playing,
                     fetchedAt: Date(),
                     deviceName: playback.deviceName,
-                    spotifyDJContext: playback.spotifyDJContext
+                    spotifyDJContext: playback.spotifyDJContext,
+                    spotifyContextKnown: playback.spotifyContextKnown
                 ),
                 loadLyricsIfNeeded: false
             )
@@ -3568,10 +3555,12 @@ final class AppViewModel: ObservableObject {
         inputIsrc = incoming.isrc
         inputDuration = formatDurationInput(incoming.durationMs)
         currentSpotifyDJContext = playback.spotifyDJContext
+        currentSpotifyContextKnown = playback.spotifyContextKnown
         updateSpotifyDJLyricsTimeline(
             track: incoming,
             playerPositionMs: playback.progressMs,
             spotifyDJContext: playback.spotifyDJContext,
+            spotifyContextKnown: playback.spotifyContextKnown,
             uptime: uptime
         )
         currentTrack = incoming
@@ -4397,6 +4386,14 @@ final class AppViewModel: ObservableObject {
         return normalized.isEmpty ? "en" : normalized
     }
 
+    private func currentLyricsSourceLang() -> String {
+        if let cachedCurrentLyricsSourceLang { return cachedCurrentLyricsSourceLang }
+        let lines = baseLyricsResult.lines.isEmpty ? lyricsResult.lines : baseLyricsResult.lines
+        let sourceLang = detectedSourceLang(lines: lines)
+        cachedCurrentLyricsSourceLang = sourceLang
+        return sourceLang
+    }
+
     private func supplementDetectionPayload(lines: [LyricsLine]) -> String {
         var values: [String] = []
         for line in lines {
@@ -4647,7 +4644,8 @@ final class AppViewModel: ObservableObject {
         if let track = currentTrack {
             updateSpotifyDJLyricsTimeline(
                 track: track, playerPositionMs: position,
-                spotifyDJContext: currentSpotifyDJContext, uptime: uptime
+                spotifyDJContext: currentSpotifyDJContext,
+                spotifyContextKnown: currentSpotifyContextKnown, uptime: uptime
             )
         }
         nowContinuousPositionMs = currentTrack?.continuousPositionMs(uptime: uptime) ?? 0
@@ -4679,6 +4677,7 @@ final class AppViewModel: ObservableObject {
         track: TrackSnapshot,
         playerPositionMs: Int64,
         spotifyDJContext: Bool,
+        spotifyContextKnown: Bool,
         uptime: TimeInterval
     ) {
         let previousOffsetMs = spotifyDJLyricsOffsetMs
@@ -4688,6 +4687,7 @@ final class AppViewModel: ObservableObject {
             playing: track.playing,
             spotifyDJContext: spotifyDJContext,
             spotifyDJSegment: Self.isSpotifyDJSegment(track),
+            spotifyContextKnown: spotifyContextKnown,
             uptime: uptime
         )
         spotifyDJLyricsOffsetMs = max(0, lyricsPositionMs - playerPositionMs)
@@ -4700,6 +4700,7 @@ final class AppViewModel: ObservableObject {
         spotifyDJLyricsTimeline.reset()
         spotifyDJLyricsOffsetMs = 0
         currentSpotifyDJContext = false
+        currentSpotifyContextKnown = false
     }
 
     private static func isSpotifyDJSegment(_ track: TrackSnapshot) -> Bool {

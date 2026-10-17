@@ -120,7 +120,9 @@ for lines in fixtures {
                 check(old.activeLines.map(\.index) == next.activeLines.map(\.index), "Overlap source order differs")
                 check(old.activeLines.map(\.progress) == next.activeLines.map(\.progress), "Overlap progress differs")
                 check(old.nextLineText == next.nextLineText, "Next source differs")
-                check(old.preferredFrameInterval == next.preferredFrameInterval, "Frame cadence differs")
+                // Real syllable timing and continuous effects now keep 30fps even
+                // when synthetic karaoke is disabled; selection stays identical.
+                check(next.preferredFrameInterval <= old.preferredFrameInterval, "Animated content never loses cadence")
             }
         }
     }
@@ -149,6 +151,26 @@ check(markerCalls == 0, "Steady playback must not re-parse markers")
 check(candidateVisits == 600 * benchmarkLines.count, "One source traversal per tick")
 check(candidateVisits < oldVisits, "Repeated source traversal removed")
 let measuredCandidateVisits = candidateVisits
+// Cadence follows the content actually drawn, independently of synthetic timing.
+timeline.update(lines: [line(1000, 4000)])
+let realTiming = timeline.selection(at: 2000)
+check(realTiming.framesPerSecond(syncedAnimationEnabled: false, lineDisplay: false) == 30, "Real timing retains 30fps with synthetic animation off")
+check(realTiming.framesPerSecond(syncedAnimationEnabled: false, lineDisplay: true) == 12, "Plain whole-line display uses 12fps")
+let plain = LyricsLine(startTimeMs: 1000, endTimeMs: 4000, text: "plain")
+timeline.update(lines: [plain])
+let synthetic = timeline.selection(at: 2000)
+check(synthetic.framesPerSecond(syncedAnimationEnabled: false, lineDisplay: false) == 12, "Static synced text uses 12fps")
+check(synthetic.framesPerSecond(syncedAnimationEnabled: true, lineDisplay: false) == 30, "Opted-in synthetic timing uses 30fps")
+var wave = plain
+wave.kind = "wave"
+timeline.update(lines: [plain, wave])
+check(timeline.selection(at: 2000).framesPerSecond(syncedAnimationEnabled: false, lineDisplay: true) == 30, "Effects in any overlapping source keep 30fps")
+var inline = line(1000, 4000)
+inline.syllables[0].inlineStyle = true
+inline.syllables[0].styleKind = "glow"
+timeline.update(lines: [inline])
+check(timeline.selection(at: 2000).framesPerSecond(syncedAnimationEnabled: false, lineDisplay: true) == 30, "Inline effects survive whole-line granularity")
+check(PictureInPictureLyricsTimeline.Selection.empty.framesPerSecond(syncedAnimationEnabled: true, lineDisplay: false) == 12, "Empty content uses 12fps")
 // Streaming metadata/content edits invalidate preparation even at the same index.
 var streamed = benchmarkLines
 streamed[0] = line(0, 50000, "changed ♪")

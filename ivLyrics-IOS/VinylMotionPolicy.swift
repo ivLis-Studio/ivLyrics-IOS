@@ -33,6 +33,43 @@ struct VinylResolvedLabels: Equatable {
     var artist: String
 }
 
+/// A track can receive a different cover while its previous request is suspended.
+/// Tokens also reject an old request when the URL changes away and back again.
+struct VinylArtworkRequests {
+    struct Key: Hashable {
+        var trackKey: String
+        var artworkURL: URL?
+    }
+
+    struct Request: Equatable {
+        var key: Key
+        var token = UUID()
+    }
+
+    private var pending: [String: Request] = [:]
+
+    mutating func begin(key: Key) -> Request? {
+        guard pending[key.trackKey]?.key != key else { return nil }
+        let request = Request(key: key)
+        pending[key.trackKey] = request
+        return request
+    }
+
+    mutating func finish(_ request: Request) -> Bool {
+        guard pending[request.key.trackKey] == request else { return false }
+        pending.removeValue(forKey: request.key.trackKey)
+        return true
+    }
+
+    mutating func cancel(trackKey: String) {
+        pending.removeValue(forKey: trackKey)
+    }
+
+    mutating func removeAll() {
+        pending.removeAll()
+    }
+}
+
 /// Retain the already resolved label with each visible record. The player's
 /// current metadata belongs to the incoming song, not the outgoing disc.
 struct VinylLabelSnapshots {

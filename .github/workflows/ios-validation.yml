@@ -13,10 +13,19 @@ on:
       - 'ivLyrics-IOS/Lrclib*.swift'
       - 'ivLyrics-IOS/LyricsRepository.swift'
       - 'ivLyrics-IOS/AppSettings.swift'
+      - 'ivLyrics-IOS/Models.swift'
+      - 'ivLyrics-IOS/LyricsPictureInPictureController.swift'
+      - 'ivLyrics-IOS/PictureInPicture*.swift'
+      - 'ivLyrics-IOS/Spotify*.swift'
+      - 'ivLyrics-IOS/Vinyl*.swift'
       - 'ivLyrics-IOS/Info.plist'
       - 'ivLyrics-IOS/InfoPlist.xcstrings'
       - 'scripts/test-lrclib-playback.py'
       - 'scripts/test-vinyl.py'
+      - 'scripts/test-lyric-runtime-cache.py'
+      - 'scripts/test-pip-layout.py'
+      - 'scripts/test-spotify-dj.py'
+      - 'scripts/test-vinyl-artwork.py'
       - 'scripts/LrclibPlaybackChecks.swift'
       - 'ivLyrics-IOS/Resources/Fonts/**'
       - 'ivLyrics-IOS/SetupViews.swift'
@@ -45,10 +54,19 @@ on:
       - 'ivLyrics-IOS/Lrclib*.swift'
       - 'ivLyrics-IOS/LyricsRepository.swift'
       - 'ivLyrics-IOS/AppSettings.swift'
+      - 'ivLyrics-IOS/Models.swift'
+      - 'ivLyrics-IOS/LyricsPictureInPictureController.swift'
+      - 'ivLyrics-IOS/PictureInPicture*.swift'
+      - 'ivLyrics-IOS/Spotify*.swift'
+      - 'ivLyrics-IOS/Vinyl*.swift'
       - 'ivLyrics-IOS/Info.plist'
       - 'ivLyrics-IOS/InfoPlist.xcstrings'
       - 'scripts/test-lrclib-playback.py'
       - 'scripts/test-vinyl.py'
+      - 'scripts/test-lyric-runtime-cache.py'
+      - 'scripts/test-pip-layout.py'
+      - 'scripts/test-spotify-dj.py'
+      - 'scripts/test-vinyl-artwork.py'
       - 'scripts/LrclibPlaybackChecks.swift'
       - 'ivLyrics-IOS/Resources/Fonts/**'
       - 'ivLyrics-IOS/SetupViews.swift'
@@ -115,6 +133,10 @@ jobs:
           python3 scripts/test-provider-overlap.py
           python3 scripts/test-pip-selection-cache.py
           python3 scripts/test-pip-static-frame-cache.py
+          python3 scripts/test-pip-layout.py
+          python3 scripts/test-lyric-runtime-cache.py
+          python3 scripts/test-spotify-dj.py
+          python3 scripts/test-vinyl-artwork.py
           python3 scripts/test-sync-load-reuse.py
           python3 scripts/test-lrclib-playback.py
           python3 scripts/test-ai-models.py
