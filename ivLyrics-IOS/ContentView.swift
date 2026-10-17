@@ -1367,22 +1367,27 @@ private struct YouTubeBackdropSection: View {
 
     var body: some View {
         ZStack {
-            YouTubeBackdropView(
-                info: info,
-                playerSeconds: model.youtubePlayerSeconds,
-                playing: model.currentTrack?.playing ?? false,
-                firstLyricSeconds: model.youtubeFirstLyricSeconds,
-                offsetSeconds: model.youtubeOffsetSeconds,
-                hasCaptionStartTime: info.hasCaptionStartTime,
-                captionStartTimeSeconds: info.captionStartTimeSeconds,
-                autoMatchedUnknownCaptionStart: info.isAutoMatchedUnknownCaptionStart,
-                brightness: background.brightness,
-                blur: background.blur,
-                videoScale: background.videoScale,
-                videoAspect: background.videoAspect,
-                videoVisible: $videoVisible
-            )
-            .blur(radius: youtubeBackgroundBlurRadius(background.blur))
+            if let selection = model.currentYouTubePlayerSelection {
+                YouTubeBackdropView(
+                    info: info,
+                    playerSeconds: model.youtubePlayerSeconds,
+                    playing: model.currentTrack?.playing ?? false,
+                    firstLyricSeconds: model.youtubeFirstLyricSeconds,
+                    offsetSeconds: model.youtubeOffsetSeconds,
+                    hasCaptionStartTime: info.hasCaptionStartTime,
+                    captionStartTimeSeconds: info.captionStartTimeSeconds,
+                    autoMatchedUnknownCaptionStart: info.isAutoMatchedUnknownCaptionStart,
+                    brightness: background.brightness,
+                    blur: background.blur,
+                    videoScale: background.videoScale,
+                    videoAspect: background.videoAspect,
+                    videoVisible: $videoVisible,
+                    selection: selection,
+                    onPlayerMounted: model.registerYouTubePlayer,
+                    onPlayerEvent: model.receiveYouTubePlayerEvent
+                )
+                .blur(radius: youtubeBackgroundBlurRadius(background.blur))
+            }
             Color.black.opacity(videoVisible ? AppearancePolicy.videoDimOpacity(background.brightness) : 0)
         }
         // The decorative video and dimming always cover the home indicator area.

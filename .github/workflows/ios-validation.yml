@@ -34,6 +34,10 @@ on:
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
       - 'ivLyrics-IOS/AppViewModel.swift'
+      - 'ivLyrics-IOS/CommunityVideoClient.swift'
+      - 'ivLyrics-IOS/YouTubePlayerReadiness.swift'
+      - 'ivLyrics-IOS/YouTubeBackdropView.swift'
+      - 'scripts/test-video-sharing.py'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
       - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
@@ -76,6 +80,10 @@ on:
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
       - 'ivLyrics-IOS/AppViewModel.swift'
+      - 'ivLyrics-IOS/CommunityVideoClient.swift'
+      - 'ivLyrics-IOS/YouTubePlayerReadiness.swift'
+      - 'ivLyrics-IOS/YouTubeBackdropView.swift'
+      - 'scripts/test-video-sharing.py'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
       - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
@@ -137,6 +145,7 @@ jobs:
           python3 scripts/test-pip-static-frame-cache.py
           python3 scripts/test-pip-layout.py
           python3 scripts/test-pip-lifecycle.py
+          python3 scripts/test-video-sharing.py
           python3 scripts/test-lyric-runtime-cache.py
           python3 scripts/test-spotify-dj.py
           python3 scripts/test-vinyl-artwork.py

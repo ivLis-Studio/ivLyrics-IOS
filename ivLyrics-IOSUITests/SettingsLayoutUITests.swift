@@ -29,7 +29,8 @@ final class SettingsLayoutUITests: XCTestCase {
     /// Settings open on the home list (menus + search); `tab` opens one menu page directly.
     private func launch(_ surface: String = "settings", tab: String = "home", language: String = "en",
                         landscape: Bool = false, textSize: String = "large", theme: String = "dark",
-                        defaultsID: String = UUID().uuidString) {
+                        defaultsID: String = UUID().uuidString, videoShareFixture: Bool = false,
+                        videoShareState: String = "1") {
         if XCUIDevice.shared.orientation != .portrait {
             XCUIDevice.shared.orientation = .portrait
         }
@@ -38,6 +39,7 @@ final class SettingsLayoutUITests: XCTestCase {
         app.launchEnvironment = ["IVLYRICS_UI_SURFACE": surface, "IVLYRICS_DEBUG_SETTINGS_TAB": tab,
                                  "IVLYRICS_UI_LANGUAGE": language,
                                  "IVLYRICS_UI_DEFAULTS_ID": defaultsID,
+                                 "IVLYRICS_UI_VIDEO_SHARE": videoShareFixture ? videoShareState : "0",
                                  "IVLYRICS_UI_TEXT_SIZE": textSize,
                                  "IVLYRICS_UI_THEME": theme]
         app.launch()
@@ -533,6 +535,59 @@ final class SettingsLayoutUITests: XCTestCase {
         action.tap()
         XCTAssertTrue(app.staticTexts["ui.harness.closed"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["ui.harness.actions"].label, "Actions: 1")
+    }
+
+    func testVideoTimingShareUsesAppliedVideoAndExactOffset() {
+        launch("video", videoShareFixture: true)
+        let field = app.textFields["lyrics.menu.video.url"]
+        reveal(field, scrollID: "lyrics.menu.scroll")
+        field.tap()
+        field.typeText("https://youtu.be/Zyx_321-cba\n")
+        let increment = app.buttons["lyrics.menu.offset.video.delta.100"]
+        reveal(increment, scrollID: "lyrics.menu.scroll")
+        increment.tap()
+        let share = app.buttons["lyrics.menu.video.share"]
+        reveal(share, scrollID: "lyrics.menu.scroll")
+        assertTouchTarget(share)
+        XCTAssertTrue(share.isEnabled)
+        share.tap()
+        app.buttons["lyrics.menu.close"].tap()
+        let captured = app.staticTexts["ui.harness.video-share"]
+        XCTAssertTrue(captured.waitForExistence(timeout: 5))
+        let parts = captured.label.split(separator: "@")
+        XCTAssertEqual(parts.first.map(String.init), "Abc_123-xyz", "Share uses the applied video, never the draft URL")
+        XCTAssertEqual(Double(parts.last ?? "") ?? .nan, 12.6, accuracy: 0.000000001,
+                       "Share preserves the exact +100ms correction in seconds")
+    }
+
+    func testVideoTimingShareUnavailableWithoutAppliedVideo() {
+        launch("video")
+        let share = app.buttons["lyrics.menu.video.share"]
+        reveal(share, scrollID: "lyrics.menu.scroll")
+        XCTAssertFalse(share.isEnabled)
+        app.buttons["lyrics.menu.close"].tap()
+        XCTAssertEqual(app.staticTexts["ui.harness.video-share"].label, "none")
+    }
+
+    func testVideoTimingShareRequiresCurrentPlayerAcknowledgement() {
+        for state in ["loading", "failed", "stale"] {
+            launch("video", videoShareFixture: true, videoShareState: state)
+            let share = app.buttons["lyrics.menu.video.share"]
+            reveal(share, scrollID: "lyrics.menu.scroll")
+            XCTAssertFalse(share.isEnabled, "A \(state) player cannot contribute video timing")
+            app.buttons["lyrics.menu.close"].tap()
+            XCTAssertEqual(app.staticTexts["ui.harness.video-share"].label, "none")
+            app.terminate()
+        }
+    }
+
+    func testVideoTimingShareEnabledAfterSameSelectionRemount() {
+        launch("video", videoShareFixture: true, videoShareState: "remounted")
+        let share = app.buttons["lyrics.menu.video.share"]
+        reveal(share, scrollID: "lyrics.menu.scroll")
+        XCTAssertTrue(share.isEnabled, "A fresh acknowledged document can share after the same selection remounts")
+        app.buttons["lyrics.menu.close"].tap()
+        XCTAssertEqual(app.staticTexts["ui.harness.video-share"].label, "none", "Remount never submits automatically")
     }
 
     func testVideoLandscapeAccessibilityControlsReachable() {

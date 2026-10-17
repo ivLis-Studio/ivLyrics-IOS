@@ -468,6 +468,18 @@ struct LyricsMetaMenuOverlay: View {
                 setValue: { model.setVideoOffsetMs($0, notify: true) },
                 isDimmed: model.currentTrackKey.isEmpty
             )
+            Button {
+                focusedField = nil
+                Task { await model.shareCurrentVideoTiming() }
+            } label: {
+                SettingsActionLabel(title: settings.t("video.share"), systemImage: "square.and.arrow.up",
+                                    busy: model.videoTimingShareInFlight)
+                    .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(SettingsActionButtonStyle())
+            .disabled(selectingVideo || model.videoTimingShareInFlight || model.currentVideoTimingSubmission == nil)
+            .accessibilityHint(settings.t("video.share_desc"))
+            .accessibilityIdentifier("lyrics.menu.video.share")
         }
     }
 

@@ -33,6 +33,12 @@ IVLYRICS_LLAMA_STUB=1 xcodebuild \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testHomeWordmarkLandscapeAccessibilityText \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLrclibEndpointValidationPersistenceAndClear \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLrclibEndpointLargeTextLayout \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testAlbumCoverLPSwitchSearchPersistenceAndImport \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testAlbumCoverLPSwitchLargeTextLayout \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testVideoTimingShareUsesAppliedVideoAndExactOffset \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testVideoTimingShareUnavailableWithoutAppliedVideo \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testVideoTimingShareRequiresCurrentPlayerAcknowledgement \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testVideoTimingShareEnabledAfterSameSelectionRemount \
     SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
     SWIFT_ENABLE_OPAQUE_TYPE_ERASURE=NO \
     CODE_SIGNING_ALLOWED=NO \

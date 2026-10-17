@@ -47,6 +47,9 @@ struct YouTubeBackdropView: UIViewRepresentable {
     var videoScale: Int
     var videoAspect: String
     @Binding var videoVisible: Bool
+    var selection: YouTubePlayerSelection
+    var onPlayerMounted: (YouTubePlayerIdentity) -> Void
+    var onPlayerEvent: (YouTubePlayerIdentity, String) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -70,17 +73,21 @@ struct YouTubeBackdropView: UIViewRepresentable {
         view.scrollView.isScrollEnabled = false
         // Use the background's full bounds without reintroducing UIKit safe-area padding.
         view.scrollView.contentInsetAdjustmentBehavior = .never
-        view.loadHTMLString(Self.html(videoId: info.youtubeVideoId, videoScale: videoScale, videoAspect: videoAspect), baseURL: URL(string: Self.htmlOrigin))
         context.coordinator.webView = view
         context.coordinator.videoId = info.youtubeVideoId
+        let identity = context.coordinator.mount(selection, onMounted: onPlayerMounted)
+        context.coordinator.playerEvent = onPlayerEvent
         context.coordinator.videoScale = videoScale
         context.coordinator.visibilityChanged = { visible in videoVisible = visible }
+        context.coordinator.navigation = view.loadHTMLString(Self.html(videoId: info.youtubeVideoId, sessionID: identity.sessionID, videoScale: videoScale, videoAspect: videoAspect), baseURL: URL(string: Self.htmlOrigin))
         return view
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.visibilityChanged = { visible in videoVisible = visible }
-        if context.coordinator.videoId != info.youtubeVideoId {
+        context.coordinator.playerEvent = onPlayerEvent
+        if context.coordinator.identity?.selection != selection {
+            let identity = context.coordinator.mount(selection, onMounted: onPlayerMounted)
             context.coordinator.videoId = info.youtubeVideoId
             context.coordinator.videoScale = videoScale
             context.coordinator.playerReady = false
@@ -88,7 +95,7 @@ struct YouTubeBackdropView: UIViewRepresentable {
             context.coordinator.visibleState = false
             webView.alpha = 0
             DispatchQueue.main.async { videoVisible = false }
-            webView.loadHTMLString(Self.html(videoId: info.youtubeVideoId, videoScale: videoScale, videoAspect: videoAspect), baseURL: URL(string: Self.htmlOrigin))
+            context.coordinator.navigation = webView.loadHTMLString(Self.html(videoId: info.youtubeVideoId, sessionID: identity.sessionID, videoScale: videoScale, videoAspect: videoAspect), baseURL: URL(string: Self.htmlOrigin))
         } else if context.coordinator.videoScale != videoScale {
             context.coordinator.videoScale = videoScale
             webView.evaluateJavaScript("document.documentElement.style.setProperty('--video-scale','\(Self.cssScale(videoScale))');")
@@ -116,6 +123,11 @@ struct YouTubeBackdropView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
+        if let identity = coordinator.identity {
+            let callback = coordinator.playerEvent
+            DispatchQueue.main.async { callback(identity, "detached") }
+        }
+        coordinator.identity = nil
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "ivLyricsYouTube")
         uiView.navigationDelegate = nil
         uiView.loadHTMLString("", baseURL: nil)
@@ -124,6 +136,9 @@ struct YouTubeBackdropView: UIViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         weak var webView: WKWebView?
         var videoId = ""
+        var identity: YouTubePlayerIdentity?
+        var navigation: WKNavigation?
+        var playerEvent: (YouTubePlayerIdentity, String) -> Void = { _, _ in }
         var videoScale = 100
         var videoAspect = "fill"
         var videoPlaying = false
@@ -135,6 +150,18 @@ struct YouTubeBackdropView: UIViewRepresentable {
         var playing = false
         var playerReady = false
         var visibleState = false
+
+        @discardableResult
+        func mount(_ selection: YouTubePlayerSelection, onMounted: @escaping (YouTubePlayerIdentity) -> Void) -> YouTubePlayerIdentity {
+            let identity = YouTubePlayerIdentity(selection: selection)
+            self.identity = identity
+            lastSyncAt = 0
+            DispatchQueue.main.async { [weak self] in
+                guard self?.identity == identity else { return }
+                onMounted(identity)
+            }
+            return identity
+        }
 
         func setPlaybackState(playing nextPlaying: Bool) {
             if nextPlaying != playing {
@@ -150,7 +177,11 @@ struct YouTubeBackdropView: UIViewRepresentable {
         func updateVisibility(for webView: WKWebView?, visible: Bool) {
             guard visibleState != visible else { return }
             visibleState = visible
-            DispatchQueue.main.async { [weak self] in self?.visibilityChanged(visible) }
+            let identity = identity
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.identity == identity, self.visibleState == visible else { return }
+                self.visibilityChanged(visible)
+            }
             guard let target = webView ?? self.webView else { return }
             UIView.animate(withDuration: visible ? 0.28 : 0.18) {
                 target.alpha = visible ? 1 : 0
@@ -158,24 +189,38 @@ struct YouTubeBackdropView: UIViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.name == "ivLyricsYouTube" else { return }
-            if (message.body as? String) == "ready" {
+            guard message.name == "ivLyricsYouTube", message.frameInfo.isMainFrame,
+                  message.webView === webView, let identity,
+                  let body = message.body as? [String: String],
+                  body["videoId"] == identity.videoID,
+                  body["sessionId"] == identity.sessionID.uuidString,
+                  let event = body["state"], ["ready", "playing", "failed"].contains(event) else { return }
+            if event == "ready" {
                 playerReady = true
                 if !playing {
                     pausePlayer()
                 }
-            } else if (message.body as? String) == "playing" {
+            } else if event == "playing" {
                 videoPlaying = true
                 updateVisibility(for: webView, visible: playing)
-            } else if (message.body as? String) == "failed" {
+            } else if event == "failed" {
+                playerReady = false
                 videoPlaying = false
                 updateVisibility(for: webView, visible: false)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.identity == identity else { return }
+                self.playerEvent(identity, event)
             }
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            guard self.webView === webView, let navigation, self.navigation === navigation,
+                  let identity else { return }
+            playerReady = false
             videoPlaying = false
             updateVisibility(for: webView, visible: false)
+            playerEvent(identity, "failed")
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -188,7 +233,7 @@ struct YouTubeBackdropView: UIViewRepresentable {
         }
     }
 
-    private static func html(videoId: String, videoScale: Int, videoAspect: String) -> String {
+    private static func html(videoId: String, sessionID: UUID, videoScale: Int, videoAspect: String) -> String {
         let safeVideoId = jsSingleQuotedContent(videoId)
         return #"""
         <!doctype html>
@@ -212,7 +257,7 @@ struct YouTubeBackdropView: UIViewRepresentable {
           <script>
             function updateStretch(){document.documentElement.style.setProperty('--stretch-y',String(innerHeight/(innerWidth*9/16)));}
             updateStretch();addEventListener('resize',updateStretch);
-            function reportVideo(state){try{window.webkit.messageHandlers.ivLyricsYouTube.postMessage(state);}catch(e){}}
+            function reportVideo(state){try{var actual=player&&player.getVideoData?player.getVideoData().video_id:'';if(state!=='failed'&&actual!=='\#(safeVideoId)')return;window.webkit.messageHandlers.ivLyricsYouTube.postMessage({state:state,videoId:state==='failed'?'\#(safeVideoId)':actual,sessionId:'\#(sessionID.uuidString)'});}catch(e){}}
             var player=null,ready=false,lastCaptionDisable=0,lastSeekAt=0,lastDesired={videoId:'\#(safeVideoId)',startSeconds:0};
             var adPatterns=[/doubleclick\.net/i,/googlesyndication\.com/i,/googleads\.g\.doubleclick\.net/i,/pagead(?!.*youtube\.com\/iframe)/i,/tpc\.googlesyndication\.com/i,/pubads\.g\.doubleclick\.net/i,/securepubads\.g\.doubleclick\.net/i,/gvt\d+\.com\/ads/i,/manifest\.googlevideo\.com\/api\/manifest\/ads/i,/googlevideo\.com\/videoplayback.*[&?](ctier|oad|adformat)=/i,/googlevideo\.com\/initplayback.*[&?](ctier|oad|adformat)=/i,/youtube\.com\/pagead/i,/youtube\.com\/ptracking/i,/youtube\.com\/api\/stats\/(ads|qoe|watchtime|playback)/i,/youtubei\/v1\/log_event/i,/youtubei\/v1\/player.*adformat/i,/youtube\.com\/get_video_info.*adformat/i,/youtube\.com\/yva_/i,/yt\d?\.ggpht\.com\/ad/i,/ytimg\.com\/.*ad/i,/yt3\.ggpht\.com\/ytc\/.*ad/i,/s0\.2mdn\.net/i,/gstaticadssl\.googleapis\.com/i];
             function isAdUrl(u){try{u=(typeof u==='string'?u:(u&&u.url)||'');return !!u&&adPatterns.some(function(p){return p.test(u);});}catch(e){return false;}}
@@ -229,8 +274,8 @@ struct YouTubeBackdropView: UIViewRepresentable {
             function restorePlaybackRate(){try{if(player&&player.setPlaybackRate&&player.getPlaybackRate&&player.getPlaybackRate()!==1)player.setPlaybackRate(1);}catch(e){}}
             function onYouTubeIframeAPIReady(){player=new YT.Player('player',{host:'https://www.youtube-nocookie.com',videoId:'\#(safeVideoId)',
             playerVars:{autoplay:1,controls:0,disablekb:1,fs:0,rel:0,iv_load_policy:3,cc_load_policy:0,mute:1,playsinline:1,modestbranding:1,autohide:1,showinfo:0,enablecastapi:0,allowfullscreen:0,disable_polymer:1,suppress_ads:1,adformat:'0_0',widget_referrer:'https://xpui.app.spotify.com',origin:'https://xpui.app.spotify.com',fflags:'disable_persistent_ads=true&kevlar_allow_multistep_video_ads=false&enable_desktop_ad_controls=false&html5_disable_ads=true&disable_new_pause_state3_player_ads=true&player_ads_enable_gcf=false&web_player_disable_afa=true&preskip_button_style_ads_backend=false&html5_player_enable_ads_client=false'},
-            events:{onReady:function(e){player=e.target;ready=true;sanitizeIframe();try{player.mute();player.playVideo();}catch(x){}disableCaptions();setTimeout(disableCaptions,250);setTimeout(disableCaptions,1000);setTimeout(disableCaptions,2500);try{window.webkit.messageHandlers.ivLyricsYouTube.postMessage('ready');}catch(x){}},
-            onStateChange:function(e){sanitizeIframe();disableCaptions();suppressAds();if(!isAdPlayback())restorePlaybackRate();if(e.data===1)reportVideo('playing');},onError:function(){reportVideo('failed');}}});setInterval(function(){if(player&&ready){sanitizeIframe();suppressAds();}},400);}
+            events:{onReady:function(e){player=e.target;ready=true;sanitizeIframe();try{player.mute();player.playVideo();}catch(x){}disableCaptions();setTimeout(disableCaptions,250);setTimeout(disableCaptions,1000);setTimeout(disableCaptions,2500);reportVideo('ready');},
+            onStateChange:function(e){sanitizeIframe();disableCaptions();suppressAds();if(!isAdPlayback()){restorePlaybackRate();reportVideo('ready');}if(e.data===1)reportVideo('playing');},onError:function(){reportVideo('failed');}}});setInterval(function(){if(player&&ready){sanitizeIframe();suppressAds();}},400);}
             window.ivLyricsSyncVideo=function(playerSeconds,playing,firstLyricSeconds,offsetSeconds,hasCaption,captionStart,autoUnknown,enabled,allowHardSync){
             if(!enabled||!player||!ready||!player.getPlayerState)return;
             try{var now=Date.now();if(now-lastCaptionDisable>5000){lastCaptionDisable=now;disableCaptions();}
@@ -320,6 +365,9 @@ struct YouTubeBackdropView: View {
     var videoScale: Int
     var videoAspect: String
     @Binding var videoVisible: Bool
+    var selection: YouTubePlayerSelection
+    var onPlayerMounted: (YouTubePlayerIdentity) -> Void
+    var onPlayerEvent: (YouTubePlayerIdentity, String) -> Void
 
     var body: some View {
         EmptyView()

@@ -101,7 +101,11 @@ struct DebugSettingsUIRoot: View {
             settings.spotifyClientSecret = "fixture-stale-secret"
         }
         _settings = StateObject(wrappedValue: settings)
-        _model = StateObject(wrappedValue: AppViewModel(settings: settings))
+        let model = AppViewModel(settings: settings)
+        if let state = ProcessInfo.processInfo.environment["IVLYRICS_UI_VIDEO_SHARE"], state != "0" {
+            model.applyDebugVideoSharingFixture()
+        }
+        _model = StateObject(wrappedValue: model)
         _tab = State(initialValue: LyricsMetaMenuTab(rawValue: DebugSettingsUIHarness.surface) ?? .language)
     }
 
@@ -114,6 +118,8 @@ struct DebugSettingsUIRoot: View {
                     Text(model.artistText).font(.body)
                     Text(model.lyricsResult.lines.first?.translationText ?? "").font(.body)
                     Text("Offline UI fixture").accessibilityIdentifier("ui.harness.offline")
+                    Text(verbatim: model.debugLastVideoTimingShare.map { "\($0.videoId)@\($0.startTime)" } ?? "none")
+                        .accessibilityIdentifier("ui.harness.video-share")
                     Text("Actions: \(model.debugSettingsUIActionCount)")
                         .accessibilityIdentifier("ui.harness.actions")
                     Text("\(SettingsView.debugMenuContentSize)")

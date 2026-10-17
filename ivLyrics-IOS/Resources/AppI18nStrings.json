@@ -1,5 +1,11 @@
 {
   "ko": {
+    "video.share": "공유",
+    "video.share_desc": "적용 중인 영상과 영상 시간 보정을 커뮤니티에 공유합니다. 입력만 한 URL은 공유하지 않습니다.",
+    "video.shared": "영상 시간을 공유했어요.",
+    "video.share_failed": "영상 시간을 공유하지 못했어요. 다시 시도해 주세요.",
+    "video.share_invalid": "곡 정보와 싱크 가사가 있는 영상을 먼저 적용해 주세요.",
+    "video.share_login_required": "영상 시간을 공유하려면 설정에서 Discord에 로그인해 주세요.",
     "vinyl.settings.cover_tap": "앨범 커버 탭으로 LP 모드 열기",
     "vinyl.settings.cover_tap_desc": "끄면 앨범 커버를 탭해도 LP 모드로 전환되지 않아요. 곡 메뉴에서는 계속 LP 모드를 열 수 있어요.",
     "lyrics.lrclib_endpoint.title": "LRCLIB 사용자 지정 URL",
@@ -899,6 +905,12 @@
     "onboarding.metadata_optional": "메타데이터 보강 (선택)"
   },
   "en": {
+    "video.share": "Share",
+    "video.share_desc": "Share the applied video's timing with the community. Unapplied URL edits are not shared.",
+    "video.shared": "Video timing shared.",
+    "video.share_failed": "Couldn't share video timing. Please try again.",
+    "video.share_invalid": "Apply a video with known song details and synced lyrics first.",
+    "video.share_login_required": "Sign in to Discord in Settings to share video timing.",
     "vinyl.settings.cover_tap": "Open LP mode by tapping album cover",
     "vinyl.settings.cover_tap_desc": "When off, tapping the album cover won't open LP mode. You can still open it from the song menu.",
     "lyrics.lrclib_endpoint.title": "Custom LRCLIB URL",
@@ -1798,6 +1810,12 @@
     "onboarding.metadata_optional": "Metadata enrichment (optional)"
   },
   "zh-CN": {
+    "video.share": "分享",
+    "video.share_desc": "将当前已应用视频的时间校准分享到社区。仅输入但未应用的网址不会被分享。",
+    "video.shared": "视频时间已分享。",
+    "video.share_failed": "无法分享视频时间，请重试。",
+    "video.share_invalid": "请先应用包含歌曲信息和同步歌词的视频。",
+    "video.share_login_required": "请在设置中登录 Discord 以分享视频时间。",
     "vinyl.settings.cover_tap": "轻点专辑封面打开 LP 模式",
     "vinyl.settings.cover_tap_desc": "关闭后，轻点专辑封面不会进入 LP 模式。你仍可从歌曲菜单打开。",
     "lyrics.lrclib_endpoint.title": "自定义 LRCLIB URL",
@@ -2697,6 +2715,12 @@
     "onboarding.metadata_optional": "元数据增强（可选）"
   },
   "zh-TW": {
+    "video.share": "分享",
+    "video.share_desc": "將目前已套用影片的時間校準分享至社群。僅輸入但未套用的網址不會被分享。",
+    "video.shared": "影片時間已分享。",
+    "video.share_failed": "無法分享影片時間，請重試。",
+    "video.share_invalid": "請先套用包含歌曲資訊和同步歌詞的影片。",
+    "video.share_login_required": "請在設定中登入 Discord 以分享影片時間。",
     "vinyl.settings.cover_tap": "點按專輯封面開啟 LP 模式",
     "vinyl.settings.cover_tap_desc": "關閉後，點按專輯封面不會進入 LP 模式。你仍可從歌曲選單開啟。",
     "lyrics.lrclib_endpoint.title": "自訂 LRCLIB URL",
@@ -3596,6 +3620,12 @@
     "onboarding.metadata_optional": "中繼資料增強（選用）"
   },
   "ja": {
+    "video.share": "共有",
+    "video.share_desc": "適用中の動画のタイミングをコミュニティに共有します。未適用のURL編集は共有しません。",
+    "video.shared": "動画のタイミングを共有しました。",
+    "video.share_failed": "動画のタイミングを共有できませんでした。再試行してください。",
+    "video.share_invalid": "曲情報と同期歌詞のある動画を先に適用してください。",
+    "video.share_login_required": "動画のタイミングを共有するには、設定でDiscordにログインしてください。",
     "vinyl.settings.cover_tap": "アルバムカバーのタップでLPモードを開く",
     "vinyl.settings.cover_tap_desc": "オフにすると、アルバムカバーをタップしてもLPモードに切り替わりません。曲のメニューからは引き続き開けます。",
     "lyrics.lrclib_endpoint.title": "LRCLIB カスタム URL",
@@ -4495,6 +4525,12 @@
     "onboarding.metadata_optional": "メタデータの補完（任意）"
   },
   "hi": {
+    "video.share": "साझा करें",
+    "video.share_desc": "लागू किए गए वीडियो का समय समुदाय के साथ साझा करें। लागू न किए गए URL बदलाव साझा नहीं होंगे।",
+    "video.shared": "वीडियो का समय साझा किया गया।",
+    "video.share_failed": "वीडियो का समय साझा नहीं हो सका। फिर कोशिश करें।",
+    "video.share_invalid": "पहले गीत की जानकारी और सिंक किए गए बोल वाला वीडियो लागू करें।",
+    "video.share_login_required": "वीडियो का समय साझा करने के लिए सेटिंग में Discord में साइन इन करें।",
     "vinyl.settings.cover_tap": "एल्बम कवर पर टैप करके LP मोड खोलें",
     "vinyl.settings.cover_tap_desc": "बंद होने पर एल्बम कवर पर टैप करने से LP मोड नहीं खुलेगा। आप इसे अब भी गाने के मेनू से खोल सकते हैं।",
     "lyrics.lrclib_endpoint.title": "कस्टम LRCLIB URL",
@@ -5394,6 +5430,12 @@
     "onboarding.metadata_optional": "मेटाडेटा संवर्धन (वैकल्पिक)"
   },
   "es": {
+    "video.share": "Compartir",
+    "video.share_desc": "Comparte el ajuste de tiempo del vídeo aplicado con la comunidad. Los cambios de URL sin aplicar no se comparten.",
+    "video.shared": "Tiempo del vídeo compartido.",
+    "video.share_failed": "No se pudo compartir el tiempo del vídeo. Inténtalo de nuevo.",
+    "video.share_invalid": "Aplica primero un vídeo con datos de la canción y letra sincronizada.",
+    "video.share_login_required": "Inicia sesión en Discord desde Ajustes para compartir el tiempo del vídeo.",
     "vinyl.settings.cover_tap": "Abrir el modo LP al tocar la portada",
     "vinyl.settings.cover_tap_desc": "Si se desactiva, tocar la portada no abrirá el modo LP. Podrás seguir abriéndolo desde el menú de la canción.",
     "lyrics.lrclib_endpoint.title": "URL de LRCLIB personalizada",
@@ -6293,6 +6335,12 @@
     "onboarding.metadata_optional": "Ampliar metadatos (opcional)"
   },
   "fr": {
+    "video.share": "Partager",
+    "video.share_desc": "Partagez le calage de la vidéo appliquée avec la communauté. Les modifications d'URL non appliquées ne sont pas partagées.",
+    "video.shared": "Calage vidéo partagé.",
+    "video.share_failed": "Impossible de partager le calage vidéo. Réessayez.",
+    "video.share_invalid": "Appliquez d'abord une vidéo avec les informations du morceau et des paroles synchronisées.",
+    "video.share_login_required": "Connectez-vous à Discord dans les réglages pour partager le calage vidéo.",
     "vinyl.settings.cover_tap": "Ouvrir le mode LP en touchant la pochette",
     "vinyl.settings.cover_tap_desc": "Si cette option est désactivée, toucher la pochette n'ouvrira pas le mode LP. Il reste accessible depuis le menu du morceau.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB personnalisée",
@@ -7192,6 +7240,12 @@
     "onboarding.metadata_optional": "Enrichir les métadonnées (facultatif)"
   },
   "ar": {
+    "video.share": "مشاركة",
+    "video.share_desc": "شارك توقيت الفيديو المطبّق مع المجتمع. لن تتم مشاركة تعديلات الرابط غير المطبّقة.",
+    "video.shared": "تمت مشاركة توقيت الفيديو.",
+    "video.share_failed": "تعذرت مشاركة توقيت الفيديو. حاول مجددًا.",
+    "video.share_invalid": "طبّق أولًا فيديو تتوفر له معلومات الأغنية وكلمات متزامنة.",
+    "video.share_login_required": "سجّل الدخول إلى Discord من الإعدادات لمشاركة توقيت الفيديو.",
     "vinyl.settings.cover_tap": "فتح وضع LP بالنقر على غلاف الألبوم",
     "vinyl.settings.cover_tap_desc": "عند إيقاف هذا الخيار، لن يؤدي النقر على غلاف الألبوم إلى فتح وضع LP. يمكنك فتحه من قائمة الأغنية.",
     "lyrics.lrclib_endpoint.title": "عنوان LRCLIB مخصص",
@@ -8091,6 +8145,12 @@
     "onboarding.metadata_optional": "إثراء البيانات الوصفية (اختياري)"
   },
   "fa": {
+    "video.share": "اشتراک‌گذاری",
+    "video.share_desc": "زمان‌بندی ویدیوی اعمال‌شده را با جامعه به اشتراک بگذارید. تغییرات اعمال‌نشدهٔ نشانی به اشتراک گذاشته نمی‌شوند.",
+    "video.shared": "زمان‌بندی ویدیو به اشتراک گذاشته شد.",
+    "video.share_failed": "اشتراک‌گذاری زمان‌بندی ویدیو ممکن نشد. دوباره تلاش کنید.",
+    "video.share_invalid": "ابتدا ویدیویی با اطلاعات آهنگ و متن همگام‌شده اعمال کنید.",
+    "video.share_login_required": "برای اشتراک‌گذاری زمان‌بندی ویدیو، در تنظیمات وارد Discord شوید.",
     "vinyl.settings.cover_tap": "باز کردن حالت LP با ضربه روی جلد آلبوم",
     "vinyl.settings.cover_tap_desc": "وقتی خاموش باشد، ضربه روی جلد آلبوم حالت LP را باز نمی‌کند. همچنان می‌توانید آن را از منوی آهنگ باز کنید.",
     "lyrics.lrclib_endpoint.title": "نشانی سفارشی LRCLIB",
@@ -8990,6 +9050,12 @@
     "onboarding.metadata_optional": "تکمیل فراداده (اختیاری)"
   },
   "de": {
+    "video.share": "Teilen",
+    "video.share_desc": "Teile das Timing des angewendeten Videos mit der Community. Nicht angewendete URL-Änderungen werden nicht geteilt.",
+    "video.shared": "Video-Timing geteilt.",
+    "video.share_failed": "Video-Timing konnte nicht geteilt werden. Bitte erneut versuchen.",
+    "video.share_invalid": "Wende zuerst ein Video mit Songinformationen und synchronisierten Liedtexten an.",
+    "video.share_login_required": "Melde dich in den Einstellungen bei Discord an, um das Video-Timing zu teilen.",
     "vinyl.settings.cover_tap": "LP-Modus durch Tippen auf das Albumcover öffnen",
     "vinyl.settings.cover_tap_desc": "Wenn deaktiviert, öffnet ein Tippen auf das Albumcover den LP-Modus nicht. Er bleibt über das Songmenü erreichbar.",
     "lyrics.lrclib_endpoint.title": "Eigene LRCLIB-URL",
@@ -9889,6 +9955,12 @@
     "onboarding.metadata_optional": "Metadaten ergänzen (optional)"
   },
   "ru": {
+    "video.share": "Поделиться",
+    "video.share_desc": "Поделитесь настройкой времени применённого видео с сообществом. Неприменённые изменения URL не отправляются.",
+    "video.shared": "Настройка времени видео опубликована.",
+    "video.share_failed": "Не удалось поделиться настройкой времени видео. Повторите попытку.",
+    "video.share_invalid": "Сначала примените видео с данными песни и синхронизированным текстом.",
+    "video.share_login_required": "Для публикации настройки времени видео войдите в Discord в настройках.",
     "vinyl.settings.cover_tap": "Открывать режим LP касанием обложки",
     "vinyl.settings.cover_tap_desc": "Если выключено, касание обложки альбома не откроет режим LP. Его по-прежнему можно открыть из меню песни.",
     "lyrics.lrclib_endpoint.title": "Свой URL LRCLIB",
@@ -10788,6 +10860,12 @@
     "onboarding.metadata_optional": "Дополнение метаданных (необязательно)"
   },
   "sv": {
+    "video.share": "Dela",
+    "video.share_desc": "Dela tidsinställningen för den tillämpade videon med gemenskapen. URL-ändringar som inte tillämpats delas inte.",
+    "video.shared": "Videons tidsinställning har delats.",
+    "video.share_failed": "Kunde inte dela videons tidsinställning. Försök igen.",
+    "video.share_invalid": "Tillämpa först en video med låtinformation och synkroniserad text.",
+    "video.share_login_required": "Logga in på Discord i inställningarna för att dela videons tidsinställning.",
     "vinyl.settings.cover_tap": "Öppna LP-läge genom att trycka på skivomslaget",
     "vinyl.settings.cover_tap_desc": "När detta är avstängt öppnas inte LP-läget när du trycker på skivomslaget. Du kan fortfarande öppna det från låtmenyn.",
     "lyrics.lrclib_endpoint.title": "Egen LRCLIB-URL",
@@ -11687,6 +11765,12 @@
     "onboarding.metadata_optional": "Utöka metadata (valfritt)"
   },
   "pt": {
+    "video.share": "Compartilhar",
+    "video.share_desc": "Compartilhe o ajuste de tempo do vídeo aplicado com a comunidade. Alterações de URL não aplicadas não são compartilhadas.",
+    "video.shared": "Ajuste de tempo do vídeo compartilhado.",
+    "video.share_failed": "Não foi possível compartilhar o ajuste de tempo. Tente novamente.",
+    "video.share_invalid": "Primeiro aplique um vídeo com informações da música e letra sincronizada.",
+    "video.share_login_required": "Entre no Discord nas Configurações para compartilhar o ajuste de tempo do vídeo.",
     "vinyl.settings.cover_tap": "Abrir o modo LP ao tocar na capa do álbum",
     "vinyl.settings.cover_tap_desc": "Quando desativado, tocar na capa do álbum não abre o modo LP. Você ainda pode abri-lo pelo menu da música.",
     "lyrics.lrclib_endpoint.title": "URL personalizada do LRCLIB",
@@ -12586,6 +12670,12 @@
     "onboarding.metadata_optional": "Enriquecer metadados (opcional)"
   },
   "bn": {
+    "video.share": "শেয়ার করুন",
+    "video.share_desc": "প্রয়োগ করা ভিডিওর সময়ের সমন্বয় কমিউনিটির সঙ্গে শেয়ার করুন। প্রয়োগ না করা URL পরিবর্তন শেয়ার হবে না।",
+    "video.shared": "ভিডিওর সময়ের সমন্বয় শেয়ার হয়েছে।",
+    "video.share_failed": "ভিডিওর সময়ের সমন্বয় শেয়ার করা যায়নি। আবার চেষ্টা করুন।",
+    "video.share_invalid": "আগে গানের তথ্য ও সিঙ্ক করা লিরিক্সসহ একটি ভিডিও প্রয়োগ করুন।",
+    "video.share_login_required": "ভিডিওর সময়ের সমন্বয় শেয়ার করতে সেটিংস থেকে Discord-এ সাইন ইন করুন।",
     "vinyl.settings.cover_tap": "অ্যালবামের কভারে ট্যাপ করে LP মোড খুলুন",
     "vinyl.settings.cover_tap_desc": "বন্ধ থাকলে অ্যালবামের কভারে ট্যাপ করলে LP মোড খুলবে না। গানের মেনু থেকে এটি এখনও খুলতে পারবেন।",
     "lyrics.lrclib_endpoint.title": "কাস্টম LRCLIB URL",
@@ -13485,6 +13575,12 @@
     "onboarding.metadata_optional": "মেটাডেটা সমৃদ্ধি (ঐচ্ছিক)"
   },
   "cs": {
+    "video.share": "Sdílet",
+    "video.share_desc": "Sdílejte časování použitého videa s komunitou. Nepoužité změny URL se nesdílejí.",
+    "video.shared": "Časování videa bylo sdíleno.",
+    "video.share_failed": "Časování videa se nepodařilo sdílet. Zkuste to znovu.",
+    "video.share_invalid": "Nejprve použijte video s údaji o skladbě a synchronizovaným textem.",
+    "video.share_login_required": "Pro sdílení časování videa se v nastavení přihlaste k Discordu.",
     "vinyl.settings.cover_tap": "Otevřít režim LP klepnutím na obal alba",
     "vinyl.settings.cover_tap_desc": "Když je vypnuto, klepnutí na obal alba neotevře režim LP. Stále jej můžete otevřít z nabídky skladby.",
     "lyrics.lrclib_endpoint.title": "Vlastní URL LRCLIB",
@@ -14384,6 +14480,12 @@
     "onboarding.metadata_optional": "Doplnit metadata (volitelné)"
   },
   "it": {
+    "video.share": "Condividi",
+    "video.share_desc": "Condividi con la community la sincronizzazione del video applicato. Le modifiche all'URL non applicate non vengono condivise.",
+    "video.shared": "Sincronizzazione del video condivisa.",
+    "video.share_failed": "Impossibile condividere la sincronizzazione. Riprova.",
+    "video.share_invalid": "Applica prima un video con informazioni sul brano e testo sincronizzato.",
+    "video.share_login_required": "Accedi a Discord nelle impostazioni per condividere la sincronizzazione del video.",
     "vinyl.settings.cover_tap": "Apri la modalità LP toccando la copertina",
     "vinyl.settings.cover_tap_desc": "Se disattivata, toccare la copertina non aprirà la modalità LP. Potrai comunque aprirla dal menu del brano.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB personalizzato",
@@ -15283,6 +15385,12 @@
     "onboarding.metadata_optional": "Arricchire i metadati (facoltativo)"
   },
   "th": {
+    "video.share": "แชร์",
+    "video.share_desc": "แชร์การปรับเวลาของวิดีโอที่ใช้อยู่กับชุมชน การแก้ไข URL ที่ยังไม่ได้ใช้จะไม่ถูกแชร์",
+    "video.shared": "แชร์เวลาวิดีโอแล้ว",
+    "video.share_failed": "แชร์เวลาวิดีโอไม่สำเร็จ โปรดลองอีกครั้ง",
+    "video.share_invalid": "โปรดใช้วิดีโอที่มีข้อมูลเพลงและเนื้อเพลงแบบซิงก์ก่อน",
+    "video.share_login_required": "เข้าสู่ระบบ Discord ในการตั้งค่าเพื่อแชร์เวลาวิดีโอ",
     "vinyl.settings.cover_tap": "เปิดโหมด LP โดยแตะปกอัลบั้ม",
     "vinyl.settings.cover_tap_desc": "เมื่อปิด การแตะปกอัลบั้มจะไม่เปิดโหมด LP คุณยังเปิดได้จากเมนูเพลง",
     "lyrics.lrclib_endpoint.title": "URL ของ LRCLIB แบบกำหนดเอง",
@@ -16182,6 +16290,12 @@
     "onboarding.metadata_optional": "เพิ่มข้อมูลเมตา (ไม่บังคับ)"
   },
   "vi": {
+    "video.share": "Chia sẻ",
+    "video.share_desc": "Chia sẻ thời gian của video đang áp dụng với cộng đồng. Thay đổi URL chưa áp dụng sẽ không được chia sẻ.",
+    "video.shared": "Đã chia sẻ thời gian video.",
+    "video.share_failed": "Không thể chia sẻ thời gian video. Vui lòng thử lại.",
+    "video.share_invalid": "Hãy áp dụng video có thông tin bài hát và lời đồng bộ trước.",
+    "video.share_login_required": "Đăng nhập Discord trong Cài đặt để chia sẻ thời gian video.",
     "vinyl.settings.cover_tap": "Mở chế độ LP bằng cách chạm bìa album",
     "vinyl.settings.cover_tap_desc": "Khi tắt, chạm vào bìa album sẽ không mở chế độ LP. Bạn vẫn có thể mở từ menu bài hát.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB tùy chỉnh",
@@ -17081,6 +17195,12 @@
     "onboarding.metadata_optional": "Bổ sung siêu dữ liệu (không bắt buộc)"
   },
   "id": {
+    "video.share": "Bagikan",
+    "video.share_desc": "Bagikan penyesuaian waktu video yang diterapkan kepada komunitas. Perubahan URL yang belum diterapkan tidak dibagikan.",
+    "video.shared": "Waktu video telah dibagikan.",
+    "video.share_failed": "Gagal membagikan waktu video. Coba lagi.",
+    "video.share_invalid": "Terapkan video dengan informasi lagu dan lirik tersinkron terlebih dahulu.",
+    "video.share_login_required": "Masuk ke Discord di Pengaturan untuk membagikan waktu video.",
     "vinyl.settings.cover_tap": "Buka mode LP dengan mengetuk sampul album",
     "vinyl.settings.cover_tap_desc": "Saat dinonaktifkan, mengetuk sampul album tidak akan membuka mode LP. Anda tetap dapat membukanya dari menu lagu.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB khusus",
@@ -17980,6 +18100,12 @@
     "onboarding.metadata_optional": "Pelengkapan metadata (opsional)"
   },
   "ms": {
+    "video.share": "Kongsi",
+    "video.share_desc": "Kongsi pelarasan masa video yang digunakan dengan komuniti. Perubahan URL yang belum digunakan tidak akan dikongsi.",
+    "video.shared": "Masa video telah dikongsi.",
+    "video.share_failed": "Tidak dapat berkongsi masa video. Cuba lagi.",
+    "video.share_invalid": "Gunakan video dengan maklumat lagu dan lirik segerak dahulu.",
+    "video.share_login_required": "Log masuk ke Discord dalam Tetapan untuk berkongsi masa video.",
     "vinyl.settings.cover_tap": "Buka mod LP dengan mengetik kulit album",
     "vinyl.settings.cover_tap_desc": "Apabila dimatikan, mengetik kulit album tidak akan membuka mod LP. Anda masih boleh membukanya daripada menu lagu.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB tersuai",
@@ -18879,6 +19005,12 @@
     "onboarding.metadata_optional": "Pengayaan metadata (pilihan)"
   },
   "tr": {
+    "video.share": "Paylaş",
+    "video.share_desc": "Uygulanan videonun zamanlamasını toplulukla paylaşın. Uygulanmamış URL değişiklikleri paylaşılmaz.",
+    "video.shared": "Video zamanlaması paylaşıldı.",
+    "video.share_failed": "Video zamanlaması paylaşılamadı. Lütfen tekrar deneyin.",
+    "video.share_invalid": "Önce şarkı bilgileri ve eşzamanlı sözleri olan bir video uygulayın.",
+    "video.share_login_required": "Video zamanlamasını paylaşmak için Ayarlar'dan Discord'a giriş yapın.",
     "vinyl.settings.cover_tap": "Albüm kapağına dokunarak LP modunu aç",
     "vinyl.settings.cover_tap_desc": "Kapalıyken albüm kapağına dokunmak LP modunu açmaz. Şarkı menüsünden açmaya devam edebilirsiniz.",
     "lyrics.lrclib_endpoint.title": "Özel LRCLIB URL’si",

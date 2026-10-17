@@ -74,6 +74,8 @@ jobs:
           python3 scripts/test-pip-selection-cache.py
           python3 scripts/test-pip-static-frame-cache.py
           python3 scripts/test-pip-layout.py
+          python3 scripts/test-pip-lifecycle.py
+          python3 scripts/test-video-sharing.py
           python3 scripts/test-lyric-runtime-cache.py
           python3 scripts/test-spotify-dj.py
           python3 scripts/test-vinyl-artwork.py
