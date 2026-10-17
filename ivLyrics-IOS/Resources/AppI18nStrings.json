@@ -1,5 +1,7 @@
 {
   "ko": {
+    "vinyl.settings.cover_tap": "앨범 커버 탭으로 LP 모드 열기",
+    "vinyl.settings.cover_tap_desc": "끄면 앨범 커버를 탭해도 LP 모드로 전환되지 않아요. 곡 메뉴에서는 계속 LP 모드를 열 수 있어요.",
     "lyrics.lrclib_endpoint.title": "LRCLIB 사용자 지정 URL",
     "lyrics.lrclib_endpoint.description": "선택 사항이에요. 재생할 때 이 서버에서 먼저 찾고, 일치하는 가사가 없으면 lrclib.net에서 찾아요. 비워두면 lrclib.net만 사용해요.",
     "lyrics.lrclib_endpoint.scope": "재생 가사 조회에만 적용해요. 편집기 검색과 가사 제출은 항상 lrclib.net을 사용해요.",
@@ -897,6 +899,8 @@
     "onboarding.metadata_optional": "메타데이터 보강 (선택)"
   },
   "en": {
+    "vinyl.settings.cover_tap": "Open LP mode by tapping album cover",
+    "vinyl.settings.cover_tap_desc": "When off, tapping the album cover won't open LP mode. You can still open it from the song menu.",
     "lyrics.lrclib_endpoint.title": "Custom LRCLIB URL",
     "lyrics.lrclib_endpoint.description": "Optional. Try this server first for playback, then lrclib.net if no matching lyrics are found. Leave blank to use lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Playback lookup only. Editor searches and lyric submissions always use lrclib.net.",
@@ -1794,6 +1798,8 @@
     "onboarding.metadata_optional": "Metadata enrichment (optional)"
   },
   "zh-CN": {
+    "vinyl.settings.cover_tap": "轻点专辑封面打开 LP 模式",
+    "vinyl.settings.cover_tap_desc": "关闭后，轻点专辑封面不会进入 LP 模式。你仍可从歌曲菜单打开。",
     "lyrics.lrclib_endpoint.title": "自定义 LRCLIB URL",
     "lyrics.lrclib_endpoint.description": "可选。播放时先从此服务器查找，找不到匹配歌词时再使用 lrclib.net。留空则仅使用 lrclib.net。",
     "lyrics.lrclib_endpoint.scope": "仅用于播放时获取歌词。编辑器搜索和歌词提交始终使用 lrclib.net。",
@@ -2691,6 +2697,8 @@
     "onboarding.metadata_optional": "元数据增强（可选）"
   },
   "zh-TW": {
+    "vinyl.settings.cover_tap": "點按專輯封面開啟 LP 模式",
+    "vinyl.settings.cover_tap_desc": "關閉後，點按專輯封面不會進入 LP 模式。你仍可從歌曲選單開啟。",
     "lyrics.lrclib_endpoint.title": "自訂 LRCLIB URL",
     "lyrics.lrclib_endpoint.description": "選填。播放時先從此伺服器尋找，找不到相符歌詞時再使用 lrclib.net。留空則僅使用 lrclib.net。",
     "lyrics.lrclib_endpoint.scope": "僅用於播放時取得歌詞。編輯器搜尋和歌詞提交一律使用 lrclib.net。",
@@ -3588,6 +3596,8 @@
     "onboarding.metadata_optional": "中繼資料增強（選用）"
   },
   "ja": {
+    "vinyl.settings.cover_tap": "アルバムカバーのタップでLPモードを開く",
+    "vinyl.settings.cover_tap_desc": "オフにすると、アルバムカバーをタップしてもLPモードに切り替わりません。曲のメニューからは引き続き開けます。",
     "lyrics.lrclib_endpoint.title": "LRCLIB カスタム URL",
     "lyrics.lrclib_endpoint.description": "任意です。再生時はこのサーバーを先に検索し、一致する歌詞がなければ lrclib.net を使います。空欄の場合は lrclib.net のみ使います。",
     "lyrics.lrclib_endpoint.scope": "再生用の歌詞取得にのみ適用します。エディターでの検索と歌詞の投稿には常に lrclib.net を使います。",
@@ -4485,6 +4495,8 @@
     "onboarding.metadata_optional": "メタデータの補完（任意）"
   },
   "hi": {
+    "vinyl.settings.cover_tap": "एल्बम कवर पर टैप करके LP मोड खोलें",
+    "vinyl.settings.cover_tap_desc": "बंद होने पर एल्बम कवर पर टैप करने से LP मोड नहीं खुलेगा। आप इसे अब भी गाने के मेनू से खोल सकते हैं।",
     "lyrics.lrclib_endpoint.title": "कस्टम LRCLIB URL",
     "lyrics.lrclib_endpoint.description": "वैकल्पिक। प्लेबैक के लिए पहले इस सर्वर पर खोजें, फिर मेल खाते बोल न मिलने पर lrclib.net पर। केवल lrclib.net के लिए खाली छोड़ें।",
     "lyrics.lrclib_endpoint.scope": "केवल प्लेबैक में बोल खोजने के लिए। संपादक में खोज और बोल सबमिट करने के लिए हमेशा lrclib.net का उपयोग होता है।",
@@ -5382,6 +5394,8 @@
     "onboarding.metadata_optional": "मेटाडेटा संवर्धन (वैकल्पिक)"
   },
   "es": {
+    "vinyl.settings.cover_tap": "Abrir el modo LP al tocar la portada",
+    "vinyl.settings.cover_tap_desc": "Si se desactiva, tocar la portada no abrirá el modo LP. Podrás seguir abriéndolo desde el menú de la canción.",
     "lyrics.lrclib_endpoint.title": "URL de LRCLIB personalizada",
     "lyrics.lrclib_endpoint.description": "Opcional. Al reproducir, se busca primero en este servidor y luego en lrclib.net si no hay letras que coincidan. Déjalo vacío para usar lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Solo para obtener letras durante la reproducción. Las búsquedas del editor y el envío de letras siempre usan lrclib.net.",
@@ -6279,6 +6293,8 @@
     "onboarding.metadata_optional": "Ampliar metadatos (opcional)"
   },
   "fr": {
+    "vinyl.settings.cover_tap": "Ouvrir le mode LP en touchant la pochette",
+    "vinyl.settings.cover_tap_desc": "Si cette option est désactivée, toucher la pochette n'ouvrira pas le mode LP. Il reste accessible depuis le menu du morceau.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB personnalisée",
     "lyrics.lrclib_endpoint.description": "Facultatif. Pendant la lecture, les paroles sont d’abord recherchées sur ce serveur, puis sur lrclib.net si aucune ne correspond. Laissez vide pour utiliser lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Uniquement pour les paroles pendant la lecture. Les recherches de l’éditeur et l’envoi de paroles utilisent toujours lrclib.net.",
@@ -7176,6 +7192,8 @@
     "onboarding.metadata_optional": "Enrichir les métadonnées (facultatif)"
   },
   "ar": {
+    "vinyl.settings.cover_tap": "فتح وضع LP بالنقر على غلاف الألبوم",
+    "vinyl.settings.cover_tap_desc": "عند إيقاف هذا الخيار، لن يؤدي النقر على غلاف الألبوم إلى فتح وضع LP. يمكنك فتحه من قائمة الأغنية.",
     "lyrics.lrclib_endpoint.title": "عنوان LRCLIB مخصص",
     "lyrics.lrclib_endpoint.description": "اختياري. تُبحث كلمات التشغيل في هذا الخادم أولاً، ثم في lrclib.net إذا لم توجد كلمات مطابقة. اتركه فارغًا لاستخدام lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "لجلب كلمات التشغيل فقط. تستخدم عمليات البحث في المحرر وإرسال الكلمات lrclib.net دائمًا.",
@@ -8073,6 +8091,8 @@
     "onboarding.metadata_optional": "إثراء البيانات الوصفية (اختياري)"
   },
   "fa": {
+    "vinyl.settings.cover_tap": "باز کردن حالت LP با ضربه روی جلد آلبوم",
+    "vinyl.settings.cover_tap_desc": "وقتی خاموش باشد، ضربه روی جلد آلبوم حالت LP را باز نمی‌کند. همچنان می‌توانید آن را از منوی آهنگ باز کنید.",
     "lyrics.lrclib_endpoint.title": "نشانی سفارشی LRCLIB",
     "lyrics.lrclib_endpoint.description": "اختیاری. هنگام پخش، ابتدا این سرور و سپس در صورت نبود متن مطابق، lrclib.net جستجو می‌شود. برای استفاده از lrclib.net خالی بگذارید.",
     "lyrics.lrclib_endpoint.scope": "فقط برای دریافت متن هنگام پخش. جستجوی ویرایشگر و ارسال متن همیشه از lrclib.net استفاده می‌کنند.",
@@ -8970,6 +8990,8 @@
     "onboarding.metadata_optional": "تکمیل فراداده (اختیاری)"
   },
   "de": {
+    "vinyl.settings.cover_tap": "LP-Modus durch Tippen auf das Albumcover öffnen",
+    "vinyl.settings.cover_tap_desc": "Wenn deaktiviert, öffnet ein Tippen auf das Albumcover den LP-Modus nicht. Er bleibt über das Songmenü erreichbar.",
     "lyrics.lrclib_endpoint.title": "Eigene LRCLIB-URL",
     "lyrics.lrclib_endpoint.description": "Optional. Bei der Wiedergabe wird zuerst dieser Server durchsucht, dann lrclib.net, falls kein passender Liedtext gefunden wird. Leer lassen, um lrclib.net zu verwenden.",
     "lyrics.lrclib_endpoint.scope": "Nur für Liedtexte bei der Wiedergabe. Editorsuche und das Einreichen von Liedtexten verwenden immer lrclib.net.",
@@ -9867,6 +9889,8 @@
     "onboarding.metadata_optional": "Metadaten ergänzen (optional)"
   },
   "ru": {
+    "vinyl.settings.cover_tap": "Открывать режим LP касанием обложки",
+    "vinyl.settings.cover_tap_desc": "Если выключено, касание обложки альбома не откроет режим LP. Его по-прежнему можно открыть из меню песни.",
     "lyrics.lrclib_endpoint.title": "Свой URL LRCLIB",
     "lyrics.lrclib_endpoint.description": "Необязательно. При воспроизведении поиск сначала идёт на этом сервере, затем на lrclib.net, если подходящий текст не найден. Оставьте пустым для lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Только для загрузки текста при воспроизведении. Поиск в редакторе и отправка текстов всегда используют lrclib.net.",
@@ -10764,6 +10788,8 @@
     "onboarding.metadata_optional": "Дополнение метаданных (необязательно)"
   },
   "sv": {
+    "vinyl.settings.cover_tap": "Öppna LP-läge genom att trycka på skivomslaget",
+    "vinyl.settings.cover_tap_desc": "När detta är avstängt öppnas inte LP-läget när du trycker på skivomslaget. Du kan fortfarande öppna det från låtmenyn.",
     "lyrics.lrclib_endpoint.title": "Egen LRCLIB-URL",
     "lyrics.lrclib_endpoint.description": "Valfritt. Vid uppspelning söks den här servern först, sedan lrclib.net om ingen matchande låttext hittas. Lämna tomt för att använda lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Gäller bara låttexter vid uppspelning. Sökningar i redigeraren och inskickade låttexter använder alltid lrclib.net.",
@@ -11661,6 +11687,8 @@
     "onboarding.metadata_optional": "Utöka metadata (valfritt)"
   },
   "pt": {
+    "vinyl.settings.cover_tap": "Abrir o modo LP ao tocar na capa do álbum",
+    "vinyl.settings.cover_tap_desc": "Quando desativado, tocar na capa do álbum não abre o modo LP. Você ainda pode abri-lo pelo menu da música.",
     "lyrics.lrclib_endpoint.title": "URL personalizada do LRCLIB",
     "lyrics.lrclib_endpoint.description": "Opcional. Na reprodução, procura primeiro neste servidor e depois no lrclib.net se não encontrar uma letra correspondente. Deixe em branco para usar lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Apenas para buscar letras na reprodução. As buscas do editor e o envio de letras sempre usam lrclib.net.",
@@ -12558,6 +12586,8 @@
     "onboarding.metadata_optional": "Enriquecer metadados (opcional)"
   },
   "bn": {
+    "vinyl.settings.cover_tap": "অ্যালবামের কভারে ট্যাপ করে LP মোড খুলুন",
+    "vinyl.settings.cover_tap_desc": "বন্ধ থাকলে অ্যালবামের কভারে ট্যাপ করলে LP মোড খুলবে না। গানের মেনু থেকে এটি এখনও খুলতে পারবেন।",
     "lyrics.lrclib_endpoint.title": "কাস্টম LRCLIB URL",
     "lyrics.lrclib_endpoint.description": "ঐচ্ছিক। প্লেব্যাকের জন্য আগে এই সার্ভারে খোঁজা হবে, মিল থাকা গানের কথা না পেলে lrclib.net-এ। শুধু lrclib.net ব্যবহার করতে খালি রাখুন।",
     "lyrics.lrclib_endpoint.scope": "শুধু প্লেব্যাকের গানের কথা খোঁজার জন্য। এডিটরে অনুসন্ধান ও গানের কথা জমা দেওয়ার জন্য সবসময় lrclib.net ব্যবহৃত হয়।",
@@ -13455,6 +13485,8 @@
     "onboarding.metadata_optional": "মেটাডেটা সমৃদ্ধি (ঐচ্ছিক)"
   },
   "cs": {
+    "vinyl.settings.cover_tap": "Otevřít režim LP klepnutím na obal alba",
+    "vinyl.settings.cover_tap_desc": "Když je vypnuto, klepnutí na obal alba neotevře režim LP. Stále jej můžete otevřít z nabídky skladby.",
     "lyrics.lrclib_endpoint.title": "Vlastní URL LRCLIB",
     "lyrics.lrclib_endpoint.description": "Volitelné. Při přehrávání se nejprve prohledá tento server a pak lrclib.net, pokud se nenajde odpovídající text. Pro lrclib.net ponechte prázdné.",
     "lyrics.lrclib_endpoint.scope": "Jen pro načítání textů při přehrávání. Hledání v editoru a odesílání textů vždy používá lrclib.net.",
@@ -14352,6 +14384,8 @@
     "onboarding.metadata_optional": "Doplnit metadata (volitelné)"
   },
   "it": {
+    "vinyl.settings.cover_tap": "Apri la modalità LP toccando la copertina",
+    "vinyl.settings.cover_tap_desc": "Se disattivata, toccare la copertina non aprirà la modalità LP. Potrai comunque aprirla dal menu del brano.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB personalizzato",
     "lyrics.lrclib_endpoint.description": "Facoltativo. Durante la riproduzione si cerca prima su questo server, poi su lrclib.net se non viene trovato un testo corrispondente. Lascia vuoto per usare lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Solo per cercare testi durante la riproduzione. Le ricerche nell’editor e l’invio dei testi usano sempre lrclib.net.",
@@ -15249,6 +15283,8 @@
     "onboarding.metadata_optional": "Arricchire i metadati (facoltativo)"
   },
   "th": {
+    "vinyl.settings.cover_tap": "เปิดโหมด LP โดยแตะปกอัลบั้ม",
+    "vinyl.settings.cover_tap_desc": "เมื่อปิด การแตะปกอัลบั้มจะไม่เปิดโหมด LP คุณยังเปิดได้จากเมนูเพลง",
     "lyrics.lrclib_endpoint.title": "URL ของ LRCLIB แบบกำหนดเอง",
     "lyrics.lrclib_endpoint.description": "ไม่บังคับ ขณะเล่นจะค้นหาจากเซิร์ฟเวอร์นี้ก่อน แล้วจึงใช้ lrclib.net หากไม่พบเนื้อเพลงที่ตรงกัน เว้นว่างเพื่อใช้ lrclib.net เท่านั้น",
     "lyrics.lrclib_endpoint.scope": "ใช้ค้นหาเนื้อเพลงขณะเล่นเท่านั้น การค้นหาในตัวแก้ไขและการส่งเนื้อเพลงจะใช้ lrclib.net เสมอ",
@@ -16146,6 +16182,8 @@
     "onboarding.metadata_optional": "เพิ่มข้อมูลเมตา (ไม่บังคับ)"
   },
   "vi": {
+    "vinyl.settings.cover_tap": "Mở chế độ LP bằng cách chạm bìa album",
+    "vinyl.settings.cover_tap_desc": "Khi tắt, chạm vào bìa album sẽ không mở chế độ LP. Bạn vẫn có thể mở từ menu bài hát.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB tùy chỉnh",
     "lyrics.lrclib_endpoint.description": "Không bắt buộc. Khi phát, tìm trên máy chủ này trước, rồi đến lrclib.net nếu không có lời bài hát phù hợp. Để trống để dùng lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Chỉ dùng để tìm lời khi phát. Tìm kiếm trong trình chỉnh sửa và gửi lời bài hát luôn dùng lrclib.net.",
@@ -17043,6 +17081,8 @@
     "onboarding.metadata_optional": "Bổ sung siêu dữ liệu (không bắt buộc)"
   },
   "id": {
+    "vinyl.settings.cover_tap": "Buka mode LP dengan mengetuk sampul album",
+    "vinyl.settings.cover_tap_desc": "Saat dinonaktifkan, mengetuk sampul album tidak akan membuka mode LP. Anda tetap dapat membukanya dari menu lagu.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB khusus",
     "lyrics.lrclib_endpoint.description": "Opsional. Saat pemutaran, cari di server ini dahulu, lalu di lrclib.net jika tidak ada lirik yang cocok. Kosongkan untuk menggunakan lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Hanya untuk mencari lirik saat pemutaran. Pencarian di editor dan pengiriman lirik selalu menggunakan lrclib.net.",
@@ -17940,6 +17980,8 @@
     "onboarding.metadata_optional": "Pelengkapan metadata (opsional)"
   },
   "ms": {
+    "vinyl.settings.cover_tap": "Buka mod LP dengan mengetik kulit album",
+    "vinyl.settings.cover_tap_desc": "Apabila dimatikan, mengetik kulit album tidak akan membuka mod LP. Anda masih boleh membukanya daripada menu lagu.",
     "lyrics.lrclib_endpoint.title": "URL LRCLIB tersuai",
     "lyrics.lrclib_endpoint.description": "Pilihan. Semasa main balik, cari pada pelayan ini dahulu, kemudian lrclib.net jika tiada lirik yang sepadan. Biarkan kosong untuk menggunakan lrclib.net.",
     "lyrics.lrclib_endpoint.scope": "Hanya untuk mencari lirik semasa main balik. Carian dalam penyunting dan penghantaran lirik sentiasa menggunakan lrclib.net.",
@@ -18837,6 +18879,8 @@
     "onboarding.metadata_optional": "Pengayaan metadata (pilihan)"
   },
   "tr": {
+    "vinyl.settings.cover_tap": "Albüm kapağına dokunarak LP modunu aç",
+    "vinyl.settings.cover_tap_desc": "Kapalıyken albüm kapağına dokunmak LP modunu açmaz. Şarkı menüsünden açmaya devam edebilirsiniz.",
     "lyrics.lrclib_endpoint.title": "Özel LRCLIB URL’si",
     "lyrics.lrclib_endpoint.description": "İsteğe bağlı. Çalma sırasında önce bu sunucuda, eşleşen söz bulunamazsa lrclib.net üzerinde aranır. lrclib.net kullanmak için boş bırakın.",
     "lyrics.lrclib_endpoint.scope": "Yalnızca çalma sırasında söz aramak içindir. Düzenleyici aramaları ve söz gönderimleri her zaman lrclib.net kullanır.",

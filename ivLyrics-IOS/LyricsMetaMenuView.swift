@@ -32,6 +32,7 @@ struct LyricsMetaMenuOverlay: View {
     @Binding var selectedTab: LyricsMetaMenuTab
     var screenHeight: CGFloat
     var openPictureInPicture: () -> Void = {}
+    var openVinyl: (() -> Void)? = nil
     var isSettingsPage = false
     @State private var videoURL = ""
     @State private var videoError = ""
@@ -132,6 +133,14 @@ struct LyricsMetaMenuOverlay: View {
             topRow
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
+                        if let openVinyl {
+                            Button { openVinyl(); dismiss() } label: {
+                                SettingsActionLabel(title: settings.t("vinyl.mode"), systemImage: "opticaldisc")
+                                    .background(controlBackground(0.15), in: RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(SettingsActionButtonStyle())
+                            .accessibilityIdentifier("lyrics.menu.vinyl")
+                        }
                         Button { openPictureInPicture(); dismiss() } label: {
                             SettingsActionLabel(title: settings.t("pip.open_lyrics"), systemImage: "pip")
                                 .background(controlBackground(0.15), in: RoundedRectangle(cornerRadius: 10))

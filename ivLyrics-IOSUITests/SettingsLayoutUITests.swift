@@ -28,7 +28,8 @@ final class SettingsLayoutUITests: XCTestCase {
 
     /// Settings open on the home list (menus + search); `tab` opens one menu page directly.
     private func launch(_ surface: String = "settings", tab: String = "home", language: String = "en",
-                        landscape: Bool = false, textSize: String = "large", theme: String = "dark") {
+                        landscape: Bool = false, textSize: String = "large", theme: String = "dark",
+                        defaultsID: String = UUID().uuidString) {
         if XCUIDevice.shared.orientation != .portrait {
             XCUIDevice.shared.orientation = .portrait
         }
@@ -36,6 +37,7 @@ final class SettingsLayoutUITests: XCTestCase {
         app.launchArguments = ["--ivlyrics-ui-test"]
         app.launchEnvironment = ["IVLYRICS_UI_SURFACE": surface, "IVLYRICS_DEBUG_SETTINGS_TAB": tab,
                                  "IVLYRICS_UI_LANGUAGE": language,
+                                 "IVLYRICS_UI_DEFAULTS_ID": defaultsID,
                                  "IVLYRICS_UI_TEXT_SIZE": textSize,
                                  "IVLYRICS_UI_THEME": theme]
         app.launch()
@@ -290,6 +292,48 @@ final class SettingsLayoutUITests: XCTestCase {
         reveal(cultural, scrollID: "settings.scroll")
         assertNativeToggle(cultural)
         capture("ai-korean-cultural-long-description")
+    }
+
+    func testAlbumCoverLPSwitchSearchPersistenceAndImport() {
+        launch(defaultsID: UUID().uuidString)
+        func openCoverTapSetting() -> XCUIElement {
+            let search = app.textFields["settings.search"]
+            XCTAssertTrue(search.waitForExistence(timeout: 10))
+            search.tap()
+            search.typeText("album cover")
+            let result = app.buttons["settings.result.vinyl.settings.cover_tap"]
+            XCTAssertTrue(result.waitForExistence(timeout: 5))
+            result.tap()
+            waitForSettingsPage()
+            let toggle = app.switches["settings.toggle.vinyl.settings.cover_tap"]
+            reveal(toggle, scrollID: "settings.scroll")
+            assertNativeToggle(toggle)
+            return toggle
+        }
+        let toggle = openCoverTapSetting()
+        XCTAssertEqual(toggle.value as? String, "1", "Existing users keep cover-tap LP entry by default")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        app.terminate()
+        app.launch()
+        let restored = openCoverTapSetting()
+        XCTAssertEqual(restored.value as? String, "0", "Off survives an app restart")
+        restored.tap()
+        XCTAssertEqual(restored.value as? String, "1")
+        app.terminate()
+        app.launchEnvironment["IVLYRICS_UI_IMPORT_COVER_TAP"] = "0"
+        app.launch()
+        XCTAssertEqual(openCoverTapSetting().value as? String, "0", "Cloud import updates the live setting")
+    }
+
+    func testAlbumCoverLPSwitchLargeTextLayout() {
+        launch(tab: "player", language: "ko", textSize: "accessibility5")
+        let toggle = app.switches["settings.toggle.vinyl.settings.cover_tap"]
+        reveal(toggle, scrollID: "settings.scroll")
+        assertNativeToggle(toggle)
+        XCTAssertFalse(toggle.label.isEmpty)
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
     }
 
     func testGeneralLandscapeAccessibilityText() {

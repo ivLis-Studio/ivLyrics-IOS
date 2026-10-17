@@ -94,6 +94,9 @@ struct DebugSettingsUIRoot: View {
             defaults.set(true, forKey: "pronunciation_enabled")
         }
         let settings = AppSettings(defaults: defaults)
+        if let imported = ProcessInfo.processInfo.environment["IVLYRICS_UI_IMPORT_COVER_TAP"] {
+            settings.importCloudSettings(["vinyl_cover_tap_enabled": imported == "1"])
+        }
         if ProcessInfo.processInfo.environment["IVLYRICS_UI_SAVED_SECRET"] == "1" {
             settings.spotifyClientSecret = "fixture-stale-secret"
         }

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Execute production LP phase/metadata/defaults policies; UI compilation is covered by CI."""
 from pathlib import Path
+import json
 import subprocess
 import tempfile
 
@@ -22,7 +23,7 @@ def decl(source, prefix):
     return source[start:cursor].replace("private ", "")
 
 
-names = ["vinylTrackChangeAnimationsEnabled", "vinylRotationSpeedPercent", "simplifyTitleEnabled"]
+names = ["vinylTrackChangeAnimationsEnabled", "vinylRotationSpeedPercent", "simplifyTitleEnabled", "vinylCoverTapEnabled"]
 code = 'import Foundation\nextension String { var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) } }\n'
 code += "final class AppSettings { let defaults: UserDefaults; var isBootstrapping = true\n"
 start = settings.index("    private static let cloudSettingKeys:")
@@ -43,6 +44,9 @@ code += decl(vinyl, "private func freezeSpin(at").replace("func freezeSpin", "mu
 code += "struct Metadata { var title: String; var artist: String }\nstruct Track { var title: String; var artist: String }\n"
 code += "struct MetadataProbe { let settings: AppSettings; var metadataTranslation: Metadata?; var currentTrack: Track?; var inputTitle = \"\"; var inputArtist = \"\"\n"
 code += decl(model, "var titleText: String") + "\n" + decl(model, "var artistText: String") + "\n}\n"
+code += "final class EntryProbe { let settings: AppSettings; var entries = 0; init(_ settings: AppSettings) { self.settings = settings }\n"
+code += decl(view, "private func presentVinylModeFromArtwork()") + "\n"
+code += "func presentVinylMode() { entries += 1 }\n}\n"
 checks = r'''
 var count = 0
 func check(_ value: @autoclosure () -> Bool, _ message: String) {
@@ -54,13 +58,25 @@ let defaults = UserDefaults(suiteName: suite)!
 defer { defaults.removePersistentDomain(forName: suite) }
 let s = AppSettings(defaults: defaults)
 check(s.vinylTrackChangeAnimationsEnabled && s.vinylRotationSpeedPercent == 100 && !s.simplifyTitleEnabled, "Preserve all defaults")
+check(s.vinylCoverTapEnabled, "Album-cover LP entry defaults on for existing users")
+let entry = EntryProbe(s)
+entry.presentVinylModeFromArtwork()
+check(entry.entries == 1, "Enabled cover taps enter LP")
+s.vinylCoverTapEnabled = false
+entry.presentVinylModeFromArtwork()
+check(entry.entries == 1, "Disabled cover taps are gated in the source action")
+entry.presentVinylMode()
+check(entry.entries == 2, "Explicit menu entry is independent of the cover-tap setting")
 s.vinylTrackChangeAnimationsEnabled = false; s.vinylRotationSpeedPercent = 175; s.simplifyTitleEnabled = true
 let exported = s.exportCloudSettings()
-check(exported.count == 3, "Cloud includes LP settings")
+check(exported.count == 4 && exported["vinyl_cover_tap_enabled"] as? Bool == false, "Cloud includes disabled cover-tap setting")
 defaults.removePersistentDomain(forName: suite)
 for (key, value) in exported { defaults.set(value, forKey: key) }
 let restored = AppSettings(defaults: defaults)
 check(!restored.vinylTrackChangeAnimationsEnabled && restored.vinylRotationSpeedPercent == 175 && restored.simplifyTitleEnabled, "Persist and restore LP options")
+check(!restored.vinylCoverTapEnabled, "Disabled cover-tap preference survives export and reload")
+restored.vinylCoverTapEnabled = true
+check(AppSettings(defaults: defaults).vinylCoverTapEnabled, "Cover-tap LP can be re-enabled persistently")
 for percent in [25, 50, 100, 150, 300] {
     var spin = SpinProbe()
     near(spin.spinDegrees(at: Date(timeIntervalSince1970: 10)), 90, "Default rate is unchanged (9 degrees/sec)")
@@ -124,6 +140,24 @@ assert '.onChange(of: currentResolvedLabels)' in vinyl and 'labelSnapshots.label
 assert 'labelSnapshots.update(currentResolvedLabels, retaining:' in vinyl
 assert '.accessibilityLabel(title)' in vinyl and '.accessibilityLabel(artist)' in vinyl
 assert vinyl.count('.clipped()') >= 2
+# Both artwork layouts share the entry action, while menu entry and LP dismissal
+# remain independent. The native UI test exercises the real importCloudSettings.
+assert 'cornerRadius: 24, onTap: presentVinylModeFromArtwork)' in view
+assert 'onOpenVinyl: presentVinylModeFromArtwork' in view
+assert 'openVinyl: presentVinylMode' in view
+assert 'vinylCoverTapEnabled' not in decl(view, 'private func presentVinylMode()')
+gestures = decl(view, 'private struct ArtworkSwipeActionsModifier:')
+assert 'model.showTmiForCurrentTrack(bypassCache: false)' in gestures
+assert '.accessibilityHint(onTap == nil || !settings.vinylCoverTapEnabled' in gestures
+assert 'vinylCoverTapEnabled' not in vinyl
+assert view.count('entry("vinyl.settings.cover_tap", .player, section: vinyl,') == 1
+assert view.count('toggleRow("vinyl.settings.cover_tap",') == 1
+strings = json.loads((SRC / 'Resources/AppI18nStrings.json').read_text())
+assert len(strings) == 22
+for locale, values in strings.items():
+    assert values['vinyl.settings.cover_tap'].strip() and values['vinyl.settings.cover_tap_desc'].strip(), locale
+menu = (SRC / 'LyricsMetaMenuView.swift').read_text()
+assert 'Button { openVinyl(); dismiss() }' in menu and '.accessibilityIdentifier("lyrics.menu.vinyl")' in menu
 with tempfile.TemporaryDirectory(prefix="ivlyrics-vinyl-") as temp:
     path = Path(temp)
     (path / "main.swift").write_text(code + checks)

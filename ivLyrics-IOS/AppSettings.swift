@@ -75,7 +75,7 @@ final class AppSettings: ObservableObject {
         "landscape_auto_hide_controls", "landscape_center_no_lyrics", "pip_show_artwork", "pip_orientation",
         "pip_background_mode", "pip_lyrics_text_alignment", "pip_lyrics_size_percent",
         "pip_translation_size_percent", "vinyl_album_size_percent", "vinyl_record_size_percent",
-        "vinyl_animations_enabled", "vinyl_center_rotation_enabled", "vinyl_lyrics_enabled",
+        "vinyl_cover_tap_enabled", "vinyl_animations_enabled", "vinyl_center_rotation_enabled", "vinyl_lyrics_enabled",
         "vinyl_tonearm_style", "vinyl_tonearm_finish", "vinyl_tonearm_size_percent", "background_mode",
         "background_brightness", "background_blur", "background_noise", "background_reduce_motion",
         "background_solid_color", "background_video_scale", "lyrics_provider_order_v1",
@@ -296,6 +296,7 @@ final class AppSettings: ObservableObject {
     @Published var pipLyricsTextAlignment: String { didSet { set("pip_lyrics_text_alignment", Self.normalizeLyricsAlignment(pipLyricsTextAlignment)) } }
     @Published var pipLyricsSizePercent: Int { didSet { set("pip_lyrics_size_percent", Self.clampPipLyricsSizePercent(pipLyricsSizePercent)) } }
     @Published var pipTranslationSizePercent: Int { didSet { set("pip_translation_size_percent", Self.clampPipTranslationSizePercent(pipTranslationSizePercent)) } }
+    @Published var vinylCoverTapEnabled: Bool { didSet { set("vinyl_cover_tap_enabled", vinylCoverTapEnabled) } }
     @Published var vinylAlbumSizePercent: Int { didSet { set("vinyl_album_size_percent", Self.clampVinylSizePercent(vinylAlbumSizePercent)) } }
     @Published var vinylRecordSizePercent: Int { didSet { set("vinyl_record_size_percent", Self.clampVinylSizePercent(vinylRecordSizePercent)) } }
     @Published var vinylAnimationsEnabled: Bool { didSet { set("vinyl_animations_enabled", vinylAnimationsEnabled) } }
@@ -419,6 +420,7 @@ final class AppSettings: ObservableObject {
         pipLyricsTextAlignment = Self.normalizeLyricsAlignment(defaults.string(forKey: "pip_lyrics_text_alignment") ?? "center")
         pipLyricsSizePercent = Self.clampPipLyricsSizePercent(defaults.object(forKey: "pip_lyrics_size_percent") as? Int ?? 150)
         pipTranslationSizePercent = Self.clampPipTranslationSizePercent(defaults.object(forKey: "pip_translation_size_percent") as? Int ?? 100)
+        vinylCoverTapEnabled = defaults.object(forKey: "vinyl_cover_tap_enabled") as? Bool ?? true
         vinylAlbumSizePercent = Self.clampVinylSizePercent(defaults.object(forKey: "vinyl_album_size_percent") as? Int ?? 100)
         vinylRecordSizePercent = Self.clampVinylSizePercent(defaults.object(forKey: "vinyl_record_size_percent") as? Int ?? 100)
         vinylAnimationsEnabled = defaults.object(forKey: "vinyl_animations_enabled") as? Bool ?? true
@@ -586,6 +588,7 @@ final class AppSettings: ObservableObject {
         pipLyricsTextAlignment = loaded.pipLyricsTextAlignment
         pipLyricsSizePercent = loaded.pipLyricsSizePercent
         pipTranslationSizePercent = loaded.pipTranslationSizePercent
+        vinylCoverTapEnabled = loaded.vinylCoverTapEnabled
         vinylAlbumSizePercent = loaded.vinylAlbumSizePercent
         vinylRecordSizePercent = loaded.vinylRecordSizePercent
         vinylAnimationsEnabled = loaded.vinylAnimationsEnabled

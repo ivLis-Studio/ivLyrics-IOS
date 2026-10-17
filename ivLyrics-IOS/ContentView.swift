@@ -505,7 +505,8 @@ struct ContentView: View {
                 visible: $showingLyricsMetaMenu,
                 selectedTab: $lyricsMetaMenuTab,
                 screenHeight: size.height,
-                openPictureInPicture: openSystemLyricsPictureInPicture
+                openPictureInPicture: openSystemLyricsPictureInPicture,
+                openVinyl: presentVinylMode
             )
             .zIndex(8)
         }
@@ -599,7 +600,7 @@ struct ContentView: View {
                 Spacer(minLength: 0)
                     .frame(maxHeight: 20)
 
-                ArtworkView(size: artworkSize, cornerRadius: 24, onTap: presentVinylMode)
+                ArtworkView(size: artworkSize, cornerRadius: 24, onTap: presentVinylModeFromArtwork)
                     .padding(.bottom, 8)
 
                 Color.clear
@@ -845,7 +846,7 @@ struct ContentView: View {
                 controlsVisible: controlsShown,
                 centered: centerPlayer,
                 containerSize: size,
-                onOpenVinyl: presentVinylMode
+                onOpenVinyl: presentVinylModeFromArtwork
             )
             .frame(width: playerWidth, height: max(1, size.height - 32))
 
@@ -909,6 +910,11 @@ struct ContentView: View {
             landscapeControlsVisible = true
         }
         scheduleLandscapeControlsAutoHide(isLandscape: isLandscape)
+    }
+
+    private func presentVinylModeFromArtwork() {
+        guard settings.vinylCoverTapEnabled else { return }
+        presentVinylMode()
     }
 
     private func presentVinylMode() {
@@ -2815,7 +2821,7 @@ private struct ArtworkSwipeActionsModifier: ViewModifier {
                         }
                     }
             )
-            .accessibilityHint(onTap == nil
+            .accessibilityHint(onTap == nil || !settings.vinylCoverTapEnabled
                 ? settings.t("vinyl.tmi_hint")
                 : settings.t("vinyl.open_hint") + ". " + settings.t("vinyl.tmi_hint"))
     }
@@ -9110,6 +9116,8 @@ struct SettingsView: View {
                   value: "\(AppSettings.clampPipLyricsSizePercent(settings.pipLyricsSizePercent))%"),
             entry("setting.pip_translation_size", .player, section: pip, description: "setting.pip_translation_size_desc",
                   value: "\(AppSettings.clampPipTranslationSizePercent(settings.pipTranslationSizePercent))%"),
+            entry("vinyl.settings.cover_tap", .player, section: vinyl, description: "vinyl.settings.cover_tap_desc",
+                  value: onOff(settings.vinylCoverTapEnabled)),
             entry("vinyl.settings.album_size", .player, section: vinyl, description: "vinyl.settings.album_size_desc",
                   value: "\(AppSettings.clampVinylSizePercent(settings.vinylAlbumSizePercent))%"),
             entry("vinyl.settings.record_size", .player, section: vinyl, description: "vinyl.settings.record_size_desc",
@@ -10965,6 +10973,8 @@ struct SettingsView: View {
             }
             section("player.vinyl", title: settings.t("vinyl.mode"), subtitle: settings.t("vinyl.settings.subtitle"), tracksPreview: true) {
                 SettingsGroup {
+                    toggleRow("vinyl.settings.cover_tap", descriptionKey: "vinyl.settings.cover_tap_desc",
+                              isOn: settingsSavedBinding(\.vinylCoverTapEnabled))
                     sliderRow("vinyl.settings.album_size", descriptionKey: "vinyl.settings.album_size_desc", value: vinylAlbumSizeBinding,
                               range: 70...140, step: 5, onEditingChanged: settingsSavedSliderEditingChanged)
                     sliderRow("vinyl.settings.record_size", descriptionKey: "vinyl.settings.record_size_desc", value: vinylRecordSizeBinding,
