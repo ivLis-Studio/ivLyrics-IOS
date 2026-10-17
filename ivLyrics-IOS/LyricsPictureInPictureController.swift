@@ -33,15 +33,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         let isPaused: Bool
     }
 
-    private enum StartReason: Equatable {
-        case explicit
-        case automaticTransition
-    }
-
     @Published private(set) var active = false
 
-    var isEngaged: Bool { active || startReason != nil }
-    var needsStateUpdates: Bool { active || startReason != nil || automaticPreparationEnabled }
+    var isEngaged: Bool { active || startRequested }
+    var needsStateUpdates: Bool { isEngaged }
 
     var onSetPlaying: ((Bool) -> Void)?
     var onSkip: ((Int64) -> Void)?
@@ -60,10 +55,9 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private var artworkTask: Task<Void, Never>?
     private var blurredArtworkTask: Task<Void, Never>?
     private var startRetryTask: Task<Void, Never>?
-    private var startReason: StartReason?
-    private var hasPreparedTrack = false
-    private var automaticPreparationEnabled = false
-    private var hasPrimedFrame = false
+    // Only start(), reached from the user's PiP action, may grant this request.
+    private var startRequested = false
+    private var startInFlight = false
     private var lastRenderUptime: TimeInterval = 0
     private var lastRenderedPositionMs: Int64?
     private var lastRenderIdentityValue: String?
@@ -85,27 +79,24 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
 #endif
         displayLayer.videoGravity = .resizeAspect
         displayLayer.backgroundColor = UIColor.black.cgColor
+        configurePictureInPictureController()
+    }
+
+    private func configurePictureInPictureController() {
+        possibleObservation?.invalidate()
         guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
-        do {
-            try AVAudioSession.sharedInstance().setCategory(
-                .playback,
-                mode: .moviePlayback,
-                options: [.mixWithOthers]
-            )
-        } catch {
-            onLog?("lyrics pip audio session category failed: \(error.localizedDescription)")
-        }
         let source = AVPictureInPictureController.ContentSource(
             sampleBufferDisplayLayer: displayLayer,
             playbackDelegate: self
         )
         let controller = AVPictureInPictureController(contentSource: source)
         controller.delegate = self
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.canStartPictureInPictureAutomaticallyFromInline = false
         controller.requiresLinearPlayback = false
         possibleObservation = controller.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] controller, _ in
             Task { @MainActor [weak self] in
-                guard let self, self.startReason != nil, controller.isPictureInPicturePossible else { return }
+                guard let self, self.pictureInPictureController === controller,
+                      self.startRequested, controller.isPictureInPicturePossible else { return }
                 self.startIfPossible()
             }
         }
@@ -193,129 +184,35 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         )
         loadArtworkIfNeeded(track?.artworkURL)
         updateBlurredArtworkIfNeeded()
-        hasPreparedTrack = track != nil
-        let shouldPrepareAutomatically = hasPreparedTrack && pictureInPictureController != nil
-        automaticPreparationEnabled = shouldPrepareAutomatically
-        if shouldPrepareAutomatically {
-            _ = activateAudioSession()
-        } else if !active && startReason == nil {
-            deactivateAudioSession()
-        }
-        guard active || startReason != nil || automaticPreparationEnabled else {
-            if !hasPrimedFrame {
-                renderFrame()
-                hasPrimedFrame = lastRenderUptime > 0
-            }
-            return
-        }
+        guard isEngaged else { return }
         let uptime = ProcessInfo.processInfo.systemUptime
-        if active || startReason != nil {
-            let elapsed = uptime - lastRenderUptime
-            let positionFrameDue = state.positionMs != lastRenderedPositionMs
-                && elapsed >= state.preferredFrameInterval
-            if forceRender || positionFrameDue || elapsed >= 1.0 {
-                renderFrame()
-            }
-        } else if forceRender || !hasPrimedFrame || uptime - lastRenderUptime >= 1.0 {
+        let elapsed = uptime - lastRenderUptime
+        let positionFrameDue = state.positionMs != lastRenderedPositionMs
+            && elapsed >= state.preferredFrameInterval
+        if forceRender || positionFrameDue || elapsed >= 1.0 {
             renderFrame()
-            hasPrimedFrame = lastRenderUptime > 0
-        }
-    }
-
-    func prepareForAutomaticTransition() {
-        guard hasPreparedTrack else {
-            onLog?("lyrics pip: automatic transition skipped (no prepared track)")
-            return
-        }
-        guard let controller = pictureInPictureController else {
-            onLog?("lyrics pip: automatic transition skipped (controller unavailable)")
-            return
-        }
-        guard !active, !controller.isPictureInPictureActive else {
-            onLog?("lyrics pip: automatic transition skipped (already active)")
-            return
-        }
-        guard startReason == nil else {
-            onLog?("lyrics pip: automatic transition skipped (start in flight)")
-            return
-        }
-        _ = activateAudioSession()
-        renderFrame()
-        publishPlaybackState(
-            durationMs: max(1, state.track?.durationMs ?? 0),
-            isPaused: !(state.track?.playing ?? false),
-            force: true
-        )
-        let playbackState = playbackInfo.read()
-        onLog?(
-            "lyrics pip: lifecycle transition possible=\(controller.isPictureInPicturePossible) " +
-            "paused=\(playbackState.isPaused) durationMs=\(playbackState.durationMs)"
-        )
-
-        // Give AVKit's automatic inline-to-PiP transition the first opportunity.
-        // A single short fallback preserves the previous lifecycle request without
-        // depending on retries after the process has already been suspended.
-        startRetryTask?.cancel()
-        startRetryTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            guard let self,
-                  !Task.isCancelled,
-                  !self.active,
-                  controller.isPictureInPictureActive == false,
-                  UIApplication.shared.applicationState != .active else { return }
-            _ = self.requestStart(reason: .automaticTransition, schedulesRetries: false)
         }
     }
 
     @discardableResult
     func start() -> Bool {
-        requestStart(reason: .explicit)
-    }
-
-    @discardableResult
-    private func requestStart(reason: StartReason, schedulesRetries: Bool = true) -> Bool {
         guard AVPictureInPictureController.isPictureInPictureSupported(), pictureInPictureController != nil else {
             onLog?("lyrics pip: system Picture in Picture is not supported")
             return false
         }
         guard !active, pictureInPictureController?.isPictureInPictureActive != true else { return true }
-        if startReason != nil {
-            // A foreground button press upgrades an in-flight lifecycle request so
-            // its eventual failure keeps the existing user-facing error behavior.
-            if reason == .explicit {
-                startReason = .explicit
-            }
-            return true
-        }
-        guard activateAudioSession() else {
-            if reason == .automaticTransition {
-                onLog?("lyrics pip: automatic transition failed (audio session unavailable)")
-            }
-            return false
-        }
-        startReason = reason
+        guard !startRequested else { return true }
+        guard activateAudioSession() else { return false }
+        startRequested = true
         renderFrame()
         publishPlaybackState(
             durationMs: max(1, state.track?.durationMs ?? 0),
             isPaused: !(state.track?.playing ?? false),
             force: true
         )
-        if reason == .automaticTransition {
-            let playbackState = playbackInfo.read()
-            onLog?(
-                "lyrics pip: automatic fallback requested possible=\(pictureInPictureController?.isPictureInPicturePossible == true) " +
-                "paused=\(playbackState.isPaused) durationMs=\(playbackState.durationMs)"
-            )
-        }
         startIfPossible()
         guard !active else { return true }
-        if schedulesRetries {
-            scheduleStartRetries()
-        } else if pictureInPictureController?.isPictureInPicturePossible != true {
-            startReason = nil
-            onEngagementEnded?()
-            onLog?("lyrics pip: automatic fallback unavailable")
-        }
+        scheduleStartRetries()
         return true
     }
 
@@ -332,41 +229,50 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         startRetryTask = Task { @MainActor [weak self] in
             for delay in [100_000_000, 300_000_000, 700_000_000, 1_500_000_000, 2_500_000_000] as [UInt64] {
                 try? await Task.sleep(nanoseconds: delay)
-                guard let self, !Task.isCancelled, self.startReason != nil, !self.active else { return }
+                guard let self, !Task.isCancelled, self.startRequested, !self.active else { return }
                 self.renderFrame()
                 self.startIfPossible()
             }
-            guard let self, let reason = self.startReason, !self.active else { return }
-            self.startReason = nil
-            self.onEngagementEnded?()
-            if !self.automaticPreparationEnabled {
-                self.deactivateAudioSession()
-            }
-            switch reason {
-            case .automaticTransition:
-                self.onLog?("lyrics pip: automatic transition failed because Picture in Picture is not currently available")
-            case .explicit:
-                self.onLog?("lyrics pip: Picture in Picture is not currently available")
-                self.onStartFailure?()
-            }
+            guard let self, !Task.isCancelled, self.startRequested, !self.active else { return }
+            self.finishEngagement(replacingController: self.startInFlight)
+            self.onLog?("lyrics pip: Picture in Picture is not currently available")
+            self.onStartFailure?()
         }
     }
 
     func stop() {
-        startReason = nil
         startRetryTask?.cancel()
-        if pictureInPictureController?.isPictureInPictureActive == true {
+        if active {
             pictureInPictureController?.stopPictureInPicture()
         } else {
-            deactivateAudioSession()
+            finishEngagement(replacingController: startInFlight || pictureInPictureController?.isPictureInPictureActive == true)
         }
     }
 
+    private func finishEngagement(replacingController: Bool = false) {
+        let wasEngaged = isEngaged
+        startRetryTask?.cancel()
+        startRetryTask = nil
+        startRequested = false
+        startInFlight = false
+        active = false
+        deactivateAudioSession()
+        // Retire a cancelled/failed start so its late AVKit callbacks cannot
+        // consume a subsequent user request or revive a dismissed window.
+        if replacingController {
+            let previousController = pictureInPictureController
+            configurePictureInPictureController()
+            previousController?.stopPictureInPicture()
+        }
+        if wasEngaged { onEngagementEnded?() }
+    }
+
     private func startIfPossible() {
-        guard startReason != nil,
+        guard startRequested, !startInFlight,
               let controller = pictureInPictureController,
               controller.isPictureInPicturePossible,
               !controller.isPictureInPictureActive else { return }
+        startInFlight = true
         controller.startPictureInPicture()
     }
 
@@ -413,7 +319,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                 guard let self, self.artworkURL == url else { return }
                 self.artwork = image
                 self.updateBlurredArtworkIfNeeded()
-                if self.active || self.startReason != nil {
+                if self.isEngaged {
                     self.renderFrame()
                 }
             } catch {
@@ -443,7 +349,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                   AppSettings.normalizePipBackgroundMode(self.state.backgroundMode) == AppSettings.pipBackgroundBlur else { return }
             self.blurredArtworkTask = nil
             self.blurredArtwork = blurred
-            if self.active || self.startReason != nil {
+            if self.isEngaged {
                 self.renderFrame()
             }
         }
@@ -1626,26 +1532,25 @@ extension LyricsPictureInPictureController: AVPictureInPictureControllerDelegate
     nonisolated func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let reason = self.startReason
-            self.active = true
-            self.startReason = nil
-            self.startRetryTask?.cancel()
-            if reason == .automaticTransition {
-                self.onLog?("lyrics pip: automatic transition started")
-            } else {
-                self.onLog?("lyrics pip: started")
+            guard self.pictureInPictureController === pictureInPictureController,
+                  self.startRequested || self.active else {
+                pictureInPictureController.stopPictureInPicture()
+                return
             }
+            self.active = true
+            self.startRequested = false
+            self.startInFlight = false
+            self.startRetryTask?.cancel()
+            self.startRetryTask = nil
+            self.onLog?("lyrics pip: started")
         }
     }
 
     nonisolated func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         Task { @MainActor [weak self] in
-            self?.active = false
-            self?.startReason = nil
-            if self?.automaticPreparationEnabled != true {
-                self?.deactivateAudioSession()
-            }
-            self?.onLog?("lyrics pip: stopped")
+            guard let self, self.pictureInPictureController === pictureInPictureController else { return }
+            self.finishEngagement()
+            self.onLog?("lyrics pip: stopped")
         }
     }
 
@@ -1654,23 +1559,11 @@ extension LyricsPictureInPictureController: AVPictureInPictureControllerDelegate
         failedToStartPictureInPictureWithError error: Error
     ) {
         Task { @MainActor [weak self] in
-            guard let self else { return }
-            let reason = self.startReason
-            self.active = false
-            self.startReason = nil
-            self.onEngagementEnded?()
-            self.startRetryTask?.cancel()
-            if !self.automaticPreparationEnabled {
-                self.deactivateAudioSession()
-            }
-            if reason == .automaticTransition {
-                self.onLog?("lyrics pip: automatic transition failed: \(error.localizedDescription)")
-            } else {
-                self.onLog?("lyrics pip failed: \(error.localizedDescription)")
-            }
-            if reason == .explicit {
-                self.onStartFailure?()
-            }
+            guard let self, self.pictureInPictureController === pictureInPictureController else { return }
+            let wasRequested = self.startRequested
+            self.finishEngagement(replacingController: self.startInFlight)
+            self.onLog?("lyrics pip failed: \(error.localizedDescription)")
+            if wasRequested { self.onStartFailure?() }
         }
     }
 

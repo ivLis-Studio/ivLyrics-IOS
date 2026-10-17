@@ -1353,8 +1353,9 @@ final class AppViewModel: ObservableObject {
     }
 
     func appWillResignActive() {
-        updatePictureInPictureState(force: true)
-        pictureInPictureController.prepareForAutomaticTransition()
+        if pictureInPictureController.isEngaged {
+            updatePictureInPictureState(force: true)
+        }
         updatePlaybackClockMode(foregroundActive: false)
     }
 
