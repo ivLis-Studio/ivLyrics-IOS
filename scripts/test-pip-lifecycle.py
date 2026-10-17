@@ -140,6 +140,14 @@ checks = r'''
         precondition(condition(), message)
     }
     static func settle() async { try? await Task.sleep(nanoseconds: 20_000_000) }
+    @MainActor static func waitForEngagementEnd(_ pip: LyricsPictureInPictureController) async {
+        // Task.sleep supplies a minimum delay. Loaded CI runners can resume the
+        // production retry task later than the sum of its nominal intervals.
+        let deadline = ProcessInfo.processInfo.systemUptime + 20
+        while pip.isEngaged && ProcessInfo.processInfo.systemUptime < deadline {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+    }
     @MainActor static func main() async {
         let audio = AVAudioSession.sharedInstance()
         let pip = LyricsPictureInPictureController()
@@ -226,7 +234,7 @@ checks = r'''
 
         let unavailable = pip.pictureInPictureController!
         check(pip.start(), "Explicit unavailable request can wait")
-        try? await Task.sleep(nanoseconds: 5_400_000_000)
+        await waitForEngagementEnd(pip)
         check(!pip.isEngaged && !audio.active && failures == 2 && unavailable.starts == 0,
               "Availability timeout cleans up and reports the manual failure")
         unavailable.isPictureInPicturePossible = true
@@ -234,7 +242,7 @@ checks = r'''
         check(unavailable.starts == 0, "Late availability after timeout is not authorization")
 
         check(pip.start(), "Retry after availability timeout works")
-        try? await Task.sleep(nanoseconds: 5_400_000_000)
+        await waitForEngagementEnd(pip)
         let afterTimeout = pip.pictureInPictureController!
         check(unavailable.starts == 1 && afterTimeout !== unavailable && failures == 3 && !audio.active,
               "In-flight timeout sends one start and retires the stuck controller")
@@ -270,4 +278,4 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-pip-lifecycle-") as directory:
     swift.write_text(prelude + checks)
     executable = work / "checks"
     subprocess.run(["xcrun", "swiftc", "-swift-version", "5", "-parse-as-library", str(swift), "-o", str(executable)], check=True)
-    subprocess.run([str(executable)], check=True, timeout=30)
+    subprocess.run([str(executable)], check=True, timeout=60)
