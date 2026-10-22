@@ -153,6 +153,8 @@ jobs:
           python3 scripts/test-lrclib-playback.py
           python3 scripts/test-ai-models.py
           python3 scripts/test-openai-connections.py
+          python3 scripts/test-openai-parameters.py
+          python3 scripts/test-ai-streaming.py
           python3 scripts/test-local-ai.py
           python3 scripts/test-appearance.py
           python3 scripts/test-vinyl.py
