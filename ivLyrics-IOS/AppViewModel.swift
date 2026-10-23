@@ -2416,6 +2416,29 @@ final class AppViewModel: ObservableObject {
         Int64((ProcessInfo.processInfo.systemUptime * 1000).rounded())
     }
 
+    func importLocalLyrics(from url: URL, for track: TrackSnapshot) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    let text = try LocalLyricsStore.read(url)
+                    _ = try LocalLyricsStore.parse(text, durationMs: track.durationMs)
+                    try LocalLyricsStore().save(key: track.stableKey, text: text)
+                }.value
+                if currentTrackKey == track.stableKey { reloadLyrics(bypassCache: false) }
+                showSavedToast(settings.t("lyrics.local.saved"))
+            } catch { showSavedToast(settings.t("lyrics.local.error")) }
+        }
+    }
+
+    func removeLocalLyrics(for track: TrackSnapshot) {
+        do {
+            try LocalLyricsStore().remove(key: track.stableKey)
+            if currentTrackKey == track.stableKey { reloadLyrics(bypassCache: false) }
+            showSavedToast(settings.t("lyrics.local.removed"))
+        } catch { showSavedToast(settings.t("lyrics.local.error")) }
+    }
+
     func searchManualCandidates() {
 #if DEBUG
         if debugSettingsUIConsumesAction() { return }
@@ -3455,7 +3478,10 @@ final class AppViewModel: ObservableObject {
     private func runLyricsPipeline(track: TrackSnapshot, bypassCache: Bool, requestID: UUID) async {
         do {
             appendLog("ios input: manual TrackSnapshot -> Android-compatible lyrics pipeline")
-            let spotifyUserAccessToken = await spotifyMetadataUserAccessToken()
+            var spotifyUserAccessToken = ""
+            if !(await lyricsRepository.hasLocalLyrics(for: track)) {
+                spotifyUserAccessToken = await spotifyMetadataUserAccessToken()
+            }
             let loaded = try await lyricsRepository.loadLyrics(
                 track: track,
                 settings: settings.snapshotForTrack(track.stableKey),

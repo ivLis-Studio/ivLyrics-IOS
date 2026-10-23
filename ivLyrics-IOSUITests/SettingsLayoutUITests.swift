@@ -487,6 +487,36 @@ final class SettingsLayoutUITests: XCTestCase {
         }
     }
 
+    func testLocalLyricsFilePickerOpensAndCancels() {
+        launch("lrclib")
+        let importButton = app.buttons["lyrics.local.import"]
+        reveal(importButton, scrollID: "lyrics.menu.scroll")
+        assertTouchTarget(importButton)
+        XCTAssertTrue(importButton.isEnabled)
+        importButton.tap()
+        let cancel = app.buttons.matching(NSPredicate(format: "label == 'Cancel' OR label == '취소'")).firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 10), "System document picker should open")
+        capture("local-lyrics-system-file-picker")
+        cancel.tap()
+        XCTAssertTrue(importButton.waitForExistence(timeout: 5))
+        capture("local-lyrics-import-cancelled")
+    }
+
+    func testLocalLyricsMenuLargeTextLayout() {
+        launch("lrclib", landscape: true, textSize: "accessibility5")
+        let importButton = app.buttons["lyrics.local.import"]
+        reveal(importButton, scrollID: "lyrics.menu.scroll")
+        assertTouchTarget(importButton)
+        let removeButton = app.buttons["lyrics.local.remove"]
+        reveal(removeButton, scrollID: "lyrics.menu.scroll")
+        assertTouchTarget(removeButton)
+        removeButton.tap()
+        let confirmation = app.sheets.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirmation.buttons["lyrics.local.confirmRemove"].exists)
+        capture("local-lyrics-remove-confirmation-large-text")
+    }
+
     func testLanguagePopupPortraitActions() {
         launch("language", language: "ko")
         assertTouchTarget(app.buttons["lyrics.menu.close"])

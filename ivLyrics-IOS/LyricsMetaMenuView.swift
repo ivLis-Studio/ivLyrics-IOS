@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum LyricsMetaMenuTab: String, CaseIterable, Identifiable {
     case language
@@ -44,6 +45,10 @@ struct LyricsMetaMenuOverlay: View {
     @State private var videoSelectionID = UUID()
     @State private var selectingVideo = false
     @State private var dragOffset: CGFloat = 0
+    @State private var importingLocalLyrics = false
+    @State private var localLyricsImportTrack: TrackSnapshot?
+    @State private var confirmingLocalLyricsRemoval = false
+    @State private var localLyricsRemovalTrack: TrackSnapshot?
     @State private var backgroundColorDraft = ""
     @State private var backgroundColorDraftInvalid = false
     @FocusState private var backgroundColorFieldFocused: Bool
@@ -585,6 +590,47 @@ struct LyricsMetaMenuOverlay: View {
 
     private var lrclibTab: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Button {
+                localLyricsImportTrack = model.currentTrack
+                importingLocalLyrics = true
+            } label: {
+                SettingsActionLabel(title: settings.t("lyrics.local.import"), systemImage: "doc.badge.plus")
+                    .font(.pretendard(14, weight: .semibold))
+                    .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(SettingsActionButtonStyle())
+            .disabled(model.currentTrack == nil)
+            .accessibilityIdentifier("lyrics.local.import")
+            .fileImporter(isPresented: $importingLocalLyrics, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
+                defer { localLyricsImportTrack = nil }
+                if case .success(let urls) = result, let url = urls.first, let track = localLyricsImportTrack {
+                    model.importLocalLyrics(from: url, for: track)
+                } else if case .failure(let error) = result, (error as NSError).code != NSUserCancelledError {
+                    model.showSavedToast(settings.t("lyrics.local.error"))
+                }
+            }
+            Text(settings.t("lyrics.local.description"))
+                .font(.pretendard(11))
+                .foregroundStyle(textColor.opacity(0.66))
+                .padding(.vertical, 6)
+            Button {
+                localLyricsRemovalTrack = model.currentTrack
+                confirmingLocalLyricsRemoval = true
+            } label: {
+                SettingsActionLabel(title: settings.t("lyrics.local.remove"), systemImage: "trash")
+                    .font(.pretendard(14, weight: .semibold))
+                    .background(controlBackground(0.14), in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(SettingsActionButtonStyle())
+            .disabled(model.currentTrack == nil)
+            .accessibilityIdentifier("lyrics.local.remove")
+            .confirmationDialog(settings.t("lyrics.local.remove"), isPresented: $confirmingLocalLyricsRemoval, titleVisibility: .visible) {
+                Button(settings.t("lyrics.local.remove"), role: .destructive) {
+                    if let track = localLyricsRemovalTrack { model.removeLocalLyrics(for: track) }
+                }
+                .accessibilityIdentifier("lyrics.local.confirmRemove")
+            }
+            .padding(.bottom, 12)
             Picker(settings.t("section.lyrics_providers"), selection: Binding(
                 get: { settings.selectedLyricsProvider(trackKey: model.currentTrackKey) },
                 set: { model.selectTrackLyricsProvider($0) }

@@ -291,6 +291,10 @@ actor LyricsRepository {
         return ["lrclib"] + eligible.filter { $0 != "lrclib" }
     }
 
+    func hasLocalLyrics(for track: TrackSnapshot) -> Bool {
+        LocalLyricsStore().contains(key: track.stableKey)
+    }
+
     func loadLyrics(
         track: TrackSnapshot,
         settings: AppSettings.Snapshot,
@@ -314,6 +318,10 @@ actor LyricsRepository {
         }
 
         let key = track.stableKey
+        if let imported = try LocalLyricsStore().load(key: key, durationMs: track.durationMs) {
+            return LoadedLyrics(trackKey: key, result: imported, artworkURL: nil,
+                                logs: ["Using imported local lyrics"], resolvedIsrc: track.isrc, resolvedSpotifyTrackId: track.trackId)
+        }
         let cacheKey = lyricsCacheKey(trackKey: key, settings: settings)
         var publishedSpotifyMetadataKeys = Set<String>()
         func publishResolvedMetadata(isrc: String, spotifyTrackId: String, artworkURL: URL?) async {
