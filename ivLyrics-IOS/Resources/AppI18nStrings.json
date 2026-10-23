@@ -2,7 +2,7 @@
   "ko": {
     "lyrics.local.import": "가사 파일 불러오기",
     "lyrics.local.description": "현재 곡에 LRC 또는 TXT 파일을 저장해 우선 표시해요. 캐시를 지워도 유지됩니다.",
-    "lyrics.local.remove": "이 곡의 로컬 가사 삭제",
+    "lyrics.local.remove": "로컬 가사 삭제",
     "lyrics.local.saved": "로컬 가사를 저장했어요.",
     "lyrics.local.removed": "로컬 가사를 삭제했어요. 온라인 가사를 다시 불러옵니다.",
     "lyrics.local.error": "가사를 읽거나 저장하지 못했어요. 1MB 이하의 UTF-8 또는 UTF-16 LRC/TXT 파일을 선택해 주세요.",
@@ -913,7 +913,7 @@
   "en": {
     "lyrics.local.import": "Import lyrics file",
     "lyrics.local.description": "Save an LRC or TXT file for this track. It takes priority and survives cache clearing.",
-    "lyrics.local.remove": "Remove local lyrics for this track",
+    "lyrics.local.remove": "Remove local lyrics",
     "lyrics.local.saved": "Local lyrics saved.",
     "lyrics.local.removed": "Local lyrics removed. Loading online lyrics again.",
     "lyrics.local.error": "Could not read or save lyrics. Choose a UTF-8 or UTF-16 LRC/TXT file up to 1 MB.",
@@ -1824,7 +1824,7 @@
   "zh-CN": {
     "lyrics.local.import": "导入歌词文件",
     "lyrics.local.description": "为当前歌曲保存 LRC 或 TXT 文件。优先显示，清除缓存后仍保留。",
-    "lyrics.local.remove": "删除当前歌曲的本地歌词",
+    "lyrics.local.remove": "删除本地歌词",
     "lyrics.local.saved": "本地歌词已保存。",
     "lyrics.local.removed": "本地歌词已删除，正在重新加载在线歌词。",
     "lyrics.local.error": "无法读取或保存歌词。请选择不超过 1 MB 的 UTF-8 或 UTF-16 LRC/TXT 文件。",
@@ -2735,7 +2735,7 @@
   "zh-TW": {
     "lyrics.local.import": "匯入歌詞檔案",
     "lyrics.local.description": "為目前歌曲儲存 LRC 或 TXT 檔案。優先顯示，清除快取後仍保留。",
-    "lyrics.local.remove": "刪除目前歌曲的本機歌詞",
+    "lyrics.local.remove": "刪除本機歌詞",
     "lyrics.local.saved": "已儲存本機歌詞。",
     "lyrics.local.removed": "已刪除本機歌詞，正在重新載入線上歌詞。",
     "lyrics.local.error": "無法讀取或儲存歌詞。請選擇不超過 1 MB 的 UTF-8 或 UTF-16 LRC/TXT 檔案。",
@@ -3646,7 +3646,7 @@
   "ja": {
     "lyrics.local.import": "歌詞ファイルを読み込む",
     "lyrics.local.description": "この曲に LRC または TXT を保存し、優先表示します。キャッシュを消しても残ります。",
-    "lyrics.local.remove": "この曲のローカル歌詞を削除",
+    "lyrics.local.remove": "ローカル歌詞を削除",
     "lyrics.local.saved": "ローカル歌詞を保存しました。",
     "lyrics.local.removed": "ローカル歌詞を削除しました。オンライン歌詞を再取得します。",
     "lyrics.local.error": "歌詞を読み込むか保存できませんでした。1 MB 以下の UTF-8 または UTF-16 の LRC/TXT を選んでください。",
@@ -4557,7 +4557,7 @@
   "hi": {
     "lyrics.local.import": "गीत फ़ाइल आयात करें",
     "lyrics.local.description": "इस गाने के लिए LRC या TXT सहेजें। इसे प्राथमिकता मिलेगी और कैश मिटाने पर भी यह रहेगा।",
-    "lyrics.local.remove": "इस गाने के स्थानीय बोल हटाएँ",
+    "lyrics.local.remove": "स्थानीय बोल हटाएँ",
     "lyrics.local.saved": "स्थानीय बोल सहेजे गए।",
     "lyrics.local.removed": "स्थानीय बोल हटा दिए गए। ऑनलाइन बोल फिर लोड हो रहे हैं।",
     "lyrics.local.error": "बोल पढ़े या सहेजे नहीं जा सके। 1 MB तक की UTF-8 या UTF-16 LRC/TXT फ़ाइल चुनें।",
@@ -5468,7 +5468,7 @@
   "es": {
     "lyrics.local.import": "Importar archivo de letras",
     "lyrics.local.description": "Guarda un LRC o TXT para esta canción. Tiene prioridad y se conserva al borrar la caché.",
-    "lyrics.local.remove": "Eliminar letras locales de esta canción",
+    "lyrics.local.remove": "Eliminar letras locales",
     "lyrics.local.saved": "Letras locales guardadas.",
     "lyrics.local.removed": "Letras locales eliminadas. Cargando letras en línea.",
     "lyrics.local.error": "No se pudieron leer o guardar las letras. Elige un LRC/TXT UTF-8 o UTF-16 de hasta 1 MB.",
@@ -6379,7 +6379,7 @@
   "fr": {
     "lyrics.local.import": "Importer un fichier de paroles",
     "lyrics.local.description": "Enregistrez un LRC ou TXT pour ce titre. Il est prioritaire et conservé après l’effacement du cache.",
-    "lyrics.local.remove": "Supprimer les paroles locales de ce titre",
+    "lyrics.local.remove": "Supprimer les paroles locales",
     "lyrics.local.saved": "Paroles locales enregistrées.",
     "lyrics.local.removed": "Paroles locales supprimées. Chargement des paroles en ligne.",
     "lyrics.local.error": "Impossible de lire ou d’enregistrer les paroles. Choisissez un LRC/TXT UTF-8 ou UTF-16 de 1 Mo maximum.",
@@ -7290,7 +7290,7 @@
   "ar": {
     "lyrics.local.import": "استيراد ملف كلمات",
     "lyrics.local.description": "احفظ ملف LRC أو TXT لهذه الأغنية. له الأولوية ويبقى بعد مسح ذاكرة التخزين المؤقت.",
-    "lyrics.local.remove": "حذف الكلمات المحلية لهذه الأغنية",
+    "lyrics.local.remove": "حذف الكلمات المحلية",
     "lyrics.local.saved": "تم حفظ الكلمات المحلية.",
     "lyrics.local.removed": "تم حذف الكلمات المحلية. جارٍ تحميل الكلمات عبر الإنترنت.",
     "lyrics.local.error": "تعذرت قراءة الكلمات أو حفظها. اختر ملف LRC/TXT بترميز UTF-8 أو UTF-16 بحجم لا يتجاوز 1 MB.",
@@ -8201,7 +8201,7 @@
   "fa": {
     "lyrics.local.import": "وارد کردن فایل متن آهنگ",
     "lyrics.local.description": "برای این آهنگ فایل LRC یا TXT ذخیره کنید. اولویت دارد و با پاک کردن حافظهٔ نهان حذف نمی‌شود.",
-    "lyrics.local.remove": "حذف متن محلی این آهنگ",
+    "lyrics.local.remove": "حذف متن محلی",
     "lyrics.local.saved": "متن محلی ذخیره شد.",
     "lyrics.local.removed": "متن محلی حذف شد. متن آنلاین دوباره بارگیری می‌شود.",
     "lyrics.local.error": "خواندن یا ذخیرهٔ متن ممکن نشد. فایل LRC/TXT با کدگذاری UTF-8 یا UTF-16 و حجم حداکثر ۱ مگابایت انتخاب کنید.",
@@ -9112,7 +9112,7 @@
   "de": {
     "lyrics.local.import": "Liedtextdatei importieren",
     "lyrics.local.description": "Speichere eine LRC- oder TXT-Datei für diesen Titel. Sie hat Vorrang und bleibt beim Leeren des Caches erhalten.",
-    "lyrics.local.remove": "Lokalen Liedtext dieses Titels entfernen",
+    "lyrics.local.remove": "Lokalen Liedtext entfernen",
     "lyrics.local.saved": "Lokaler Liedtext gespeichert.",
     "lyrics.local.removed": "Lokaler Liedtext entfernt. Online-Liedtext wird geladen.",
     "lyrics.local.error": "Liedtext konnte nicht gelesen oder gespeichert werden. Wähle eine UTF-8- oder UTF-16-LRC/TXT-Datei bis 1 MB.",
@@ -10023,7 +10023,7 @@
   "ru": {
     "lyrics.local.import": "Импортировать файл текста",
     "lyrics.local.description": "Сохраните LRC или TXT для этой песни. Он имеет приоритет и не удаляется при очистке кэша.",
-    "lyrics.local.remove": "Удалить локальный текст этой песни",
+    "lyrics.local.remove": "Удалить локальный текст",
     "lyrics.local.saved": "Локальный текст сохранён.",
     "lyrics.local.removed": "Локальный текст удалён. Загружается текст из интернета.",
     "lyrics.local.error": "Не удалось прочитать или сохранить текст. Выберите LRC/TXT в UTF-8 или UTF-16 размером до 1 МБ.",
@@ -10934,7 +10934,7 @@
   "sv": {
     "lyrics.local.import": "Importera textfil",
     "lyrics.local.description": "Spara en LRC- eller TXT-fil för den här låten. Den prioriteras och behålls när cachen rensas.",
-    "lyrics.local.remove": "Ta bort lokal text för låten",
+    "lyrics.local.remove": "Ta bort lokal text",
     "lyrics.local.saved": "Lokal text sparad.",
     "lyrics.local.removed": "Lokal text borttagen. Hämtar text online igen.",
     "lyrics.local.error": "Kunde inte läsa eller spara texten. Välj en LRC/TXT i UTF-8 eller UTF-16 på högst 1 MB.",
@@ -11845,7 +11845,7 @@
   "pt": {
     "lyrics.local.import": "Importar arquivo de letras",
     "lyrics.local.description": "Salve um LRC ou TXT para esta música. Ele tem prioridade e permanece após limpar o cache.",
-    "lyrics.local.remove": "Remover letras locais desta música",
+    "lyrics.local.remove": "Remover letras locais",
     "lyrics.local.saved": "Letras locais salvas.",
     "lyrics.local.removed": "Letras locais removidas. Carregando letras online.",
     "lyrics.local.error": "Não foi possível ler ou salvar as letras. Escolha um LRC/TXT UTF-8 ou UTF-16 de até 1 MB.",
@@ -12756,7 +12756,7 @@
   "bn": {
     "lyrics.local.import": "গানের কথা ফাইল আমদানি করুন",
     "lyrics.local.description": "এই গানের জন্য LRC বা TXT সংরক্ষণ করুন। এটি আগে দেখানো হবে এবং ক্যাশ মুছলেও থাকবে।",
-    "lyrics.local.remove": "এই গানের স্থানীয় কথা সরান",
+    "lyrics.local.remove": "স্থানীয় কথা সরান",
     "lyrics.local.saved": "স্থানীয় গানের কথা সংরক্ষিত হয়েছে।",
     "lyrics.local.removed": "স্থানীয় কথা সরানো হয়েছে। অনলাইন কথা আবার লোড হচ্ছে।",
     "lyrics.local.error": "গানের কথা পড়া বা সংরক্ষণ করা যায়নি। সর্বোচ্চ 1 MB-এর UTF-8 বা UTF-16 LRC/TXT ফাইল বেছে নিন।",
@@ -13667,7 +13667,7 @@
   "cs": {
     "lyrics.local.import": "Importovat soubor textu",
     "lyrics.local.description": "Uložte LRC nebo TXT pro tuto skladbu. Má přednost a zůstane i po vymazání mezipaměti.",
-    "lyrics.local.remove": "Odstranit místní text této skladby",
+    "lyrics.local.remove": "Odstranit místní text",
     "lyrics.local.saved": "Místní text byl uložen.",
     "lyrics.local.removed": "Místní text byl odstraněn. Načítá se text z internetu.",
     "lyrics.local.error": "Text nelze přečíst nebo uložit. Vyberte LRC/TXT v UTF-8 nebo UTF-16 do 1 MB.",
@@ -14578,7 +14578,7 @@
   "it": {
     "lyrics.local.import": "Importa file del testo",
     "lyrics.local.description": "Salva un LRC o TXT per questo brano. Ha la priorità e resta dopo la pulizia della cache.",
-    "lyrics.local.remove": "Rimuovi testo locale del brano",
+    "lyrics.local.remove": "Rimuovi testo locale",
     "lyrics.local.saved": "Testo locale salvato.",
     "lyrics.local.removed": "Testo locale rimosso. Caricamento del testo online.",
     "lyrics.local.error": "Impossibile leggere o salvare il testo. Scegli un LRC/TXT UTF-8 o UTF-16 fino a 1 MB.",
@@ -15489,7 +15489,7 @@
   "th": {
     "lyrics.local.import": "นำเข้าไฟล์เนื้อเพลง",
     "lyrics.local.description": "บันทึก LRC หรือ TXT สำหรับเพลงนี้ โดยจะแสดงก่อนและยังคงอยู่เมื่อล้างแคช",
-    "lyrics.local.remove": "ลบเนื้อเพลงในเครื่องของเพลงนี้",
+    "lyrics.local.remove": "ลบเนื้อเพลงในเครื่อง",
     "lyrics.local.saved": "บันทึกเนื้อเพลงในเครื่องแล้ว",
     "lyrics.local.removed": "ลบเนื้อเพลงในเครื่องแล้ว กำลังโหลดเนื้อเพลงออนไลน์อีกครั้ง",
     "lyrics.local.error": "อ่านหรือบันทึกเนื้อเพลงไม่ได้ โปรดเลือกไฟล์ LRC/TXT แบบ UTF-8 หรือ UTF-16 ขนาดไม่เกิน 1 MB",
@@ -16400,7 +16400,7 @@
   "vi": {
     "lyrics.local.import": "Nhập tệp lời bài hát",
     "lyrics.local.description": "Lưu LRC hoặc TXT cho bài này. Tệp được ưu tiên và vẫn còn khi xóa bộ nhớ đệm.",
-    "lyrics.local.remove": "Xóa lời cục bộ của bài này",
+    "lyrics.local.remove": "Xóa lời cục bộ",
     "lyrics.local.saved": "Đã lưu lời cục bộ.",
     "lyrics.local.removed": "Đã xóa lời cục bộ. Đang tải lại lời trực tuyến.",
     "lyrics.local.error": "Không thể đọc hoặc lưu lời. Chọn tệp LRC/TXT UTF-8 hoặc UTF-16 tối đa 1 MB.",
@@ -17311,7 +17311,7 @@
   "id": {
     "lyrics.local.import": "Impor berkas lirik",
     "lyrics.local.description": "Simpan LRC atau TXT untuk lagu ini. Berkas diprioritaskan dan tetap ada setelah cache dihapus.",
-    "lyrics.local.remove": "Hapus lirik lokal lagu ini",
+    "lyrics.local.remove": "Hapus lirik lokal",
     "lyrics.local.saved": "Lirik lokal disimpan.",
     "lyrics.local.removed": "Lirik lokal dihapus. Memuat kembali lirik daring.",
     "lyrics.local.error": "Tidak dapat membaca atau menyimpan lirik. Pilih LRC/TXT UTF-8 atau UTF-16 hingga 1 MB.",
@@ -18222,7 +18222,7 @@
   "ms": {
     "lyrics.local.import": "Import fail lirik",
     "lyrics.local.description": "Simpan LRC atau TXT untuk lagu ini. Fail diberi keutamaan dan kekal selepas cache dikosongkan.",
-    "lyrics.local.remove": "Padam lirik setempat lagu ini",
+    "lyrics.local.remove": "Padam lirik setempat",
     "lyrics.local.saved": "Lirik setempat disimpan.",
     "lyrics.local.removed": "Lirik setempat dipadam. Memuat semula lirik dalam talian.",
     "lyrics.local.error": "Tidak dapat membaca atau menyimpan lirik. Pilih LRC/TXT UTF-8 atau UTF-16 sehingga 1 MB.",
@@ -19133,7 +19133,7 @@
   "tr": {
     "lyrics.local.import": "Şarkı sözü dosyası içe aktar",
     "lyrics.local.description": "Bu parça için LRC veya TXT kaydet. Öncelikli gösterilir ve önbellek temizlendiğinde korunur.",
-    "lyrics.local.remove": "Bu parçanın yerel sözlerini kaldır",
+    "lyrics.local.remove": "Yerel sözleri kaldır",
     "lyrics.local.saved": "Yerel sözler kaydedildi.",
     "lyrics.local.removed": "Yerel sözler kaldırıldı. Çevrimiçi sözler yeniden yükleniyor.",
     "lyrics.local.error": "Sözler okunamadı veya kaydedilemedi. En fazla 1 MB boyutunda UTF-8 veya UTF-16 LRC/TXT seçin.",
