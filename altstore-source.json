@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.6",
+          "buildVersion": "76",
+          "date": "2026-10-23",
+          "localizedDescription": "v2.0.6에서는 곡별 로컬 LRC 및 텍스트 가사를 가져와 온라인 검색보다 우선 적용할 수 있습니다. AI 번역 및 리서치 스트리밍은 최신 OpenAI 추론 모델을 비롯한 여러 제공업체에서 더 안정적으로 작동합니다. 작은 iPhone에서 최대 텍스트 크기를 사용할 때의 로컬 가사 제거 메뉴 레이아웃도 개선되었습니다.\n\nVersion 2.0.6 lets you import local LRC and text lyrics for individual tracks, with those lyrics taking priority over online lookup. AI translation and research streaming are now more reliable across providers, including newer OpenAI reasoning models. The local-lyrics removal menu also lays out correctly on smaller iPhones at the largest text size.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.6/ivLyrics-IOS-v2.0.6-unsigned.ipa",
+          "size": 14543669,
+          "sha256": "202846c3cff38b17d8964f7c1713e3aa39972b95bbbd6a6c298d99f8898f3c0b",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.5",
           "buildVersion": "73",
           "date": "2026-10-17",
