@@ -33,6 +33,10 @@ actor LyricsRepository {
     private let networkRequestTimeout: TimeInterval = 47
     private let lrclibSignatureTimeout: TimeInterval = 18
 
+    func hasLocalLyrics(for track: TrackSnapshot) -> Bool {
+        LocalLyricsStore().contains(key: track.stableKey)
+    }
+
     private struct MemoryLyricsCacheEntry {
         var result: LyricsResult
         var savedAtMs: Int64
@@ -289,10 +293,6 @@ actor LyricsRepository {
         }
         guard eligible.contains("lrclib") else { return eligible }
         return ["lrclib"] + eligible.filter { $0 != "lrclib" }
-    }
-
-    func hasLocalLyrics(for track: TrackSnapshot) -> Bool {
-        LocalLyricsStore().contains(key: track.stableKey)
     }
 
     func loadLyrics(
