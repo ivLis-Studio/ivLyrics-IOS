@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.7",
+          "buildVersion": "78",
+          "date": "2026-10-25",
+          "localizedDescription": "v2.0.7에서는 가로 화면의 가사 페이지에서 설정으로 다시 이동할 수 있도록 접근성을 복구했습니다. 설정 화면의 가로 레이아웃 및 자동 숨김 타이밍을 분리해 검증하는 테스트를 보강했으며, AltStore 소스의 이전 v2.0.6 배포 메타데이터도 정리했습니다.\n\nv2.0.7 restores access to Settings from the lyrics page, including the affected landscape experience. It also strengthens tests by separating landscape settings-layout checks from auto-hide timing checks, and updates AltStore source metadata for the prior v2.0.6 release.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.7/ivLyrics-IOS-v2.0.7-unsigned.ipa",
+          "size": 14545802,
+          "sha256": "a288bd0443fd1e835f98a5070a653cf244b95bd0728f3ddb3a050ad60c3993aa",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.6",
           "buildVersion": "76",
           "date": "2026-10-23",
