@@ -485,6 +485,8 @@ struct LyricsMetaMenuOverlay: View {
             .disabled(selectingVideo || model.videoTimingShareInFlight || model.currentVideoTimingSubmission == nil)
             .accessibilityHint(settings.t("video.share_desc"))
             .accessibilityIdentifier("lyrics.menu.video.share")
+            // Sharing needs the Discord account, which the App Store build leaves out.
+            .omittedFromAppStoreBuild()
         }
     }
 

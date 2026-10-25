@@ -1537,6 +1537,7 @@ final class AppViewModel: ObservableObject {
 #if DEBUG
         if debugSettingsUIConsumesAction() { return }
 #endif
+        guard !AppDistribution.isAppStore else { return }
         guard !creatorPrivacyRequestInFlight, !creatorPrivacyLoginInProgress else { return }
         creatorPrivacyTask?.cancel()
         creatorPrivacyRequestInFlight = true
@@ -2943,7 +2944,8 @@ final class AppViewModel: ObservableObject {
     }
 
     func maybeStartAutomaticUpdateCheck() {
-        guard !automaticUpdateCheckStarted else { return }
+        // App Store installs update through the App Store, never from GitHub IPAs.
+        guard !AppDistribution.isAppStore, !automaticUpdateCheckStarted else { return }
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let last = Int64(defaults.double(forKey: keyLastAutoUpdateCheckMs))
         guard now - last >= autoUpdateCheckIntervalMs else { return }
@@ -2959,6 +2961,7 @@ final class AppViewModel: ObservableObject {
 #if DEBUG
         if debugSettingsUIConsumesAction() { return }
 #endif
+        guard !AppDistribution.isAppStore else { return }
         if updateCheckInFlight {
             if manual {
                 appendLog("update check: already in flight")

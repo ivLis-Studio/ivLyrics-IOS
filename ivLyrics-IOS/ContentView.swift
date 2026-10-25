@@ -10,6 +10,19 @@ private struct LyricsSegmentationLocaleKey: EnvironmentKey {
     static let defaultValue = "auto"
 }
 
+extension View {
+    /// Leaves a control out of the App Store build (see AppDistribution). The flag is fixed
+    /// for the lifetime of the binary, so this never toggles view identity at runtime.
+    @ViewBuilder
+    func omittedFromAppStoreBuild() -> some View {
+        if AppDistribution.isAppStore {
+            EmptyView()
+        } else {
+            self
+        }
+    }
+}
+
 private struct CoveredPageDecorationsPausedKey: EnvironmentKey {
     static let defaultValue = false
 }
@@ -9208,6 +9221,13 @@ struct SettingsView: View {
         if model.spotifyWebAPIAuthorizationStored {
             entries.append(entry("spotify.disconnect_oauth", .system, section: spotify, description: "spotify.disconnect_oauth_desc"))
         }
+        if AppDistribution.isAppStore {
+            // The account and update sections are not built in the App Store version.
+            entries.removeAll {
+                $0.id == "account.discord" || $0.id == "creator_privacy.private_title" || $0.id.hasPrefix("cloud_sync.")
+                    || $0.id == "update.check" || $0.id == "button.open_release"
+            }
+        }
         return entries
     }
 
@@ -11126,6 +11146,7 @@ struct SettingsView: View {
                 }
                 .settingsRow("cloud_sync.delete", flashing: flashRowID)
             }
+            .omittedFromAppStoreBuild()
             section("system.spotify", title: settings.t("section.spotify_api"), subtitle: settings.t("section.spotify_api_option_desc")) {
                 SpotifySetupInstructionsPanel()
                     .settingsRow("spotify.setup.instructions", flashing: flashRowID)
@@ -11228,6 +11249,7 @@ struct SettingsView: View {
                     .settingsRow("button.open_release", flashing: flashRowID)
                 }
             }
+            .omittedFromAppStoreBuild()
             section("system.tools", title: settings.t("section.tools"), subtitle: settings.t("section.tools_desc")) {
                 SettingsGroup {
                     SettingsActionRow(title: settings.t("button.reload_current")) { model.reloadLyrics(bypassCache: true) }

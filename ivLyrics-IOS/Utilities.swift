@@ -1,6 +1,18 @@
 import CryptoKit
 import Foundation
 
+/// Which channel this binary ships through. GitHub/AltStore builds keep every feature. The
+/// App Store build (archived with IVLYRICS_DISTRIBUTION=appstore) leaves out the GitHub IPA
+/// update checker and the optional Discord account (creator privacy, cloud settings, video
+/// submissions), which needs in-app account deletion and paid-role features Apple reviews
+/// differently. Playback, lyrics, translation and community videos are identical.
+enum AppDistribution {
+    static let isAppStore: Bool = {
+        let value = Bundle.main.object(forInfoDictionaryKey: "IVLyricsDistribution") as? String
+        return value?.trimmed.lowercased() == "appstore"
+    }()
+}
+
 extension String {
     var trimmed: String {
         trimmingCharacters(in: .whitespacesAndNewlines)
