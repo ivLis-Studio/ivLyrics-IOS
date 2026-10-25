@@ -8766,6 +8766,10 @@ struct SettingsView: View {
         case .player:
             return ["section.player", "settings.section.landscape", "section.pip", "vinyl.mode", "vinyl.settings.tonearm_title"]
         case .system:
+            if AppDistribution.isAppStore {
+                // The account and update sections are not built in the App Store version.
+                return ["section.spotify_api", "lyrics.tab.sync", "section.tools"]
+            }
             return ["section.account", "section.spotify_api", "lyrics.tab.sync", "section.update", "section.tools"]
         }
     }
