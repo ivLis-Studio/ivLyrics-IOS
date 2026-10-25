@@ -84,6 +84,12 @@ struct DebugSettingsUIRoot: View {
         defaults.set(ProcessInfo.processInfo.environment["IVLYRICS_UI_LANGUAGE"] ?? "en", forKey: "ui_lang")
         defaults.set(ProcessInfo.processInfo.environment["IVLYRICS_UI_THEME"] ?? "dark", forKey: "settings_theme")
         defaults.set(true, forKey: "cultural_annotations_enabled")
+        if DebugSettingsUIHarness.surface == "player" {
+            // Layout assertions take many AX snapshots on CI. Test auto-hide
+            // separately instead of racing its production 2.8-second timer.
+            defaults.set(ProcessInfo.processInfo.environment["IVLYRICS_UI_AUTO_HIDE"] == "1",
+                         forKey: "landscape_auto_hide_controls")
+        }
         // Explicit provider flags stop credential migration; this suite never uses real saved settings.
         defaults.set("{\"google-translate\":false,\"bing-translate\":false}", forKey: "ai_provider_enabled_v1")
         if ProcessInfo.processInfo.environment["IVLYRICS_UI_TRANSLATION_PROVIDER"] == "keyless" {

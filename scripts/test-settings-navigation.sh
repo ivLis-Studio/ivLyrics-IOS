@@ -19,6 +19,10 @@ if [[ -z "$NAVIGATION_DEVICE" ]]; then
     ')"
 fi
 
+# Cold CI Simulators can time out while Xcode launches the first UI fixture.
+# Boot before compilation so system initialization finishes before XCTest starts.
+xcrun simctl bootstatus "$NAVIGATION_DEVICE" -b
+
 cd "$ROOT_DIR"
 IVLYRICS_LLAMA_STUB=1 xcodebuild \
     -project ivLyrics-IOS.xcodeproj \
@@ -43,6 +47,7 @@ IVLYRICS_LLAMA_STUB=1 xcodebuild \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLocalLyricsMenuLargeTextLayout \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLyricsPageSettingsOpenAndReturn \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLyricsPageSettingsLargeTextAndLandscape \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLandscapeSettingsRevealAfterAutoHide \
     SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
     SWIFT_ENABLE_OPAQUE_TYPE_ERASURE=NO \
     CODE_SIGNING_ALLOWED=NO \

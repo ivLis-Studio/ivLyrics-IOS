@@ -114,6 +114,8 @@ assert "return !DebugSettingsUIHarness.enabled" in declaration(content, "private
 assert "if liveLifecycleEnabled" in content and "guard liveLifecycleEnabled else { return }" in content
 assert "testLyricsPageSettingsOpenAndReturn" in ui_tests
 assert "testLyricsPageSettingsLargeTextAndLandscape" in navigation_check
+assert '"IVLYRICS_UI_AUTO_HIDE"' in harness and "testLandscapeSettingsRevealAfterAutoHide" in navigation_check
+assert 'simctl bootstatus "$NAVIGATION_DEVICE" -b' in navigation_check
 assert "DebugSettingsUIHarness.credentialService" in (SRC / "SecureStringStore.swift").read_text()
 for file, marker in [("SpotifyUserPlaybackService.swift", "override init()"), ("LyricsRepository.swift", "init()"), ("LyricsPictureInPictureController.swift", "override init()")]:
     initializer = declaration((SRC / file).read_text(), marker)
@@ -150,7 +152,7 @@ assert 'lyrics.menu.offset.video.delta.' in ui_tests and 'lyrics.menu.offset.vid
 assert '.accessibilityIdentifier("settings.root")' not in declaration(content, "struct SettingsView:")
 assert 'case "accessibility5": return .accessibility5' in harness
 assert ui_tests.count('textSize: "accessibility5"') >= 2
-assert "viewport.contains(element.frame)" in ui_tests and "frame.minY < viewport.minY" in ui_tests
+assert "viewport.contains(target)" in ui_tests and "frame.minY < viewport.minY" in ui_tests
 assert "withVelocity: .slow, thenHoldForDuration: 0.25" in ui_tests
 assert '"lyrics.menu.video.apply"' in popup and '"lyrics.menu.regenerate"' in popup
 assert 'settings.t("tmi.regenerate")' not in popup
@@ -175,6 +177,7 @@ for method_name, tap in [
     assert flow.index(tap) < flow.index("waitForSettingsPage()") < flow.index("reveal(toggle,")
 
 drag_math = declaration(ui_tests, "private static func revealDragDistance(").replace("private static func", "func", 1)
+drag_math += "\n" + declaration(ui_tests, "private static func revealHitFrame(").replace("private static func", "func", 1)
 drag_checks = r'''
 // AX floating-point subtraction must preserve a true 44pt target without
 // allowing a physically smaller one through the native hit-target assertion.
@@ -216,6 +219,10 @@ for y: CGFloat in [-1000, 1000] {
     precondition(viewport.minY < viewport.midY + distance && viewport.midY + distance < viewport.maxY)
 }
 precondition(revealDragDistance(for: nil, in: viewport) < 0)
+let oversizedRow = CGRect(x: 16, y: 765.5, width: 343, height: 659)
+let nativeSwitchHit = revealHitFrame(oversizedRow, in: viewport)
+precondition(nativeSwitchHit.height == 44 && nativeSwitchHit.midY == oversizedRow.midY)
+precondition(revealHitFrame(above, in: viewport) == above)
 print("Settings UI regression: exact native reveal frames, direction, containment and bounded drag checks passed")
 '''
 with tempfile.TemporaryDirectory(prefix="ivlyrics-settings-drag-") as temp:

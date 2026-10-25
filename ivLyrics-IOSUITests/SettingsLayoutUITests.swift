@@ -30,7 +30,7 @@ final class SettingsLayoutUITests: XCTestCase {
     private func launch(_ surface: String = "settings", tab: String = "home", language: String = "en",
                         landscape: Bool = false, textSize: String = "large", theme: String = "dark",
                         defaultsID: String = UUID().uuidString, videoShareFixture: Bool = false,
-                        videoShareState: String = "1", lyricsLoading: Bool = false) {
+                        videoShareState: String = "1", lyricsLoading: Bool = false, autoHideControls: Bool = false) {
         if XCUIDevice.shared.orientation != .portrait {
             XCUIDevice.shared.orientation = .portrait
         }
@@ -44,6 +44,7 @@ final class SettingsLayoutUITests: XCTestCase {
                                  "IVLYRICS_UI_THEME": theme]
         if surface == "player" {
             app.launchEnvironment["IVLYRICS_DEBUG_SHOW_LYRICS"] = "1"
+            app.launchEnvironment["IVLYRICS_UI_AUTO_HIDE"] = autoHideControls ? "1" : "0"
             if lyricsLoading { app.launchEnvironment["IVLYRICS_DEBUG_LYRICS_LOADING"] = "1" }
         }
         app.launch()
@@ -73,6 +74,19 @@ final class SettingsLayoutUITests: XCTestCase {
             self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height
         }, on: app.windows.firstMatch, timeout: 15)
         verifyLyricsSettingsOpenAndReturn("player.settings.landscape")
+    }
+
+    func testLandscapeSettingsRevealAfterAutoHide() {
+        launch("player", landscape: true, autoHideControls: true)
+        let button = app.buttons["player.settings.landscape"]
+        wait(NSPredicate { _, _ in !button.exists }, on: button, timeout: 10)
+        // The gap between the player and lyrics panes is the real background
+        // gesture target. Reveal first, then tap without slow geometry captures.
+        app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02)).tap()
+        XCTAssertTrue(button.waitForExistence(timeout: 2))
+        button.tap()
+        XCTAssertTrue(app.textFields["settings.search"].waitForExistence(timeout: 10))
+        app.buttons["settings.close"].tap()
     }
 
     private func verifyLyricsSettingsOpenAndReturn(_ identifier: String) {
@@ -141,12 +155,18 @@ final class SettingsLayoutUITests: XCTestCase {
         let scrollExists = scroll.waitForExistence(timeout: 4)
         if !scrollExists { capture("missing-scroll-\(scrollID)") }
         XCTAssertTrue(scrollExists, "Native scroll container is missing: \(scrollID)")
-        for _ in 0..<24 {
+        // At AX5 the Player page is longer than 24 viewport-sized drags on an
+        // iPhone SE. Keep ordinary native scrolling bounded, but let it reach
+        // the same controls on the smallest supported display.
+        for _ in 0..<64 {
             let viewport = app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1).intersection(scroll.frame)
-            if element.exists && element.isHittable && viewport.contains(element.frame) { return }
-            let distance = Self.revealDragDistance(for: element.exists ? element.frame : nil, in: viewport)
+            let target = element.exists ? Self.revealHitFrame(element.frame, in: viewport) : nil
+            if let target, element.isHittable && viewport.contains(target) { return }
+            let distance = Self.revealDragDistance(for: target, in: viewport)
             if distance == 0 {
-                wait(NSPredicate { _, _ in element.exists && element.isHittable && viewport.contains(element.frame) }, on: element)
+                wait(NSPredicate { _, _ in
+                    element.exists && element.isHittable && viewport.contains(Self.revealHitFrame(element.frame, in: viewport))
+                }, on: element)
                 return
             }
             // Move a clipped control toward the visible center. A tiny edge-only
@@ -158,7 +178,15 @@ final class SettingsLayoutUITests: XCTestCase {
             start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.25)
         }
         capture("unreachable-in-\(scrollID)")
-        XCTFail("Control must be fully visible and reachable by normal scrolling: \(element)")
+        XCTFail("Control touch area must be visible and reachable by normal scrolling: \(element)")
+    }
+
+    private static func revealHitFrame(_ frame: CGRect, in viewport: CGRect) -> CGRect {
+        // AX wraps a native switch together with its description. At AX5 that
+        // row can exceed the entire SE screen. Its centered 44pt touch area,
+        // rather than all explanatory text at once, must be reachable.
+        guard frame.height > viewport.height else { return frame }
+        return CGRect(x: frame.minX, y: frame.midY - 22, width: frame.width, height: 44)
     }
 
     private static func revealDragDistance(for frame: CGRect?, in viewport: CGRect) -> CGFloat {
