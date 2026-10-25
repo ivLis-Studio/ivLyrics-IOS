@@ -272,9 +272,11 @@ struct ContentView: View {
                 lyricsPageAnimationHeight = max(1, geometry.size.height)
                 applyKeepScreenOn(settings.keepScreenOn)
                 updateLandscapeAutoHide(isLandscape: isLandscape)
-                model.maybeShowInitialSetup()
-                model.maybeStartAutomaticUpdateCheck()
-                model.resumeSpotifyLiveIfAuthorized()
+                if liveLifecycleEnabled {
+                    model.maybeShowInitialSetup()
+                    model.maybeStartAutomaticUpdateCheck()
+                    model.resumeSpotifyLiveIfAuthorized()
+                }
                 applyDebugPresentationOverrides()
             }
             .onDisappear {
@@ -290,6 +292,7 @@ struct ContentView: View {
                 lyricsPageAnimationHeight = max(1, height)
             }
             .onChange(of: scenePhase) { _, phase in
+                guard liveLifecycleEnabled else { return }
                 switch phase {
                 case .active:
                     model.appDidBecomeActive()
@@ -353,6 +356,14 @@ struct ContentView: View {
                     .environmentObject(model)
             }
         }
+    }
+
+    private var liveLifecycleEnabled: Bool {
+#if DEBUG
+        return !DebugSettingsUIHarness.enabled
+#else
+        return true
+#endif
     }
 
     private func rootContent(isLandscape: Bool, size: CGSize, safeAreaInsets: EdgeInsets) -> some View {
@@ -494,6 +505,7 @@ struct ContentView: View {
                 showingMetaMenu: $showingLyricsMetaMenu,
                 selectedMetaMenuTab: $lyricsMetaMenuTab,
                 metaTipVisible: $lyricsMetaTipVisible,
+                openSettings: { showingSettings = true },
                 screenHeight: size.height,
                 safeAreaTop: safeAreaInsets.top,
                 safeAreaBottom: safeAreaInsets.bottom
@@ -1755,6 +1767,7 @@ private struct LyricsPageOverlay: View {
     @Binding var showingMetaMenu: Bool
     @Binding var selectedMetaMenuTab: LyricsMetaMenuTab
     @Binding var metaTipVisible: Bool
+    var openSettings: () -> Void
     var screenHeight: CGFloat
     var safeAreaTop: CGFloat
     var safeAreaBottom: CGFloat
@@ -1819,45 +1832,57 @@ private struct LyricsPageOverlay: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(maxHeight: .infinity, alignment: .top)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.titleText.trimmed.isEmpty ? "ivLyrics" : model.titleText)
-                        .font(typography.font(slotId: AppSettings.typoLyricsHeaderTitle, baseSize: 19))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(model.artistText.trimmed.isEmpty ? " " : model.artistText)
-                            .font(typography.font(slotId: AppSettings.typoLyricsHeaderArtist, baseSize: 14))
-                            .foregroundStyle(.white.opacity(0.74))
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.titleText.trimmed.isEmpty ? "ivLyrics" : model.titleText)
+                            .font(typography.font(slotId: AppSettings.typoLyricsHeaderTitle, baseSize: 19))
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .layoutPriority(1)
-                        Spacer(minLength: 8)
-                        if model.status == .loading {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.white)
+                            .accessibilityIdentifier("lyrics.title")
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(model.artistText.trimmed.isEmpty ? " " : model.artistText)
+                                .font(typography.font(slotId: AppSettings.typoLyricsHeaderArtist, baseSize: 14))
+                                .foregroundStyle(.white.opacity(0.74))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .layoutPriority(1)
+                            Spacer(minLength: 8)
+                            if model.status == .loading {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.white)
+                            }
+                            LyricsMetaStrip(inline: true) {
+                                openMetaMenu(.language)
+                            }
+                            .fixedSize(horizontal: true, vertical: false)
+                            .layoutPriority(2)
                         }
-                        LyricsMetaStrip(inline: true) {
-                            openMetaMenu(.language)
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
-                        .layoutPriority(2)
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        model.handleTitleTap()
+                    }
+                    .onLongPressGesture {
+                        openMetaMenu(.language)
+                    }
+                    Button(action: openSettings) {
+                        AndroidMoreIcon()
+                            .frame(width: 18, height: 18)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(settings.t("settings.title"))
+                    .accessibilityIdentifier("lyrics.settings")
+                    .layoutPriority(3)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    model.handleTitleTap()
-                }
-                .onLongPressGesture {
-                    openMetaMenu(.language)
-                }
-                .frame(height: 54)
-                .frame(maxHeight: .infinity, alignment: .bottom)
+                .frame(minHeight: 54)
+                .padding(.top, 12)
             }
-            .frame(height: 66)
+            .frame(minHeight: 66)
 
             if metaTipVisible && !showingMetaMenu {
                 Button {
@@ -2698,6 +2723,7 @@ private struct LandscapeCommandBar: View {
         .buttonStyle(.plain)
         .foregroundStyle(.white)
         .accessibilityLabel(settings.t("settings.title"))
+        .accessibilityIdentifier("player.settings.landscape")
     }
 }
 

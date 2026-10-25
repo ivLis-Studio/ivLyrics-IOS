@@ -41,6 +41,8 @@ IVLYRICS_LLAMA_STUB=1 xcodebuild \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testVideoTimingShareEnabledAfterSameSelectionRemount \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLocalLyricsFilePickerOpensAndCancels \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLocalLyricsMenuLargeTextLayout \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLyricsPageSettingsOpenAndReturn \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLyricsPageSettingsLargeTextAndLandscape \
     SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
     SWIFT_ENABLE_OPAQUE_TYPE_ERASURE=NO \
     CODE_SIGNING_ALLOWED=NO \

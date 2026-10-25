@@ -71,7 +71,7 @@ extension View {
     }
 }
 
-/// Hosts the real production settings/popup. Never constructs ContentView or starts its live services.
+/// Hosts production settings/popup/player with isolated settings and no live services.
 struct DebugSettingsUIRoot: View {
     @StateObject private var settings: AppSettings
     @StateObject private var model: AppViewModel
@@ -110,6 +110,46 @@ struct DebugSettingsUIRoot: View {
     }
 
     var body: some View {
+        Group {
+            if DebugSettingsUIHarness.surface == "player" {
+                ContentView()
+            } else {
+                popupContent
+            }
+        }
+        .environmentObject(settings)
+        .environmentObject(model)
+        .environmentObject(model.playbackClock)
+        .environment(\.dynamicTypeSize, DebugSettingsUIHarness.textSize)
+        .preferredColorScheme(.dark)
+        .fullScreenCover(isPresented: $showingSettings) {
+            SettingsView()
+                .environmentObject(settings)
+                .environmentObject(model)
+                .environmentObject(model.playbackClock)
+                .environment(\.dynamicTypeSize, DebugSettingsUIHarness.textSize)
+        }
+        .fullScreenCover(isPresented: $model.initialSetupPresented) {
+            InitialSetupView()
+                .environmentObject(settings)
+                .environmentObject(model)
+                .environment(\.dynamicTypeSize, DebugSettingsUIHarness.textSize)
+        }
+        .onAppear {
+            showingSettings = DebugSettingsUIHarness.surface == "settings"
+            if DebugSettingsUIHarness.surface == "onboarding" {
+                model.showInitialSetup()
+            } else if DebugSettingsUIHarness.surface == "first-language" {
+                if settings.shouldPromptForFirstLanguage("ja") || ProcessInfo.processInfo.environment["IVLYRICS_UI_FORCE_PROMPT"] == "1" {
+                    model.applyDebugFirstLanguagePrompt()
+                }
+            } else if DebugSettingsUIHarness.surface != "player" {
+                showingPopup = !showingSettings
+            }
+        }
+    }
+
+    private var popupContent: some View {
         GeometryReader { geometry in
             ZStack {
                 SettingsDesign.background.ignoresSafeArea()
@@ -147,36 +187,6 @@ struct DebugSettingsUIRoot: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-        }
-        .environmentObject(settings)
-        .environmentObject(model)
-        .environmentObject(model.playbackClock)
-        .environment(\.dynamicTypeSize, DebugSettingsUIHarness.textSize)
-        .preferredColorScheme(.dark)
-        .fullScreenCover(isPresented: $showingSettings) {
-            SettingsView()
-                .environmentObject(settings)
-                .environmentObject(model)
-                .environmentObject(model.playbackClock)
-                .environment(\.dynamicTypeSize, DebugSettingsUIHarness.textSize)
-        }
-        .fullScreenCover(isPresented: $model.initialSetupPresented) {
-            InitialSetupView()
-                .environmentObject(settings)
-                .environmentObject(model)
-                .environment(\.dynamicTypeSize, DebugSettingsUIHarness.textSize)
-        }
-        .onAppear {
-            showingSettings = DebugSettingsUIHarness.surface == "settings"
-            if DebugSettingsUIHarness.surface == "onboarding" {
-                model.showInitialSetup()
-            } else if DebugSettingsUIHarness.surface == "first-language" {
-                if settings.shouldPromptForFirstLanguage("ja") || ProcessInfo.processInfo.environment["IVLYRICS_UI_FORCE_PROMPT"] == "1" {
-                    model.applyDebugFirstLanguagePrompt()
-                }
-            } else {
-                showingPopup = !showingSettings
-            }
         }
     }
 }

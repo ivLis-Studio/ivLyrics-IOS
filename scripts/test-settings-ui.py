@@ -106,7 +106,14 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-wordmark-") as temp:
                     str(path / "FontChecks.swift"), "-o", str(path / "fonts")], check=True)
     subprocess.run([str(path / "fonts"), str(SRC / "Resources/Fonts/PretendardVariable.ttf")], check=True)
 assert "--ivlyrics-ui-test" in harness and "UserDefaults(suiteName:" in harness
-assert "ContentView()" not in harness and "AppSettings.shared" not in harness
+assert "AppSettings.shared" not in harness and "ProductionAppRoot()" not in harness
+assert 'DebugSettingsUIHarness.surface == "player"' in harness and "ContentView()" in harness
+# The new player route exercises the real lyrics/settings presentation while the
+# isolated model and lifecycle gate prevent setup, account restore and update work.
+assert "return !DebugSettingsUIHarness.enabled" in declaration(content, "private var liveLifecycleEnabled:")
+assert "if liveLifecycleEnabled" in content and "guard liveLifecycleEnabled else { return }" in content
+assert "testLyricsPageSettingsOpenAndReturn" in ui_tests
+assert "testLyricsPageSettingsLargeTextAndLandscape" in navigation_check
 assert "DebugSettingsUIHarness.credentialService" in (SRC / "SecureStringStore.swift").read_text()
 for file, marker in [("SpotifyUserPlaybackService.swift", "override init()"), ("LyricsRepository.swift", "init()"), ("LyricsPictureInPictureController.swift", "override init()")]:
     initializer = declaration((SRC / file).read_text(), marker)

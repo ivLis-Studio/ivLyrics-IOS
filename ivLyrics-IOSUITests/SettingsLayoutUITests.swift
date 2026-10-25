@@ -30,7 +30,7 @@ final class SettingsLayoutUITests: XCTestCase {
     private func launch(_ surface: String = "settings", tab: String = "home", language: String = "en",
                         landscape: Bool = false, textSize: String = "large", theme: String = "dark",
                         defaultsID: String = UUID().uuidString, videoShareFixture: Bool = false,
-                        videoShareState: String = "1") {
+                        videoShareState: String = "1", lyricsLoading: Bool = false) {
         if XCUIDevice.shared.orientation != .portrait {
             XCUIDevice.shared.orientation = .portrait
         }
@@ -42,9 +42,14 @@ final class SettingsLayoutUITests: XCTestCase {
                                  "IVLYRICS_UI_VIDEO_SHARE": videoShareFixture ? videoShareState : "0",
                                  "IVLYRICS_UI_TEXT_SIZE": textSize,
                                  "IVLYRICS_UI_THEME": theme]
+        if surface == "player" {
+            app.launchEnvironment["IVLYRICS_DEBUG_SHOW_LYRICS"] = "1"
+            if lyricsLoading { app.launchEnvironment["IVLYRICS_DEBUG_LYRICS_LOADING"] = "1" }
+        }
         app.launch()
         let settingsMarker = tab == "home" ? "settings.search" : "settings.scroll"
-        let marker = app.descendants(matching: .any)[surface == "settings" ? settingsMarker : "lyrics.menu.close"]
+        let markerID = surface == "player" ? "lyrics.settings" : (surface == "settings" ? settingsMarker : "lyrics.menu.close")
+        let marker = app.descendants(matching: .any)[markerID]
         let ready = marker.waitForExistence(timeout: 10)
         if !ready { capture("launch-\(surface)-missing-marker") }
         XCTAssertTrue(ready, "Native launch marker is missing: \(marker)")
@@ -53,6 +58,51 @@ final class SettingsLayoutUITests: XCTestCase {
             XCUIDevice.shared.orientation = .landscapeLeft
             wait(NSPredicate { _, _ in self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height }, on: app.windows.firstMatch, timeout: 15)
         }
+    }
+
+    func testLyricsPageSettingsOpenAndReturn() {
+        launch("player", language: "ko")
+        verifyLyricsSettingsOpenAndReturn("lyrics.settings")
+    }
+
+    func testLyricsPageSettingsLargeTextAndLandscape() {
+        launch("player", textSize: "accessibility5", lyricsLoading: true)
+        verifyLyricsSettingsOpenAndReturn("lyrics.settings")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        wait(NSPredicate { _, _ in
+            self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height
+        }, on: app.windows.firstMatch, timeout: 15)
+        verifyLyricsSettingsOpenAndReturn("player.settings.landscape")
+    }
+
+    private func verifyLyricsSettingsOpenAndReturn(_ identifier: String) {
+        let button = app.buttons[identifier]
+        XCTAssertTrue(button.waitForExistence(timeout: 10))
+        assertTouchTarget(button)
+        XCTAssertTrue(button.isHittable)
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(button.frame))
+        if identifier == "lyrics.settings" {
+            let title = app.staticTexts["lyrics.title"]
+            XCTAssertTrue(app.windows.firstMatch.frame.contains(title.frame))
+            let statusBar = app.statusBars.firstMatch
+            if statusBar.exists {
+                XCTAssertGreaterThanOrEqual(title.frame.minY, statusBar.frame.maxY,
+                                            "Large header text must stay below the status bar")
+            }
+        }
+        capture("\(identifier)-visible")
+        // Hit the edge of the full touch target, not just the drawn 18pt icon.
+        button.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5)).tap()
+        XCTAssertTrue(app.textFields["settings.search"].waitForExistence(timeout: 10))
+        let close = app.buttons["settings.close"]
+        XCTAssertTrue(close.isHittable)
+        close.tap()
+        wait(NSPredicate { _, _ in button.exists && button.isHittable && !close.exists }, on: button, timeout: 10)
+        assertTouchTarget(button)
+        if identifier == "lyrics.settings" {
+            XCTAssertTrue(app.staticTexts["lyrics.title"].exists, "Closing settings must keep the lyrics page open")
+        }
+        capture("\(identifier)-returned-to-lyrics")
     }
 
     private func wait(_ predicate: NSPredicate, on element: XCUIElement, timeout: TimeInterval = 5) {
