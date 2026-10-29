@@ -23,7 +23,7 @@
           "version": "2.0.8",
           "buildVersion": "79",
           "date": "2026-10-29",
-          "localizedDescription": "v2.0.8은 로컬 가사 관리의 일관성을 높이고, 가사 제공자 및 미러 응답이 느리거나 실패할 때의 안정성을 개선했습니다. App Store 배포를 위한 개인정보 처리방침과 빌드 구성을 추가했으며, 설정 요약이 실제로 표시되는 항목만 반영하도록 수정했습니다. 또한 호환성 검사를 갖춘 Spotify iOS 가사 주입 미리보기 모듈의 기반을 마련했습니다.\n\nv2.0.8 improves consistency for local lyric management and strengthens resilience when lyric providers or mirrors are slow or fail. It adds App Store distribution preparation and a privacy policy, while ensuring Settings summaries only reflect sections that are actually visible. This release also lays the groundwork for a guarded Spotify iOS lyrics-injection preview with compatibility checks.",
+          "localizedDescription": "LRCLIB 과부하 시 불필요한 추가 요청을 줄이고, LyricsPlus 서버 응답이 느릴 때 대체 서버를 빠르게 조회합니다. LRC/TXT 파일을 교체하거나 삭제한 뒤 이전 작업이 최신 상태를 덮어쓰지 않도록 개선했습니다.\n\nReduces unnecessary requests during LRCLIB overload and starts LyricsPlus fallback sooner when a server is slow. Older LRC/TXT import operations can no longer overwrite a newer replacement or removal.",
           "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.8/ivLyrics-IOS-v2.0.8-unsigned.ipa",
           "size": 14568817,
           "sha256": "1409d477d866bc84069303ca0de893c22be55d73a8e3cf0b20b043b507547aa0",
