@@ -23,7 +23,7 @@ LIBRARY = "ivLyricsSpotify.dylib"
 INSTALL_NAME = "@rpath/" + LIBRARY
 PAYLOAD_DIRECTORY = "Library/MobileSubstrate/DynamicLibraries"
 PACKAGE_ID = "kr.ivlis.ivlyrics.spotify.preview"
-PACKAGE_VERSION = "0.1.0"
+PACKAGE_VERSION = "0.2.0"
 MIN_IOS = "17.0"
 TARGET = "arm64-apple-ios" + MIN_IOS
 AR_MAGIC = b"!<arch>\n"
@@ -163,9 +163,18 @@ def verify_dylib(path: Path) -> dict[str, object]:
     undefined = run([xcode_tool("nm"), "-u", str(path)], capture=True)
     if re.search(r"MSHook|MSFindSymbol|_logos|LHHook|Substrate", undefined):
         raise ValueError("Unexpected jailbreak hooking runtime symbol")
+    symbols = run([xcode_tool("nm"), "-g", str(path)], capture=True)
+    required_exports = ["_IVLyricsSpotifyBootstrap", "_IVLyricsSpotifyHostAvailabilityChanged",
+                        "_IVLyricsSpotifyInstallHostHooks", "_IVLyricsSpotifyHostIsAvailable",
+                        "_IVLyricsSpotifyUISetSeekHandler", "_OBJC_CLASS_$_IVLyricsSpotifyBridge",
+                        "_OBJC_CLASS_$_IVLyricsSpotifyUI"]
+    defined_exports = {line.split()[-1] for line in symbols.splitlines() if len(line.split()) == 3}
+    if missing := set(required_exports) - defined_exports:
+        raise ValueError("Missing module/host/UI entry points: " + ", ".join(sorted(missing)))
     run(["codesign", "--verify", "--strict", "--verbose=2", str(path)])
     return {"architecture": architecture, "platform": "iPhoneOS", "minimum_ios": MIN_IOS,
             "install_name": INSTALL_NAME, "dependencies": dependencies, "rpaths": rpaths,
+            "required_exports": required_exports,
             "codesign": "verified ad-hoc development signature; injector must re-sign for installation",
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
@@ -194,7 +203,8 @@ def verify_deb(path: Path) -> dict[str, object]:
         dylib.write_bytes(payload[dylib_name])
         report = verify_dylib(dylib)
     return {"package": control["Package"], "version": control["Version"],
-            "host_integration_verified": False, "spotify_playback_ui_adapter_implemented": False,
+            "host_integration_verified": False, "spotify_playback_ui_adapter_implemented": True,
+            "statically_inspected_spotify": {"version": "9.1.60", "build": "916001969"},
             "spotify_ipa_included": False,
             "deb_sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "dylib": report}
 
@@ -212,6 +222,8 @@ def swift_sources(manifest: Path) -> list[Path]:
         sources.append(path)
     sources.extend(sorted((ROOT / "Core").glob("*.swift")))
     sources.extend(sorted((ROOT / "src").glob("*.swift")))
+    # Harness sources under UI/Harness belong to a synthetic test app only.
+    sources.extend(sorted((ROOT / "UI").glob("*.swift")))
     return list(dict.fromkeys(path.resolve() for path in sources))
 
 
@@ -241,6 +253,7 @@ def build(output: Path) -> Path:
          "-swift-version", "5", "-target", TARGET, "-sdk", sdk, "-Onone", "-g",
          "-module-cache-path", str(output / "module-cache"),
          "-framework", "Foundation", "-framework", "UIKit", "-framework", "CryptoKit", "-framework", "NaturalLanguage",
+         "-framework", "Security",
          "-Xlinker", "-install_name", "-Xlinker", INSTALL_NAME,
          "-Xlinker", "-rpath", "-Xlinker", "/usr/lib/swift",
          *map(str, sources), *map(str, object_files), "-o", str(dylib)])
@@ -258,9 +271,13 @@ def build(output: Path) -> Path:
     report["sdk"] = sdk
     report["sources"] = {str(path.relative_to(REPO.resolve())): hashlib.sha256(path.read_bytes()).hexdigest()
                          for path in sources + native_sources}
+    inputs = [ROOT / "Core" / "sources.json", Path(__file__).resolve(), PACKAGING / "control",
+              PACKAGING / "ivLyricsSpotify.plist", *sorted((ROOT / "src").glob("*.h"))]
+    report["build_inputs"] = {str(path.relative_to(REPO.resolve())): hashlib.sha256(path.read_bytes()).hexdigest()
+                              for path in inputs}
     (output / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({"deb": str(deb), "dylib": str(dylib), "verification": str(output / "verification.json"),
-                      "host_integration_verified": False, "spotify_playback_ui_adapter_implemented": False}, indent=2))
+                      "host_integration_verified": False, "spotify_playback_ui_adapter_implemented": True}, indent=2))
     return deb
 
 
@@ -274,7 +291,7 @@ def main() -> int:
         print(json.dumps(verify_deb(args.verify.resolve()), indent=2))
         return 0
     if not args.allow_unverified:
-        parser.error("Spotify playback/UI adapter is not implemented. Host integration has not been verified. "
+        parser.error("Spotify host integration has not been verified on a real device. "
                      "Use --allow-unverified only to build a development payload.")
     if not shutil.which("xcrun") or not shutil.which("codesign"):
         parser.error("Full Xcode command-line tools and codesign are required on macOS.")

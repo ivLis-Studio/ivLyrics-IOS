@@ -34,7 +34,7 @@ actor LyricsRepository {
     private let lrclibSignatureTimeout: TimeInterval = 18
 
     func hasLocalLyrics(for track: TrackSnapshot) -> Bool {
-        LocalLyricsStore().contains(key: track.stableKey)
+        localLyricsStore.contains(key: track.stableKey)
     }
 
     private struct MemoryLyricsCacheEntry {
@@ -59,18 +59,11 @@ actor LyricsRepository {
     }
 
     private var cache = BoundedLRUCache<String, MemoryLyricsCacheEntry>(capacity: 350)
-    private let diskCache = LyricsDiskCache(
-        namespace: "base_lyrics",
-        maxEntries: 350,
-        maxAgeMs: LyricsRepository.lyricsCacheMaxAgeMs
-    )
-    private let syncDataResponseCache = RawResponseDiskCache(
-        namespace: "sync_data_api",
-        maxEntries: 700,
-        maxAgeMs: LyricsRepository.lyricsCacheMaxAgeMs,
-        formatVersion: 2
-    )
-    private let defaults = UserDefaults.standard
+    private let localLyricsStore: LocalLyricsStore
+    private let diskCache: LyricsDiskCache
+    private let syncDataResponseCache: RawResponseDiskCache
+    private let defaults: UserDefaults
+    private let secureStore: SecureStringStore
     private var spotifyAccessToken = ""
     private var spotifyTokenSourceKey = ""
     private var spotifyTokenIssuedAtMs: Int64 = 0
@@ -116,11 +109,34 @@ actor LyricsRepository {
     }
 
     init() {
+        self.init(
+            localLyricsStore: LocalLyricsStore(),
+            diskCache: LyricsDiskCache(namespace: "base_lyrics", maxEntries: 350, maxAgeMs: Self.lyricsCacheMaxAgeMs),
+            syncDataResponseCache: RawResponseDiskCache(namespace: "sync_data_api", maxEntries: 700,
+                                                        maxAgeMs: Self.lyricsCacheMaxAgeMs, formatVersion: 2),
+            defaults: .standard,
+            secureStore: .shared
+        )
+    }
+
+    /// Other hosts can reuse lookup logic without sharing app persistence.
+    init(
+        localLyricsStore: LocalLyricsStore,
+        diskCache: LyricsDiskCache,
+        syncDataResponseCache: RawResponseDiskCache,
+        defaults: UserDefaults,
+        secureStore: SecureStringStore
+    ) {
+        self.localLyricsStore = localLyricsStore
+        self.diskCache = diskCache
+        self.syncDataResponseCache = syncDataResponseCache
+        self.defaults = defaults
+        self.secureStore = secureStore
         lrclibEndpointIdentity = LrclibEndpoint.cacheIdentity(defaults.string(forKey: LrclibEndpoint.settingsKey) ?? "")
 #if DEBUG
         if DebugSettingsUIHarness.enabled { return }
 #endif
-        spotifyAccessToken = SecureStringStore.shared.migratedString(
+        spotifyAccessToken = secureStore.migratedString(
             forKey: "spotify_token_cache_access_token",
             legacyDefaults: defaults
         ) ?? ""
@@ -318,7 +334,7 @@ actor LyricsRepository {
         }
 
         let key = track.stableKey
-        if let imported = try LocalLyricsStore().load(key: key, durationMs: track.durationMs) {
+        if let imported = try localLyricsStore.load(key: key, durationMs: track.durationMs) {
             return LoadedLyrics(trackKey: key, result: imported, artworkURL: nil,
                                 logs: ["Using imported local lyrics"], resolvedIsrc: track.isrc, resolvedSpotifyTrackId: track.trackId)
         }
@@ -2203,7 +2219,7 @@ actor LyricsRepository {
     }
 
     private func persistSpotifyToken() {
-        if SecureStringStore.shared.set(spotifyAccessToken, forKey: "spotify_token_cache_access_token") {
+        if secureStore.set(spotifyAccessToken, forKey: "spotify_token_cache_access_token") {
             defaults.removeObject(forKey: "spotify_token_cache_access_token")
         }
         defaults.set(spotifyTokenSourceKey, forKey: "spotify_token_cache_source_key")
@@ -2216,7 +2232,7 @@ actor LyricsRepository {
         spotifyTokenSourceKey = ""
         spotifyTokenIssuedAtMs = 0
         spotifyTokenExpiresAtMs = 0
-        SecureStringStore.shared.remove(forKey: "spotify_token_cache_access_token")
+        secureStore.remove(forKey: "spotify_token_cache_access_token")
         defaults.removeObject(forKey: "spotify_token_cache_access_token")
         defaults.removeObject(forKey: "spotify_token_cache_source_key")
         defaults.removeObject(forKey: "spotify_token_cache_issued_at_ms")

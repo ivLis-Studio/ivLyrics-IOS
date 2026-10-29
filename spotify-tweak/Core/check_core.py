@@ -21,14 +21,16 @@ import Foundation
 private actor Gate {
     var calls: [String] = []
     private var pending: CheckedContinuation<Void, Never>?
-    func fetch(_ track: TrackSnapshot) async throws -> LyricsPlusProvider.FetchOutcome? {
+    func fetch(_ track: TrackSnapshot) async throws -> LyricsResult? {
         calls.append(track.title)
         if track.title == "Slow" {
             // Deliberately ignores cancellation until released: generation checks
             // must still reject a late provider result.
             await withCheckedContinuation { pending = $0 }
         }
-        return try LyricsPlusProvider.parse(data: Data("{\"type\":\"Line\",\"lyrics\":[{\"time\":1000,\"duration\":2000,\"text\":\"Provider fixture\"}]}".utf8), durationMs: track.durationMs)
+        let outcome = try LyricsPlusProvider.parse(data: Data("{\"type\":\"Line\",\"lyrics\":[{\"time\":1000,\"duration\":2000,\"text\":\"Provider fixture\"}]}".utf8), durationMs: track.durationMs)
+        return LyricsResult(lines: outcome.synced ?? [], providerLabel: "LyricsPlus", detail: "", karaoke: false,
+                            providerId: "lyricsplus", syncType: "line")
     }
     func release() { pending?.resume(); pending = nil }
 }

@@ -18,9 +18,9 @@ view_model = (SRC / "AppViewModel.swift").read_text()
 actions = view_model[view_model.index("    func importLocalLyrics("):view_model.index("    func searchManualCandidates(")]
 actions = actions.replace("let store = LocalLyricsStore()", "let store = localStore").replace("LocalLyricsStore().remove", "localStore.remove")
 repository = (SRC / "LyricsRepository.swift").read_text()
-local_start = repository.index("        if let imported = try LocalLyricsStore().load(")
+local_start = repository.index("        if let imported = try localLyricsStore.load(")
 local_end = repository.index("        let cacheKey = lyricsCacheKey(", local_start)
-local_lookup = repository[local_start:local_end].replace("LocalLyricsStore()", "localStore")
+local_lookup = repository[local_start:local_end].replace("localLyricsStore", "localStore")
 loaded_start = repository.index("    struct LoadedLyrics:")
 loaded_end = repository.index("\n    }", loaded_start) + len("\n    }")
 production += repository[loaded_start:loaded_end]

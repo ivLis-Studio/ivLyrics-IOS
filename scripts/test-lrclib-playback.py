@@ -70,7 +70,7 @@ enum LyricsDiskCachePolicy {
     static let lock = NSRecursiveLock()
     static func lockFileAccess() { lock.lock() }
     static func unlockFileAccess() { lock.unlock() }
-    static func prune() {}
+    static func prune(rootDirectory: URL? = nil) {}
 }
 """
 disk = (SRC / "DiskCaches.swift").read_text()

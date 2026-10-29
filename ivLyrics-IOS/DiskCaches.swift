@@ -2,8 +2,11 @@ import Foundation
 
 nonisolated enum LyricsDiskCachePolicy {
     private final class PruneState: @unchecked Sendable {
-        var isScheduled = false
-        var lastCompletedUptime: TimeInterval?
+        struct Entry {
+            var isScheduled = false
+            var lastCompletedUptime: TimeInterval?
+        }
+        var roots: [URL: Entry] = [:]
     }
 
     private struct CacheEntry {
@@ -34,30 +37,32 @@ nonisolated enum LyricsDiskCachePolicy {
         return cacheRoot.appendingPathComponent("lyrics_cache", isDirectory: true)
     }
 
-    static func prune() {
+    static func prune(rootDirectory requestedRoot: URL? = nil) {
+        let root = (requestedRoot ?? rootDirectory).standardizedFileURL
         let requestedAt = ProcessInfo.processInfo.systemUptime
         pruneStateQueue.async {
-            guard !pruneState.isScheduled else { return }
-            if let lastCompletedUptime = pruneState.lastCompletedUptime,
+            var state = pruneState.roots[root] ?? PruneState.Entry()
+            guard !state.isScheduled else { return }
+            if let lastCompletedUptime = state.lastCompletedUptime,
                requestedAt - lastCompletedUptime < pruneInterval {
                 return
             }
-            pruneState.isScheduled = true
+            state.isScheduled = true
+            pruneState.roots[root] = state
 
             pruneQueue.async {
                 defer {
                     let completedAt = ProcessInfo.processInfo.systemUptime
                     pruneStateQueue.async {
-                        pruneState.lastCompletedUptime = completedAt
-                        pruneState.isScheduled = false
+                        pruneState.roots[root] = PruneState.Entry(isScheduled: false, lastCompletedUptime: completedAt)
                     }
                 }
-                performPrune()
+                performPrune(rootDirectory: root)
             }
         }
     }
 
-    private static func performPrune() {
+    private static func performPrune(rootDirectory: URL) {
         let resourceKeys: Set<URLResourceKey> = [
             .isRegularFileKey,
             .fileSizeKey,
@@ -187,12 +192,14 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
 
     private let directory: URL
     private let baseLyricsCache: Bool
+    private let cacheRoot: URL
     private let maxAgeMs: Int64
     private let queue = DispatchQueue(label: "ivlyrics.disk-cache")
 
-    init(namespace: String, maxEntries: Int, maxAgeMs: Int64? = nil) {
+    init(namespace: String, maxEntries: Int, maxAgeMs: Int64? = nil, rootDirectory: URL? = nil) {
         let safeNamespace = Self.safeNamespace(namespace)
-        directory = LyricsDiskCachePolicy.rootDirectory.appendingPathComponent(safeNamespace, isDirectory: true)
+        cacheRoot = rootDirectory ?? LyricsDiskCachePolicy.rootDirectory
+        directory = cacheRoot.appendingPathComponent(safeNamespace, isDirectory: true)
         _ = maxEntries
         baseLyricsCache = safeNamespace == "base_lyrics"
         self.maxAgeMs = maxAgeMs.flatMap { $0 > 0 ? $0 : nil } ?? LyricsDiskCachePolicy.maxAgeMs
@@ -247,7 +254,7 @@ nonisolated final class LyricsDiskCache: @unchecked Sendable {
                     try? FileManager.default.removeItem(at: file)
                 }
                 try FileManager.default.moveItem(at: temp, to: file)
-                LyricsDiskCachePolicy.prune()
+                LyricsDiskCachePolicy.prune(rootDirectory: cacheRoot)
             } catch {
             }
         }
@@ -328,11 +335,13 @@ nonisolated final class RawResponseDiskCache: @unchecked Sendable {
     private let directory: URL
     private let maxAgeMs: Int64
     private let formatVersion: Int
+    private let cacheRoot: URL
     private let queue = DispatchQueue(label: "ivlyrics.raw-cache")
 
-    init(namespace: String, maxEntries: Int, maxAgeMs: Int64? = nil, formatVersion: Int = 1) {
+    init(namespace: String, maxEntries: Int, maxAgeMs: Int64? = nil, formatVersion: Int = 1, rootDirectory: URL? = nil) {
         let safeNamespace = namespace.trimmed.lowercased().regexReplacing("[^a-z0-9_-]", with: "_")
-        directory = LyricsDiskCachePolicy.rootDirectory.appendingPathComponent(safeNamespace.isEmpty ? "raw" : safeNamespace, isDirectory: true)
+        cacheRoot = rootDirectory ?? LyricsDiskCachePolicy.rootDirectory
+        directory = cacheRoot.appendingPathComponent(safeNamespace.isEmpty ? "raw" : safeNamespace, isDirectory: true)
         _ = maxEntries
         self.maxAgeMs = maxAgeMs.flatMap { $0 > 0 ? $0 : nil } ?? LyricsDiskCachePolicy.maxAgeMs
         self.formatVersion = max(1, formatVersion)
@@ -369,7 +378,7 @@ nonisolated final class RawResponseDiskCache: @unchecked Sendable {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 let envelope = Envelope(version: formatVersion, cacheKey: key, savedAtMs: Int64(Date().timeIntervalSince1970 * 1000), body: body)
                 try JSONEncoder().encode(envelope).write(to: fileForKey(key), options: .atomic)
-                LyricsDiskCachePolicy.prune()
+                LyricsDiskCachePolicy.prune(rootDirectory: cacheRoot)
             } catch {
             }
         }

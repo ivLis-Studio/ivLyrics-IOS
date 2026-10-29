@@ -111,18 +111,20 @@ private final class CoreLoadState: @unchecked Sendable {
 }
 
 /// Foundation-only preparation for a host adapter, not a Spotify runtime hook.
-/// Network access is opt-in for every load; only the unchanged LyricsPlus
-/// provider is currently included. LRCLIB selection and the app's other
-/// providers remain in LyricsRepository and are not reimplemented here.
+/// Network access is opt-in for every load. The original LyricsRepository owns
+/// matching, provider selection, retries and ivLyrics sync-data application.
 public actor IVLCoreLoader {
-    typealias Provider = @Sendable (TrackSnapshot) async throws -> LyricsPlusProvider.FetchOutcome?
+    typealias Provider = @Sendable (TrackSnapshot) async throws -> LyricsResult?
     nonisolated private let store: LocalLyricsStore
     nonisolated private let loads = CoreLoadState()
     private let fetchLyrics: Provider
 
     public init(storageDirectory: URL? = nil) {
-        store = LocalLyricsStore(root: Self.storageRoot(storageDirectory))
-        fetchLyrics = { try await LyricsPlusProvider.fetch(track: $0, isrc: $0.isrc) }
+        let root = Self.storageRoot(storageDirectory)
+        let store = LocalLyricsStore(root: root)
+        self.store = store
+        let repository = CoreRepository(store: store, storageDirectory: root)
+        fetchLyrics = { try await repository.load($0) }
     }
 
     // Internal dependency injection keeps fixtures offline without replacing the
@@ -156,9 +158,9 @@ public actor IVLCoreLoader {
                 return try IVLCoreDocument(track: track, result: local)
             }
             guard allowNetwork else { return nil }
-            guard let outcome = try await fetchLyrics(track) else { return nil }
+            guard let result = try await fetchLyrics(track) else { return nil }
             try Task.checkCancellation()
-            return try Self.document(track: track, outcome: outcome)
+            return try IVLCoreDocument(track: track, result: result)
         }
         loads.register(task, generation: generation)
         defer { loads.finish(generation) }
@@ -211,16 +213,4 @@ public actor IVLCoreLoader {
         try store.remove(key: track.stableKey)
     }
 
-    // Existing provider parsing and transport own matching, retries and timing.
-    // This adapter only chooses the most detailed returned representation.
-    nonisolated static func document(track: TrackSnapshot, outcome: LyricsPlusProvider.FetchOutcome) throws -> IVLCoreDocument {
-        let karaoke = outcome.karaoke?.isEmpty == false
-        let synced = outcome.synced?.isEmpty == false
-        let lines = karaoke ? outcome.karaoke! : (synced ? outcome.synced! : (outcome.plain ?? []))
-        let result = LyricsResult(lines: lines, providerLabel: "LyricsPlus",
-                                  detail: "Lyrics from LyricsPlus (\(LyricsPlusProvider.projectURL)).",
-                                  karaoke: karaoke, isrc: track.isrc, spotifyTrackId: track.trackId,
-                                  providerId: "lyricsplus", syncType: karaoke ? "word" : (synced ? "line" : "unknown"))
-        return try IVLCoreDocument(track: track, result: result)
-    }
 }

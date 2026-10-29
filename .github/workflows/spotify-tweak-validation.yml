@@ -11,6 +11,16 @@ on:
       - 'ivLyrics-IOS/LrcParser.swift'
       - 'ivLyrics-IOS/LocalLyricsStore.swift'
       - 'ivLyrics-IOS/LyricsPlusProvider.swift'
+      - 'ivLyrics-IOS/SyncDataApplier.swift'
+      - 'ivLyrics-IOS/PaxsenixLyricsProvider.swift'
+      - 'ivLyrics-IOS/UnisonLyricsProvider.swift'
+      - 'ivLyrics-IOS/LrclibEndpoint.swift'
+      - 'ivLyrics-IOS/LrclibPlaybackHTTP.swift'
+      - 'ivLyrics-IOS/OpenDBRefreshPolicy.swift'
+      - 'ivLyrics-IOS/BoundedLRUCache.swift'
+      - 'ivLyrics-IOS/DiskCaches.swift'
+      - 'ivLyrics-IOS/SecureStringStore.swift'
+      - 'ivLyrics-IOS/LyricsRepository.swift'
       - '.github/workflows/spotify-tweak-validation.yml'
   pull_request:
     paths:
@@ -21,6 +31,16 @@ on:
       - 'ivLyrics-IOS/LrcParser.swift'
       - 'ivLyrics-IOS/LocalLyricsStore.swift'
       - 'ivLyrics-IOS/LyricsPlusProvider.swift'
+      - 'ivLyrics-IOS/SyncDataApplier.swift'
+      - 'ivLyrics-IOS/PaxsenixLyricsProvider.swift'
+      - 'ivLyrics-IOS/UnisonLyricsProvider.swift'
+      - 'ivLyrics-IOS/LrclibEndpoint.swift'
+      - 'ivLyrics-IOS/LrclibPlaybackHTTP.swift'
+      - 'ivLyrics-IOS/OpenDBRefreshPolicy.swift'
+      - 'ivLyrics-IOS/BoundedLRUCache.swift'
+      - 'ivLyrics-IOS/DiskCaches.swift'
+      - 'ivLyrics-IOS/SecureStringStore.swift'
+      - 'ivLyrics-IOS/LyricsRepository.swift'
       - '.github/workflows/spotify-tweak-validation.yml'
 
 permissions:
@@ -37,11 +57,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check shared core and explicit runtime bridge offline
-        run: python3 spotify-tweak/Core/check_core.py
+        run: |
+          python3 spotify-tweak/Core/check_core.py
+          python3 spotify-tweak/Core/check_repository.py
+      - name: Check guarded host adapter with synthetic runtime fixtures
+        run: python3 spotify-tweak/tools/check_host_hooks.py
       - name: Check package and read-only IPA inspector fixtures
         run: |
           python3 spotify-tweak/scripts/test_packaging.py
           python3 spotify-tweak/tools/test_inspect_ipa.py
-      - name: Build and verify unconnected development payload
+      - name: Build and verify development preview
         run: python3 spotify-tweak/scripts/build_deb.py --allow-unverified
-      # Do not upload this unconnected payload as an installable release.
+      # Do not publish this preview as device-verified or upload Spotify binaries.

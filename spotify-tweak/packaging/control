@@ -1,11 +1,11 @@
 Package: kr.ivlis.ivlyrics.spotify.preview
 Name: ivLyrics Spotify Development Preview
-Version: 0.1.0
+Version: 0.2.0
 Architecture: iphoneos-arm
 Section: Tweaks
 Priority: optional
 Maintainer: ivLis
 Description: Unverified developer payload for a separately supplied iOS host IPA.
  Contains only the ivLyrics arm64 iOS 17 dynamic library and bundle filter.
- Spotify playback/UI adapter is not implemented.
+ Guarded Spotify 9.1.60 playback, lyrics UI, and local LRC import preview.
  An external IPA injection and signing tool is required. Host integration is not verified.

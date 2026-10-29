@@ -54,12 +54,12 @@ class PackagingTests(unittest.TestCase):
 
     def test_control_contains_no_jailbreak_dependencies(self):
         fields = build_deb.parse_control((build_deb.PACKAGING / "control").read_bytes())
-        self.assertEqual(fields["Version"], "0.1.0")
+        self.assertEqual(fields["Version"], build_deb.PACKAGE_VERSION)
         self.assertEqual(fields["Architecture"], "iphoneos-arm")
         self.assertNotIn("Depends", fields)
         self.assertNotIn("Pre-Depends", fields)
         self.assertIn("not verified", fields["Description"])
-        self.assertIn("Spotify playback/UI adapter is not implemented", fields["Description"])
+        self.assertIn("Spotify 9.1.60", fields["Description"])
 
     def test_system_swift_dependencies_use_system_rpath(self):
         build_deb.verify_dependencies([build_deb.INSTALL_NAME, "/usr/lib/libobjc.A.dylib",
@@ -76,7 +76,7 @@ class PackagingTests(unittest.TestCase):
         result = subprocess.run([sys.executable, str(Path(build_deb.__file__))], capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
         self.assertIn("--allow-unverified", result.stderr)
-        self.assertIn("Spotify playback/UI adapter is not implemented", result.stderr)
+        self.assertIn("not been verified on a real device", result.stderr)
 
 
 if __name__ == "__main__":

@@ -117,7 +117,7 @@ assert "testLyricsPageSettingsLargeTextAndLandscape" in navigation_check
 assert '"IVLYRICS_UI_AUTO_HIDE"' in harness and "testLandscapeSettingsRevealAfterAutoHide" in navigation_check
 assert 'simctl bootstatus "$NAVIGATION_DEVICE" -b' in navigation_check
 assert "DebugSettingsUIHarness.credentialService" in (SRC / "SecureStringStore.swift").read_text()
-for file, marker in [("SpotifyUserPlaybackService.swift", "override init()"), ("LyricsRepository.swift", "init()"), ("LyricsPictureInPictureController.swift", "override init()")]:
+for file, marker in [("SpotifyUserPlaybackService.swift", "override init()"), ("LyricsRepository.swift", "init(\n        localLyricsStore:"), ("LyricsPictureInPictureController.swift", "override init()")]:
     initializer = declaration((SRC / file).read_text(), marker)
     assert "#if DEBUG\n        if DebugSettingsUIHarness.enabled { return }\n#endif" in initializer
 init = declaration(model, "init(settings: AppSettings)")

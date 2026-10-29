@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "status": "static ABI inspected; device/runtime compatibility unverified beta",
+  "host": {
+    "original_bundle_identifier": "com.spotify.client",
+    "resigned_bundle_identifier_changes_allowed": true,
+    "executable": "Spotify",
+    "short_version": "9.1.60",
+    "build": "916001969",
+    "architecture": "arm64",
+    "original_minimum_ios": "16.1",
+    "tweak_minimum_ios": "17.0",
+    "cryptid": 0
+  },
+  "source": {
+    "url": "https://github.com/whytut/spotify-ipa-updated/releases/tag/Spotify-IPA-Release",
+    "downloaded_date": "2026-10-29",
+    "ipa_size_bytes": 124705987,
+    "ipa_sha256": "b2a299f254d13e706262cca67c785ca2777c7ec15f0cd7a1ad19f00de8aa7224",
+    "executable_sha256": "ee2156a87879fff48b3f436ed9ebf51435e2f07a33a1f60d41f328437602aedb",
+    "provenance": "Independent download source; metadata/hash checks do not establish a pristine publisher-original binary. No Spotify binary is included in this repository."
+  },
+  "inspection": {
+    "method": "Read-only Mach-O Objective-C metadata decoding, with Xcode otool type/IMP cross-checks. Binary not executed.",
+    "observed_class_count": 19700,
+    "method_requirements": [
+      {
+        "class": "SPTEsperantoPlayer",
+        "selector": "state",
+        "encoding": "@16@0:8",
+        "metadata_entry_va": "0x108e19b68"
+      },
+      {
+        "class": "SPTEsperantoPlayer",
+        "selector": "addPlayerObserver:",
+        "encoding": "v24@0:8@16",
+        "metadata_entry_va": "0x108e19b2c"
+      },
+      {
+        "class": "SPTEsperantoPlayer",
+        "selector": "removePlayerObserver:",
+        "encoding": "v24@0:8@16",
+        "metadata_entry_va": "0x108e19b38"
+      },
+      {
+        "class": "SPTEsperantoPlayer",
+        "selector": "seekTo:",
+        "encoding": "@24@0:8d16",
+        "metadata_entry_va": "0x108e19a3c"
+      },
+      {
+        "class": "_TtC23NowPlaying_PlatformImpl28StatefulPlayerImplementation",
+        "selector": "player:stateDidChange:",
+        "encoding": "v32@0:8@16@24",
+        "metadata_entry_va": "0x108e57668"
+      },
+      {
+        "class": "SPTPlayerState",
+        "selector": "track",
+        "encoding": "@16@0:8",
+        "metadata_entry_va": "0x108e321dc"
+      },
+      {
+        "class": "SPTPlayerState",
+        "selector": "position",
+        "encoding": "d16@0:8",
+        "metadata_entry_va": "0x108e32158"
+      },
+      {
+        "class": "SPTPlayerState",
+        "selector": "positionAsOfTimestamp",
+        "encoding": "d16@0:8",
+        "metadata_entry_va": "0x108e32254"
+      },
+      {
+        "class": "SPTPlayerState",
+        "selector": "duration",
+        "encoding": "d16@0:8",
+        "metadata_entry_va": "0x108e3226c"
+      },
+      {
+        "class": "SPTPlayerState",
+        "selector": "playbackSpeed",
+        "encoding": "d16@0:8",
+        "metadata_entry_va": "0x108e3223c"
+      },
+      {
+        "class": "SPTPlayerState",
+        "selector": "isPaused",
+        "encoding": "B16@0:8",
+        "metadata_entry_va": "0x108e322b4"
+      },
+      {
+        "class": "SPTPlayerState",
+        "selector": "isPlaying",
+        "encoding": "B16@0:8",
+        "metadata_entry_va": "0x108e32284"
+      },
+      {
+        "class": "SPTPlayerState",
+        "selector": "isLoading",
+        "encoding": "B16@0:8",
+        "metadata_entry_va": "0x108e3229c"
+      },
+      {
+        "class": "SPTPlayerTrack",
+        "selector": "URI",
+        "encoding": "@16@0:8",
+        "metadata_entry_va": "0x108e32648"
+      },
+      {
+        "class": "SPTPlayerTrack",
+        "selector": "trackTitle",
+        "encoding": "@16@0:8",
+        "metadata_entry_va": "0x108e325ac"
+      },
+      {
+        "class": "SPTPlayerTrack",
+        "selector": "artistName",
+        "encoding": "@16@0:8",
+        "metadata_entry_va": "0x108e325d0"
+      },
+      {
+        "class": "SPTPlayerTrack",
+        "selector": "albumTitle",
+        "encoding": "@16@0:8",
+        "metadata_entry_va": "0x108e325b8"
+      },
+      {
+        "class": "SPTPlayerTrack",
+        "selector": "metadata",
+        "encoding": "@16@0:8",
+        "metadata_entry_va": "0x108e32684"
+      },
+      {
+        "class": "_TtC22Lyrics_CardElementImpl8CardView",
+        "selector": "layoutSubviews",
+        "encoding": "v16@0:8",
+        "metadata_entry_va": "0x108d7185c"
+      },
+      {
+        "class": "_TtC32Lyrics_FullscreenElementPageImpl14FullscreenView",
+        "selector": "layoutSubviews",
+        "encoding": "v16@0:8",
+        "metadata_entry_va": "0x108e67d38"
+      },
+      {
+        "class": "_TtC21NowPlaying_ScrollImpl27NPVBackgroundViewController",
+        "selector": "viewWillAppear:",
+        "encoding": "v20@0:8B16",
+        "metadata_entry_va": "0x108e53fbc"
+      }
+    ],
+    "class_requirements": [
+      {
+        "class": "_TtC32Lyrics_FullscreenElementPageImpl10LyricsView",
+        "direct_superclass": "UIView",
+        "class_va": "0x10c030590",
+        "class_ro_va": "0x10c030530",
+        "name_string_va": "0x109887da0",
+        "observed_ivar_names": [
+          "lyricsTextElementFactory",
+          "elementView",
+          "loadingView",
+          "errorLabel"
+        ],
+        "note": "Read-only otool metadata. Ivar names inform the content boundary only; adapter does not read ivars, offsets or KVC. This class does not override layoutSubviews."
+      }
+    ],
+    "total_runtime_requirements": 22
+  },
+  "behavior": {
+    "hook_runtime": "Objective-C class_addMethod / method_setImplementation; saved original IMP chain; no Substrate",
+    "state_sources": [
+      "SPTEsperantoPlayer.state",
+      "SPTEsperantoPlayer.addPlayerObserver:",
+      "StatefulPlayerImplementation.player:stateDidChange:"
+    ],
+    "metadata_allowlist": [
+      "title",
+      "artist",
+      "album",
+      "spotifyID",
+      "isrc",
+      "durationMs",
+      "positionMs",
+      "playing",
+      "speed"
+    ],
+    "seek_target": "SPTEsperantoPlayer.seekTo: returns object and accepts double; never call the void-returning Swift wrapper with this signature.",
+    "time_unit": "Seconds are an inferred playback convention converted to/from UI milliseconds. Metadata encodings prove double only; real-device unit confirmation remains required.",
+    "ui_owned_view_prefix": "ivlyrics.spotify.",
+    "fallback": "All version/ABI gates checked before any hook; native direct-child hidden values restored whenever lyrics are not ready; entry opens only on user action.",
+    "fullscreen_content_boundary": "The original FullscreenView.layoutSubviews runs first. Search its public UIView subviews for exactly one instance of the verified LyricsView class, at most 8 levels and 256 nodes; skip ivlyrics-owned descendants. Attach/hide only inside that content view. Native header, playback controls, footer and progress siblings remain untouched. No candidate, duplicates or traversal truncation restore the prior region and detach only our overlay."
+  },
+  "not_verified": [
+    "Actual Spotify launch and injection",
+    "Callbacks and object lifetime on a real device",
+    "Playback/seek time-unit confirmation on a real device",
+    "Native card/fullscreen mounting across accounts and experiments",
+    "UIKit entry-button placement and gestures",
+    "SideStore signing and installation"
+  ],
+  "validation": {
+    "command": "python3 spotify-tweak/tools/check_host_hooks.py",
+    "synthetic_scenarios": 10,
+    "assertions": 190,
+    "ios_arm64": "Xcode clang syntax-only validation passed; full package build handled separately"
+  }
+}

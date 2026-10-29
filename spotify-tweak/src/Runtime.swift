@@ -2,11 +2,15 @@ import Foundation
 
 @_cdecl("IVLyricsSpotifyBootstrap")
 public func IVLyricsSpotifyBootstrap() {
-    NSLog("[ivLyrics] Development core loaded. Spotify host adapter is not configured; no hooks installed.")
+    NSLog("[ivLyrics] Development preview loaded; Spotify version and runtime checks are required before activation.")
 }
 
-/// An explicit boundary for a future, version-verified Spotify adapter.
-/// Merely loading this library does not start a request or modify host UI.
+@_cdecl("IVLyricsSpotifyHostAvailabilityChanged")
+public func IVLyricsSpotifyHostAvailabilityChanged(_ available: Bool) {
+    DispatchQueue.main.async { IVLyricsSpotifyBridge.hostAdapterAvailable = available }
+}
+
+/// A JSON boundary for the guarded Spotify adapter and isolated core fixtures.
 @MainActor
 @objc(IVLyricsSpotifyBridge)
 public final class IVLyricsSpotifyBridge: NSObject {
@@ -30,7 +34,8 @@ public final class IVLyricsSpotifyBridge: NSObject {
     private var activeTrackKey: String?
     private var editGenerations: [String: UInt64] = [:]
 
-    @objc public static let hostAdapterAvailable = false
+    /// Runtime guards passed and hooks installed; this is not a device-test verdict.
+    @objc public fileprivate(set) static var hostAdapterAvailable = false
 
     @objc public override init() {
         loader = IVLCoreLoader()
