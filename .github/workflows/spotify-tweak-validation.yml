@@ -1,0 +1,47 @@
+name: Spotify tweak development checks
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'spotify-tweak/**'
+      - 'ivLyrics-IOS/Models.swift'
+      - 'ivLyrics-IOS/Utilities.swift'
+      - 'ivLyrics-IOS/TinySegmenter.swift'
+      - 'ivLyrics-IOS/LrcParser.swift'
+      - 'ivLyrics-IOS/LocalLyricsStore.swift'
+      - 'ivLyrics-IOS/LyricsPlusProvider.swift'
+      - '.github/workflows/spotify-tweak-validation.yml'
+  pull_request:
+    paths:
+      - 'spotify-tweak/**'
+      - 'ivLyrics-IOS/Models.swift'
+      - 'ivLyrics-IOS/Utilities.swift'
+      - 'ivLyrics-IOS/TinySegmenter.swift'
+      - 'ivLyrics-IOS/LrcParser.swift'
+      - 'ivLyrics-IOS/LocalLyricsStore.swift'
+      - 'ivLyrics-IOS/LyricsPlusProvider.swift'
+      - '.github/workflows/spotify-tweak-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spotify-tweak-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  development-checks:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shared core and explicit runtime bridge offline
+        run: python3 spotify-tweak/Core/check_core.py
+      - name: Check package and read-only IPA inspector fixtures
+        run: |
+          python3 spotify-tweak/scripts/test_packaging.py
+          python3 spotify-tweak/tools/test_inspect_ipa.py
+      - name: Build and verify unconnected development payload
+        run: python3 spotify-tweak/scripts/build_deb.py --allow-unverified
+      # Do not upload this unconnected payload as an installable release.

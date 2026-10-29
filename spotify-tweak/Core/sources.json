@@ -1,0 +1,15 @@
+{
+  "sources": [
+    "ivLyrics-IOS/Models.swift",
+    "ivLyrics-IOS/Utilities.swift",
+    "ivLyrics-IOS/TinySegmenter.swift",
+    "ivLyrics-IOS/LrcParser.swift",
+    "ivLyrics-IOS/LocalLyricsStore.swift",
+    "ivLyrics-IOS/LyricsPlusProvider.swift",
+    "spotify-tweak/Core/CoreLocalization.swift",
+    "spotify-tweak/Core/IVLCoreLoader.swift"
+  ],
+  "frameworks": ["Foundation", "CryptoKit", "NaturalLanguage"],
+  "minimum_ios_version": "17.0",
+  "swift_version": "5"
+}
