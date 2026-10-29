@@ -4,6 +4,11 @@ import CryptoKit
 /// User imports survive cache clearing and are only removed by an explicit action.
 nonisolated struct LocalLyricsStore: Sendable {
     static let maxBytes = 1024 * 1024
+    private final class ImportState: @unchecked Sendable {
+        let lock = NSLock()
+        var requests: [String: UUID] = [:]
+    }
+    private static let importState = ImportState()
     private let root: URL
 
     init(root: URL? = nil) {
@@ -29,12 +34,47 @@ nonisolated struct LocalLyricsStore: Sendable {
     }
 
     func save(key: String, text: String) throws {
+        Self.importState.lock.lock(); defer { Self.importState.lock.unlock() }
+        Self.importState.requests.removeValue(forKey: file(for: key).path)
+        try write(key: key, text: text)
+    }
+
+    private func write(key: String, text: String) throws {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try Data(text.utf8).write(to: file(for: key), options: .atomic)
     }
 
+    func beginImport(key: String) -> UUID {
+        Self.importState.lock.lock(); defer { Self.importState.lock.unlock() }
+        let request = UUID()
+        Self.importState.requests[file(for: key).path] = request
+        return request
+    }
+
+    /// Reading a cloud document may finish after another import or removal.
+    /// Commit only the latest intent, checking and writing under the same lock.
+    func importFile(_ url: URL, key: String, durationMs: Int64, request: UUID) throws -> Bool {
+        let text = try Self.read(url)
+        _ = try Self.parse(text, durationMs: durationMs)
+        Self.importState.lock.lock(); defer { Self.importState.lock.unlock() }
+        guard Self.importState.requests[file(for: key).path] == request else { return false }
+        try write(key: key, text: text)
+        return true
+    }
+
+    /// Also suppresses stale success/error feedback after a newer user action.
+    func finishImport(key: String, request: UUID) -> Bool {
+        Self.importState.lock.lock(); defer { Self.importState.lock.unlock() }
+        let path = file(for: key).path
+        guard Self.importState.requests[path] == request else { return false }
+        Self.importState.requests.removeValue(forKey: path)
+        return true
+    }
+
     func remove(key: String) throws {
+        Self.importState.lock.lock(); defer { Self.importState.lock.unlock() }
         let url = file(for: key)
+        Self.importState.requests.removeValue(forKey: url.path)
         if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
     }
 

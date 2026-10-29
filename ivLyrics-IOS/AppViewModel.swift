@@ -2418,17 +2418,24 @@ final class AppViewModel: ObservableObject {
     }
 
     func importLocalLyrics(from url: URL, for track: TrackSnapshot) {
+        let store = LocalLyricsStore()
+        let request = store.beginImport(key: track.stableKey)
         Task { [weak self] in
-            guard let self else { return }
+            guard let self else {
+                _ = store.finishImport(key: track.stableKey, request: request)
+                return
+            }
             do {
-                try await Task.detached(priority: .userInitiated) {
-                    let text = try LocalLyricsStore.read(url)
-                    _ = try LocalLyricsStore.parse(text, durationMs: track.durationMs)
-                    try LocalLyricsStore().save(key: track.stableKey, text: text)
+                let saved = try await Task.detached(priority: .userInitiated) {
+                    try store.importFile(url, key: track.stableKey, durationMs: track.durationMs, request: request)
                 }.value
+                guard store.finishImport(key: track.stableKey, request: request), saved else { return }
                 if currentTrackKey == track.stableKey { reloadLyrics(bypassCache: false) }
                 showSavedToast(settings.t("lyrics.local.saved"))
-            } catch { showSavedToast(settings.t("lyrics.local.error")) }
+            } catch {
+                guard store.finishImport(key: track.stableKey, request: request) else { return }
+                showSavedToast(settings.t("lyrics.local.error"))
+            }
         }
     }
 

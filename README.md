@@ -65,6 +65,12 @@ https://raw.githubusercontent.com/ivLis-Studio/ivLyrics-IOS/main/altstore-source
 
 Web API를 켜면 별도의 Spotify 웹 로그인이 진행됩니다. 꺼도 App Remote로 현재 곡을 따라갈 수 있습니다. 다만 현재 앱의 콜백은 위 사용자 지정 스킴으로 고정되어 있고, Spotify의 [Web API Redirect URI 규정](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri)은 HTTPS를 요구합니다. Dashboard에서 콜백을 거부하거나 웹 인증이 실패하면 임의 주소로 바꾸지 말고 오류를 제보해 주세요. 이 README만으로 해당 연결 제약을 해결할 수는 없습니다.
 
+## 내 LRC 파일로 가사 추가하기
+
+곡을 재생한 뒤 **설정 → 현재 재생 곡 설정 → 가사 제공자 → 가사 파일 불러오기**에서 `.lrc` 또는 `.txt` 파일을 선택하세요. UTF-8 또는 UTF-16로 저장한 1MB 이하의 파일을 지원합니다. LRC의 시간 정보는 줄 단위 싱크에 사용됩니다.
+
+파일은 선택을 시작한 곡에 저장되어 온라인 가사보다 먼저 표시되며, 앱을 다시 열거나 가사 캐시를 지워도 유지됩니다. 같은 메뉴의 **로컬 가사 삭제**를 누르면 온라인 가사를 다시 불러옵니다.
+
 ## 번역과 발음 설정하기
 
 **설정 → 일반**에서 번역·발음의 표시와 출력 언어를 정하고, **AI 제공자**에서 사용할 서비스를 켜고 순서를 조절하세요. 켜 둔 제공자가 실패하면 다음 제공자를 시도합니다. 곡 언어별 규칙을 사용하면 일본어 곡은 번역과 발음을, 영어 곡은 번역만 표시하는 식으로 설정할 수 있습니다.

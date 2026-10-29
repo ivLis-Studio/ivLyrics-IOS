@@ -60,6 +60,12 @@ Download `ivLyrics-IOS-v<version>-unsigned.ipa` from the Assets of the [latest r
 
 Web API starts a separate Spotify web login; App Remote can follow the current song with Web API off. There is a connection constraint: the app uses the fixed custom-scheme callback above, while Spotify's [Web API redirect rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) require HTTPS. If the Dashboard rejects it or web authorization fails, report the error instead of substituting an arbitrary address.
 
+## Add lyrics from your own LRC file
+
+Play a song, then open **Settings → Current track settings → Lyrics Providers → Import lyrics file** and select a `.lrc` or `.txt` file. Files must be UTF-8 or UTF-16 and no larger than 1 MB. LRC timestamps provide line-by-line synchronization.
+
+The file is saved for the song selected when you opened the picker and takes priority over online lyrics. It survives app restarts and lyric-cache clearing. Use **Remove local lyrics** in the same menu to return to online lyrics.
+
 ## Translation and pronunciation
 
 In **Settings → General**, choose what to display and the output languages. In **AI Providers**, enable services and set their order. Failed requests try the next enabled provider. Per-language rules let you use translation and pronunciation for Japanese songs but only translation for English songs, for example.
