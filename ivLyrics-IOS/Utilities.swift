@@ -467,6 +467,7 @@ enum IvLyricsUtilities {
 struct HTTPStatusError: LocalizedError, Sendable {
     var statusCode: Int
     var message: String
+    var retryAfterSeconds: TimeInterval? = nil
 
     var errorDescription: String? {
         message

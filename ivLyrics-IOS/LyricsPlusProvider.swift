@@ -7,13 +7,12 @@ enum LyricsPlusProvider {
         "YUhSMGNITTZMeTlzZVhKcFkzTndiSFZ6TG5CeWFtdDBiR0V1YlhrdWFXUT0=",
         "YUhSMGNITTZMeTlzZVhKcFkzTXVaMlZsYTJWa0xuZDBaZz09"
     ]
-    private static let requestTimeout: TimeInterval = 12
     private static let splitTriggerWidth = 22.0
     private static let splitHardWidth = 26.0
     private static let splitMinimumWidth = 6.0
     private static let splitMinimumDurationMs: Int64 = 500
     private static let splitMaximumSegments = 4
-    private static let endpointRotation = EndpointRotation()
+    private static let endpointPreference = EndpointPreference()
 #if DEBUG
     private static let boundaryRegressionChecks: Void = {
         func syllable(_ text: String, _ start: Int64, _ end: Int64) -> LyricsLine.Syllable {
@@ -84,79 +83,131 @@ enum LyricsPlusProvider {
         let end: Int
     }
 
-    private actor EndpointRotation {
-        private var nextIndex = 0
+    private actor EndpointPreference {
+        private var preferred: String?
 
         func ordered(_ values: [String]) -> [String] {
-            guard !values.isEmpty else { return [] }
-            let start = nextIndex % values.count
-            nextIndex = (nextIndex + 1) % values.count
-            return (0..<values.count).map { values[(start + $0) % values.count] }
+            guard let preferred, values.contains(preferred) else { return values }
+            return [preferred] + values.filter { $0 != preferred }
+        }
+
+        func succeeded(_ base: String) { preferred = base }
+    }
+
+    private enum MirrorEvent {
+        case reply(Int, Result<FetchOutcome, Error>)
+        case hedge
+        case deadline
+    }
+
+    static func fetch(track: TrackSnapshot, isrc rawIsrc: String,
+                      baseURLs: [String]? = nil, session: URLSession = .shared,
+                      hedgeDelay: TimeInterval = 0.75, totalTimeout: TimeInterval = 12) async throws -> FetchOutcome? {
+        let isrc = TrackSnapshot.normalizeIsrc(rawIsrc)
+        guard !isrc.isEmpty || track.hasUsableMetadata else { return nil }
+        try Task.checkCancellation()
+        let bases = await endpointPreference.ordered(baseURLs ?? encodedBaseURLs.compactMap(decodeTwice))
+        guard !bases.isEmpty else { return nil }
+        let budget = max(0.001, totalTimeout)
+        let deadline = ProcessInfo.processInfo.systemUptime + budget
+        return try await withThrowingTaskGroup(of: MirrorEvent.self) { group in
+            func request(_ index: Int) async -> MirrorEvent {
+                do {
+                    try Task.checkCancellation()
+                    let remaining = deadline - ProcessInfo.processInfo.systemUptime
+                    guard remaining > 0 else { throw URLError(.timedOut) }
+                    let request = try makeRequest(base: bases[index], track: track, isrc: isrc, timeout: remaining)
+                    let (data, _) = try await session.ivLyricsData(for: request)
+                    try Task.checkCancellation()
+                    let outcome = try parse(data: data, durationMs: track.durationMs)
+                    return .reply(index, .success(outcome))
+                } catch {
+                    return .reply(index, .failure(error))
+                }
+            }
+            group.addTask { await request(0) }
+            if bases.count > 1 {
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(max(0, hedgeDelay) * 1_000_000_000))
+                    return .hedge
+                }
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(budget * 1_000_000_000))
+                return .deadline
+            }
+            defer { group.cancelAll() }
+            var nextIndex = 1
+            var completed = 0
+            var logs: [String] = []
+            var lastError: Error?
+            while let event = try await group.next() {
+                try Task.checkCancellation()
+                switch event {
+                case .deadline:
+                    throw URLError(.timedOut)
+                case .hedge:
+                    if nextIndex < bases.count {
+                        let index = nextIndex
+                        nextIndex += 1
+                        group.addTask { await request(index) }
+                    }
+                case let .reply(index, result):
+                    completed += 1
+                    switch result {
+                    case var .success(outcome):
+                        try Task.checkCancellation()
+                        await endpointPreference.succeeded(bases[index])
+                        try Task.checkCancellation()
+                        logs.append("lyricsplus: mirror #\(index + 1) selected / type=\(outcome.sourceType)")
+                        outcome.logs = logs + outcome.logs
+                        return outcome
+                    case let .failure(error):
+                        if error is CancellationError || (error as? URLError)?.code == .cancelled { throw CancellationError() }
+                        if let status = error as? HTTPStatusError, status.statusCode == 404 {
+                            logs.append("lyricsplus: mirror #\(index + 1) not found")
+                        } else {
+                            lastError = error
+                            logs.append("lyricsplus: mirror #\(index + 1) failed / \(error.localizedDescription)")
+                        }
+                        // A failed/empty first mirror need not consume the hedge delay.
+                        if nextIndex < bases.count {
+                            let next = nextIndex
+                            nextIndex += 1
+                            group.addTask { await request(next) }
+                        }
+                        if completed == bases.count {
+                            if let lastError { throw lastError }
+                            return nil
+                        }
+                    }
+                }
+            }
+            return nil
         }
     }
 
-    static func fetch(track: TrackSnapshot, isrc rawIsrc: String) async throws -> FetchOutcome? {
-        let isrc = TrackSnapshot.normalizeIsrc(rawIsrc)
-        guard !isrc.isEmpty || track.hasUsableMetadata else { return nil }
-
-        let decodedBases = encodedBaseURLs.compactMap(decodeTwice)
-        let bases = await endpointRotation.ordered(decodedBases)
-        var logs: [String] = []
-        var lastError: Error?
-        var notFoundCount = 0
-
-        for (offset, base) in bases.enumerated() {
-            do {
-                guard var components = URLComponents(string: "\(base)/v2/lyrics/get") else {
-                    throw URLError(.badURL)
-                }
-                if !isrc.isEmpty {
-                    components.queryItems = [URLQueryItem(name: "isrc", value: isrc)]
-                } else {
-                    var queryItems = [
-                        URLQueryItem(name: "title", value: track.title),
-                        URLQueryItem(name: "artist", value: track.artist)
-                    ]
-                    if !track.album.isEmpty, track.album.lowercased() != "undefined" {
-                        queryItems.append(URLQueryItem(name: "album", value: track.album))
-                    }
-                    if track.durationMs > 0 {
-                        queryItems.append(
-                            URLQueryItem(
-                                name: "duration",
-                                value: String(
-                                    format: "%.3f",
-                                    locale: Locale(identifier: "en_US_POSIX"),
-                                    Double(track.durationMs) / 1000
-                                )
-                            )
-                        )
-                    }
-                    components.queryItems = queryItems
-                }
-                guard let url = components.url else { throw URLError(.badURL) }
-                var request = URLRequest(url: url, timeoutInterval: requestTimeout)
-                request.httpMethod = "GET"
-                request.setValue("application/json", forHTTPHeaderField: "Accept")
-                request.setValue("ivLyrics-iOS/1.0", forHTTPHeaderField: "User-Agent")
-                let (data, _) = try await URLSession.shared.ivLyricsData(for: request)
-                let outcome = try parse(data: data, durationMs: track.durationMs)
-                logs.append("lyricsplus: mirror #\(offset + 1) selected / type=\(outcome.sourceType)")
-                var result = outcome
-                result.logs = logs + outcome.logs
-                return result
-            } catch let error as HTTPStatusError where error.statusCode == 404 {
-                notFoundCount += 1
-                logs.append("lyricsplus: mirror #\(offset + 1) not found")
-            } catch {
-                lastError = error
-                logs.append("lyricsplus: mirror #\(offset + 1) failed / \(error.localizedDescription)")
+    private static func makeRequest(base: String, track: TrackSnapshot, isrc: String, timeout: TimeInterval) throws -> URLRequest {
+        guard var components = URLComponents(string: "\(base)/v2/lyrics/get") else { throw URLError(.badURL) }
+        if !isrc.isEmpty {
+            components.queryItems = [URLQueryItem(name: "isrc", value: isrc)]
+        } else {
+            var queryItems = [URLQueryItem(name: "title", value: track.title), URLQueryItem(name: "artist", value: track.artist)]
+            if !track.album.isEmpty, track.album.lowercased() != "undefined" {
+                queryItems.append(URLQueryItem(name: "album", value: track.album))
             }
+            if track.durationMs > 0 {
+                queryItems.append(URLQueryItem(name: "duration", value: String(format: "%.3f",
+                    locale: Locale(identifier: "en_US_POSIX"), Double(track.durationMs) / 1000)))
+            }
+            components.queryItems = queryItems
         }
-
-        if notFoundCount == bases.count { return nil }
-        if let lastError { throw lastError }
-        return nil
+        guard let url = components.url else { throw URLError(.badURL) }
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("ivLyrics-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        return request
     }
 
     private static func decodeTwice(_ value: String) -> String? {
@@ -178,9 +229,11 @@ enum LyricsPlusProvider {
             throw CocoaError(.fileReadCorruptFile)
         }
         if isTruthyJsonValue(root["error"]) {
-            throw HTTPStatusError(statusCode: 404, message: "LyricsPlus lyrics not found")
+            throw URLError(.badServerResponse)
         }
-        let lyrics = root["lyrics"] as? [[String: Any]] ?? []
+        guard let lyrics = root["lyrics"] as? [[String: Any]] else {
+            throw URLError(.badServerResponse)
+        }
         guard !lyrics.isEmpty else {
             throw HTTPStatusError(statusCode: 404, message: "LyricsPlus response has no lyrics")
         }

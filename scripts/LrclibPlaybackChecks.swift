@@ -3,16 +3,22 @@ private struct FixtureReply {
     var status = 200
     var body = "[]"
     var error: URLError?
+    var headers: [String: String] = [:]
 }
 
 private final class LrclibFixtureProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var recorded: [URLRequest] = []
     private static var reply: (URLRequest) -> FixtureReply = { _ in .init(status: 404) }
+    private static var clock: TimeInterval = 0
+
+    static var now: TimeInterval { lock.lock(); defer { lock.unlock() }; return clock }
+    static func advance(_ seconds: TimeInterval) { lock.lock(); defer { lock.unlock() }; clock += seconds }
 
     static func reset(_ handler: @escaping (URLRequest) -> FixtureReply) {
         lock.lock(); defer { lock.unlock() }
         recorded = []; reply = handler
+        clock += 120
     }
 
     static var requests: [URLRequest] {
@@ -34,8 +40,8 @@ private final class LrclibFixtureProtocol: URLProtocol {
             return
         }
         let data = Data(reply.body.utf8)
-        let response = HTTPURLResponse(url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1",
-                                       headerFields: ["Content-Type": "application/json", "Content-Length": "\(data.count)"])!
+        let headers = ["Content-Type": "application/json", "Content-Length": "\(data.count)"].merging(reply.headers) { _, new in new }
+        let response = HTTPURLResponse(url: request.url!, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .allowed)
         client?.urlProtocol(self, didLoad: data)
         client?.urlProtocolDidFinishLoading(self)
@@ -96,7 +102,7 @@ private struct LrclibPlaybackChecks {
         // Deliberately poisoned configuration: production must strip these headers.
         config.httpAdditionalHeaders = ["Authorization": "Bearer synthetic-spotify-token", "Cookie": "session=synthetic",
                                         "Origin": "https://xpui.app.spotify.com", "Referer": "https://xpui.app.spotify.com/"]
-        let client = LrclibHTTPClient(configuration: config)
+        let client = LrclibHTTPClient(configuration: config, now: { LrclibFixtureProtocol.now })
         let repo = PlaybackProbe(client: client)
         let track = TrackSnapshot(title: "Song", artist: "Artist", album: "Album", isrc: "USABC1234567", durationMs: 120_000)
         let pinned = savedSource()
@@ -200,6 +206,57 @@ private struct LrclibPlaybackChecks {
             check(result?.canonicalLrclibId == 42, "Official fallback after \(failure)")
             let customCount = LrclibFixtureProtocol.requests.filter { $0.url!.host == "mirror.test" }.count
             check(customCount == (["empty", "malformed"].contains(failure) ? 5 : 1), "404/empty/malformed continue; fatal failures may end only their host stage")
+        }
+
+        for status in [408, 429, 503] {
+            LrclibFixtureProtocol.reset { _ in .init(status: status, headers: ["Retry-After": "30"]) }
+            for sync in [Optional<SyncDataResult>.none, pinned] {
+                do {
+                    _ = try await repo.candidate(track: track, spotify: spotify, sync: sync, custom: "")
+                    fatalError("Official outage was mistaken for missing lyrics")
+                } catch let error as HTTPStatusError {
+                    check(error.statusCode == status, "Official transient status is preserved")
+                }
+            }
+            check(LrclibFixtureProtocol.requests.count == (status == 408 ? 2 : 1), "Official failure never fans out into search variants; 429/503 share cooldown across loads")
+            if status != 408 {
+                LrclibFixtureProtocol.advance(29)
+                do { _ = try await client.get(base: LrclibEndpoint.officialBase, path: "search", timeout: 5) }
+                catch let error as HTTPStatusError { check(error.retryAfterSeconds == 1, "Retry-After is not shortened by a subsequent load") }
+                check(LrclibFixtureProtocol.requests.count == 1, "Cooldown rejects another path without network")
+                LrclibFixtureProtocol.advance(1)
+                do { _ = try await client.get(base: LrclibEndpoint.officialBase, path: "get", timeout: 5) } catch {}
+                check(LrclibFixtureProtocol.requests.count == 2, "Host becomes eligible when cooldown expires")
+            }
+        }
+        LrclibFixtureProtocol.reset { _ in .init(error: URLError(.timedOut)) }
+        do {
+            _ = try await repo.candidate(track: track, spotify: spotify, custom: "")
+            fatalError("Official timeout was mistaken for missing lyrics")
+        } catch let error as URLError { check(error.code == .timedOut, "Network failures terminate the official search stage") }
+        check(LrclibFixtureProtocol.requests.count == 1, "Timeout does not amplify requests")
+
+        let retryDate = DateFormatter()
+        retryDate.locale = Locale(identifier: "en_US_POSIX")
+        retryDate.timeZone = TimeZone(secondsFromGMT: 0)
+        retryDate.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        LrclibFixtureProtocol.reset { _ in .init(status: 503, headers: ["Retry-After": retryDate.string(from: Date().addingTimeInterval(30))]) }
+        do { _ = try await client.get(base: LrclibEndpoint.officialBase, path: "get", timeout: 5) }
+        catch let error as HTTPStatusError { check((error.retryAfterSeconds ?? 0) > 28, "HTTP-date Retry-After is retained") }
+        do { _ = try await client.get(base: LrclibEndpoint.officialBase, path: "search", timeout: 5) } catch {}
+        check(LrclibFixtureProtocol.requests.count == 1, "HTTP-date cooldown prevents immediate retries")
+
+        for header in ["999999999999999", "invalid"] {
+            LrclibFixtureProtocol.advance(300)
+            LrclibFixtureProtocol.reset { _ in .init(status: 429, headers: ["Retry-After": header]) }
+            do { _ = try await client.get(base: LrclibEndpoint.officialBase, path: "get", timeout: 5) } catch {}
+            do {
+                _ = try await client.get(base: LrclibEndpoint.officialBase, path: "search", timeout: 5)
+                fatalError("Expected host cooldown")
+            } catch let error as HTTPStatusError {
+                check(error.retryAfterSeconds == (header == "invalid" ? 5 : 300), "Retained cooldown has a bounded duration and a default for malformed headers")
+            }
+            check(LrclibFixtureProtocol.requests.count == 1, "Bounded cooldown rejects network requests")
         }
 
         LrclibFixtureProtocol.reset { request in

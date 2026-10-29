@@ -28,13 +28,14 @@ final class LrclibLookupStage {
         try Task.checkCancellation()
         if error is CancellationError || (error as? URLError)?.code == .cancelled { throw CancellationError() }
         if error is LrclibLookupError { throw error }
-        guard !isOfficial else { return }
         if let status = error as? HTTPStatusError,
-           status.statusCode == 401 || status.statusCode == 403 || status.statusCode == 429 || status.statusCode >= 500 {
+           status.statusCode == 401 || status.statusCode == 403 || status.statusCode == 408 || status.statusCode == 429 || status.statusCode >= 500 {
+            if isOfficial { throw error }
             throw LrclibLookupError.stageExhausted
         }
         if let network = error as? URLError, network.code != .cannotParseResponse,
            network.code != .dataLengthExceedsMaximum {
+            if isOfficial { throw error }
             throw LrclibLookupError.stageExhausted
         }
     }
@@ -45,9 +46,32 @@ final class LrclibLookupStage {
 final class LrclibHTTPClient {
     static let maximumResponseBytes = 2 * 1024 * 1024
     private let configuration: URLSessionConfiguration
+    private let now: () -> TimeInterval
+    private let cooldownLock = NSLock()
+    private var hostCooldowns: [String: (until: TimeInterval, error: HTTPStatusError)] = [:]
 
-    init(configuration: URLSessionConfiguration = .ephemeral) {
+    init(configuration: URLSessionConfiguration = .ephemeral,
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.configuration = configuration
+        self.now = now
+    }
+
+    private func cooldownError(for host: String) -> HTTPStatusError? {
+        cooldownLock.lock(); defer { cooldownLock.unlock() }
+        let current = now()
+        hostCooldowns = hostCooldowns.filter { $0.value.until > current }
+        guard let entry = hostCooldowns[host] else { return nil }
+        var error = entry.error
+        error.retryAfterSeconds = entry.until - current
+        return error
+    }
+
+    private func rememberCooldown(_ error: HTTPStatusError, host: String) {
+        guard error.statusCode == 429 || error.statusCode == 503 else { return }
+        cooldownLock.lock(); defer { cooldownLock.unlock() }
+        // Bound retained server state so a malformed header cannot disable playback for days.
+        let until = now() + min(300, max(0, error.retryAfterSeconds ?? 5))
+        if until > (hostCooldowns[host]?.until ?? 0) { hostCooldowns[host] = (until, error) }
     }
 
     func get(base: String, path: String, params: [String: String] = [:], timeout: TimeInterval) async throws -> String {
@@ -59,6 +83,9 @@ final class LrclibHTTPClient {
             url.queryItems = params.keys.sorted().map { URLQueryItem(name: $0, value: params[$0]) }
         }
         guard let target = url.url else { throw URLError(.badURL) }
+        try Task.checkCancellation()
+        let origin = "\(url.scheme!.lowercased())://\(url.host?.lowercased() ?? ""):\(url.port ?? (url.scheme?.lowercased() == "https" ? 443 : 80))"
+        if let error = cooldownError(for: origin) { throw error }
         let config = configuration.copy() as! URLSessionConfiguration
         config.urlCache = nil
         config.httpCookieStorage = nil
@@ -76,13 +103,18 @@ final class LrclibHTTPClient {
         request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("ivLyrics-iOS/0.1", forHTTPHeaderField: "User-Agent")
-        return try await withTaskCancellationHandler {
-            try Task.checkCancellation()
-            return try await withCheckedThrowingContinuation { continuation in
-                receiver.start(session: session, request: request, continuation: continuation)
+        do {
+            return try await withTaskCancellationHandler {
+                try Task.checkCancellation()
+                return try await withCheckedThrowingContinuation { continuation in
+                    receiver.start(session: session, request: request, continuation: continuation)
+                }
+            } onCancel: {
+                receiver.cancel()
             }
-        } onCancel: {
-            receiver.cancel()
+        } catch let error as HTTPStatusError {
+            rememberCooldown(error, host: origin)
+            throw error
         }
     }
 }
@@ -134,7 +166,8 @@ private final class LrclibReadOnlyDelegate: NSObject, URLSessionDataDelegate, @u
         }
         guard (200..<300).contains(http.statusCode) else {
             completionHandler(.cancel)
-            complete(.failure(HTTPStatusError(statusCode: http.statusCode, message: "HTTP \(http.statusCode)")))
+            complete(.failure(HTTPStatusError(statusCode: http.statusCode, message: "HTTP \(http.statusCode)",
+                                             retryAfterSeconds: Self.retryAfter(http.value(forHTTPHeaderField: "Retry-After")))))
             return
         }
         guard response.expectedContentLength <= Int64(LrclibHTTPClient.maximumResponseBytes) else {
@@ -143,6 +176,18 @@ private final class LrclibReadOnlyDelegate: NSObject, URLSessionDataDelegate, @u
             return
         }
         completionHandler(.allow)
+    }
+
+    private static func retryAfter(_ value: String?) -> TimeInterval? {
+        guard let value else { return nil }
+        if let seconds = TimeInterval(value.trimmingCharacters(in: .whitespacesAndNewlines)), seconds.isFinite {
+            return max(0, seconds)
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return formatter.date(from: value).map { max(0, $0.timeIntervalSinceNow) }
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive chunk: Data) {

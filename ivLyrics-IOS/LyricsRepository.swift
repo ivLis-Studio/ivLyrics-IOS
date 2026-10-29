@@ -1194,6 +1194,7 @@ actor LyricsRepository {
             } catch {
                 if isCancellationError(error) || Task.isCancelled { throw CancellationError() }
                 log("lrclib playback stage ended: \(stage.isOfficial ? "official" : "custom") / \(error.localizedDescription)")
+                if stage.isOfficial { throw error }
             }
         }
         return nil
