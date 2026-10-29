@@ -13,6 +13,8 @@ Spotify로 듣는 음악을 가사와 함께 즐겨 보세요. ivLyrics iOS는 �
 > [!IMPORTANT]
 > 이 저장소의 배포 방식은 GitHub Releases의 **무서명 IPA**와 AltStore 소스입니다. IPA는 AltStore Classic 같은 도구에서 사용자 Apple ID로 서명한 뒤 설치해야 합니다. 이 안내는 App Store나 AltStore PAL 설치 안내가 아닙니다.
 
+Spotify 내부에 삽입하는 별도 모듈은 [iOS 패치 0.2.0 개발판](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/tag/spotify-tweak-v0.2.0)에서 받을 수 있습니다. **iOS 17 이상·Spotify 9.1.60 전용이며 실기기 동작은 미검증**입니다. 독립 앱과 설치 방식·기능 범위가 다르므로 [모듈 안내](spotify-tweak/README.md)를 먼저 확인하세요.
+
 ## 어떤 가사를 볼 수 있나요?
 
 - ivLyrics 커뮤니티 싱크 데이터와 LRCLIB, Lyrically (Paxsenix), LyricsPlus, Unison 등의 가사 제공자를 사용합니다. 제공자와 조회 순서는 설정에서 선택할 수 있습니다.

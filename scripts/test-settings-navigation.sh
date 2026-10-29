@@ -33,6 +33,8 @@ IVLYRICS_LLAMA_STUB=1 xcodebuild \
     -derivedDataPath "$NAVIGATION_OUTPUT/derived" \
     -resultBundlePath "$NAVIGATION_OUTPUT/navigation.xcresult" \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testEverySettingsCategoryOpensFromHomeAndReturns \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testAIProviderBadgeCentersWithAccessibilityText \
+    -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testProviderBadgeCenters \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testHomeWordmarkExactWeightsAndLocalizedNavigation \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testHomeWordmarkLandscapeAccessibilityText \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLrclibEndpointValidationPersistenceAndClear \

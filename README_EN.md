@@ -13,6 +13,8 @@ Follow the music you play in Spotify with lyrics, translations, and pronunciatio
 > [!IMPORTANT]
 > Releases contain an **unsigned IPA**. Sign it with your Apple ID using a tool such as AltStore Classic before installing it. This repository provides GitHub downloads and an AltStore source; these are not App Store or AltStore PAL installation instructions.
 
+The separate Spotify injection module is available as the [iOS patch 0.2.0 development preview](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/tag/spotify-tweak-v0.2.0). It targets **iOS 17+ and Spotify 9.1.60 only; physical-device operation remains unverified**. See the [module guide](spotify-tweak/README.md) for its different installation flow and feature scope.
+
 ## What can I see?
 
 - Lyrics from LRCLIB, Lyrically (Paxsenix), LyricsPlus, and Unison, with ivLyrics community sync data. Choose providers and their order in Settings.

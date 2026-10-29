@@ -151,6 +151,7 @@ jobs:
           python3 scripts/test-vinyl-artwork.py
           python3 scripts/test-sync-load-reuse.py
           python3 scripts/test-lrclib-playback.py
+          python3 scripts/test-lyricsplus-transport.py
           python3 scripts/test-local-lyrics.py
           python3 scripts/test-ai-models.py
           python3 scripts/test-openai-connections.py

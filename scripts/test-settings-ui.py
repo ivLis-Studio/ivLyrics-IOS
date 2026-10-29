@@ -114,6 +114,8 @@ assert "return !DebugSettingsUIHarness.enabled" in declaration(content, "private
 assert "if liveLifecycleEnabled" in content and "guard liveLifecycleEnabled else { return }" in content
 assert "testLyricsPageSettingsOpenAndReturn" in ui_tests
 assert "testLyricsPageSettingsLargeTextAndLandscape" in navigation_check
+assert "-only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testAIProviderBadgeCentersWithAccessibilityText" in navigation_check
+assert "-only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testProviderBadgeCenters" in navigation_check
 assert '"IVLYRICS_UI_AUTO_HIDE"' in harness and "testLandscapeSettingsRevealAfterAutoHide" in navigation_check
 assert 'simctl bootstatus "$NAVIGATION_DEVICE" -b' in navigation_check
 assert "DebugSettingsUIHarness.credentialService" in (SRC / "SecureStringStore.swift").read_text()
@@ -178,6 +180,7 @@ for method_name, tap in [
 
 drag_math = declaration(ui_tests, "private static func revealDragDistance(").replace("private static func", "func", 1)
 drag_math += "\n" + declaration(ui_tests, "private static func revealHitFrame(").replace("private static func", "func", 1)
+drag_math += "\n" + declaration(ui_tests, "private static func validRevealFrame(").replace("private static func", "func", 1)
 drag_checks = r'''
 // AX floating-point subtraction must preserve a true 44pt target without
 // allowing a physically smaller one through the native hit-target assertion.
@@ -185,6 +188,14 @@ let minimumTouchExtent: CGFloat = 44 - 0.000001
 precondition(43.99999999999994 >= minimumTouchExtent)
 precondition(43.999 < minimumTouchExtent)
 let viewport = CGRect(x: 236, y: 96, width: 402, height: 262)
+// CI 40861021155 returned invalid geometry for the entire AX hierarchy before
+// recovering. No hit test or native drag may use that transient snapshot.
+precondition(validRevealFrame(viewport))
+precondition(!validRevealFrame(.zero))
+precondition(!validRevealFrame(.null))
+precondition(!validRevealFrame(.infinite))
+precondition(!validRevealFrame(CGRect(x: CGFloat.infinity, y: CGFloat.infinity, width: 0, height: 0)))
+precondition(!validRevealFrame(CGRect(x: 0, y: 0, width: CGFloat.nan, height: 44)))
 let above = CGRect(x: 236, y: 42.3, width: 402, height: 68) // Exact fourth-CI failure.
 let below = CGRect(x: 236, y: 357, width: 402, height: 68)
 let down = revealDragDistance(for: above, in: viewport)

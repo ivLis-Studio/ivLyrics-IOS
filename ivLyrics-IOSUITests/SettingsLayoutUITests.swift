@@ -150,7 +150,7 @@ final class SettingsLayoutUITests: XCTestCase {
         add(tree)
     }
 
-    private func reveal(_ element: XCUIElement, scrollID: String) {
+    private func reveal(_ element: XCUIElement, scrollID: String, requiresHittable: Bool = true) {
         let scroll = app.scrollViews[scrollID]
         let scrollExists = scroll.waitForExistence(timeout: 4)
         if !scrollExists { capture("missing-scroll-\(scrollID)") }
@@ -160,12 +160,25 @@ final class SettingsLayoutUITests: XCTestCase {
         // the same controls on the smallest supported display.
         for _ in 0..<64 {
             let viewport = app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1).intersection(scroll.frame)
+            // CI can transiently report {inf, inf, 0, 0} for the entire AX
+            // hierarchy. Wait for a fresh viewport before calculating a drag.
+            if !Self.validRevealFrame(viewport) {
+                wait(NSPredicate { _, _ in
+                    Self.validRevealFrame(self.app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1).intersection(scroll.frame))
+                }, on: scroll)
+                continue
+            }
             let target = element.exists ? Self.revealHitFrame(element.frame, in: viewport) : nil
-            if let target, element.isHittable && viewport.contains(target) { return }
+            if let target, Self.validRevealFrame(target), viewport.contains(target),
+               !requiresHittable || element.isHittable { return }
             let distance = Self.revealDragDistance(for: target, in: viewport)
             if distance == 0 {
                 wait(NSPredicate { _, _ in
-                    element.exists && element.isHittable && viewport.contains(Self.revealHitFrame(element.frame, in: viewport))
+                    guard element.exists else { return false }
+                    let currentViewport = self.app.windows.firstMatch.frame.insetBy(dx: 1, dy: 1).intersection(scroll.frame)
+                    let frame = Self.revealHitFrame(element.frame, in: currentViewport)
+                    return Self.validRevealFrame(currentViewport) && Self.validRevealFrame(frame)
+                        && currentViewport.contains(frame) && (!requiresHittable || element.isHittable)
                 }, on: element)
                 return
             }
@@ -179,6 +192,11 @@ final class SettingsLayoutUITests: XCTestCase {
         }
         capture("unreachable-in-\(scrollID)")
         XCTFail("Control touch area must be visible and reachable by normal scrolling: \(element)")
+    }
+
+    private static func validRevealFrame(_ frame: CGRect) -> Bool {
+        !frame.isEmpty && !frame.isInfinite
+            && [frame.minX, frame.minY, frame.width, frame.height].allSatisfy(\.isFinite)
     }
 
     private static func revealHitFrame(_ frame: CGRect, in viewport: CGRect) -> CGRect {
@@ -227,7 +245,11 @@ final class SettingsLayoutUITests: XCTestCase {
 
     private func assertBadgeCentered(_ identifier: String, size: CGFloat, fixed: Bool = false) {
         let badge = app.otherElements["ui.badge.\(identifier).frame"]
-        reveal(badge, scrollID: "settings.scroll")
+        // These Debug-only geometry probes deliberately disable interaction.
+        // XCTest can throw an activation-point error when asked to hit-test
+        // them, even after the measured frame is visible. Real controls keep
+        // the default hittability requirement in reveal/assertTouchTarget.
+        reveal(badge, scrollID: "settings.scroll", requiresHittable: false)
         let text = app.otherElements["ui.badge.\(identifier).text"]
         XCTAssertTrue(text.waitForExistence(timeout: 4))
         capture("centered-\(identifier)")
