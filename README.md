@@ -8,10 +8,10 @@ MODULE : <a href="https://github.com/ivLis-Studio/ivLyrics-overlay">Overlay</a> 
 
 Spotify로 듣는 음악을 가사와 함께 즐겨 보세요. ivLyrics iOS는 재생 중인 곡에 맞춰 가사를 보여주고, 원하는 언어의 번역과 따라 읽기 위한 발음을 함께 표시하는 앱입니다. iPhone이나 iPad에서 가사를 크게 보거나, 가로 화면·화면 속 화면(PiP)·LP 모드로 감상하고 싶은 분을 위한 앱입니다. 음악 재생은 Spotify가 담당합니다.
 
-[최신 버전 다운로드](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/latest) · [릴리스 내역](https://github.com/ivLis-Studio/ivLyrics-IOS/releases) · [Discord 도움받기](https://discord.gg/2fu36fUzdE)
+[App Store에서 다운로드](https://apps.apple.com/app/id6826882080) · [IPA 릴리스 내역](https://github.com/ivLis-Studio/ivLyrics-IOS/releases) · [Discord 도움받기](https://discord.gg/2fu36fUzdE)
 
 > [!IMPORTANT]
-> 이 저장소의 배포 방식은 GitHub Releases의 **무서명 IPA**와 AltStore 소스입니다. IPA는 AltStore Classic 같은 도구에서 사용자 Apple ID로 서명한 뒤 설치해야 합니다. 이 안내는 App Store나 AltStore PAL 설치 안내가 아닙니다.
+> iPhone과 iPad에서는 [App Store](https://apps.apple.com/app/id6826882080)에서 설치할 수 있습니다. 직접 서명해서 설치하려는 사용자를 위해 GitHub Releases의 **무서명 IPA**와 AltStore 소스도 제공합니다.
 
 Spotify 내부에 삽입하는 별도 모듈은 [iOS 패치 0.2.0 개발판](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/tag/spotify-tweak-v0.2.0)에서 받을 수 있습니다. **iOS 17 이상·Spotify 9.1.60 전용이며 실기기 동작은 미검증**입니다. 독립 앱과 설치 방식·기능 범위가 다르므로 [모듈 안내](spotify-tweak/README.md)를 먼저 확인하세요.
 
@@ -29,12 +29,16 @@ Spotify 내부에 삽입하는 별도 모듈은 [iOS 패치 0.2.0 개발판](htt
 - iOS 17 이상인 iPhone 또는 iPadOS 17 이상인 iPad
 - 같은 기기에 설치하고 로그인한 Spotify 앱
 - 가사 조회와 온라인 제공자를 위한 인터넷 연결
-- IPA 서명에 사용할 Apple ID와 설치 도구. 아래 AltStore Classic 방식은 Mac 또는 Windows 컴퓨터와 AltServer를 사용합니다.
+- IPA를 직접 설치할 경우 서명에 사용할 Apple ID와 설치 도구. 아래 AltStore Classic 방식은 Mac 또는 Windows 컴퓨터와 AltServer를 사용합니다.
 - 본인이 관리하는 [Spotify 개발자 앱](https://developer.spotify.com/dashboard)의 Client ID. Spotify 연결 설정이 필요하므로, 앱 설치만으로 설정이 끝나지는 않습니다.
 
 Spotify 개발자 계정에는 별도의 이용 조건이 적용됩니다. 특히 Web API의 현재 [개발 모드 규정](https://developer.spotify.com/documentation/web-api/concepts/quota-modes)은 앱 소유자의 Spotify Premium과 허용 사용자 등록을 요구합니다. Web API를 사용할 계획이라면 먼저 확인하세요.
 
 ## 앱 설치하기
+
+### App Store에서 설치
+
+[App Store에서 ivLyrics 다운로드](https://apps.apple.com/app/id6826882080)를 열고 설치하세요. 업데이트도 App Store에서 받을 수 있습니다.
 
 ### AltStore Classic으로 설치
 
@@ -101,11 +105,11 @@ Local AI를 켜는 것만으로 먼저 사용되지는 않습니다. 로컬 번�
 - 곡 제목을 누르는 기본 동작은 Spotify 열기이며, 설정에서 동작을 바꿀 수 있습니다.
 - **외관**에서 글꼴·정렬·배경을, **플레이어**에서 가로 화면·PiP·LP 모드를 조절하세요.
 - 싱크는 전체 곡·현재 곡·Bluetooth 기기별로 보정할 수 있습니다. 10ms·50ms·100ms 단위로 조절하며, **+는 가사를 더 일찍, −는 더 늦게** 표시합니다.
-- Discord 계정을 연결한 월간 후원자는 **고급**에서 iOS 설정을 클라우드에 저장할 수 있습니다. API 키, 계정 정보, 곡별 오프셋과 다운로드한 Local AI 모델은 동기화 대상이 아닙니다.
+- GitHub/AltStore 버전에서 Discord 계정을 연결한 월간 후원자는 **고급**에서 iOS 설정을 클라우드에 저장할 수 있습니다. API 키, 계정 정보, 곡별 오프셋과 다운로드한 Local AI 모델은 동기화 대상이 아닙니다.
 
 ## 업데이트와 문제 해결
 
-새 버전은 [GitHub Releases](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/latest) 또는 AltStore 소스에서 확인하세요. 앱의 업데이트 확인도 릴리스 정보를 안내하며, IPA 설치에는 다시 서명이 필요합니다. 같은 서명 계정과 앱 식별자를 유지해 업데이트하세요. AltStore의 주기적인 서명 갱신과 새 버전 설치는 별개입니다.
+App Store에서 설치했다면 [App Store](https://apps.apple.com/app/id6826882080)에서 업데이트하세요. 직접 서명해서 설치한 버전은 [GitHub Releases](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/latest), AltStore 소스 또는 앱의 업데이트 확인에서 새 버전을 확인하세요. IPA 설치에는 다시 서명이 필요합니다. 같은 서명 계정과 앱 식별자를 유지해 업데이트하세요. AltStore의 주기적인 서명 갱신과 새 버전 설치는 별개입니다.
 
 | 이런 문제가 있나요? | 먼저 확인해 주세요 |
 | --- | --- |

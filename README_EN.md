@@ -8,10 +8,10 @@ MODULE : <a href="https://github.com/ivLis-Studio/ivLyrics-overlay">Overlay</a> 
 
 Follow the music you play in Spotify with lyrics, translations, and pronunciation guides on iPhone or iPad. Read full lyrics, use the landscape layout or Picture in Picture (PiP), or enjoy Vinyl mode. Spotify handles music playback.
 
-[Download the latest release](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/latest) · [Release history](https://github.com/ivLis-Studio/ivLyrics-IOS/releases) · [Help on Discord](https://discord.gg/2fu36fUzdE)
+[Download on the App Store](https://apps.apple.com/app/id6826882080) · [IPA release history](https://github.com/ivLis-Studio/ivLyrics-IOS/releases) · [Help on Discord](https://discord.gg/2fu36fUzdE)
 
 > [!IMPORTANT]
-> Releases contain an **unsigned IPA**. Sign it with your Apple ID using a tool such as AltStore Classic before installing it. This repository provides GitHub downloads and an AltStore source; these are not App Store or AltStore PAL installation instructions.
+> Install on iPhone and iPad from the [App Store](https://apps.apple.com/app/id6826882080). GitHub Releases also provides an **unsigned IPA** and an AltStore source for users who prefer to sign and install it themselves.
 
 The separate Spotify injection module is available as the [iOS patch 0.2.0 development preview](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/tag/spotify-tweak-v0.2.0). It targets **iOS 17+ and Spotify 9.1.60 only; physical-device operation remains unverified**. See the [module guide](spotify-tweak/README.md) for its different installation flow and feature scope.
 
@@ -26,11 +26,15 @@ Not every song has lyrics or detailed timing. Availability and quality depend on
 
 ## Before you install
 
-You need iOS 17+ or iPadOS 17+, Spotify installed and signed in on the same device, internet access, and an Apple ID/signing tool. The AltStore Classic route below uses AltServer on a Mac or Windows computer. You also need a Client ID from a [Spotify developer app](https://developer.spotify.com/dashboard) you manage.
+You need iOS 17+ or iPadOS 17+, Spotify installed and signed in on the same device, internet access, and a Client ID from a [Spotify developer app](https://developer.spotify.com/dashboard) you manage. If you install an IPA yourself, you also need an Apple ID and signing tool. The AltStore Classic route below uses AltServer on a Mac or Windows computer.
 
 Spotify applies its own account restrictions. The current [Web API development-mode rules](https://developer.spotify.com/documentation/web-api/concepts/quota-modes) require the app owner to have Spotify Premium and authenticated users to be allowlisted. Check these before using Web API features.
 
 ## Install the app
+
+### Use the App Store
+
+[Download ivLyrics on the App Store](https://apps.apple.com/app/id6826882080). Updates are also available through the App Store.
 
 ### Use AltStore Classic
 
@@ -95,11 +99,11 @@ Translations and pronunciation are cached. Settings lets you clear AI cache, cur
 - Tap a lyric line or drag the progress bar to seek, subject to Spotify connection and account playback restrictions. Tapping the title opens Spotify by default; the action is configurable.
 - Use **Appearance** for fonts, alignment, and backgrounds, and **Player** for landscape, PiP, and Vinyl options.
 - Adjust timing globally, per song, or per Bluetooth device in 10ms, 50ms, or 100ms steps. **Positive values show lyrics earlier; negative values show them later.**
-- Monthly supporters signed in with Discord can save iOS settings to the cloud under **Advanced**. API keys, account information, per-song offsets, and downloaded Local AI models are excluded.
+- In the GitHub/AltStore version, monthly supporters signed in with Discord can save iOS settings to the cloud under **Advanced**. API keys, account information, per-song offsets, and downloaded Local AI models are excluded.
 
 ## Updates and troubleshooting
 
-Check [GitHub Releases](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/latest), the AltStore source, or the in-app update check. New IPAs still need signing. Keep the same signing account and app identifier. AltStore signature refreshes and new-version installation are separate tasks.
+If you installed from the App Store, update through the [App Store](https://apps.apple.com/app/id6826882080). For a self-signed installation, check [GitHub Releases](https://github.com/ivLis-Studio/ivLyrics-IOS/releases/latest), the AltStore source, or the in-app update check. New IPAs still need signing. Keep the same signing account and app identifier. AltStore signature refreshes and new-version installation are separate tasks.
 
 | Problem | What to check |
 | --- | --- |
