@@ -1,5 +1,8 @@
 # ivLyrics iOS {tag}
 
+> **App Store:** [iPhone / iPad에서 다운로드 · Download on the App Store](https://apps.apple.com/app/id6826882080)
+> App Store 버전과 아래 직접 설치용 IPA는 업데이트 시점이 다를 수 있습니다. App Store and IPA updates may become available at different times.
+
 - iOS version: `{version_name}` (`{build_number}`)
 - Previous release: `{previous_tag}`
 - Compare: {compare_url}
