@@ -4,6 +4,7 @@
     "ivLyrics-IOS/Utilities.swift",
     "ivLyrics-IOS/TinySegmenter.swift",
     "ivLyrics-IOS/LrcParser.swift",
+    "ivLyrics-IOS/SyncDataV6Codec.swift",
     "ivLyrics-IOS/SyncDataApplier.swift",
     "ivLyrics-IOS/LocalLyricsStore.swift",
     "ivLyrics-IOS/LyricsPlusProvider.swift",

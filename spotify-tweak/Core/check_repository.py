@@ -142,8 +142,8 @@ import Foundation
         defaults.set("{\"lrclib\":[\"USABC1234567\"]}", forKey: "sync_data_opendb_provider_map")
         defaults.set(Date().timeIntervalSince1970 * 1000, forKey: "sync_data_opendb_fetched_at_ms")
         defaults.removeObject(forKey: "sync_data_opendb_unavailable_until_ms")
-        let syncPayload = #"{"data":{"provider":"lrclib","syncType":"character","syncPoints":6,"syncData":{"version":2,"trackDurationMs":4000,"source":{"provider":"lrclib","lrclibId":41,"preferredLyricsSource":"synced","lineCharCounts":[3,3]},"lines":[{"start":0,"end":2,"chars":[1.1,1.2,1.3],"granularity":"character"},{"start":3,"end":5,"chars":[2.1,2.2,2.3],"granularity":"character"}]}}}"#
-        rawA.put("sync-data-api-v2|isrc:USABC1234567|provider:lrclib", body: syncPayload)
+        let syncPayload = #"{"data":{"provider":"lrclib","syncType":"character","syncPoints":6,"syncData":{"version":6,"timeUnit":"ms","indexUnit":"nfc-codepoint","source":{"provider":"lrclib","lrclibId":41,"preferredLyricsSource":"synced","lineCharCounts":[3,3]},"trackDurationMs":4000,"lines":[{"id":"l0","offset":0,"length":3,"timing":{"unit":"character","startMs":1100,"deltaMs":[100,100]}},{"id":"l3","offset":3,"length":3,"timing":{"unit":"character","startMs":2100,"deltaMs":[100,100]}}]}}}"#
+        rawA.put("sync-data-api-v3-v6|isrc:USABC1234567|provider:lrclib", body: syncPayload)
         let syncRepository = LyricsRepository(localLyricsStore: localA, diskCache: diskA,
                                               syncDataResponseCache: rawA, defaults: defaults, secureStore: secure)
         let syncTrack = TrackSnapshot(title: "Sync", artist: "Artist", album: "Album", isrc: "USABC1234567", durationMs: 4000)
