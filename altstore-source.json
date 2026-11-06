@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.9",
+          "buildVersion": "80",
+          "date": "2026-11-06",
+          "localizedDescription": "ivLyrics iOS 2.0.9는 컴팩트 Sync v6 타이밍 데이터를 iOS에서 직접 해독하고 적용할 수 있도록 개선했습니다. 또한 배포 안내 문서와 AltStore 소스 메타데이터를 정비하고, 다음 릴리스 준비를 위한 프로젝트 설정을 업데이트했습니다.\n\nivLyrics iOS 2.0.9 adds native decoding and application of compact Sync v6 timing data on iOS. This release also refreshes distribution documentation and AltStore source metadata, and updates project settings for upcoming release preparation.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.9/ivLyrics-IOS-v2.0.9-unsigned.ipa",
+          "size": 14598963,
+          "sha256": "a0405cd128796143a11eb8c698245695d57a42d367e21f9e6c4e5e6318e43e45",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.8",
           "buildVersion": "79",
           "date": "2026-10-29",
