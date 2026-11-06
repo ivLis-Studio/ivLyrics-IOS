@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.10",
+          "buildVersion": "81",
+          "date": "2026-11-06",
+          "localizedDescription": "v2.0.10은 가사 검색을 Open Lyrics 집계 기반으로 전환하고, 이를 기본 제공자 우선순위로 설정합니다. 또한 배포 메타데이터와 검증 범위를 정비해 이전 IPA 정보의 정확성과 Spotify 코어 호환성 검사를 개선했습니다.\n\nv2.0.10 moves lyric lookup to Open Lyrics aggregation and makes it part of the default provider priority. It also improves distribution metadata accuracy and expands Spotify core compatibility validation.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.10/ivLyrics-IOS-v2.0.10-unsigned.ipa",
+          "size": 14611627,
+          "sha256": "bf4d038b5ada9863f4d7065ab388b1d51b27af8f16a086b29a270dde6973945a",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.9",
           "buildVersion": "80",
           "date": "2026-11-06",
