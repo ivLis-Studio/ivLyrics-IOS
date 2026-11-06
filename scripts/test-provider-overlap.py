@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import sys
+import json
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / 'ivLyrics-IOS'
@@ -20,9 +21,9 @@ unison = unison[:unison.index('    static func fetch(')] + unison[unison.index('
 unison = unison[:unison.index('    private static func isExactMetadataMatch(')] + unison[unison.index('    private static func normalizeMetadata('):]
 plus = (SRC / 'LyricsPlusProvider.swift').read_text()
 plus = plus[:plus.index('    static func fetch(')] + plus[plus.index('    private static func decodeTwice('):]
-pax = (SRC / 'PaxsenixLyricsProvider.swift').read_text()
+pax = (SRC / 'OpenLyricsProvider.swift').read_text()
 pax = pax[:pax.index('    static func fetch(')] + pax[pax.index('    private static func parsePayload('):]
-pax = pax.replace('    private struct ParsedVariants:', '    struct ParsedVariants:').replace('    private static func parsePayload(', '    static func parsePayload(')
+pax = pax.replace('    private struct ParsedVariants:', '    struct ParsedVariants:').replace('    private static func parsePayload(', '    static func parsePayload(').replace('    private static func parseOpenTrack(', '    static func parseOpenTrack(')
 content = (SRC / 'ContentView.swift').read_text()
 timeline = content[content.index('enum LyricsTimelineDisplayItem:'):content.index('struct LyricsInterludeView:')]
 pip = (SRC / 'LyricsPictureInPictureController.swift').read_text()
@@ -63,7 +64,7 @@ check(unison.lines[0].text == "Early" && unison.lines[0].vocalParts.isEmpty, "Ea
 check(unison.lines[1].vocalParts.map(\.role) == ["lead", "background"], "Explicit TTML background retains its parent")
 check(unison.lines[1].vocalParts.map(\.text) == ["Later", "Echo"], "No independent primary text concatenates into the explicit parts")
 let track = TrackSnapshot(title: "Fixture song", artist: "Fixture artist", durationMs: 30000)
-let paxTtml = try PaxsenixLyricsProvider.parsePayload(["ttmlContent": ttml], durationMs: 10000, track: track)!.karaoke!
+let paxTtml = try OpenLyricsProvider.parsePayload(["ttmlContent": ttml], durationMs: 10000, track: track)!.karaoke!
 check(paxTtml.count == 4 && paxTtml.map(\.startTimeMs) == unison.lines.map(\.startTimeMs) && paxTtml.map(\.vocalParts) == unison.lines.map(\.vocalParts), "Pax TTML fallback preserves the same paragraph boundaries")
 let plusRows: [[String: Any]] = [
     ["time": 1000, "duration": 2000, "text": "Early", "element": ["singer": "v1"], "syllabus": [["time": 1000, "duration": 2000, "text": "Early"]]],
@@ -81,7 +82,7 @@ let paxRows: [[String: Any]] = [
     ["timestamp": 1000, "endtime": 24000, "agent": "v1", "text": [["timestamp": 1000, "endtime": 24000, "text": "Sustain", "part": false]]],
     ["timestamp": 2000, "endtime": 4000, "agent": "v2", "text": [["timestamp": 2000, "endtime": 4000, "text": "Answer", "part": false]], "backgroundText": [["timestamp": 2200, "endtime": 2800, "text": "Echo", "part": false]]]
 ]
-let pax = try PaxsenixLyricsProvider.parsePayload(["provider": "kugou", "syncType": "syllable", "lyrics": paxRows], durationMs: 30000, track: track)!.karaoke!
+let pax = try OpenLyricsProvider.parsePayload(["provider": "kugou", "syncType": "syllable", "lyrics": paxRows], durationMs: 30000, track: track)!.karaoke!
 check(pax.count == 2 && pax[0].text == "Sustain", "Pax structured source rows stay separate")
 check(pax[0].endTimeMs == 24000, "Pax explicit long overlap is not capped to the next row")
 check(pax[1].vocalParts.map(\.role) == ["lead", "background"], "Pax explicit background remains attached")
@@ -129,6 +130,21 @@ if CommandLine.arguments.count > 1 {
     print("PRIVATE_TTML_PASSED sourceLines=40 parsedLines=40")
 }
 print("PROVIDER_OVERLAP_PASSED assertions=\(assertions)")
+'''
+checks += 'let fixturePath = ' + json.dumps(str(ROOT / 'scripts/fixtures/open-lyrics.json'), ensure_ascii=False) + '\n'
+checks += r'''
+let openFixtures = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixturePath))) as! [[String: Any]]
+for fixture in openFixtures {
+    let parsed = OpenLyricsProvider.parseOpenTrack(fixture["track"] as! [String: Any], source: fixture["source"] as! String, durationMs: 10000)!
+    let kind = parsed.karaoke?.isEmpty == false ? "karaoke" : parsed.synced?.isEmpty == false ? "synced" : "plain"
+    check(kind == fixture["kind"] as! String, "Open Lyrics type: \(fixture["name"]!)")
+    let lines = parsed.karaoke ?? parsed.synced ?? parsed.plain!
+    check(lines.map(\.text) == fixture["texts"] as! [String], "Open Lyrics text: \(fixture["name"]!)")
+    let starts = (fixture["starts"] as! [NSNumber]).map(\.int64Value)
+    if !starts.isEmpty { check(lines.map(\.startTimeMs) == starts, "Open Lyrics millisecond starts") }
+    if kind == "karaoke" { check(lines[0].syllables.map(\.text).joined().trimmed == lines[0].text, "Open Lyrics exact word spacing") }
+}
+print("OPEN_LYRICS_PASSED cases=\(openFixtures.count)")
 '''
 with tempfile.TemporaryDirectory(prefix='ivlyrics-ios-provider-overlap-') as directory:
     work = Path(directory)

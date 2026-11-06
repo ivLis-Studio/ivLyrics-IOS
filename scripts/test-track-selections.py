@@ -12,14 +12,14 @@ code+=models[models.index('struct YouTubeVideoInfo:'):models.index('struct Spoti
 code+=video[video.index('extension YouTubeVideoInfo {'):].replace('nonisolated enum','enum')
 code+='''
 enum AppSettings {
-    static let defaultLyricsProviderOrder = ["lrclib", "paxsenix", "lyricsplus", "unison"]
+    static let defaultLyricsProviderOrder = ["lrclib", "open-lyrics", "lyricsplus", "unison"]
     static let lyricsTypeKaraoke = "karaoke", lyricsTypeSynced = "synced", lyricsTypePlain = "plain"
     static func lyricsProviderById(_ id: String) -> String? { defaultLyricsProviderOrder.contains(id) ? id : nil }
     static func normalizedLyricsProviderOrder(_ ids: [String]) -> [String] { ids + defaultLyricsProviderOrder.filter { !ids.contains($0) } }
     struct Snapshot {
         var lyricsProviderOrder = defaultLyricsProviderOrder
-        var lyricsProviderEnabled = ["lrclib": true, "paxsenix": false, "lyricsplus": true, "unison": true]
-        var lyricsProviderTypes = ["paxsenix": ["karaoke": false, "synced": false, "plain": false]]
+        var lyricsProviderEnabled = ["lrclib": true, "open-lyrics": false, "lyricsplus": true, "unison": true]
+        var lyricsProviderTypes = ["open-lyrics": ["karaoke": false, "synced": false, "plain": false]]
         var preferSyncDataProvider = true
         var preferLyricsTypeOverProviderOrder = false
 '''+policy+'''    }
@@ -38,11 +38,11 @@ enum AppSettings {
         precondition(info.isrc.isEmpty && info.hasCaptionStartTime && info.captionStartTimeSeconds == 12.5)
         precondition(try JSONDecoder().decode(YouTubeVideoInfo.self, from: JSONEncoder().encode(info)) == info)
         let original = AppSettings.Snapshot()
-        let selected = original.selectingLyricsProvider("paxsenix")
-        precondition(selected.enabledLyricsProviderOrder == ["paxsenix"])
-        precondition(selected.lyricsProviderTypes["paxsenix"]!.values.allSatisfy { $0 })
+        let selected = original.selectingLyricsProvider("open-lyrics")
+        precondition(selected.enabledLyricsProviderOrder == ["open-lyrics"])
+        precondition(selected.lyricsProviderTypes["open-lyrics"]!.values.allSatisfy { $0 })
         precondition(!selected.preferSyncDataProvider && selected.preferLyricsTypeOverProviderOrder)
-        precondition(original.lyricsProviderEnabled["paxsenix"] == false)
+        precondition(original.lyricsProviderEnabled["open-lyrics"] == false)
         precondition(original.selectingLyricsProvider("").enabledLyricsProviderOrder == original.enabledLyricsProviderOrder)
         print("Track selection regression: URL validation, timing, persistence, provider isolation passed")
     }

@@ -89,18 +89,10 @@ final class AppSettings: ObservableObject {
 
     static let lyricsProviders: [LyricsProvider] = [
         LyricsProvider(
-            id: "lrclib",
-            name: "LRCLIB",
+            id: "open-lyrics",
+            name: "Open Lyrics",
             author: "default",
-            supportsNativeKaraoke: false,
-            supportsSynced: true,
-            supportsPlain: true
-        ),
-        LyricsProvider(
-            id: "paxsenix",
-            name: "Lyrically (Paxsenix)",
-            author: "default",
-            projectURL: PaxsenixLyricsProvider.projectURL,
+            projectURL: OpenLyricsProvider.projectURL,
             supportsNativeKaraoke: true,
             supportsSynced: true,
             supportsPlain: true
@@ -111,6 +103,14 @@ final class AppSettings: ObservableObject {
             author: "default",
             projectURL: LyricsPlusProvider.projectURL,
             supportsNativeKaraoke: true,
+            supportsSynced: true,
+            supportsPlain: true
+        ),
+        LyricsProvider(
+            id: "lrclib",
+            name: "LRCLIB",
+            author: "default",
+            supportsNativeKaraoke: false,
             supportsSynced: true,
             supportsPlain: true
         ),

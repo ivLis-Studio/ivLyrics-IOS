@@ -33,7 +33,7 @@ def section(source, start, end):
 # provider cache signature execute the same statements used by AppSettings.
 settings_code = """
 final class AppSettings: ObservableObject {
-    static let defaultLyricsProviderOrder = ["lrclib", "paxsenix", "lyricsplus", "unison"]
+    static let defaultLyricsProviderOrder = ["lrclib", "open-lyrics", "lyricsplus", "unison"]
     static let lyricsTypeKaraoke = "karaoke", lyricsTypeSynced = "synced", lyricsTypePlain = "plain"
     static func normalizedLyricsProviderOrder(_ values: [String]) -> [String] { values + defaultLyricsProviderOrder.filter { !values.contains($0) } }
     private let defaults: UserDefaults

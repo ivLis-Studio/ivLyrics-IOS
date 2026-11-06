@@ -22,7 +22,7 @@ struct CoreLocalization {
         switch id.trimmed.lowercased() {
         case "lrclib": return LyricsProvider(id: "lrclib", name: "LRCLIB", supportsNativeKaraoke: false, supportsSynced: true, supportsPlain: true)
         case "lyricsplus": return LyricsProvider(id: "lyricsplus", name: "LyricsPlus", supportsNativeKaraoke: true, supportsSynced: true, supportsPlain: true)
-        case "paxsenix": return LyricsProvider(id: "paxsenix", name: "Lyrically (Paxsenix)", supportsNativeKaraoke: true, supportsSynced: true, supportsPlain: true)
+        case "open-lyrics": return LyricsProvider(id: "open-lyrics", name: "Open Lyrics", supportsNativeKaraoke: true, supportsSynced: true, supportsPlain: true)
         case "unison": return LyricsProvider(id: "unison", name: "Unison", supportsNativeKaraoke: true, supportsSynced: true, supportsPlain: true)
         default: return nil
         }

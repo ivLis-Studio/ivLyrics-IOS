@@ -178,7 +178,7 @@ actor LyricsRepository {
             cache.removeValue(forKey: key)
             return nil
         }
-        guard PaxsenixLyricsProvider.canReuseCachedResult(entry.result) else {
+        guard OpenLyricsProvider.canReuseCachedResult(entry.result) else {
             cache.removeValue(forKey: key)
             return nil
         }
@@ -206,12 +206,12 @@ actor LyricsRepository {
     }
 
     private func markProviderLyricsNormalized(_ result: LyricsResult) -> LyricsResult {
-        PaxsenixLyricsProvider.markEntitiesDecoded(in: result)
+        OpenLyricsProvider.markEntitiesDecoded(in: result)
     }
 
     private func reusableDiskCachedLyrics(_ key: String) -> LyricsResult? {
         guard let result = diskCache.get(key) else { return nil }
-        guard PaxsenixLyricsProvider.canReuseCachedResult(result) else {
+        guard OpenLyricsProvider.canReuseCachedResult(result) else {
             diskCache.remove(key)
             return nil
         }
@@ -744,23 +744,23 @@ actor LyricsRepository {
     ) async throws -> ProviderVariants? {
         log("provider attempt: \(providerId)")
         switch providerId {
-        case "paxsenix":
-            guard let outcome = try await PaxsenixLyricsProvider.fetch(track: track) else {
-                log("paxsenix: no lyrics found")
+        case "open-lyrics":
+            guard let outcome = try await OpenLyricsProvider.fetch(track: track, isrc: isrc) else {
+                log("open lyrics: no lyrics found")
                 return nil
             }
             outcome.logs.forEach(log)
-            let detail = "Lyrics via Lyrically API (\(PaxsenixLyricsProvider.projectURL))."
+            let detail = "Lyrics via Open Lyrics."
             let variants = ProviderVariants(
                 providerId: providerId,
                 karaoke: outcome.karaoke.map {
-                    lyricsResult(lines: $0, providerName: "Lyrically (Paxsenix)", type: AppSettings.lyricsTypeKaraoke, detail: detail, karaoke: true, isrc: isrc, spotifyTrackId: spotifyTrackId)
+                    lyricsResult(lines: $0, providerName: "Open Lyrics", type: AppSettings.lyricsTypeKaraoke, detail: detail, karaoke: true, isrc: isrc, spotifyTrackId: spotifyTrackId)
                 },
                 synced: outcome.synced.map {
-                    lyricsResult(lines: $0, providerName: "Lyrically (Paxsenix)", type: AppSettings.lyricsTypeSynced, detail: detail, karaoke: false, isrc: isrc, spotifyTrackId: spotifyTrackId)
+                    lyricsResult(lines: $0, providerName: "Open Lyrics", type: AppSettings.lyricsTypeSynced, detail: detail, karaoke: false, isrc: isrc, spotifyTrackId: spotifyTrackId)
                 },
                 plain: outcome.plain.map {
-                    lyricsResult(lines: $0, providerName: "Lyrically (Paxsenix)", type: AppSettings.lyricsTypePlain, detail: detail, karaoke: false, isrc: isrc, spotifyTrackId: spotifyTrackId)
+                    lyricsResult(lines: $0, providerName: "Open Lyrics", type: AppSettings.lyricsTypePlain, detail: detail, karaoke: false, isrc: isrc, spotifyTrackId: spotifyTrackId)
                 }
             )
             return await applyingRegisteredSyncData(

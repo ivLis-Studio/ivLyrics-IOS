@@ -27,7 +27,7 @@ Create `IVLCoreLoader` and supply an `IVLCoreTrack` obtained by a separately
 verified host adapter. `load(track:allowNetwork:)` defaults to local-only;
 explicit network permission enables the original repository. The default module
 policy enables LRCLIB and LyricsPlus, prefers more detailed lyric timing, and
-prefers registered ivSync providers. Paxsenix and Unison sources are also compiled
+prefers registered ivSync providers. Open Lyrics and Unison sources are also compiled
 because the repository refers to them; they are disabled by the default module
 snapshot. No host preferences, Spotify access token, API client ID or client secret
 are read. The adapter must supply a valid ISRC for ivSync discovery: without one,

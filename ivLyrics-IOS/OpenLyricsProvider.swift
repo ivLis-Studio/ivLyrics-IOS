@@ -1,16 +1,19 @@
 import Foundation
+import CoreFoundation
 
-enum PaxsenixLyricsProvider {
-    private static let cacheEntityRevision = "|paxsenix-entities-v1-ja-lines-v1"
+enum OpenLyricsProvider {
+    private static let cacheEntityRevision = "|open-lyrics-v2"
     private static let encodedEndpoints = [
-        "homepage": "aHR0cHM6Ly9seXJpY3MucGF4c2VuaXgub3Jn",
+        "homepage": "aHR0cHM6Ly9naXRodWIuY29tL2l2TGlzLVN0dWRpby9pdkx5cmljcw==",
+        "aggregateOne": "aHR0cHM6Ly9hcGkubGlyaXFvLWFsZmFycml6aS5teS5pZC92MS9seXJpY3M=",
+        "aggregateTwo": "aHR0cHM6Ly9hcGkubHJjbXV4LmRldi9nZXQ=",
         "catalogSearch": "aHR0cHM6Ly9pdHVuZXMuYXBwbGUuY29tL3NlYXJjaA==",
         "structuredSearch": "aHR0cHM6Ly9seXJpY3MucGF4c2VuaXgub3JnL2t1Z291L3NlYXJjaA==",
         "structuredLyrics": "aHR0cHM6Ly9seXJpY3MucGF4c2VuaXgub3JnL2t1Z291L2x5cmljcw==",
         "catalogLyrics": "aHR0cHM6Ly9seXJpY3MucGF4c2VuaXgub3JnL2FwcGxlLW11c2ljL2x5cmljcw=="
     ]
     private static let encodedStructuredProviderId = "a3Vnb3U="
-    private static let requestTimeout: TimeInterval = 12
+    private static let requestTimeout: TimeInterval = 25
     private static let japaneseLineSplitTriggerWidth = 22.0
     private static let japaneseLineSplitHardWidth = 26.0
     private static let japaneseLineSplitMinimumWidth = 6.0
@@ -79,10 +82,10 @@ enum PaxsenixLyricsProvider {
 
         let cached = LyricsResult(
             lines: [LyricsLine(startTimeMs: 0, endTimeMs: 1, text: "Don&apos;t &amp;apos;")],
-            providerLabel: "Lyrically (Paxsenix)",
+            providerLabel: "Open Lyrics",
             detail: "",
             karaoke: false,
-            providerId: "paxsenix",
+            providerId: "open-lyrics",
             selectionPolicyKey: "provider-policy-v1"
         )
         assert(!canReuseCachedResult(cached))
@@ -192,15 +195,53 @@ enum PaxsenixLyricsProvider {
         var parsed: ParsedVariants
     }
 
+    private enum OpenAttempt: Sendable {
+        case result(ParsedCandidate?)
+        case deadline
+    }
+
     private struct SpeakerPresentation {
         var speaker: String
         var color: String
         var fallback: String
     }
 
-    static func fetch(track: TrackSnapshot) async throws -> FetchOutcome? {
+    static func fetch(track: TrackSnapshot, isrc: String = "") async throws -> FetchOutcome? {
         guard track.hasUsableMetadata else { return nil }
+        try Task.checkCancellation()
+        let recording = TrackSnapshot.normalizeIsrc(isrc.isEmpty ? track.isrc : isrc)
+        let best = await withTaskGroup(of: OpenAttempt.self) { group -> ParsedCandidate? in
+            group.addTask { .result(await fetchPrimaryCandidate(track: track)) }
+            for source in ["server-a", "server-b"] {
+                group.addTask { .result(try? await fetchOpenCandidate(source: source, isrc: recording, track: track)) }
+            }
+            group.addTask {
+                do { try await Task.sleep(nanoseconds: 30_000_000_000); return .deadline }
+                catch { return .result(nil) }
+            }
+            var remaining = 3
+            for await attempt in group {
+                switch attempt {
+                case .deadline:
+                    group.cancelAll(); return nil
+                case .result(let candidate):
+                    remaining -= 1
+                    if let candidate, quality(candidate) > 0 {
+                        group.cancelAll(); return candidate
+                    }
+                    if remaining == 0 { group.cancelAll(); return nil }
+                }
+            }
+            return nil
+        }
+        try Task.checkCancellation()
+        guard let best else { return nil }
+        return FetchOutcome(karaoke: best.parsed.karaoke, synced: best.parsed.synced,
+                            plain: best.parsed.plain, sourceType: best.source,
+                            logs: ["open lyrics selected: source=\(best.source)"])
+    }
 
+    private static func fetchPrimaryCandidate(track: TrackSnapshot) async -> ParsedCandidate? {
         async let structuredAttempt = fetchAttempt(source: "structured") {
             try await fetchStructuredCandidate(track: track)
         }
@@ -208,7 +249,6 @@ enum PaxsenixLyricsProvider {
             try await fetchCatalogCandidate(track: track)
         }
         let attempts = await [structuredAttempt, catalogAttempt]
-        var logs = attempts.flatMap(\.logs)
         let candidates = attempts.compactMap(\.candidate).compactMap { candidate -> ParsedCandidate? in
             guard let parsed = try? parsePayload(candidate.payload, durationMs: track.durationMs, track: track) else {
                 return nil
@@ -216,20 +256,20 @@ enum PaxsenixLyricsProvider {
             return ParsedCandidate(source: candidate.source, parsed: parsed)
         }
         guard let best = candidates.max(by: { quality($0) < quality($1) }), quality(best) > 0 else {
-            logs.append("paxsenix: no renderable lyrics")
             return nil
         }
-        let type = best.parsed.karaoke?.isEmpty == false
-            ? "karaoke"
-            : (best.parsed.synced?.isEmpty == false ? "synced" : "plain")
-        logs.append("paxsenix selected: source=\(best.source) / type=\(type)")
-        return FetchOutcome(
-            karaoke: best.parsed.karaoke,
-            synced: best.parsed.synced,
-            plain: best.parsed.plain,
-            sourceType: best.source,
-            logs: logs
-        )
+        return best
+    }
+
+    private static func fetchOpenCandidate(source: String, isrc: String, track: TrackSnapshot) async throws -> ParsedCandidate? {
+        guard !isrc.isEmpty, let base = endpoint(source == "server-a" ? "aggregateOne" : "aggregateTwo"),
+              var url = URLComponents(string: base) else { return nil }
+        url.queryItems = [URLQueryItem(name: "isrc", value: isrc)]
+        guard let endpoint = url.url, let body = try await fetchJson(endpoint) as? [String: Any] else { return nil }
+        let metadata = body[source == "server-a" ? "metadata" : "track"] as? [String: Any]
+        let returned = TrackSnapshot.normalizeIsrc(string(metadata?["isrc"]))
+        guard returned.isEmpty || returned == isrc else { return nil }
+        return parseOpenResponse(body, source: source, durationMs: track.durationMs)
     }
 
     private struct FetchAttemptResult: @unchecked Sendable {
@@ -245,10 +285,10 @@ enum PaxsenixLyricsProvider {
             let candidate = try await operation()
             return FetchAttemptResult(
                 candidate: candidate,
-                logs: [candidate == nil ? "paxsenix \(source): no match" : "paxsenix \(source): matched"]
+                logs: [candidate == nil ? "open lyrics \(source): no match" : "open lyrics \(source): matched"]
             )
         } catch {
-            return FetchAttemptResult(candidate: nil, logs: ["paxsenix \(source): \(error.localizedDescription)"])
+            return FetchAttemptResult(candidate: nil, logs: ["open lyrics \(source): \(error.localizedDescription)"])
         }
     }
 
@@ -318,11 +358,13 @@ enum PaxsenixLyricsProvider {
     }
 
     private static func fetchJson(_ url: URL) async throws -> Any {
+        try Task.checkCancellation()
         var request = URLRequest(url: url, timeoutInterval: requestTimeout)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("ivLyrics-iOS/1.0", forHTTPHeaderField: "User-Agent")
         let (data, _) = try await URLSession.shared.ivLyricsData(for: request)
+        try Task.checkCancellation()
         return try JSONSerialization.jsonObject(with: data)
     }
 
@@ -362,6 +404,85 @@ enum PaxsenixLyricsProvider {
             durationMs: durationMs
         )
         return variants(from: parsed)
+    }
+
+    private static func openTime(_ value: Any?) -> Int64? {
+        guard let value, !(value is NSNull) else { return nil }
+        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+        let number: Double?
+        if let value = value as? NSNumber { number = value.doubleValue }
+        else if let value = value as? String, !value.trimmed.isEmpty { number = Double(value) }
+        else { return nil }
+        guard let number, number.isFinite, number >= 0, number <= 86_400_000 else { return nil }
+        return Int64(number.rounded())
+    }
+
+    private static func parseOpenResponse(_ body: [String: Any], source: String, durationMs: Int64) -> ParsedCandidate? {
+        guard body["error"] == nil else { return nil }
+        if source == "server-a", let primary = body["primary"] as? [String: Any],
+           let parsed = parseOpenTrack(primary, source: source, durationMs: durationMs) {
+            let candidate = ParsedCandidate(source: source, parsed: parsed)
+            if quality(candidate) > 0 { return candidate }
+        }
+        let tracks = source == "server-a"
+            ? ([body["primary"] as? [String: Any]].compactMap { $0 } + (body["tracks"] as? [[String: Any]] ?? [])) : [body]
+        return tracks.compactMap { track -> ParsedCandidate? in
+            guard let parsed = parseOpenTrack(track, source: source, durationMs: durationMs) else { return nil }
+            return ParsedCandidate(source: source, parsed: parsed)
+        }.filter { quality($0) > 0 }.max { quality($0) < quality($1) }
+    }
+
+    private static func parseOpenTrack(_ track: [String: Any], source: String, durationMs: Int64) -> ParsedVariants? {
+        let normalizedFormat = source == "server-a"
+        let rows = track[normalizedFormat ? "timed" : "lines"] as? [[String: Any]] ?? []
+        let meta = track["meta"] as? [String: Any]
+        let level = string(normalizedFormat ? track["syncLevel"] : meta?["level"]).lowercased()
+        var plain: [LyricsLine] = [], timed: [LyricsLine] = []
+        var agents: [String: Int] = [:]
+        for (index, row) in rows.enumerated() {
+            if row["isInstrumental"] as? Bool == true { continue }
+            let text = decodeLyricEntities(string(row["text"])).trimmed
+            guard !text.isEmpty else { continue }
+            plain.append(LyricsLine(startTimeMs: 0, endTimeMs: 0, text: text))
+            if level == "none" || level == "plain" { continue }
+            let id = (row["id"] as? NSNumber)?.intValue ?? index
+            let topWords = track["words"] as? [[[String: Any]]]
+            let wordMap = track["words"] as? [String: [[String: Any]]]
+            let embedded = row["words"] as? [[String: Any]] ?? []
+            let words = !embedded.isEmpty ? embedded : (topWords?.indices.contains(id) == true ? topWords![id] : wordMap?[String(id)] ?? [])
+            let detailed = ["word", "syllable", "character"].contains(level) && !words.isEmpty && words.allSatisfy {
+                guard $0["text"] is String, let start = openTime($0["start"]), let end = openTime($0["end"]) else { return false }
+                return end > start
+            } && normalizeReferenceSpacingCharacters(words.map { decodeLyricEntities(string($0["text"])) }.joined()) == normalizeReferenceSpacingCharacters(text)
+            var start = openTime(row["start"])
+            if start == nil && detailed { start = openTime(words.first?["start"]) }
+            if start == nil && !normalizedFormat && (openTime(row["end"]) ?? 0) > 0 { start = 0 }
+            guard let start else { continue }
+            var end = openTime(row["end"]) ?? -1
+            if end <= start && detailed { end = words.compactMap { openTime($0["end"]) }.max() ?? -1 }
+            if end <= start && index + 1 < rows.count { end = openTime(rows[index + 1]["start"]) ?? -1 }
+            if end <= start && start > 0 && index == rows.count - 1 { end = durationMs > start ? durationMs : start + 3000 }
+            if durationMs > 0 { end = min(end, durationMs) }
+            guard end > start else { continue }
+            let agent = string(row["agent"])
+            if !agent.isEmpty && agents[agent] == nil { agents[agent] = agents.count }
+            let presentation = speakerPresentation(row, agentOrder: agents)
+            var syllables: [LyricsLine.Syllable] = []
+            if detailed {
+                let tokens: [[String: Any]] = words.map { ["text": string($0["text"]), "timestamp": $0["start"]!, "endtime": $0["end"]!, "part": true] }
+                syllables = parseTimedTokens(tokens, fallbackStart: start, fallbackEnd: end, referenceText: text).map { clamp($0, end: end) }
+                if syllables.count != words.count || syllables.contains(where: { $0.startTimeMs < start || $0.startTimeMs >= end }) { syllables = [] }
+            }
+            timed.append(LyricsLine(startTimeMs: start, endTimeMs: end, text: text, syllables: syllables,
+                                   speaker: presentation.speaker, speakerColor: presentation.color, speakerFallback: presentation.fallback))
+        }
+        if plain.isEmpty, let parsed = try? UnisonLyricsProvider.parseExternalLyrics(
+            decodeLyricEntities(string(track["plain"])), format: "plain", durationMs: durationMs
+        ) { plain = parsed.lines }
+        guard !plain.isEmpty else { return nil }
+        timed.sort { $0.startTimeMs < $1.startTimeMs }
+        return ParsedVariants(karaoke: timed.contains { !$0.syllables.isEmpty } ? timed : nil,
+                              synced: timed.isEmpty ? nil : timed.map(demoteSynced), plain: plain)
     }
 
     private static func variants(from parsed: UnisonLyricsProvider.ExternalParsedLyrics) -> ParsedVariants? {
@@ -1223,14 +1344,13 @@ enum PaxsenixLyricsProvider {
     static func canReuseCachedResult(_ result: LyricsResult) -> Bool {
         let providerId = result.providerId.trimmed.lowercased()
         let providerLabel = result.providerLabel.trimmed.lowercased()
-        let isPaxsenix = providerId == "paxsenix"
-            || providerLabel.contains("paxsenix")
-            || providerLabel.contains("lyrically")
-        return !isPaxsenix || result.selectionPolicyKey.hasSuffix(cacheEntityRevision)
+        let isOpenLyrics = providerId == "open-lyrics"
+            || providerLabel.contains("open lyrics")
+        return !isOpenLyrics || result.selectionPolicyKey.hasSuffix(cacheEntityRevision)
     }
 
     static func markEntitiesDecoded(in result: LyricsResult) -> LyricsResult {
-        guard result.providerId == "paxsenix",
+        guard result.providerId == "open-lyrics",
               !result.selectionPolicyKey.hasSuffix(cacheEntityRevision) else { return result }
         var marked = result
         marked.selectionPolicyKey += cacheEntityRevision

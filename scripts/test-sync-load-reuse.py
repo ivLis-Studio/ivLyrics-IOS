@@ -53,7 +53,7 @@ struct TrackSnapshot: Sendable {
     static func normalizeIsrc(_ value: String) -> String { value.trimmed.uppercased().replacingOccurrences(of: "-", with: "") }
 }
 struct SpotifyTrackMatch: Sendable { var title: String, artist: String, album: String, spotifyId: String }
-enum AppSettings { static func lyricsProviderById(_ id: String) -> String? { ["lrclib", "paxsenix", "lyricsplus", "unison"].contains(id) ? id : nil } }
+enum AppSettings { static func lyricsProviderById(_ id: String) -> String? { ["lrclib", "open-lyrics", "lyricsplus", "unison"].contains(id) ? id : nil } }
 enum IvLyricsUtilities {
     static func firstNonEmpty(_ values: String?...) -> String { values.compactMap { $0?.trimmed }.first { !$0.isEmpty } ?? "" }
     static func encodeParams(_ params: [String: String]) -> String {
@@ -156,7 +156,7 @@ checks = r'''
         await candidate.configure(body: "live-private")
         check(await candidate.consume("next", refresh: true)?.payload == "live-private", "new load revalidates changed privacy")
         check(await candidate.stats().0 == 2, "identity is not retained between loads")
-        for (index, provider) in ["paxsenix", "lyricsplus", "unison"].enumerated() {
+        for (index, provider) in ["open-lyrics", "lyricsplus", "unison"].enumerated() {
             check(await candidate.consume("next", provider: provider)?.provider == provider, "provider key isolation")
             check(await candidate.stats().0 == index + 3, "one request per other provider")
         }
@@ -171,7 +171,7 @@ checks = r'''
 
         let ack = CandidateRepository(); await ack.begin("x"); await ack.enableAck()
         _ = await ack.consume("x", refresh: true)
-        _ = await ack.consume("x", provider: "paxsenix")
+        _ = await ack.consume("x", provider: "open-lyrics")
         let ackParams = await ack.requestParams()
         check(ackParams[0]["metadata"] == "1" && ackParams[0]["metadata_ack"] == "1", "metadata ACK is explicitly requested")
         check(ackParams[1]["metadata"] == nil, "confirmed same metadata is omitted for another provider in same load")
@@ -183,7 +183,7 @@ checks = r'''
         check(await candidate.requestParams().allSatisfy { $0["metadata"] == "1" }, "missing ACK never suppresses metadata")
         let badAck = CandidateRepository(); await badAck.begin("x"); await badAck.enableAck(); await badAck.configure(parseFailures: 1)
         _ = await badAck.consume("x", refresh: true)
-        _ = await badAck.consume("x", provider: "paxsenix")
+        _ = await badAck.consume("x", provider: "open-lyrics")
         check(await badAck.requestParams().last?["metadata"] == "1", "unparseable response ACK is not reused")
         let retry = CandidateRepository(); await retry.begin("x")
         await retry.configure(failures: 1)

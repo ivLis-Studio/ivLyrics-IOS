@@ -272,7 +272,7 @@ def parse_commit_subject(subject):
 def fallback_category(subject):
     value = subject.lower()
     if re.search(
-        r"lyrics?|translation|pronunciation|cultural|provider|paxsenix|"
+        r"lyrics?|translation|pronunciation|cultural|provider|open[- ]lyrics|"
         r"instrumental|karaoke|overlay|language",
         value,
     ):

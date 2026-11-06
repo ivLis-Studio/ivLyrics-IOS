@@ -7,7 +7,7 @@
     "ivLyrics-IOS/SyncDataApplier.swift",
     "ivLyrics-IOS/LocalLyricsStore.swift",
     "ivLyrics-IOS/LyricsPlusProvider.swift",
-    "ivLyrics-IOS/PaxsenixLyricsProvider.swift",
+    "ivLyrics-IOS/OpenLyricsProvider.swift",
     "ivLyrics-IOS/UnisonLyricsProvider.swift",
     "ivLyrics-IOS/LrclibEndpoint.swift",
     "ivLyrics-IOS/LrclibPlaybackHTTP.swift",

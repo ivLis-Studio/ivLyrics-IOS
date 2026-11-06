@@ -24,7 +24,7 @@ Deleting the app removes its storage. iOS can keep Keychain entries after an app
 While a song plays, the app sends its title, artist, album and length, and for some services its identifiers (the Spotify track ID and ISRC, a code for the recording), to the lyric providers enabled in Settings:
 
 - **ivLyrics services** (lyrics.api.ivl.is and ivlis.kr) for shared sync timing, the OpenDB index and community background videos. Song information may be stored there to serve those features; it is not linked to you.
-- **LRCLIB** (lrclib.net), and optionally Paxsenix, Unison, LyricsPlus or a custom LRCLIB server you enter.
+- **LRCLIB** (lrclib.net), and optionally Open Lyrics, Unison, LyricsPlus or a custom LRCLIB server you enter.
 
 Like any internet request, these requests carry your device's IP address. They include no account or advertising identifier.
 
@@ -84,7 +84,7 @@ Questions or requests about privacy: open an issue at [github.com/ivLis-Studio/i
 곡이 재생되면 곡 제목, 아티스트, 앨범, 길이와, 일부 서비스에는 식별자(Spotify 트랙 ID, 음원 코드인 ISRC)를 설정에서 켜 둔 가사 제공자에게 보내요.
 
 - **ivLyrics 서비스**(lyrics.api.ivl.is, ivlis.kr): 공유 싱크, OpenDB 목록, 커뮤니티 배경 영상에 쓰여요. 이 기능을 제공하려고 곡 정보가 저장될 수 있지만, 사용자와 연결되지 않아요.
-- **LRCLIB**(lrclib.net), 그리고 선택에 따라 Paxsenix, Unison, LyricsPlus 또는 직접 입력한 LRCLIB 서버.
+- **LRCLIB**(lrclib.net), 그리고 선택에 따라 Open Lyrics, Unison, LyricsPlus 또는 직접 입력한 LRCLIB 서버.
 
 모든 인터넷 요청처럼 기기의 IP 주소가 함께 전달돼요. 계정이나 광고 식별자는 보내지 않아요.
 

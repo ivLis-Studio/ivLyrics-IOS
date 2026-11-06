@@ -4870,7 +4870,7 @@ private struct LyricsProviderAttribution: View {
     @EnvironmentObject private var model: AppViewModel
     var includesSyncContributors = false
 
-    private static let visibleProviderIds: Set<String> = ["lrclib", "paxsenix", "lyricsplus", "unison"]
+    private static let visibleProviderIds: Set<String> = ["lrclib", "open-lyrics", "lyricsplus", "unison"]
 
     @ViewBuilder
     var body: some View {
