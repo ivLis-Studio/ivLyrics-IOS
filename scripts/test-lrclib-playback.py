@@ -184,7 +184,7 @@ with tempfile.TemporaryDirectory(prefix="swift-checks-", dir=work_root) as direc
     work = Path(directory)
     main = work / "Checks.swift"
     main.write_text(production + (ROOT / "scripts/LrclibPlaybackChecks.swift").read_text())
-    sources = [SRC / name for name in ["Utilities.swift", "TinySegmenter.swift", "LrcParser.swift", "SyncDataApplier.swift", "BoundedLRUCache.swift", "LrclibEndpoint.swift", "LrclibPlaybackHTTP.swift"]]
+    sources = [SRC / name for name in ["Utilities.swift", "TinySegmenter.swift", "LrcParser.swift", "SyncDataApplier.swift", "SyncDataV6Codec.swift", "BoundedLRUCache.swift", "LrclibEndpoint.swift", "LrclibPlaybackHTTP.swift"]]
     subprocess.run(["xcrun", "swiftc", "-O", "-parse-as-library", *map(str, sources), str(main), "-o", str(work / "checks")], check=True)
     server = ThreadingHTTPServer(("127.0.0.1", 0), TransportFixture)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

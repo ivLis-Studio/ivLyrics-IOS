@@ -20,7 +20,7 @@ actor LyricsRepository {
     private let spotifyTrackBase = "https://api.spotify.com/v1/tracks/"
     private let spotifyEnglishAcceptLanguage = "en-US,en;q=0.9"
     private let lrclibProviderId = "lrclib"
-    private let syncDataCacheSchema = "sync-data-api-v2"
+    private let syncDataCacheSchema = "sync-data-api-v3-v6"
     private let durationToleranceSeconds = 15.0
     private let syncedFallbackScoreWindow = 0.50
     private let syncedFallbackMinTitleScore = 0.78
@@ -1656,6 +1656,7 @@ actor LyricsRepository {
                 "isrc": normalizedIsrc,
                 "provider": normalizedProvider,
                 "request-version": syncDataRequestVersion,
+                "format": "6",
                 "title": metadata.title,
                 "artist": metadata.artist,
                 "album": metadata.album
@@ -2959,7 +2960,13 @@ private struct SyncDataResult {
         guard let lines = syncBody["lines"] as? [[String: Any]], !lines.isEmpty else { return [] }
         return lines.map { line in
             if let chars = line["chars"] as? [Any] { return chars.count }
-            return 0
+            let length: Int
+            if (syncBody["version"] as? NSNumber)?.intValue == 6 {
+                length = (line["length"] as? NSNumber)?.intValue ?? 0
+            } else {
+                length = ((line["end"] as? NSNumber)?.intValue ?? -1) - ((line["start"] as? NSNumber)?.intValue ?? 0) + 1
+            }
+            return (1...2000).contains(length) ? length : 0
         }
     }
 

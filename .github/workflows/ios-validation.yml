@@ -11,6 +11,7 @@ on:
       - 'ivLyrics-IOS/SettingsHomeWordmark.swift'
       - 'ivLyrics-IOS/FontLoader.swift'
       - 'ivLyrics-IOS/Lrclib*.swift'
+      - 'ivLyrics-IOS/SyncData*.swift'
       - 'ivLyrics-IOS/LyricsRepository.swift'
       - 'ivLyrics-IOS/AppSettings.swift'
       - 'ivLyrics-IOS/Models.swift'
@@ -21,6 +22,9 @@ on:
       - 'ivLyrics-IOS/Info.plist'
       - 'ivLyrics-IOS/InfoPlist.xcstrings'
       - 'scripts/test-lrclib-playback.py'
+      - 'scripts/test-sync-v6.py'
+      - 'scripts/SyncV6Checks.swift'
+      - 'scripts/fixtures/sync-v6-golden.json'
       - 'scripts/test-vinyl.py'
       - 'scripts/test-lyric-runtime-cache.py'
       - 'scripts/test-pip-layout.py'
@@ -57,6 +61,7 @@ on:
       - 'ivLyrics-IOS/SettingsHomeWordmark.swift'
       - 'ivLyrics-IOS/FontLoader.swift'
       - 'ivLyrics-IOS/Lrclib*.swift'
+      - 'ivLyrics-IOS/SyncData*.swift'
       - 'ivLyrics-IOS/LyricsRepository.swift'
       - 'ivLyrics-IOS/AppSettings.swift'
       - 'ivLyrics-IOS/Models.swift'
@@ -67,6 +72,9 @@ on:
       - 'ivLyrics-IOS/Info.plist'
       - 'ivLyrics-IOS/InfoPlist.xcstrings'
       - 'scripts/test-lrclib-playback.py'
+      - 'scripts/test-sync-v6.py'
+      - 'scripts/SyncV6Checks.swift'
+      - 'scripts/fixtures/sync-v6-golden.json'
       - 'scripts/test-vinyl.py'
       - 'scripts/test-lyric-runtime-cache.py'
       - 'scripts/test-pip-layout.py'
@@ -151,6 +159,7 @@ jobs:
           python3 scripts/test-vinyl-artwork.py
           python3 scripts/test-sync-load-reuse.py
           python3 scripts/test-lrclib-playback.py
+          python3 scripts/test-sync-v6.py
           python3 scripts/test-lyricsplus-transport.py
           python3 scripts/test-local-lyrics.py
           python3 scripts/test-ai-models.py

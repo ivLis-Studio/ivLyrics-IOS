@@ -83,7 +83,12 @@ def repo(source, name, original):
     fetch = section(source, "    private func fetchSyncData(", "    private func shouldRequestSyncDataFromOpenDb(")
     if original:
         fetch = fetch.replace("        forceContributorRefresh: Bool = false", "        load: SyncDataLoadContext,\n        forceContributorRefresh: Bool = false")
-    return f"actor {name} {{\n" + context + clear + fetch + r'''
+    constants = next(line for line in source.splitlines() if "private let syncDataCacheSchema =" in line) + "\n"
+    cache_keys = section(source, "    private func syncDataCacheKey(", "    private func syncDataHeaders()")
+    redaction = section(current, "    private func redactedSyncDataResponseForPersistence(", "    private func appendContributorEntries(").replace("private func redactedSyncDataResponseForPersistence(", "private func redactedJSONForPersistence(")
+    redaction += section(current, "    private func stringValue(", "    private func int64Value(")
+    redaction += section(current, "    private func boolValue(", "    private func nowMs(")
+    return f"actor {name} {{\n" + redaction + constants + context + clear + fetch + cache_keys + r'''
     let syncDataBase = "https://fixture.invalid/sync", syncDataRequestVersion = "20260701"
     let syncDataResponseCache = FixtureCache(), diskCache = FixtureCache(), cache = MemoryFixture()
     private var loads: [String: SyncDataLoadContext] = [:]
@@ -104,6 +109,7 @@ def repo(source, name, original):
     func stats() -> (Int, Int, Int) { (requests.count, syncDataResponseCache.writes, activeSyncDataLoads.count) }
     func enableAck() { metadataAck = true }
     func requestParams() -> [[String: String]] { requests }
+    func cachedKeys() -> [String] { Array(syncDataResponseCache.values.keys) }
     func seedDisk(_ body: String) { syncDataResponseCache.values[syncDataCacheKey("USABC1234567", providerId: "lrclib")] = body }
     func release() { continuation?.resume(); continuation = nil; blocked = false }
     func waiting() -> Bool { continuation != nil }
@@ -119,9 +125,10 @@ def repo(source, name, original):
         if body == "absent" { return nil }
         return .init(payload: body, provider: expectedProvider)
     }
-    func redactedSyncDataResponseForPersistence(_ body: String) -> String? { body == "absent" ? body : "{\"identityRedacted\":true}" }
-    func syncDataCacheKey(_ isrc: String, providerId: String) -> String { syncDataCacheKeyPrefix(isrc) + providerId }
-    func syncDataCacheKeyPrefix(_ isrc: String) -> String { TrackSnapshot.normalizeIsrc(isrc) + ":" }
+    func redactedSyncDataResponseForPersistence(_ body: String) -> String? {
+        if (try? JSONSerialization.jsonObject(with: Data(body.utf8))) != nil { return redactedJSONForPersistence(body) }
+        return body == "absent" ? body : "{\"identityRedacted\":true}"
+    }
     func syncDataHeaders() -> [String: String] { [:] }
     func describeParams(_ params: [String: String]) -> String { "fixture" }
     func shouldBypassSyncDataServerCache(_ isrc: String) -> Bool { bypass }
@@ -220,6 +227,17 @@ checks = r'''
         check(await cancelTask.value == nil, "pre-cancelled consumer performs no request")
         check(await cancelled.consume("b", refresh: true) != nil, "one operation cancellation does not cancel another")
         check(await cancelled.stats().0 == 1, "other operation owns its transport")
+        check(await candidate.requestParams().allSatisfy { $0["format"] == "6" }, "new client opts into v6 on every sync GET")
+        let rawV6 = #"{"version":6,"timeUnit":"ms","indexUnit":"nfc-codepoint","lines":[{"id":"l0","offset":0,"length":1,"timing":{"unit":"line","startMs":0}}]}"#
+        let v6 = CandidateRepository(); await v6.begin("network"); await v6.configure(body: rawV6)
+        check(await v6.consume("network")?.payload == rawV6, "raw v6 survives network fetch")
+        await v6.end("network"); await v6.begin("cached"); await v6.configure(body: "unexpected-network")
+        let cachedV6 = await v6.consume("cached")?.payload ?? ""
+        let expectedObject = try? JSONSerialization.jsonObject(with: Data(rawV6.utf8)) as? NSDictionary
+        let cachedObject = try? JSONSerialization.jsonObject(with: Data(cachedV6.utf8)) as? NSDictionary
+        check(cachedObject == expectedObject && cachedObject != nil, "disk cache preserves compact v6, without playback expansion")
+        check(await v6.stats().0 == 1, "new lyric load reuses v6 timing cache")
+        check(await v6.cachedKeys().allSatisfy { $0.hasPrefix("sync-data-api-v3-v6|") }, "v6 cache namespace isolates historical v5 entries")
         print("PASS \(count) Swift sync-load checks; hydration/apply GET and metadata requests 2 -> 1 (50%); next-load privacy request retained")
     }
 }

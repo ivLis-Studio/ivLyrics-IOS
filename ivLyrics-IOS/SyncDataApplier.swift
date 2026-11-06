@@ -1,6 +1,7 @@
 import Foundation
 
 enum SyncDataApplier {
+    private typealias Timing = SyncDataV6Codec.Timing
     private static let durationOffsetMinDiffMs: Int64 = 500
     private static let durationFrontOffsetRatio = 0.3
     private static let maxStyleRangesPerLine = 256
@@ -20,7 +21,7 @@ enum SyncDataApplier {
 
     static func applyWithDiagnostics(
         baseLyrics: [LyricsLine],
-        syncBody: [String: Any],
+        syncBody originalSyncBody: [String: Any],
         track: TrackSnapshot?,
         currentProvider: String = "",
         currentLrclibId: Int64 = 0
@@ -28,6 +29,9 @@ enum SyncDataApplier {
         guard !baseLyrics.isEmpty else {
             return .empty("missing base lyrics or sync body")
         }
+        let syncBody: [String: Any]
+        do { syncBody = try SyncDataV6Codec.playbackBody(originalSyncBody) }
+        catch { return .empty(String(describing: error)) }
         guard let rawLines = syncBody["lines"] as? [Any], !rawLines.isEmpty else {
             return .empty("sync body has no lines")
         }
@@ -199,6 +203,9 @@ enum SyncDataApplier {
             let charEndMs: Int64
             if charIndex < charCount - 1 {
                 charEndMs = secondsToMs(line.chars[charIndex + 1])
+            } else if line.chars.isV6, let heldEnd = line.chars.endSeconds {
+                charEndMs = secondsToMs(heldEnd)
+                adjustedEndMs = charEndMs
             } else if line.granularity == "line" {
                 charEndMs = lineEndMs
                 adjustedEndMs = lineEndMs
@@ -216,12 +223,13 @@ enum SyncDataApplier {
             ))
         }
         return TimedSyllables(
-            syllables: collapseSyllables(syllables, granularity: line.granularity, endTimeMs: adjustedEndMs),
+            syllables: collapseSyllables(syllables, granularity: line.granularity, endTimeMs: adjustedEndMs, timing: line.chars),
             endTimeMs: adjustedEndMs
         )
     }
 
-    private static func collapseSyllables(_ source: [LyricsLine.Syllable], granularity: String, endTimeMs: Int64) -> [LyricsLine.Syllable] {
+    private static func collapseSyllables(_ source: [LyricsLine.Syllable], granularity: String, endTimeMs: Int64, timing: Timing? = nil, indices: [Int?]? = nil) -> [LyricsLine.Syllable] {
+        if let timing, timing.isV6 { return collapseV6Syllables(source, timing: timing, endTimeMs: endTimeMs, indices: indices) }
         let normalized = normalizeGranularity(granularity)
         guard !source.isEmpty, normalized != "character" else { return source }
         var grouped: [LyricsLine.Syllable] = []
@@ -256,6 +264,31 @@ enum SyncDataApplier {
                 }
             }
             grouped[index] = syllable.copying(endTimeMs: max(syllable.startTimeMs, groupEndMs))
+        }
+        return grouped
+    }
+
+    private static func collapseV6Syllables(_ source: [LyricsLine.Syllable], timing: Timing, endTimeMs: Int64, indices: [Int?]?) -> [LyricsLine.Syllable] {
+        var grouped: [LyricsLine.Syllable] = []
+        var groups: [Int] = [], units: [String] = []
+        for (position, syllable) in source.enumerated() {
+            let index: Int? = indices == nil ? position : indices![position]
+            let unit = index.map { timing.unit(at: $0, fallback: "character") } ?? "character"
+            let group = index.map { timing.group(at: $0) } ?? Int.min
+            if unit != "character", let previous = grouped.last, groups.last == group,
+               units.last == unit, previous.styleKey == syllable.styleKey {
+                grouped[grouped.count - 1] = previous.copying(text: previous.text + syllable.text,
+                    endTimeMs: max(previous.endTimeMs, syllable.endTimeMs))
+            } else {
+                grouped.append(syllable.copying(sourceGranularity: unit == "word" ? "word" : nil))
+                groups.append(group); units.append(unit)
+            }
+        }
+        var nextDistinctStart = endTimeMs
+        for index in grouped.indices.reversed() {
+            let start = grouped[index].startTimeMs
+            if index + 1 < grouped.count, grouped[index + 1].startTimeMs > start { nextDistinctStart = grouped[index + 1].startTimeMs }
+            if units[index] != "character" { grouped[index] = grouped[index].copying(endTimeMs: max(start, nextDistinctStart)) }
         }
         return grouped
     }
@@ -310,6 +343,7 @@ enum SyncDataApplier {
         guard !part.ranges.isEmpty, !part.chars.isEmpty else { return nil }
         var syllables: [LyricsLine.Syllable] = []
         var partCharIndex = 0
+        var timingIndices: [Int?] = []
         for rangeIndex in part.ranges.indices {
             let range = part.ranges[rangeIndex]
             if rangeIndex > 0 {
@@ -321,6 +355,7 @@ enum SyncDataApplier {
                         startTimeMs: previousTime,
                         endTimeMs: previousTime
                     ))
+                    timingIndices.append(nil)
                 }
             }
 
@@ -334,6 +369,8 @@ enum SyncDataApplier {
                 let charEndMs: Int64
                 if partCharIndex + 1 < part.chars.count {
                     charEndMs = secondsToMs(part.chars[partCharIndex + 1])
+                } else if part.chars.isV6, let heldEnd = part.chars.endSeconds {
+                    charEndMs = secondsToMs(heldEnd)
                 } else if part.granularity == "line" {
                     charEndMs = fallbackEndMs
                 } else {
@@ -346,10 +383,11 @@ enum SyncDataApplier {
                     absoluteIndex: sourceIndex,
                     styleRanges: line.styleRanges
                 ))
+                timingIndices.append(partCharIndex)
                 partCharIndex += 1
             }
         }
-        let trimmed = trimWhitespaceSyllables(collapseSyllables(syllables, granularity: part.granularity, endTimeMs: fallbackEndMs))
+        let trimmed = trimWhitespaceSyllables(collapseSyllables(syllables, granularity: part.granularity, endTimeMs: part.chars.isV6 ? part.chars.endSeconds.map(secondsToMs) ?? fallbackEndMs : fallbackEndMs, timing: part.chars, indices: timingIndices))
         guard !trimmed.isEmpty else { return nil }
         let text = trimmed.map(\.text).joined()
         return LyricsLine.VocalPart(
@@ -493,26 +531,27 @@ enum SyncDataApplier {
         return ["MALE 1", "FEMALE 1", "DUET 1"].contains(fallback) ? fallback : ""
     }
 
-    private static func readCompactTiming(_ object: [String: Any], expectedLength: Int, granularity: String) -> [Double] {
+    private static func readCompactTiming(_ object: [String: Any], expectedLength: Int, granularity: String) -> Timing {
+        if let timing = object[SyncDataV6Codec.timingKey] as? Timing { return timing }
         let chars = readDoubleArray(object["chars"])
-        guard chars.isEmpty, expectedLength > 0 else { return chars }
+        guard chars.isEmpty, expectedLength > 0 else { return Timing(chars) }
         if granularity == "line", let time = doubleValue(object["timing"]) {
-            return Array(repeating: time, count: expectedLength)
+            return Timing(Array(repeating: time, count: expectedLength))
         }
-        guard granularity == "word", let rawTiming = object["timing"] as? [Any], !rawTiming.isEmpty else { return [] }
+        guard granularity == "word", let rawTiming = object["timing"] as? [Any], !rawTiming.isEmpty else { return Timing() }
         var expanded = Array<Double?>(repeating: nil, count: expectedLength)
         var start = 0
         for rawMark in rawTiming {
             guard let mark = rawMark as? [Any], mark.count == 2,
-                  let time = doubleValue(mark[1]) else { return [] }
+                  let time = doubleValue(mark[1]) else { return Timing() }
             let end = intValue(mark[0], fallback: -1)
             guard doubleValue(mark[0]).map({ $0 == Double(end) }) == true,
-                  end >= start, end < expectedLength else { return [] }
+                  end >= start, end < expectedLength else { return Timing() }
             for index in start...end { expanded[index] = time }
             start = end + 1
         }
-        guard start == expectedLength else { return [] }
-        return expanded.compactMap { $0 }
+        guard start == expectedLength else { return Timing() }
+        return Timing(expanded.compactMap { $0 })
     }
 
     private static func normalizeParallelParts(_ lines: [SyncLine], fullChars: [String]) -> [SyncLine] {
@@ -534,7 +573,7 @@ enum SyncDataApplier {
         let charOffset = stripped.start - range.start
         let charEnd = charOffset + (stripped.end - stripped.start + 1)
         guard charOffset >= 0, charEnd <= part.chars.count else { return part }
-        return part.withRangesAndChars([RangeValue(start: stripped.start, end: stripped.end)], Array(part.chars[charOffset..<charEnd]))
+        return part.withRangesAndChars([RangeValue(start: stripped.start, end: stripped.end)], part.chars.sliced(charOffset..<charEnd))
     }
 
     private static func splitHiddenDelimitedParallelParts(_ parts: [ParallelPart], hiddenRanges: [RangeValue]) -> [ParallelPart] {
@@ -588,7 +627,7 @@ enum SyncDataApplier {
                 granularity: part.granularity,
                 ranges: [range],
                 join: [],
-                chars: Array(part.chars[charOffset..<(charOffset + charCount)])
+                chars: part.chars.sliced(charOffset..<(charOffset + charCount))
             ))
             charOffset += charCount
         }
@@ -662,7 +701,7 @@ enum SyncDataApplier {
         let from = min(max(0, shifted.removedLeadingChars), part.chars.count)
         let to = min(part.chars.count, from + nextCharCount)
         guard to - from == nextCharCount else { return nil }
-        return part.withRangesAndChars(shifted.ranges, Array(part.chars[from..<to]))
+        return part.withRangesAndChars(shifted.ranges, part.chars.sliced(from..<to))
     }
 
     private static func shiftRanges(_ ranges: [RangeValue], charOffset: Int) -> ShiftedRanges {
@@ -713,8 +752,8 @@ enum SyncDataApplier {
         }
     }
 
-    private static func shiftTimes(_ values: [Double], offsetSeconds: Double) -> [Double] {
-        values.map { max(0, (($0 + offsetSeconds) * 1000).rounded() / 1000) }
+    private static func shiftTimes(_ values: Timing, offsetSeconds: Double) -> Timing {
+        values.shifted(by: offsetSeconds)
     }
 
     private static func computeDurationAdjustment(syncBody: [String: Any], track: TrackSnapshot?) -> DurationAdjustment {
@@ -937,7 +976,7 @@ enum SyncDataApplier {
     private struct SyncLine {
         var start: Int
         var end: Int
-        var chars: [Double]
+        var chars: Timing
         var granularity: String
         var speaker: String
         var speakerColor: String
@@ -979,9 +1018,9 @@ enum SyncDataApplier {
         var granularity: String
         var ranges: [RangeValue]
         var join: [Int]
-        var chars: [Double]
+        var chars: Timing
 
-        func withRangesAndChars(_ nextRanges: [RangeValue], _ nextChars: [Double]) -> ParallelPart {
+        func withRangesAndChars(_ nextRanges: [RangeValue], _ nextChars: Timing) -> ParallelPart {
             ParallelPart(
                 id: id,
                 role: role,
@@ -996,7 +1035,7 @@ enum SyncDataApplier {
             )
         }
 
-        func withChars(_ nextChars: [Double]) -> ParallelPart {
+        func withChars(_ nextChars: Timing) -> ParallelPart {
             ParallelPart(
                 id: id,
                 role: role,
