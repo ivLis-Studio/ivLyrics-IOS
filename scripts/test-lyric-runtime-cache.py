@@ -65,8 +65,14 @@ struct LyricsResult {
     static func empty(_ message: String) -> Self { .init(lines: []) }
 }
 struct AnnotationCache { func removeAll() {} }
+// Word timing upgrades are covered by test-lrcred.py; this probe never has one.
+enum LyricsTimingUpgrade {
+    static func upgrades(_ source: LyricsResult, to upgraded: LyricsResult) -> Bool { false }
+    static func retime(_ displayed: LyricsResult, with timed: LyricsResult) -> LyricsResult { displayed }
+}
 final class DetectionProbe {
     var cachedTimelineContext: Int?
+    var lyricsTimingUpgrade: LyricsResult?
     var culturalAnnotationLineCache = AnnotationCache()
     var cachedCurrentLyricsSourceLang: String?
     var selectedRuleSourceLang = "auto"
