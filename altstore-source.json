@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.11",
+          "buildVersion": "83",
+          "date": "2026-11-10",
+          "localizedDescription": "v2.0.11는 이전 릴리스 이후의 5개 변경을 기능별로 정리하고 AltStore 설치용 무서명 IPA를 함께 제공하는 업데이트입니다.\n\nv2.0.11 contains 5 changes since the previous release, organized by product area and accompanied by an unsigned IPA for AltStore.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.11/ivLyrics-IOS-v2.0.11-unsigned.ipa",
+          "size": 14671291,
+          "sha256": "63d2b96a0bcf951b3a3b42b4b9008a4754edfa0703756e26e3c8bf467b5c4d81",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.10",
           "buildVersion": "81",
           "date": "2026-11-06",
