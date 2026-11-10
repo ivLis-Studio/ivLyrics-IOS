@@ -58,6 +58,9 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     // Only start(), reached from the user's PiP action, may grant this request.
     private var startRequested = false
     private var startInFlight = false
+    // While the player is in the foreground, a frame and the playback audio session are kept
+    // ready so AVKit already reports PiP as possible when the user asks for it.
+    private var readyForUserRequest = false
     private var lastRenderUptime: TimeInterval = 0
     private var lastRenderedPositionMs: Int64?
     private var lastRenderIdentityValue: String?
@@ -202,6 +205,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         }
         guard !active, pictureInPictureController?.isPictureInPictureActive != true else { return true }
         guard !startRequested else { return true }
+        let possibleAtRequest = pictureInPictureController?.isPictureInPicturePossible == true
         guard activateAudioSession() else { return false }
         startRequested = true
         renderFrame()
@@ -210,10 +214,34 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             isPaused: !(state.track?.playing ?? false),
             force: true
         )
+        // AVKit accepts a start only within the user's action, so a prepared controller
+        // starts here. Otherwise the request waits for availability below.
         startIfPossible()
         guard !active else { return true }
+        if !possibleAtRequest {
+            onLog?("lyrics pip: requested before Picture in Picture was possible")
+        }
         scheduleStartRetries()
         return true
+    }
+
+    /// Keeps Picture in Picture possible while the player is in the foreground. AVKit reports
+    /// it as possible only once the layer shows a frame and a playback audio session is
+    /// active, and a start outside the user's action is refused. This never starts PiP and
+    /// leaves automatic inline entry disabled; only start() may begin it.
+    func setReadyForUserRequest(_ ready: Bool) {
+        guard ready else {
+            guard readyForUserRequest else { return }
+            readyForUserRequest = false
+            if !isEngaged { deactivateAudioSession() }
+            return
+        }
+        guard !readyForUserRequest,
+              AVPictureInPictureController.isPictureInPictureSupported(),
+              pictureInPictureController != nil else { return }
+        readyForUserRequest = true
+        guard activateAudioSession() else { return }
+        renderFrame()
     }
 
     private func publishPlaybackState(durationMs: Int64, isPaused: Bool, force: Bool = false) {
@@ -256,7 +284,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         startRequested = false
         startInFlight = false
         active = false
-        deactivateAudioSession()
+        // A foreground player stays ready for the next request.
+        if !readyForUserRequest { deactivateAudioSession() }
         // Retire a cancelled/failed start so its late AVKit callbacks cannot
         // consume a subsequent user request or revive a dismissed window.
         if replacingController {
@@ -377,7 +406,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         guard let pixelBuffer = makePixelBuffer(width: Int(size.width), height: Int(size.height)),
               drawFrame(into: pixelBuffer) else { return }
         guard let sampleBuffer = makeSampleBuffer(pixelBuffer: pixelBuffer) else { return }
-        if displayLayer.status == .failed {
+        // After a background interruption the layer must be flushed before it decodes again.
+        if displayLayer.status == .failed || displayLayer.requiresFlushToResumeDecoding {
             displayLayer.flush()
         }
         displayLayer.enqueue(sampleBuffer)

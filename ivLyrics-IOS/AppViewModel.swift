@@ -1348,6 +1348,7 @@ final class AppViewModel: ObservableObject {
     func appDidBecomeActive() {
         spotifyUserPlaybackService.requestImmediatePlaybackRefresh()
         updatePlaybackClockMode(foregroundActive: true)
+        updatePictureInPictureState()
         let deferredAuthorizationRecovery = spotifyWebAPIAuthorizationCoordinator
             .consumeDeferredRecovery()
         if settings.spotifyWebAPIEnabled,
@@ -1392,6 +1393,7 @@ final class AppViewModel: ObservableObject {
         if pictureInPictureController.isEngaged {
             updatePictureInPictureState(force: true)
         }
+        pictureInPictureController.setReadyForUserRequest(false)
         updatePlaybackClockMode(foregroundActive: false)
     }
 
@@ -4850,7 +4852,10 @@ final class AppViewModel: ObservableObject {
     }
 
     private func updatePictureInPictureState(force: Bool = false) {
-        guard force || currentTrack != nil || pictureInPictureController.needsStateUpdates else { return }
+        guard force || currentTrack != nil || pictureInPictureController.needsStateUpdates else {
+            pictureInPictureController.setReadyForUserRequest(false)
+            return
+        }
         pictureInPictureController.update(
             track: currentTrack,
             lyrics: lyricsResult,
@@ -4860,6 +4865,10 @@ final class AppViewModel: ObservableObject {
             statusText: pipLyricsStatusText,
             lyricsLocale: effectiveSelectedRuleSourceLang,
             settings: settings.snapshot
+        )
+        // Preparation only: PiP still starts from the user's PiP action alone.
+        pictureInPictureController.setReadyForUserRequest(
+            currentTrack != nil && UIApplication.shared.applicationState == .active
         )
     }
 

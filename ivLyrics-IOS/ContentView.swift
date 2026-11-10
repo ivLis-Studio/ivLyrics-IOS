@@ -384,6 +384,13 @@ struct ContentView: View {
             LyricsPictureInPictureHostView(controller: model.pictureInPictureController)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(false)
+            PictureInPicturePinchTrigger(
+                isEnabled: { canOpenPictureInPictureFromPinch },
+                onTrigger: openSystemLyricsPictureInPicture
+            )
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
             PlayerBackgroundView(isLandscape: isLandscape)
             primaryContent(
                 isLandscape: isLandscape,
@@ -1069,6 +1076,21 @@ struct ContentView: View {
             model.showSavedToast(settings.t("pip.unavailable"))
         }
         #endif
+    }
+
+    /// A pinch-in opens PiP from the player itself, not over setup, settings or another mode.
+    private var canOpenPictureInPictureFromPinch: Bool {
+        model.currentTrack != nil
+            && !model.pictureInPictureController.isEngaged
+            && !vinylModeVisible
+            && !showingSettings
+            && !showingLogs
+            && !model.initialSetupPresented
+            && model.inAppBrowserURL == nil
+            && model.firstLanguagePrompt == nil
+            && !model.researchTokenConsentPresented
+            && !model.updateDialogPresented
+            && !model.tmiPresented
     }
 
     private func applyKeepScreenOn(_ enabled: Bool) {

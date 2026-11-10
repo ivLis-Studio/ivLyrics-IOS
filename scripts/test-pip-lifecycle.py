@@ -33,6 +33,11 @@ update = declaration(source, "    func update(\n        track:")
 assert "activateAudioSession()" not in update and "startPictureInPicture()" not in update
 assert "guard isEngaged else { return }" in update
 assert "activateAudioSession()" not in declaration(source, "override init()")
+# Foreground readiness only prepares AVKit; it can never request or start PiP.
+ready = declaration(source, "func setReadyForUserRequest(")
+for forbidden in ["startRequested", "startIfPossible", "startPictureInPicture()"]:
+    assert forbidden not in ready, forbidden
+assert "setReadyForUserRequest(false)" in declaration(model, "func appWillResignActive()")
 explicit = declaration(model, "func startLyricsPictureInPicture()")
 assert explicit.index("updatePictureInPictureState(force: true)") < explicit.index("pictureInPictureController.start()")
 assert "guard force ||" in declaration(model, "private func updatePictureInPictureState(")
@@ -107,12 +112,12 @@ struct RenderState { var track: Track? = Track() }
     func publishPlaybackState(durationMs: Int64, isPaused: Bool, force: Bool = false) {}
     init() { configurePictureInPictureController() }
 '''
-properties = ["startRetryTask", "startRequested", "startInFlight", "audioSessionActive"]
+properties = ["startRetryTask", "startRequested", "startInFlight", "readyForUserRequest", "audioSessionActive"]
 for name in properties:
     prelude += next(line for line in source.splitlines() if line.strip().startswith(f"private var {name}"))
     prelude = prelude.replace("private ", "") + "\n"
 for marker in ["var isEngaged:", "var needsStateUpdates:", "private func configurePictureInPictureController()",
-               "func start()", "private func scheduleStartRetries()", "func stop()",
+               "func start()", "func setReadyForUserRequest(", "private func scheduleStartRetries()", "func stop()",
                "private func finishEngagement(", "private func startIfPossible()",
                "private func activateAudioSession()", "private func deactivateAudioSession()"]:
     prelude += declaration(source, marker) + "\n"
@@ -157,7 +162,8 @@ checks = r'''
         pip.onStartFailure = { failures += 1 }
         pip.onEngagementEnded = {
             ended += 1
-            check(!pip.isEngaged && !audio.active, "Cleanup precedes the engagement-ended callback")
+            check(!pip.isEngaged && (!audio.active || pip.readyForUserRequest),
+                  "Cleanup precedes the engagement-ended callback")
         }
         let initial = pip.pictureInPictureController!
         check(!initial.canStartPictureInPictureAutomaticallyFromInline, "AVKit auto inline entry is disabled")
@@ -268,6 +274,35 @@ checks = r'''
         await settle()
         check(!pip.isEngaged && !audio.active && pip.pictureInPictureController !== afterTimeout,
               "Closing between AVKit activation and didStart cannot revive the session")
+
+        // A foreground player keeps AVKit ready, so the user's action starts PiP directly.
+        let readyController = pip.pictureInPictureController!
+        let rendersBeforeReady = pip.renders
+        let activationsBeforeReady = audio.activations
+        pip.setReadyForUserRequest(true)
+        pip.setReadyForUserRequest(true)
+        check(audio.active && audio.activations == activationsBeforeReady + 1
+                && pip.renders == rendersBeforeReady + 1,
+              "Foreground readiness activates audio and primes one frame once")
+        readyController.isPictureInPicturePossible = true
+        await settle()
+        check(readyController.starts == 0 && !pip.isEngaged && !pip.needsStateUpdates,
+              "Readiness and availability alone never start PiP")
+        check(pip.start(), "Ready manual action is accepted")
+        check(readyController.starts == 1, "A ready controller starts within the user's action")
+        readyController.isPictureInPictureActive = true
+        pip.pictureInPictureControllerDidStartPictureInPicture(readyController)
+        await settle()
+        pip.setReadyForUserRequest(false)
+        check(pip.active && audio.active, "Leaving the foreground keeps an engaged PiP's audio")
+        pip.setReadyForUserRequest(true)
+        pip.stop()
+        readyController.isPictureInPictureActive = false
+        pip.pictureInPictureControllerDidStopPictureInPicture(readyController)
+        await settle()
+        check(!pip.isEngaged && audio.active, "A foreground player stays ready after PiP closes")
+        pip.setReadyForUserRequest(false)
+        check(!audio.active && readyController.starts == 1, "Leaving the foreground releases an idle ready session")
         print("PiP lifecycle: \(count) native checks passed (AVKit doubles; physical-device verification still required)")
     }
 }
