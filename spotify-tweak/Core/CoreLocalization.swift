@@ -23,6 +23,7 @@ struct CoreLocalization {
         case "lrclib": return LyricsProvider(id: "lrclib", name: "LRCLIB", supportsNativeKaraoke: false, supportsSynced: true, supportsPlain: true)
         case "lyricsplus": return LyricsProvider(id: "lyricsplus", name: "LyricsPlus", supportsNativeKaraoke: true, supportsSynced: true, supportsPlain: true)
         case "open-lyrics": return LyricsProvider(id: "open-lyrics", name: "Open Lyrics", supportsNativeKaraoke: true, supportsSynced: true, supportsPlain: true)
+        case "lrcred": return LyricsProvider(id: "lrcred", name: "lrc.red", supportsNativeKaraoke: true, supportsSynced: true, supportsPlain: true)
         case "unison": return LyricsProvider(id: "unison", name: "Unison", supportsNativeKaraoke: true, supportsSynced: true, supportsPlain: true)
         default: return nil
         }
@@ -55,6 +56,10 @@ struct CoreLocalization {
             enabledLyricsProviderOrder.contains(providerId)
                 && [lyricsTypeKaraoke, lyricsTypeSynced, lyricsTypePlain].contains(type)
         }
+
+        // The injected preview has no word timing status, so lrc.red is never chosen to
+        // generate it in place of another source's lyrics.
+        var automaticWordSyncFallback: Bool { false }
 
         var lyricsProviderPolicySignature: String {
             "spotify-core-policy-v1|\(enabledLyricsProviderOrder.joined(separator: ","))|\(preferSyncDataProvider)|\(preferLyricsTypeOverProviderOrder)|\(LrclibEndpoint.cacheIdentity(lrclibCustomEndpoint))"

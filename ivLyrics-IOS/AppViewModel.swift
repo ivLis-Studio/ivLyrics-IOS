@@ -181,6 +181,10 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var currentTrack: TrackSnapshot?
     @Published private(set) var lyricsResult = LyricsResult.empty("") {
         didSet {
+            // Supplements built on line-timed lrc.red lyrics keep word timing that arrived meanwhile.
+            if let timed = lyricsTimingUpgrade, LyricsTimingUpgrade.upgrades(lyricsResult, to: timed) {
+                lyricsResult = LyricsTimingUpgrade.retime(lyricsResult, with: timed)
+            }
             cachedTimelineContext = nil
             culturalAnnotationLineCache.removeAll()
             cachedCurrentLyricsSourceLang = nil
@@ -259,6 +263,12 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var lyricsSupplementPronunciationLoading = false
     @Published private(set) var lyricsSupplementTranslationLoading = false
     @Published private(set) var lyricsSupplementFuriganaLoading = false
+    // lrc.red word timing generated for the displayed lyrics, and its progress.
+    @Published private(set) var lyricsWordSyncLoading = false
+    @Published private(set) var lyricsWordSyncFailed = false
+    private var lyricsTimingUpgrade: LyricsResult?
+    private var wordTimingTask: Task<Void, Never>?
+    private var wordSyncFailureResetTask: Task<Void, Never>?
     @Published private(set) var lyricsFocusRequestRevision = 0
     @Published var selectedRuleSourceLang = "auto"
     @Published private(set) var pendingUpdateInfo: AppUpdateInfo?
@@ -317,6 +327,20 @@ final class AppViewModel: ObservableObject {
     }
 
     var lyricsGenerationLoadingText: String? {
+        let supplementText = supplementGenerationLoadingText
+        guard lyricsWordSyncLoading else { return supplementText }
+        let wordSyncText = settings.t("loading.word_sync")
+        return supplementText.map { $0 + " · " + wordSyncText } ?? wordSyncText
+    }
+
+    /// The generation pill: work in progress, or a word timing failure shown briefly.
+    var lyricsGenerationStatus: (text: String, failed: Bool)? {
+        if let text = lyricsGenerationLoadingText { return (text, false) }
+        if lyricsWordSyncFailed { return (settings.t("status.word_sync_failed"), true) }
+        return nil
+    }
+
+    private var supplementGenerationLoadingText: String? {
         if metadataTranslationLoading {
             return settings.t("loading.translation")
         }
@@ -3544,6 +3568,7 @@ final class AppViewModel: ObservableObject {
             lyricsLoadingProviderName = ""
             status = .loaded
             appendLog("lyrics base ready: lines=\(baseResult.lines.count); supplements continue independently")
+            startWordTimingIfNeeded(track: resolvedTrack, base: baseResult)
             await Task.yield()
             guard isLyricsLoadCurrent(requestID, trackKey: resolvedTrack.stableKey) else { return }
             requestMetadataTranslation(track: resolvedTrack, base: baseResult, bypassCache: bypassCache)
@@ -4459,6 +4484,75 @@ final class AppViewModel: ObservableObject {
         lyricsLoadingProviderName = ""
         resetCurrentFurigana()
         resetLyricsSupplementLoading()
+        resetWordTiming()
+    }
+
+    /// Requests lrc.red word timing for line-timed lrc.red lyrics shown because no enabled
+    /// source had karaoke lyrics. Translation and pronunciation are not regenerated.
+    private func startWordTimingIfNeeded(track: TrackSnapshot, base: LyricsResult) {
+        let snapshot = settings.snapshotForTrack(track.stableKey)
+        guard LyricsTimingUpgrade.canUpgrade(base), snapshot.automaticWordSyncFallback else { return }
+        let trackKey = track.stableKey
+        wordTimingTask?.cancel()
+        wordTimingTask = Task { [weak self, lyricsRepository] in
+            let outcome = await lyricsRepository.generateWordTiming(
+                track: track,
+                base: base,
+                settings: snapshot,
+                onStarted: { @MainActor [weak self] in
+                    self?.markWordTimingStarted(base: base, trackKey: trackKey)
+                }
+            )
+            guard let self, !Task.isCancelled else { return }
+            self.appendLogs(outcome.logs)
+            self.finishWordTiming(outcome, base: base, trackKey: trackKey)
+        }
+    }
+
+    private func isCurrentWordTimingBase(_ base: LyricsResult, trackKey: String) -> Bool {
+        currentTrack?.stableKey == trackKey && baseLyricsResult == base
+    }
+
+    private func markWordTimingStarted(base: LyricsResult, trackKey: String) {
+        guard isCurrentWordTimingBase(base, trackKey: trackKey) else { return }
+        wordSyncFailureResetTask?.cancel()
+        lyricsWordSyncFailed = false
+        lyricsWordSyncLoading = true
+    }
+
+    private func finishWordTiming(_ outcome: LyricsRepository.WordTimingOutcome, base: LyricsResult, trackKey: String) {
+        guard isCurrentWordTimingBase(base, trackKey: trackKey) else { return }
+        let announced = lyricsWordSyncLoading || outcome.announced
+        lyricsWordSyncLoading = false
+        if let upgraded = outcome.upgraded, LyricsTimingUpgrade.upgrades(base, to: upgraded) {
+            // Only the timing changes; supplements on screen and in flight carry over.
+            lyricsTimingUpgrade = upgraded
+            baseLyricsResult = upgraded
+            lyricsResult = LyricsTimingUpgrade.retime(lyricsResult, with: upgraded)
+            lyricsSupplementLayoutRevision &+= 1
+            appendLog("lrc.red word timing applied: lines=\(upgraded.lines.count)")
+            return
+        }
+        guard announced else { return }
+        // Keep the current lyrics and say so, instead of finishing as if timing loaded.
+        lyricsWordSyncFailed = true
+        wordSyncFailureResetTask?.cancel()
+        wordSyncFailureResetTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.lyricsWordSyncFailed = false
+        }
+        appendLog("lrc.red word timing unavailable; current lyrics kept")
+    }
+
+    private func resetWordTiming() {
+        wordTimingTask?.cancel()
+        wordTimingTask = nil
+        wordSyncFailureResetTask?.cancel()
+        wordSyncFailureResetTask = nil
+        lyricsTimingUpgrade = nil
+        lyricsWordSyncLoading = false
+        lyricsWordSyncFailed = false
     }
 
     private func aiProviderLoadingText(formatKey: String, fallbackKey: String, providerName: String? = nil) -> String {

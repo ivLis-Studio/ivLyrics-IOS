@@ -13,6 +13,7 @@ on:
       - 'ivLyrics-IOS/Lrclib*.swift'
       - 'ivLyrics-IOS/SyncData*.swift'
       - 'ivLyrics-IOS/LyricsRepository.swift'
+      - 'ivLyrics-IOS/LrcRedLyricsProvider.swift'
       - 'ivLyrics-IOS/AppSettings.swift'
       - 'ivLyrics-IOS/Models.swift'
       - 'ivLyrics-IOS/LyricsPictureInPictureController.swift'
@@ -29,6 +30,8 @@ on:
       - 'scripts/test-lyric-runtime-cache.py'
       - 'scripts/test-pip-layout.py'
       - 'scripts/test-pip-lifecycle.py'
+      - 'scripts/test-pip-pinch.py'
+      - 'scripts/test-lrcred.py'
       - 'scripts/test-spotify-dj.py'
       - 'scripts/test-vinyl-artwork.py'
       - 'scripts/LrclibPlaybackChecks.swift'
@@ -63,6 +66,7 @@ on:
       - 'ivLyrics-IOS/Lrclib*.swift'
       - 'ivLyrics-IOS/SyncData*.swift'
       - 'ivLyrics-IOS/LyricsRepository.swift'
+      - 'ivLyrics-IOS/LrcRedLyricsProvider.swift'
       - 'ivLyrics-IOS/AppSettings.swift'
       - 'ivLyrics-IOS/Models.swift'
       - 'ivLyrics-IOS/LyricsPictureInPictureController.swift'
@@ -79,6 +83,8 @@ on:
       - 'scripts/test-lyric-runtime-cache.py'
       - 'scripts/test-pip-layout.py'
       - 'scripts/test-pip-lifecycle.py'
+      - 'scripts/test-pip-pinch.py'
+      - 'scripts/test-lrcred.py'
       - 'scripts/test-spotify-dj.py'
       - 'scripts/test-vinyl-artwork.py'
       - 'scripts/LrclibPlaybackChecks.swift'
@@ -153,6 +159,8 @@ jobs:
           python3 scripts/test-pip-static-frame-cache.py
           python3 scripts/test-pip-layout.py
           python3 scripts/test-pip-lifecycle.py
+          python3 scripts/test-pip-pinch.py
+          python3 scripts/test-lrcred.py
           python3 scripts/test-video-sharing.py
           python3 scripts/test-lyric-runtime-cache.py
           python3 scripts/test-spotify-dj.py

@@ -98,6 +98,15 @@ final class AppSettings: ObservableObject {
             supportsPlain: true
         ),
         LyricsProvider(
+            id: LrcRedLyricsProvider.providerId,
+            name: "lrc.red",
+            author: "default",
+            projectURL: LrcRedLyricsProvider.projectURL,
+            supportsNativeKaraoke: true,
+            supportsSynced: true,
+            supportsPlain: true
+        ),
+        LyricsProvider(
             id: "lyricsplus",
             name: "LyricsPlus",
             author: "default",
@@ -2434,5 +2443,17 @@ final class AppSettings: ObservableObject {
         var name: String
         var nativeName: String
         var phoneticDescription: String
+    }
+}
+
+extension AppSettings.Snapshot {
+    /// After every enabled source lacks karaoke timing, lrc.red's own text is preferred while
+    /// it generates word timing. This needs its karaoke type and is never used for a source
+    /// the user chose for one track, which does not mean the others were searched.
+    var automaticWordSyncFallback: Bool {
+        let providerId = LrcRedLyricsProvider.providerId
+        return lyricsProviderEnabled[providerId] ?? true
+            && isLyricsTypeEnabled(providerId: providerId, type: AppSettings.lyricsTypeKaraoke)
+            && enabledLyricsProviderOrder.count > 1
     }
 }

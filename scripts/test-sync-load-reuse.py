@@ -37,7 +37,8 @@ for start, end in [
     if end in current and end in baseline:
         assert section(current, start, end) == section(baseline, start, end)
 provider = section(current, "    private func loadProviderVariants(", "    private func loadLrclibVariants(")
-assert provider.count("syncDataLoad: syncDataLoad") == 3
+# Open Lyrics, lrc.red, LyricsPlus and Unison each forward the load context.
+assert provider.count("syncDataLoad: syncDataLoad") == 4
 assert provider.count("load: syncDataLoad") == 2
 assert "forceContributorRefresh: true" in load
 assert "if !result.contributors.isEmpty" in section(current, "    private func shouldRevalidateCachedResult(", "    private func preferredIvLyricsSyncProviderId(")

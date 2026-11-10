@@ -405,6 +405,9 @@ struct VinylPlayerModeView: View {
         if model.culturalAnnotationsLoading {
             return model.culturalAnnotationsLoadingText
         }
+        if model.lyricsWordSyncLoading {
+            return settings.t("loading.word_sync")
+        }
         return nil
     }
 

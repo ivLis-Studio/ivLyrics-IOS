@@ -17,7 +17,7 @@ Spotify 내부에 삽입하는 별도 모듈은 [iOS 패치 0.2.0 개발판](htt
 
 ## 어떤 가사를 볼 수 있나요?
 
-- ivLyrics 커뮤니티 싱크 데이터와 LRCLIB, Open Lyrics, LyricsPlus, Unison 등의 가사 제공자를 사용합니다. 제공자와 조회 순서는 설정에서 선택할 수 있습니다.
+- ivLyrics 커뮤니티 싱크 데이터와 LRCLIB, Open Lyrics, lrc.red, LyricsPlus, Unison 등의 가사 제공자를 사용합니다. 제공자와 조회 순서는 설정에서 선택할 수 있습니다. 단어 단위 싱크가 있는 제공자가 없으면 lrc.red가 표시 중인 가사의 단어 싱크를 생성합니다.
 - 곡에 있는 데이터에 따라 일반 가사, 줄 단위 싱크, 단어·글자 단위 노래방 가사를 표시합니다. 채워짐 효과, 보컬별 색상과 간주 표시를 조절할 수 있습니다.
 - 원어·번역·발음을 따로 켜고, 곡 언어별로 다른 규칙을 저장할 수 있습니다. 일본어 후리가나도 지원합니다.
 - 글꼴, 정렬, 배경, 가로 화면, PiP와 LP 화면을 취향에 맞게 바꿀 수 있습니다.
@@ -126,7 +126,7 @@ App Store에서 설치했다면 [App Store](https://apps.apple.com/app/id6826882
 
 ## 함께 만든 서비스
 
-ivLyrics 커뮤니티의 싱크 제작자와 기여자, [LRCLIB](https://lrclib.net/), Open Lyrics, [LyricsPlus](https://github.com/ibratabian17/lyricsplus), [Unison](https://github.com/better-lyrics/unison) 및 번역 제공자에게 감사합니다. 실제 가사 화면의 제공자·제작자 표기도 확인해 주세요. Local AI는 Tencent Hy-MT2와 llama.cpp를 사용합니다. 글꼴과 포함된 라이브러리의 라이선스 고지는 저장소와 앱 리소스에 유지되어 있습니다.
+ivLyrics 커뮤니티의 싱크 제작자와 기여자, [LRCLIB](https://lrclib.net/), Open Lyrics, [lrc.red](https://lrc.red), [LyricsPlus](https://github.com/ibratabian17/lyricsplus), [Unison](https://github.com/better-lyrics/unison) 및 번역 제공자에게 감사합니다. 실제 가사 화면의 제공자·제작자 표기도 확인해 주세요. Local AI는 Tencent Hy-MT2와 llama.cpp를 사용합니다. 글꼴과 포함된 라이브러리의 라이선스 고지는 저장소와 앱 리소스에 유지되어 있습니다.
 
 <details>
 <summary>개발·빌드·검증 자료</summary>

@@ -70,6 +70,20 @@ actor LyricsRepository {
     private var spotifyTokenExpiresAtMs: Int64 = 0
     private var syncDataServerCacheBypassUntil: [String: Int64] = [:]
     private var syncDataServerCacheBypassAllUntilMs: Int64 = 0
+    // lrc.red word timing: one generation at a time and at most four waiting.
+    private static let maxPendingWordSyncs = 4
+    private static let wordSyncRetryMs: Int64 = 10 * 60 * 1000
+    private static let wordSyncSuccessRetryMs: Int64 = 60 * 60 * 1000
+    private var wordSyncJobs: [String: WordSyncJob] = [:]
+    private var wordSyncTail: Task<Void, Never>?
+    private var pendingWordSyncs = 0
+    private var wordSyncUnavailableUntilMs: Int64 = 0
+    private var lrcRedRecordIsrcs = BoundedLRUCache<String, String>(capacity: 64)
+    // Independent sources looked up beside each other within one lyrics load.
+    private static let concurrentLyricsProviderIds: Set<String> = [
+        "open-lyrics", LrcRedLyricsProvider.providerId, "lyricsplus", "unison"
+    ]
+    private static let maxConcurrentProviderLookups = 3
     private var activeSyncDataLoads: [UUID: SyncDataLoadContext] = [:]
     private var lrclibEndpointIdentity: String?
 
@@ -578,6 +592,36 @@ actor LyricsRepository {
 
         var attempts: [String: ProviderVariants] = [:]
         var attempted = Set<String>()
+        // Lookups start in the configured order, three at a time; results are still taken in
+        // that order, so a faster lower-priority source never replaces a higher one.
+        let lookups = ProviderLookupWindow(
+            providerIds: providerOrder.filter { Self.concurrentLyricsProviderIds.contains($0) },
+            limit: Self.maxConcurrentProviderLookups
+        )
+        lookups.launch = { [self] providerId in
+            Task { [self] () async throws -> ProviderVariants? in
+                do {
+                    let variants = try await self.loadProviderVariants(
+                        providerId: providerId,
+                        track: track,
+                        spotifyMatch: spotifyMatch,
+                        isrc: isrc,
+                        spotifyTrackId: spotifyTrackId,
+                        syncDataAvailable: syncDataProviders.contains(providerId),
+                        settings: settings,
+                        log: log,
+                        syncDataLoad: syncDataLoad
+                    )
+                    self.finishProviderLookup(lookups)
+                    return variants
+                } catch {
+                    self.finishProviderLookup(lookups)
+                    throw error
+                }
+            }
+        }
+        defer { lookups.cancel() }
+        lookups.fill()
         func loadOnce(_ providerId: String) async throws -> ProviderVariants? {
             try checkSyncDataLoad(syncDataLoad)
             if attempted.contains(providerId) { return attempts[providerId] }
@@ -587,17 +631,28 @@ actor LyricsRepository {
                 try checkSyncDataLoad(syncDataLoad)
             }
             do {
-                if let variants = try await loadProviderVariants(
-                    providerId: providerId,
-                    track: track,
-                    spotifyMatch: spotifyMatch,
-                    isrc: isrc,
-                    spotifyTrackId: spotifyTrackId,
-                    syncDataAvailable: syncDataProviders.contains(providerId),
-                    settings: settings,
-                    log: log,
-                    syncDataLoad: syncDataLoad
-                ) {
+                let loaded: ProviderVariants?
+                if let lookup = lookups.task(for: providerId) {
+                    lookups.fill()
+                    loaded = try await withTaskCancellationHandler {
+                        try await lookup.value
+                    } onCancel: {
+                        lookup.cancel()
+                    }
+                } else {
+                    loaded = try await loadProviderVariants(
+                        providerId: providerId,
+                        track: track,
+                        spotifyMatch: spotifyMatch,
+                        isrc: isrc,
+                        spotifyTrackId: spotifyTrackId,
+                        syncDataAvailable: syncDataProviders.contains(providerId),
+                        settings: settings,
+                        log: log,
+                        syncDataLoad: syncDataLoad
+                    )
+                }
+                if let variants = loaded {
                     try checkSyncDataLoad(syncDataLoad)
                     attempts[providerId] = variants
                     return variants
@@ -614,8 +669,28 @@ actor LyricsRepository {
         var selected: LyricsResult?
         var selectedProvider = ""
         var selectedType = ""
-        if settings.preferLyricsTypeOverProviderOrder {
-            for type in [AppSettings.lyricsTypeKaraoke, AppSettings.lyricsTypeSynced, AppSettings.lyricsTypePlain] {
+        // Generating lrc.red word timing first needs every source checked for karaoke lyrics.
+        let wordSyncFallback = settings.automaticWordSyncFallback
+        var wordSyncFallbackChecked = !wordSyncFallback
+        if settings.preferLyricsTypeOverProviderOrder || wordSyncFallback {
+            typeSearch: for type in [AppSettings.lyricsTypeKaraoke, AppSettings.lyricsTypeSynced, AppSettings.lyricsTypePlain] {
+                if !wordSyncFallbackChecked, type != AppSettings.lyricsTypeKaraoke {
+                    // No enabled source has karaoke lyrics. Show lrc.red's own text while its
+                    // word timing is generated, rather than another source's lines.
+                    wordSyncFallbackChecked = true
+                    let providerId = LrcRedLyricsProvider.providerId
+                    if let variants = try await loadOnce(providerId) {
+                        for fallbackType in [AppSettings.lyricsTypeSynced, AppSettings.lyricsTypePlain]
+                        where settings.isLyricsTypeEnabled(providerId: providerId, type: fallbackType) {
+                            guard let result = variants.result(for: fallbackType), !result.lines.isEmpty else { continue }
+                            selected = result
+                            selectedProvider = providerId
+                            selectedType = fallbackType
+                            log("lrc.red word timing will be generated for its \(fallbackType) lyrics")
+                            break typeSearch
+                        }
+                    }
+                }
                 for providerId in providerOrder {
                     guard settings.isLyricsTypeEnabled(providerId: providerId, type: type),
                           canProviderParticipate(
@@ -817,6 +892,42 @@ actor LyricsRepository {
                 providerId: providerId,
                 karaoke: base.karaoke ? base : nil,
                 synced: isSynced ? demotedResult(base, type: AppSettings.lyricsTypeSynced) : nil,
+                plain: demotedResult(base, type: AppSettings.lyricsTypePlain)
+            )
+            return await applyingRegisteredSyncData(
+                to: variants,
+                providerId: providerId,
+                syncDataAvailable: syncDataAvailable,
+                track: track,
+                spotifyMatch: spotifyMatch,
+                isrc: isrc,
+                spotifyTrackId: spotifyTrackId,
+                settings: settings,
+                log: log,
+                syncDataLoad: syncDataLoad
+            )
+
+        case LrcRedLyricsProvider.providerId:
+            guard let outcome = try await LrcRedLyricsProvider.fetch(track: track, isrc: isrc) else { return nil }
+            outcome.logs.forEach(log)
+            guard !outcome.lines.isEmpty else { return nil }
+            lrcRedRecordIsrcs.insert(outcome.recordIsrc, forKey: track.stableKey)
+            let type = outcome.karaoke
+                ? AppSettings.lyricsTypeKaraoke
+                : (outcome.synced ? AppSettings.lyricsTypeSynced : AppSettings.lyricsTypePlain)
+            let base = lyricsResult(
+                lines: outcome.lines,
+                providerName: "lrc.red",
+                type: type,
+                detail: LrcRedLyricsProvider.attribution,
+                karaoke: outcome.karaoke,
+                isrc: isrc,
+                spotifyTrackId: spotifyTrackId
+            )
+            let variants = ProviderVariants(
+                providerId: providerId,
+                karaoke: outcome.karaoke ? base : nil,
+                synced: base.lines.contains(where: \.isTimed) ? demotedResult(base, type: AppSettings.lyricsTypeSynced) : nil,
                 plain: demotedResult(base, type: AppSettings.lyricsTypePlain)
             )
             return await applyingRegisteredSyncData(
@@ -3122,5 +3233,187 @@ private struct SpotifyCredentials {
         value.utf16.reduce(Int32(0)) { hash, codeUnit in
             hash &* 31 &+ Int32(codeUnit)
         }
+    }
+}
+
+// Provider lookup concurrency and lrc.red word timing for the repository above.
+extension LyricsRepository {
+    /// A rolling window of independent provider lookups within one lyrics load. Only the
+    /// repository actor touches it.
+    private final class ProviderLookupWindow {
+        var launch: ((String) -> Task<ProviderVariants?, Error>)?
+        private let limit: Int
+        private var waiting: [String]
+        private var running = 0
+        private var tasks: [String: Task<ProviderVariants?, Error>] = [:]
+
+        init(providerIds: [String], limit: Int) {
+            waiting = providerIds
+            self.limit = limit
+        }
+
+        /// The lookup for a source in the window, started now if it was still waiting.
+        func task(for providerId: String) -> Task<ProviderVariants?, Error>? {
+            if let task = tasks[providerId] { return task }
+            guard let launch, let index = waiting.firstIndex(of: providerId) else { return nil }
+            waiting.remove(at: index)
+            running += 1
+            let task = launch(providerId)
+            tasks[providerId] = task
+            return task
+        }
+
+        func fill() {
+            while running < limit, let next = waiting.first {
+                _ = task(for: next)
+            }
+        }
+
+        func finished() {
+            running = max(0, running - 1)
+            fill()
+        }
+
+        func cancel() {
+            // The launcher refers back to this window; releasing it ends the load's cycle.
+            launch = nil
+            waiting.removeAll()
+            for task in tasks.values { task.cancel() }
+        }
+    }
+
+    private func finishProviderLookup(_ window: ProviderLookupWindow) {
+        window.finished()
+    }
+
+    struct WordTimingOutcome: Sendable {
+        /// The displayed lyrics with generated word timing, when it applies.
+        var upgraded: LyricsResult?
+        /// Whether the caller was told that a generation started.
+        var announced = false
+        var logs: [String] = []
+
+        static let skipped = WordTimingOutcome()
+    }
+
+    private final class WordSyncJob {
+        let track: TrackSnapshot
+        let base: LyricsResult
+        let recordIsrc: String
+        let cacheKey: String
+        var onStarted: (@MainActor @Sendable () -> Void)?
+        var task: Task<WordTimingOutcome, Never>?
+        var generating = false
+        var finished = false
+        var retryAtMs = Int64.max
+
+        init(track: TrackSnapshot, base: LyricsResult, recordIsrc: String, cacheKey: String,
+             onStarted: @escaping @MainActor @Sendable () -> Void) {
+            self.track = track
+            self.base = base
+            self.recordIsrc = recordIsrc
+            self.cacheKey = cacheKey
+            self.onStarted = onStarted
+        }
+    }
+
+    /// Generates lrc.red word timing for line-timed lrc.red lyrics that were chosen because no
+    /// enabled source had karaoke lyrics. The lyrics stay displayed; only timing is added. A
+    /// generation under way for the track is joined, and it still finishes and updates the
+    /// cache when the caller stops waiting.
+    func generateWordTiming(
+        track: TrackSnapshot,
+        base: LyricsResult,
+        settings: AppSettings.Snapshot,
+        onStarted: @escaping @MainActor @Sendable () -> Void
+    ) async -> WordTimingOutcome {
+        guard track.hasUsableMetadata, LyricsTimingUpgrade.canUpgrade(base),
+              settings.automaticWordSyncFallback else { return .skipped }
+        let key = track.stableKey
+        let now = nowMs()
+        if let existing = wordSyncJobs[key] {
+            if !existing.finished, let task = existing.task {
+                // A reopened page receives the result of the generation already under way.
+                existing.onStarted = onStarted
+                if existing.generating { await onStarted() }
+                return await task.value
+            }
+            if now < existing.retryAtMs { return .skipped }
+        }
+        guard now >= wordSyncUnavailableUntilMs, pendingWordSyncs < Self.maxPendingWordSyncs else { return .skipped }
+        // Without a lookup in this session the record is looked up again, since cached line
+        // timing may predate a generation by another client.
+        let job = WordSyncJob(
+            track: track,
+            base: base,
+            recordIsrc: lrcRedRecordIsrcs.value(forKey: key) ?? "",
+            cacheKey: lyricsCacheKey(trackKey: key, settings: settings),
+            onStarted: onStarted
+        )
+        wordSyncJobs[key] = job
+        for (jobKey, value) in wordSyncJobs where value.finished && wordSyncJobs.count > 32 {
+            wordSyncJobs.removeValue(forKey: jobKey)
+        }
+        pendingWordSyncs += 1
+        let previous = wordSyncTail
+        let task = Task { [self] () async -> WordTimingOutcome in
+            await previous?.value
+            return await self.runWordSync(job)
+        }
+        job.task = task
+        wordSyncTail = Task { _ = await task.value }
+        return await task.value
+    }
+
+    private func runWordSync(_ job: WordSyncJob) async -> WordTimingOutcome {
+        var logs: [String] = []
+        var upgraded: LyricsResult?
+        do {
+            guard nowMs() >= wordSyncUnavailableUntilMs else {
+                throw LrcRedLyricsProvider.Failure(message: "server cooling down")
+            }
+            var recordIsrc = job.recordIsrc
+            var timedLines: [LyricsLine]?
+            if recordIsrc.isEmpty, let fresh = try await LrcRedLyricsProvider.fetch(track: job.track, isrc: job.base.isrc) {
+                recordIsrc = fresh.recordIsrc
+                if fresh.karaoke, !fresh.lines.isEmpty { timedLines = fresh.lines }
+            }
+            if timedLines == nil {
+                guard !recordIsrc.isEmpty else { throw LrcRedLyricsProvider.Failure(message: "no lrc.red recording") }
+                job.generating = true
+                if let onStarted = job.onStarted { await onStarted() }
+                logs.append("lrc.red word timing: generating for \(recordIsrc)")
+                timedLines = try await LrcRedLyricsProvider.requestWordSync(recordIsrc: recordIsrc)
+            }
+            guard let result = LyricsTimingUpgrade.upgradedBase(job.base, timedLines: timedLines ?? []) else {
+                throw LrcRedLyricsProvider.Failure(message: "generated text differs from the displayed lyrics")
+            }
+            upgraded = result
+            persistWordSync(cacheKey: job.cacheKey, upgraded: result)
+            logs.append("lrc.red word timing: applied lines=\(result.lines.count)")
+        } catch {
+            if let failure = error as? LrcRedLyricsProvider.Failure,
+               failure.statusCode == 429 || failure.statusCode == 503 {
+                wordSyncUnavailableUntilMs = nowMs() + max(Self.wordSyncRetryMs, failure.retryAfterMs)
+            }
+            logs.append("lrc.red word timing unavailable: \(error.localizedDescription)")
+        }
+        job.finished = true
+        job.retryAtMs = nowMs() + (upgraded != nil ? Self.wordSyncSuccessRetryMs : Self.wordSyncRetryMs)
+        pendingWordSyncs = max(0, pendingWordSyncs - 1)
+        return WordTimingOutcome(upgraded: upgraded, announced: job.generating, logs: logs)
+    }
+
+    /// Stores generated timing only where the same line-timed lrc.red lyrics are still cached.
+    private func persistWordSync(cacheKey: String, upgraded: LyricsResult) {
+        if let memory = getMemoryCachedLyrics(cacheKey), !LyricsTimingUpgrade.upgrades(memory, to: upgraded) {
+            // Different lyrics replaced them meanwhile.
+        } else {
+            putMemoryCachedLyrics(cacheKey, result: upgraded)
+        }
+        if let disk = diskCache.get(cacheKey), !LyricsTimingUpgrade.upgrades(disk, to: upgraded) {
+            return
+        }
+        diskCache.put(cacheKey, result: upgraded)
     }
 }

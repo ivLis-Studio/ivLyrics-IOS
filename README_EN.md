@@ -17,7 +17,7 @@ The separate Spotify injection module is available as the [iOS patch 0.2.0 devel
 
 ## What can I see?
 
-- Lyrics from LRCLIB, Open Lyrics, LyricsPlus, and Unison, with ivLyrics community sync data. Choose providers and their order in Settings.
+- Lyrics from LRCLIB, Open Lyrics, lrc.red, LyricsPlus, and Unison, with ivLyrics community sync data. Choose providers and their order in Settings. When no provider has word timing, lrc.red generates it for the lyrics shown.
 - Plain, line-synced, or word/character-level karaoke lyrics, depending on the available data, with adjustable fill effects, vocal colors, and instrumental-break labels.
 - Separate original lyrics, translations, pronunciation, and Japanese furigana, with rules for each song language.
 - Adjustable fonts, alignment, backgrounds, landscape layout, PiP, and Vinyl mode.
@@ -120,7 +120,7 @@ Ask on [Discord](https://discord.gg/2fu36fUzdE) with the app version, device/OS,
 
 ## Credits
 
-Thanks to ivLyrics community sync creators and contributors, [LRCLIB](https://lrclib.net/), Open Lyrics, [LyricsPlus](https://github.com/ibratabian17/lyricsplus), [Unison](https://github.com/better-lyrics/unison), and translation providers. Check provider and creator credits on the lyrics screen. Local AI uses Tencent Hy-MT2 and llama.cpp. Font and bundled-library license notices remain in the repository and app resources.
+Thanks to ivLyrics community sync creators and contributors, [LRCLIB](https://lrclib.net/), Open Lyrics, [lrc.red](https://lrc.red), [LyricsPlus](https://github.com/ibratabian17/lyricsplus), [Unison](https://github.com/better-lyrics/unison), and translation providers. Check provider and creator credits on the lyrics screen. Local AI uses Tencent Hy-MT2 and llama.cpp. Font and bundled-library license notices remain in the repository and app resources.
 
 <details>
 <summary>Development, builds, and verification</summary>
