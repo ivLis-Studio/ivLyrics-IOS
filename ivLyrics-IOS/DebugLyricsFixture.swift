@@ -9,6 +9,8 @@ import UIKit
 /// IVLYRICS_DEBUG_FIXTURE=1 loads it through the real model, display clock and renderers.
 /// IVLYRICS_DEBUG_FIXTURE_START_MS selects the segment; IVLYRICS_DEBUG_FIXTURE_PAUSED=1 freezes it.
 /// IVLYRICS_DEBUG_FIXTURE_TITLE replaces the title (a long one exercises the main-page marquee).
+/// IVLYRICS_DEBUG_FIXTURE_ARTIST replaces the artist, and IVLYRICS_DEBUG_FIXTURE_ARTWORK takes a
+/// local image path used as the album art (for store screenshots).
 /// IVLYRICS_DEBUG_FIXTURE_FROZEN=1 keeps the position fixed while playing (static engaged vinyl).
 /// IVLYRICS_DEBUG_FIXTURE_PAUSE_AFTER_S / _PLAY_AFTER_S toggle playback after a delay, and
 /// IVLYRICS_DEBUG_FIXTURE_NEXT_TRACK_AFTER_S switches to a second fixture track.

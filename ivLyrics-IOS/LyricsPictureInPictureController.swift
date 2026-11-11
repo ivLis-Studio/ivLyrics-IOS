@@ -432,6 +432,27 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             lastRenderIdentityInput = previousRenderIdentityInput
         }
 
+        // IVLYRICS_DEBUG_PIP_CURRENT=1 renders the current track (for example the karaoke
+        // fixture) instead of the built-in duet sample.
+        let useCurrentTrack = ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_PIP_CURRENT"] == "1"
+            && !state.lines.isEmpty
+        if useCurrentTrack {
+            if artwork == nil, let url = state.track?.artworkURL, url.isFileURL {
+                artwork = UIImage(contentsOfFile: url.path)
+            }
+            state.showArtwork = showArtwork
+            state.orientation = orientation
+            state.backgroundMode = AppSettings.normalizePipBackgroundMode(backgroundMode)
+            lastRenderedPositionMs = nil
+            lastRenderIdentityValue = nil
+            lastRenderIdentityInput = nil
+            blurredArtwork = artwork.flatMap { Self.makeBlurredArtwork(from: $0) }
+            let currentSize = state.renderSize
+            return UIGraphicsImageRenderer(size: currentSize).image { context in
+                drawFrame(in: CGRect(origin: .zero, size: currentSize), context: context.cgContext)
+            }
+        }
+
         let firstPart = LyricsLine.VocalPart(
             id: "pip-debug-lead",
             role: "lead",
@@ -479,7 +500,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         lastRenderedPositionMs = nil
         lastRenderIdentityValue = nil
         lastRenderIdentityInput = nil
-        artwork = Self.debugSampleArtwork()
+        // Keep artwork already loaded for the track (a fixture may supply one).
+        if artwork == nil {
+            artwork = Self.debugSampleArtwork()
+        }
         blurredArtwork = artwork.flatMap { Self.makeBlurredArtwork(from: $0) }
 
         let size = state.renderSize

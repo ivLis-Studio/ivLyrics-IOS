@@ -1069,13 +1069,14 @@ final class AppViewModel: ObservableObject {
         lyricsLoadingProviderName = ""
         var track = TrackSnapshot(
             title: environment["IVLYRICS_DEBUG_FIXTURE_TITLE"] ?? DebugKaraokeFixture.title,
-            artist: DebugKaraokeFixture.artist,
+            artist: environment["IVLYRICS_DEBUG_FIXTURE_ARTIST"] ?? DebugKaraokeFixture.artist,
             album: "DEBUG",
             packageName: "ios.debug-fixture",
             durationMs: fixture.durationMs,
             positionMs: startMs,
             lastPositionUpdateUptime: ProcessInfo.processInfo.systemUptime,
-            playing: playing
+            playing: playing,
+            artworkURL: environment["IVLYRICS_DEBUG_FIXTURE_ARTWORK"].map { URL(fileURLWithPath: $0) }
         )
         if environment["IVLYRICS_DEBUG_FIXTURE_FROZEN"] == "1" {
             // init clamps the speed to a positive value; a frozen "playing" track keeps its position.

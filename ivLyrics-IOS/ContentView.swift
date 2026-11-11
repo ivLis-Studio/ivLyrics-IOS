@@ -7666,14 +7666,16 @@ private struct PictureInPictureLayoutDebugPreview: View {
         let backgroundMode = AppSettings.normalizePipBackgroundMode(
             environment["IVLYRICS_DEBUG_PIP_BACKGROUND"] ?? AppSettings.pipBackgroundCover
         )
-        let image = controller.debugFrameImage(orientation: orientation, showArtwork: showArtwork, backgroundMode: backgroundMode)
-        Image(uiImage: image)
-            .resizable()
-            .interpolation(.none)
-            .aspectRatio(contentMode: .fit)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.black)
-            .ignoresSafeArea()
+        // Redraw periodically so a frame reflects the track state once it arrives.
+        TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+            Image(uiImage: controller.debugFrameImage(orientation: orientation, showArtwork: showArtwork, backgroundMode: backgroundMode))
+                .resizable()
+                .interpolation(.none)
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.black)
+                .ignoresSafeArea()
+        }
     }
 }
 
