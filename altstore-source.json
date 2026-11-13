@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.14",
+          "buildVersion": "87",
+          "date": "2026-11-13",
+          "localizedDescription": "v2.0.14는 가라오케 가사에서 발음 표기를 음절·단어 단위로 더 정확히 맞추고, 발음 우선 표시 시 따라 부르기 위한 선행 표시를 추가합니다. 발음 생성 요청을 작은 병렬 묶음으로 처리해 첫 결과를 더 빠르게 받을 수 있도록 했으며, 캐시 및 이전 데이터와의 호환 처리도 보강했습니다. 릴리스 빌드 및 AltStore 배포 메타데이터도 정리했습니다.\n\nv2.0.14 improves karaoke pronunciation alignment at the sung-unit level and adds a small lead while pronunciation-first display is active for easier sing-along timing. Pronunciation requests are processed in smaller parallel batches so initial results can arrive sooner, with improved cache and legacy-data compatibility. Release-build and AltStore distribution metadata have also been updated.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.14/ivLyrics-IOS-v2.0.14-unsigned.ipa",
+          "size": 14805733,
+          "sha256": "4f9ea2f254426d4030913293eb6bc07e0bdec35d09e9714b581d8547d57096bd",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.13",
           "buildVersion": "87",
           "date": "2026-11-13",
