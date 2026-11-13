@@ -117,6 +117,39 @@ private func karaokeUnits() -> [LyricsLine.Syllable] {
         let stale = PronunciationFirst.apply(retimedAgain, timed: ["0:line": ["유루", "사", "레", "루"]]).lines[0]
         check(stale.syllables.count == 2 && stale.syllables.map(\.text).joined() == "유루사레루", "a split for other units is not applied")
 
+        // Pronunciation by sung unit (the same split as the desktop app's PronunciationSlots.js).
+        let unitTexts = { (text: String) in PronunciationSlots.splitUnits(text).map { ($0.gapBefore ? "_" : "") + $0.text } }
+        check(unitTexts("5000マイル走って 息を") == ["5000", "マ", "イ", "ル", "走", "っ", "て", "_息", "を"], "CJK characters, digit words")
+        check(unitTexts("Let's go 開けて？") == ["Let's", "_go", "_開", "け", "て？"], "words, apostrophes, punctuation")
+        check(unitTexts("사랑해 너를") == ["사", "랑", "해", "_너", "를"], "Hangul syllables keep word gaps")
+        check(unitTexts("「惑星」") == ["「惑", "星」"] && unitTexts("a ! b") == ["a", "_!", "_b"], "punctuation joins or stands alone")
+        check(PronunciationSlots.join(PronunciationSlots.splitUnits("夢ならば どれほど"), ["yume ", "na", "ra", "ba", "do", "re", "ho", "do"])
+              == "yume naraba dorehodo", "joined slots")
+        check(PronunciationSlots.join(PronunciationSlots.splitUnits("사랑해 너를"), ["sa", "rang", "hae", "neo", "reul"]) == "saranghae neoreul",
+              "original spaces return")
+        let derivedParts = PronunciationSlots.deriveSyllableParts(["夢", "なら", "ば ", "どれ", "ほど"],
+            ["yume ", "na", "ra", "ba", "do", "re", "ho", "do"], distribute: PronunciationFirst.distribute)
+        check(derivedParts == ["yume ", "nara", "ba ", "dore", "hodo"], "syllables take their units' slots: \(derivedParts ?? [])")
+        check(PronunciationSlots.deriveSyllableParts(["hel", "lo ", "world"], ["헬로", "월드"], distribute: PronunciationFirst.distribute)
+              == ["헬", "로 ", "월드"], "a word sung over two syllables is spread over them")
+        check(PronunciationSlots.deriveSyllableParts(["other"], ["a", "b"], distribute: PronunciationFirst.distribute) == nil, "other text")
+        let slotItems = PronunciationSlots.items(["夢ならば", "♪", "今日も"])
+        check(slotItems.map(\.index) == [0, 2] && slotItems[1].units == ["今", "日", "も"], "lines with sound are sent")
+        let slotPrompt = PronunciationSlots.prompt(slotItems, lang: "ko", sourceLang: "ja", notation: "translation",
+            scriptInstruction: "Use Korean Hangul syllables only.", outputScript: "Korean Hangul", audience: "Korean speakers")
+        check(slotPrompt.contains("{\"i\":2,\"n\":3,\"u\":[\"今\",\"日\",\"も\"]}") && slotPrompt.contains("p must contain exactly n strings")
+              && slotPrompt.contains("유메"), "slot prompt")
+        let slotParsed = PronunciationSlots.parse(
+            "{\"l\":[{\"i\":0,\"p\":[\"yume\",\"na\",\"ra\",\"ba\"]},{\"i\":2,\"p\":[\"kyou\"]},{\"i\":7,\"p\":[\"x\"]}]}",
+            items: slotItems, notation: "latin")
+        check(slotParsed.keys.sorted() == [0] && slotParsed[0] == ["yume", "na", "ra", "ba"], "exact slots only")
+        check(PronunciationSlots.parse("{\"l\":[{\"i\":0,\"p\":[\"유메\",\"나\",\"라\",\"바\"]}]}", items: slotItems, notation: "latin").isEmpty,
+              "wrong writing system for Latin notation")
+        check(!PronunciationSlots.parse("{\"l\":[{\"i\":0,\"p\":[\"유메\",\"나\",\"라\",\"바\"]}]}", items: slotItems, notation: "translation").isEmpty,
+              "target-language notation is not script-checked")
+        let stored = PronunciationSlots.stored(texts: ["夢ならば", "♪", " 今日も "], slots: [0: ["yume", "na", "ra", "ba"], 2: ["kyou ", "", "mo"]])
+        check(stored.v == PronunciationSlots.version && stored.lines["今日も"] == ["kyou ", "", "mo"] && stored.lines.count == 2, "stored by line text")
+
         print("PRONUNCIATION_FIRST_PASSED assertions=\(assertions)")
     }
 }

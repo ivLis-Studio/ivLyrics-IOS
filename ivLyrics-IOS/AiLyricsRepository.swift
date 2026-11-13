@@ -32,6 +32,10 @@ actor AiLyricsRepository {
     private var culturalAnnotationMemoryCache = BoundedLRUCache<String, [CulturalAnnotation]>(capacity: 100)
     private var timedPronunciationMemoryCache = BoundedLRUCache<String, [String: [String]]>(capacity: 100)
     private let timedPronunciationDiskCache = RawResponseDiskCache(namespace: "ai_timed_pronunciation", maxEntries: 300)
+    /// Unit pronunciation of karaoke songs by track key, then line text (PronunciationSlots).
+    private var pronunciationSlotsByTrack = BoundedLRUCache<String, [String: [String]]>(capacity: 24)
+    /// The same slots on disk, stored under their pronunciation task cache key.
+    private let pronunciationSlotsDiskCache = RawResponseDiskCache(namespace: "ai_pronunciation_slots", maxEntries: 300)
     private var researchModelLimitCache: [String: Int] = [:]
     private var openAiParameterAdjustmentCache: [String: OpenAiParameterAdjustments] = [:]
     private var lastPartialEmitUptime: TimeInterval = 0
@@ -235,6 +239,20 @@ actor AiLyricsRepository {
             return SupplementResponse(result: baseResult, logs: logs, pronunciationLoading: false, translationLoading: false, hadError: false)
         }
 
+        let pronunciationCacheKey = supplementTaskCacheKey(
+            trackKey: trackKey,
+            detectedSourceLang: detectedSourceLang,
+            sourceLang: sourceLang,
+            settings: settings,
+            textPayload: textPayload,
+            task: supplementTaskPronunciation,
+            outputLang: pronunciationLang
+        )
+        // Karaoke pronunciation made per sung unit comes back with its cached lines.
+        if needsPronunciation && baseResult.karaoke {
+            restorePronunciationSlots(trackKey: trackKey, cacheKey: pronunciationCacheKey)
+        }
+
         let cacheKey = trackKey
             + "|source=\(sourceLang)"
             + "|detected=\(detectedSourceLang)"
@@ -297,15 +315,6 @@ actor AiLyricsRepository {
             )
         }
 
-        let pronunciationCacheKey = supplementTaskCacheKey(
-            trackKey: trackKey,
-            detectedSourceLang: detectedSourceLang,
-            sourceLang: sourceLang,
-            settings: settings,
-            textPayload: textPayload,
-            task: supplementTaskPronunciation,
-            outputLang: pronunciationLang
-        )
         let translationCacheKey = supplementTaskCacheKey(
             trackKey: trackKey,
             detectedSourceLang: detectedSourceLang,
@@ -354,6 +363,7 @@ actor AiLyricsRepository {
             if pronunciationLoading {
                 group.addTask { [self] in
                     await loadSupplementTask(
+                        trackKey: trackKey,
                         settings: settings,
                         baseResult: baseResult,
                         requests: requests,
@@ -373,6 +383,7 @@ actor AiLyricsRepository {
             if translationLoading {
                 group.addTask { [self] in
                     await loadSupplementTask(
+                        trackKey: trackKey,
                         settings: settings,
                         baseResult: baseResult,
                         requests: requests,
@@ -418,6 +429,7 @@ actor AiLyricsRepository {
     }
 
     private func loadSupplementTask(
+        trackKey: String,
         settings: AppSettings.Snapshot,
         baseResult: LyricsResult,
         requests: [SupplementRequest],
@@ -439,55 +451,99 @@ actor AiLyricsRepository {
         do {
             let values: [String]
             if pronunciation {
-                let prompt = buildPhoneticPrompt(
-                    requests: requests,
-                    lang: pronunciationLang,
-                    sourceLang: sourceLang,
-                    pronunciationNotation: settings.pronunciationNotation
-                )
-                log("ai pronunciation stream request: lines=\(requests.count) / pronunciation=\(pronunciationLang) / notation=\(settings.pronunciationNotation)")
-                var resolvedValues: [String]?
-                var lastError: Error?
-                for providerSettings in settings.readyAIProviderSnapshots {
-                    await liveState.reset(task: task)
-                    do {
-                        await providerUpdate?(task, providerSettings.provider.label)
-                        log("ai pronunciation attempt: provider=\(providerSettings.provider.label) / model=\(providerSettings.model)")
-                        resolvedValues = try await loadSupplementValuesStreamFirst(
-                            prompt: prompt,
-                            settings: providerSettings,
-                            requests: requests,
-                            taskName: task,
-                            log: log
-                        ) { [self] index, value in
-                            await liveState.setValue(task: task, index: index, value: value)
-                            await emitSupplementPartial(
-                                baseResult: baseResult,
-                                requests: requests,
-                                settings: settings,
-                                sourceLang: sourceLang,
-                                targetLang: targetLang,
-                                pronunciationLang: pronunciationLang,
-                                rule: rule,
-                                translationSkipped: translationSkipped,
-                                liveState: liveState,
-                                partialUpdate: partialUpdate
-                            )
-                        }
-                        break
-                    } catch {
-                        lastError = error
-                        log("ai pronunciation fallback: provider=\(providerSettings.provider.label) / error=\(error.localizedDescription)")
-                    }
+                func showValue(_ index: Int, _ value: String) async {
+                    await liveState.setValue(task: task, index: index, value: value)
+                    await emitSupplementPartial(
+                        baseResult: baseResult,
+                        requests: requests,
+                        settings: settings,
+                        sourceLang: sourceLang,
+                        targetLang: targetLang,
+                        pronunciationLang: pronunciationLang,
+                        rule: rule,
+                        translationSkipped: translationSkipped,
+                        liveState: liveState,
+                        partialUpdate: partialUpdate
+                    )
                 }
-                guard let resolvedValues else {
+                // Line pronunciation of the given requests; lines already shown are kept.
+                func loadLinePronunciation(_ indices: [Int], keeping kept: [Int: String]) async throws -> [String] {
+                    let subset = indices.map { requests[$0] }
+                    let prompt = buildPhoneticPrompt(
+                        requests: subset,
+                        lang: pronunciationLang,
+                        sourceLang: sourceLang,
+                        pronunciationNotation: settings.pronunciationNotation
+                    )
+                    log("ai pronunciation stream request: lines=\(subset.count) / pronunciation=\(pronunciationLang) / notation=\(settings.pronunciationNotation)")
+                    var lastError: Error?
+                    for providerSettings in settings.readyAIProviderSnapshots {
+                        await liveState.reset(task: task)
+                        for (index, value) in kept { await liveState.setValue(task: task, index: index, value: value) }
+                        do {
+                            await providerUpdate?(task, providerSettings.provider.label)
+                            log("ai pronunciation attempt: provider=\(providerSettings.provider.label) / model=\(providerSettings.model)")
+                            return try await loadSupplementValuesStreamFirst(
+                                prompt: prompt,
+                                settings: providerSettings,
+                                requests: subset,
+                                taskName: task,
+                                log: log
+                            ) { index, value in
+                                guard indices.indices.contains(index) else { return }
+                                await showValue(indices[index], value)
+                            }
+                        } catch {
+                            lastError = error
+                            log("ai pronunciation fallback: provider=\(providerSettings.provider.label) / error=\(error.localizedDescription)")
+                        }
+                    }
                     throw lastError ?? NSError(
                         domain: "ivLyrics.AIProviders",
                         code: 1,
                         userInfo: [NSLocalizedDescriptionKey: AppI18n.t(settings.uiLang, "error.translation_providers_failed")]
                     )
                 }
-                values = resolvedValues
+
+                // Karaoke songs: pronunciation split over the sung units of every line.
+                var slots: [Int: [String]] = [:]
+                if baseResult.karaoke {
+                    slots = await loadPronunciationSlots(
+                        requests: requests,
+                        settings: settings,
+                        lang: pronunciationLang,
+                        sourceLang: sourceLang,
+                        providerUpdate: { label in await providerUpdate?(task, label) },
+                        log: log,
+                        onLine: showValue
+                    )
+                }
+                if slots.isEmpty {
+                    values = try await loadLinePronunciation(Array(requests.indices), keeping: [:])
+                } else {
+                    var combined = requests.map { PronunciationSlots.hasSound($0.text) ? "" : $0.text.trimmed }
+                    for (index, parts) in slots {
+                        combined[index] = PronunciationSlots.join(
+                            PronunciationSlots.splitUnits(PronunciationSlots.normalizeLine(requests[index].text)),
+                            parts
+                        )
+                    }
+                    let missing = requests.indices.filter { !requests[$0].text.trimmed.isEmpty && combined[$0].trimmed.isEmpty }
+                    if !missing.isEmpty {
+                        log("ai pronunciation by unit missing \(missing.count) lines; requesting them as lines")
+                        let kept = Dictionary(uniqueKeysWithValues: combined.enumerated().filter { !$0.element.isEmpty }.map { ($0.offset, $0.element) })
+                        let lines = try await loadLinePronunciation(missing, keeping: kept)
+                        for (position, index) in missing.enumerated() where position < lines.count {
+                            combined[index] = lines[position]
+                        }
+                    }
+                    values = combined
+                    storePronunciationSlots(
+                        trackKey: trackKey,
+                        cacheKey: taskCacheKey,
+                        stored: PronunciationSlots.stored(texts: requests.map(\.text), slots: slots)
+                    )
+                }
             } else {
                 let prompt = buildTranslationPrompt(requests: requests, lang: targetLang)
                 var resolvedValues: [String]?
@@ -991,11 +1047,13 @@ actor AiLyricsRepository {
         tmiMemoryCache.removeAll()
         culturalAnnotationMemoryCache.removeAll()
         timedPronunciationMemoryCache.removeAll()
+        pronunciationSlotsByTrack.removeAll()
         diskCache.clear()
         metadataDiskCache.clear()
         tmiDiskCache.clear()
         culturalAnnotationDiskCache.clear()
         timedPronunciationDiskCache.clear()
+        pronunciationSlotsDiskCache.clear()
     }
 
     func clearTrackCache(_ trackKey: String) {
@@ -1006,11 +1064,147 @@ actor AiLyricsRepository {
         tmiMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("tmi|" + key + "|") }
         culturalAnnotationMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("cultural|" + key + "|") }
         timedPronunciationMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("timed-pronunciation|" + key + "|") }
+        pronunciationSlotsByTrack.removeValues { cacheKey, _ in cacheKey == key }
         diskCache.removeByKeyPrefix(key + "|")
         metadataDiskCache.removeByKeyPrefix("metadata|" + key + "|")
         tmiDiskCache.removeByKeyPrefix("tmi|" + key + "|")
         culturalAnnotationDiskCache.removeByKeyPrefix("cultural|" + key + "|")
         timedPronunciationDiskCache.removeByKeyPrefix("timed-pronunciation|" + key + "|")
+        pronunciationSlotsDiskCache.removeByKeyPrefix(key + "|")
+    }
+
+    // MARK: - Pronunciation by sung unit
+
+    /// Asks for the pronunciation of every request split over its sung units (the same request
+    /// as the desktop app). Chunks run in parallel, with one smaller repair pass for lines whose
+    /// slots did not match. Empty when no provider answered with exact slots.
+    private func loadPronunciationSlots(
+        requests: [SupplementRequest],
+        settings: AppSettings.Snapshot,
+        lang: String,
+        sourceLang: String,
+        providerUpdate: (String) async -> Void,
+        log: (String) -> Void,
+        onLine: (Int, String) async -> Void
+    ) async -> [Int: [String]] {
+        let items = PronunciationSlots.items(requests.map(\.text))
+        guard !items.isEmpty else { return [:] }
+        let notation = AppSettings.normalizePronunciationNotation(settings.pronunciationNotation)
+        let langInfo = AppSettings.languageInfo(lang)
+        let scriptInstruction = phoneticScriptInstruction(lang, langInfo: langInfo, notation: notation, sourceLang: sourceLang)
+        let outputScript = pronunciationOutputScript(lang, langInfo: langInfo, notation: notation)
+        let audience = notation == AppSettings.pronunciationNotationIPA ? "the original sung language" : "\(langInfo.name) speakers"
+        let units = Dictionary(uniqueKeysWithValues: items.map { item in
+            (item.index, PronunciationSlots.splitUnits(PronunciationSlots.normalizeLine(requests[item.index].text)))
+        })
+        for providerSettings in settings.readyAIProviderSnapshots {
+            if Task.isCancelled { return [:] }
+            await providerUpdate(providerSettings.provider.label)
+            log("ai pronunciation by unit: provider=\(providerSettings.provider.label) / lines=\(items.count)")
+            var slots: [Int: [String]] = [:]
+            var firstError: Error?
+            func run(_ chunks: [[PronunciationSlots.Item]], repair: Bool) async {
+                var next = 0
+                while next < chunks.count {
+                    let batch = Array(chunks[next..<min(next + 3, chunks.count)])
+                    next += batch.count
+                    let answers = await withTaskGroup(of: (Int, Result<String, Error>).self) { group in
+                        for (position, chunk) in batch.enumerated() {
+                            let base = PronunciationSlots.prompt(
+                                chunk,
+                                lang: lang,
+                                sourceLang: sourceLang,
+                                notation: notation,
+                                scriptInstruction: scriptInstruction,
+                                outputScript: outputScript,
+                                audience: audience
+                            )
+                            let prompt = repair ? base + "\n\n" + PronunciationSlots.repairNote : base
+                            group.addTask { [self] in
+                                do {
+                                    let raw = try await withOpenAIConnections(settings: providerSettings) { connection in
+                                        try await callProviderRaw(prompt: prompt, settings: connection)
+                                    }
+                                    return (position, .success(raw))
+                                } catch {
+                                    return (position, .failure(error))
+                                }
+                            }
+                        }
+                        var collected: [(Int, Result<String, Error>)] = []
+                        for await answer in group { collected.append(answer) }
+                        return collected
+                    }
+                    for (position, answer) in answers {
+                        switch answer {
+                        case .success(let raw):
+                            for (index, parts) in PronunciationSlots.parse(raw, items: batch[position], notation: notation) {
+                                slots[index] = parts
+                                if let lineUnits = units[index] {
+                                    await onLine(index, PronunciationSlots.join(lineUnits, parts))
+                                }
+                            }
+                        case .failure(let error):
+                            firstError = firstError ?? error
+                        }
+                    }
+                }
+            }
+            await run(PronunciationSlots.chunks(items), repair: false)
+            let missing = items.filter { slots[$0.index] == nil }
+            if !missing.isEmpty && !slots.isEmpty && !Task.isCancelled {
+                await run(PronunciationSlots.chunks(missing, maxUnits: 160, maxItems: 8), repair: true)
+            }
+            if !slots.isEmpty {
+                log("ai pronunciation by unit response: \(slots.count)/\(items.count)")
+                return slots
+            }
+            log("ai pronunciation by unit failed: provider=\(providerSettings.provider.label) / error=\(firstError?.localizedDescription ?? "no usable lines")")
+        }
+        return [:]
+    }
+
+    private func storePronunciationSlots(trackKey: String, cacheKey: String, stored: PronunciationSlots.Stored) {
+        guard !stored.lines.isEmpty else { return }
+        rememberPronunciationSlots(trackKey: trackKey, lines: stored.lines)
+        if let data = try? JSONEncoder().encode(stored), let raw = String(data: data, encoding: .utf8) {
+            pronunciationSlotsDiskCache.put(cacheKey, body: raw)
+        }
+    }
+
+    private func restorePronunciationSlots(trackKey: String, cacheKey: String) {
+        let raw = pronunciationSlotsDiskCache.get(cacheKey)
+        guard !raw.trimmed.isEmpty, let data = raw.data(using: .utf8) else { return }
+        guard let stored = try? JSONDecoder().decode(PronunciationSlots.Stored.self, from: data),
+              stored.v == PronunciationSlots.version else {
+            pronunciationSlotsDiskCache.remove(cacheKey)
+            return
+        }
+        rememberPronunciationSlots(trackKey: trackKey, lines: stored.lines)
+    }
+
+    private func rememberPronunciationSlots(trackKey: String, lines: [String: [String]]) {
+        guard !lines.isEmpty else { return }
+        var known = pronunciationSlotsByTrack.value(forKey: trackKey) ?? [:]
+        known.merge(lines) { _, next in next }
+        pronunciationSlotsByTrack.insert(known, forKey: trackKey)
+    }
+
+    /// Unit pronunciation of the karaoke groups whose line has slots, when they still spell the
+    /// pronunciation shown.
+    private func slotDerivedPronunciation(trackKey: String, result: LyricsResult) -> [String: [String]] {
+        guard result.karaoke, let known = pronunciationSlotsByTrack.value(forKey: trackKey), !known.isEmpty else { return [:] }
+        var derived: [String: [String]] = [:]
+        for (lineIndex, line) in result.lines.enumerated() {
+            for group in PronunciationFirst.unitGroups(line) where !group.pronunciation.isEmpty {
+                let texts = group.syllables.map(\.text)
+                guard let parts = known[PronunciationSlots.normalizeLine(texts.joined())],
+                      let split = PronunciationSlots.deriveSyllableParts(texts, parts, distribute: PronunciationFirst.distribute),
+                      PronunciationFirst.alignParts(split, group.pronunciation) != nil else { continue }
+                derived["\(lineIndex):\(group.key)"] = split
+            }
+        }
+        return derived
     }
 
     /// Pronunciation-first and the pronunciation fill: AI splits each karaoke line's
@@ -1024,7 +1218,9 @@ actor AiLyricsRepository {
         onStarted: @escaping @MainActor @Sendable () -> Void = {}
     ) async -> TimedPronunciationResponse {
         var logs: [String] = []
-        let items = PronunciationFirst.timingItems(result)
+        // Lines whose pronunciation was made per sung unit need no AI timing.
+        let derived = slotDerivedPronunciation(trackKey: track.stableKey, result: result)
+        let items = PronunciationFirst.timingItems(result).filter { derived[$0.key] == nil }
         let source = sourceLang.trimmed.isEmpty ? "auto" : sourceLang.trimmed
         let targetLang = settings.resolveTargetLanguage(sourceLang: source)
         let requestKey = "timed-pronunciation|" + track.stableKey + "|"
@@ -1037,13 +1233,14 @@ actor AiLyricsRepository {
         ) -> TimedPronunciationResponse {
             TimedPronunciationResponse(
                 requestKey: requestKey,
-                parts: parts,
+                parts: derived.merging(parts) { slotParts, _ in slotParts },
                 logs: logs,
                 announced: announced,
                 hadError: hadError,
                 errorMessage: errorMessage
             )
         }
+        if !derived.isEmpty { logs.append("pronunciation timing from units: items=\(derived.count)") }
         guard !items.isEmpty else { return response() }
         if let cached = timedPronunciationMemoryCache.value(forKey: requestKey) {
             logs.append("pronunciation timing cache hit: items=\(cached.count)")

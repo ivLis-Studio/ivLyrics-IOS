@@ -4,8 +4,10 @@ import Foundation
 ///
 /// Pronunciation-first keeps every row's appearance and only swaps values: the pronunciation
 /// is shown in the original row and the original in the pronunciation row. Karaoke units keep
-/// their timing; the pronunciation is split across them by AI (the same request as the desktop
-/// and Android apps) or, until that arrives, in proportion to each unit's length.
+/// their timing. Karaoke songs get their pronunciation made per sung unit (PronunciationSlots),
+/// so the part sung during each unit is derived locally; lines without those slots are split by
+/// AI (the same request as the desktop and Android apps) or, until that arrives, in proportion
+/// to each unit's length.
 ///
 /// The pronunciation fill uses the same unit timing while pronunciation-first is off: the
 /// pronunciation row under a karaoke line fills along it, with no other karaoke effect.

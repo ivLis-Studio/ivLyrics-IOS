@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-pronunciation-first-") as dire
     main = work / "Checks.swift"
     main.write_text(models[:models.index("enum AppStatus:")] + upgrade
                     + (ROOT / "scripts/PronunciationFirstChecks.swift").read_text())
-    sources = [SRC / name for name in ["Utilities.swift", "TinySegmenter.swift", "PronunciationFirst.swift"]]
+    sources = [SRC / name for name in ["Utilities.swift", "TinySegmenter.swift", "PronunciationFirst.swift", "PronunciationSlots.swift"]]
     subprocess.run(["xcrun", "swiftc", "-O", "-parse-as-library", *map(str, sources), str(main), "-o", str(work / "checks")], check=True)
     subprocess.run([str(work / "checks")], check=True)
 
@@ -55,6 +55,15 @@ assert "pronunciationFill: pronunciationFill.lineFill(line)," in view
 assert "model.setPronunciationFirst(!enabled)" in view and "isOn: pronunciationFillBinding)" in view
 assert "PronunciationFirst.parse(try await callProviderRaw(prompt: prompt, settings: connection), items: chunk)" in repository
 assert "PronunciationFirst.chunks(missing, maxUnits: 200, maxItems: 8)" in repository, "one smaller repair pass"
+# Karaoke pronunciation is made per sung unit; timing for those lines is derived locally.
+assert "if baseResult.karaoke {\n                    slots = await loadPronunciationSlots(" in repository
+assert "let missing = requests.indices.filter { !requests[$0].text.trimmed.isEmpty && combined[$0].trimmed.isEmpty }" in repository, \
+    "lines without exact slots fall back to the line request"
+assert "restorePronunciationSlots(trackKey: trackKey, cacheKey: pronunciationCacheKey)" in repository, \
+    "cached pronunciation brings its slots back"
+assert "let items = PronunciationFirst.timingItems(result).filter { derived[$0.key] == nil }" in repository, \
+    "only lines without slots ask AI for unit timing"
+assert "PronunciationSlots.chunks(missing, maxUnits: 160, maxItems: 8)" in repository
 print("PRONUNCIATION_FIRST_WIRING_PASSED")
 
 
