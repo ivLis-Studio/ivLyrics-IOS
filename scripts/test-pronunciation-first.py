@@ -63,7 +63,7 @@ assert "restorePronunciationSlots(trackKey: trackKey, cacheKey: pronunciationCac
     "cached pronunciation brings its slots back"
 assert "let items = PronunciationFirst.timingItems(result).filter { derived[$0.key] == nil }" in repository, \
     "only lines without slots ask AI for unit timing"
-assert "PronunciationSlots.chunks(missing, maxUnits: 160, maxItems: 8)" in repository
+assert "await run(PronunciationSlots.chunks(missing), repair: true)" in repository
 print("PRONUNCIATION_FIRST_WIRING_PASSED")
 
 

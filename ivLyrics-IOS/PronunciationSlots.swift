@@ -11,8 +11,11 @@ import Foundation
 enum PronunciationSlots {
     /// Bump when the unit split or the stored shape changes.
     static let version = 1
-    static let maxChunkUnits = 360
-    static let maxChunkItems = 28
+    /// Reasoning models think long before writing unit slots and that time grows with the
+    /// request, so songs go out in small chunks that run in parallel.
+    static let maxChunkUnits = 110
+    static let maxChunkItems = 8
+    static let parallelRequests = 5
     /// Normalized pronunciation notations (AppSettings.pronunciationNotationLatin / IPA).
     static let latinNotation = "latin"
     static let ipaNotation = "ipa"
@@ -262,17 +265,20 @@ enum PronunciationSlots {
         }
         if notation == latinNotation || language == "en" || language.hasPrefix("en-") {
             return """
-            - 夢ならば: u=["夢","な","ら","ば"] → p=["yume ","na","ra","ba"] (reads "yume naraba")
+            - 夢ならばどれほど: u=["夢","な","ら","ば","ど","れ","ほ","ど"] → p=["yume ","na","ra","ba ","do","re","ho","do"] (reads "yume naraba dorehodo")
             - 今日も: u=["今","日","も"] → p=["kyou","","mo"]
             - 走って: u=["走","っ","て"] → p=["hashi","t","te"]
+            - 君を見てる: u=["君","を","見","て","る"] → p=["kimi ","o ","mi","te","ru"], never ["ki","mi","o","mi","teru"]
             - 사랑해 너를: u=["사","랑","해","너","를"] → p=["sa","rang","hae","neo","reul"] (reads "saranghae neoreul")
             """
         }
         if language == "ko" || language.hasPrefix("ko-") {
             return """
-            - 夢ならば: u=["夢","な","ら","ば"] → p=["유메","나","라","바"]
+            - 夢ならばどれほど: u=["夢","な","ら","ば","ど","れ","ほ","ど"] → p=["유메","나","라","바 ","도","레","호","도"] (reads "유메나라바 도레호도")
             - 今日も: u=["今","日","も"] → p=["쿄오","","모"]
             - 走って: u=["走","っ","て"] → p=["하싯","","테"]
+            - がらんどう: u=["が","ら","ん","ど","う"] → p=["가","란","","도","오"], never a lone letter such as "ㄴ"
+            - 君を見てる: u=["君","を","見","て","る"] → p=["키미","오 ","미","테","루"], never ["키","미","오","미","테루"]
             - hold me tight: u=["hold","me","tight"] → p=["홀드","미","타잇"]
             """
         }
@@ -314,7 +320,9 @@ enum PronunciationSlots {
         - When a reading cannot be divided between characters (for example 今日 or 大人), put the whole reading on the first character of that word and "" on the rest of it.
         - Particles は, へ, を use their particle pronunciation when used as particles.
         - Use "" for units without sound (punctuation and symbols).
-        - Spaces of the original line are restored automatically between units. Where the natural pronunciation has a word break inside unspaced text (Japanese, Chinese), end that unit's string with one space so the joined line reads naturally.
+        - Never move part of one character's reading onto a neighbouring unit to fill slots: each reading stays on the character that produces it, even when that leaves "" elsewhere.
+        - Never write a lone Hangul letter (jamo such as ㄴ, ㅅ, ㅇ). A sound that is only a final consonant (ん, っ) joins the previous syllable block as its final consonant, and its own unit gets "".
+        - Spaces of the original line are restored automatically between units. Inside unspaced text (Japanese, Chinese) mark every word break yourself: end the last unit of each word or particle phrase with one space (usually after particles such as は, が, を, に, で, と, も, and between separate words), exactly where a natural pronunciation line would have a space. A long line must not come out as one unbroken run.
         - Joining the p of a line must give one natural pronunciation of the whole line. This is pronunciation, not translation: never translate the meaning.
 
         SLOT EXAMPLES:
@@ -358,8 +366,15 @@ enum PronunciationSlots {
         return true
     }
 
+    /// Lone Hangul letters are never a readable pronunciation (ん written as ㄴ).
+    private static let loneJamoRanges: [ClosedRange<UInt32>] = [0x1100...0x11FF, 0x3131...0x318E, 0xA960...0xA97F, 0xD7B0...0xD7FF]
+
+    static func hasLoneJamo(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in loneJamoRanges.contains { $0.contains(scalar.value) } }
+    }
+
     /// Unit pronunciations by request index; lines with a wrong slot count, no sound or the
-    /// wrong writing system are left out (and repaired by a smaller request).
+    /// wrong writing system, or with a lone Hangul letter, are left out (and asked again).
     static func parse(_ raw: String, items: [Item], notation: String) -> [Int: [String]] {
         guard let start = raw.firstIndex(of: "{"), let end = raw.lastIndex(of: "}"), start < end,
               let data = String(raw[start...end]).data(using: .utf8),
@@ -372,6 +387,7 @@ enum PronunciationSlots {
             guard let item = expected[index], let values = entry["p"] as? [Any], values.count == item.units.count else { continue }
             let parts = values.map { ($0 as? String) ?? "" }
             guard parts.contains(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }),
+                  !parts.contains(where: hasLoneJamo),
                   isInNotationScript(parts.joined(), notation: notation) else { continue }
             parsed[index] = parts
         }

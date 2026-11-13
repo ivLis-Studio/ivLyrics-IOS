@@ -1106,7 +1106,7 @@ actor AiLyricsRepository {
             func run(_ chunks: [[PronunciationSlots.Item]], repair: Bool) async {
                 var next = 0
                 while next < chunks.count {
-                    let batch = Array(chunks[next..<min(next + 3, chunks.count)])
+                    let batch = Array(chunks[next..<min(next + PronunciationSlots.parallelRequests, chunks.count)])
                     next += batch.count
                     let answers = await withTaskGroup(of: (Int, Result<String, Error>).self) { group in
                         for (position, chunk) in batch.enumerated() {
@@ -1153,7 +1153,7 @@ actor AiLyricsRepository {
             await run(PronunciationSlots.chunks(items), repair: false)
             let missing = items.filter { slots[$0.index] == nil }
             if !missing.isEmpty && !slots.isEmpty && !Task.isCancelled {
-                await run(PronunciationSlots.chunks(missing, maxUnits: 160, maxItems: 8), repair: true)
+                await run(PronunciationSlots.chunks(missing), repair: true)
             }
             if !slots.isEmpty {
                 log("ai pronunciation by unit response: \(slots.count)/\(items.count)")

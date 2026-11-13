@@ -147,6 +147,9 @@ private func karaokeUnits() -> [LyricsLine.Syllable] {
               "wrong writing system for Latin notation")
         check(!PronunciationSlots.parse("{\"l\":[{\"i\":0,\"p\":[\"유메\",\"나\",\"라\",\"바\"]}]}", items: slotItems, notation: "translation").isEmpty,
               "target-language notation is not script-checked")
+        check(PronunciationSlots.parse("{\"l\":[{\"i\":0,\"p\":[\"유메\",\"나\",\"라\",\"ㄴ\"]}]}", items: slotItems, notation: "translation").isEmpty,
+              "a lone Hangul letter is asked again")
+        check(PronunciationSlots.chunks(Array(repeating: slotItems[0], count: 17)).count == 3, "small chunks of eight lines")
         let stored = PronunciationSlots.stored(texts: ["夢ならば", "♪", " 今日も "], slots: [0: ["yume", "na", "ra", "ba"], 2: ["kyou ", "", "mo"]])
         check(stored.v == PronunciationSlots.version && stored.lines["今日も"] == ["kyou ", "", "mo"] && stored.lines.count == 2, "stored by line text")
 
