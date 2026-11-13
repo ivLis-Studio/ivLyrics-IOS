@@ -24,24 +24,13 @@ enum AIProviderModels {
             return apiKeys.split { $0 == "\n" || $0 == "," }
                 .map { String($0).trimmed }.first(where: { !$0.isEmpty }) ?? ""
         }
-
-        var usesSonarCatalog: Bool {
-            guard provider == "perplexity", let url = URL(string: baseURL) else { return false }
-            return url.host?.lowercased() == "api.perplexity.ai" && (url.path.isEmpty || url.path == "/")
-        }
     }
 
     struct Catalog: Sendable {
         var models: [Model]
-        var builtIn = false
     }
 
     static func fetch(_ configuration: Configuration, session: URLSession = .shared) async throws -> Catalog {
-        // Sonar's /chat/completions cannot use the Agent models listed by /v1/models.
-        if configuration.usesSonarCatalog {
-            return Catalog(models: ["sonar", "sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"]
-                .map { Model(id: $0, name: $0) }, builtIn: true)
-        }
         var models: [String: Model] = [:]
         var cursors = Set<String>()
         var cursor = ""
@@ -57,6 +46,9 @@ enum AIProviderModels {
             }
             cursor = try nextCursor(provider: configuration.provider, root: root)
             if cursor.isEmpty {
+                if configuration.provider == PerplexityAgentAPI.providerID {
+                    return Catalog(models: models.values.sorted { PerplexityAgentAPI.precedes($0.id, $1.id) })
+                }
                 return Catalog(models: models.values.sorted {
                     $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending
                 })
@@ -70,7 +62,11 @@ enum AIProviderModels {
         var base = configuration.baseURL.trimmed
         while base.hasSuffix("/") { base.removeLast() }
         if configuration.provider == "pollinations", !base.hasSuffix("/v1") { base += "/v1" }
-        guard var components = URLComponents(string: base + "/models") else { throw URLError(.badURL) }
+        // Perplexity lists its Agent API models at /v1/models; GET /models is a 404.
+        let endpoint = configuration.provider == PerplexityAgentAPI.providerID
+            ? PerplexityAgentAPI.modelsEndpoint(base)
+            : base + "/models"
+        guard var components = URLComponents(string: endpoint) else { throw URLError(.badURL) }
         if configuration.provider == "gemini" {
             components.queryItems = [URLQueryItem(name: "pageSize", value: "1000")]
             if !cursor.isEmpty { components.queryItems?.append(URLQueryItem(name: "pageToken", value: cursor)) }
@@ -102,12 +98,15 @@ enum AIProviderModels {
             throw CocoaError(.fileReadCorruptFile)
         }
         var seen = Set<String>()
+        let perplexity = provider == PerplexityAgentAPI.providerID
         return rows.compactMap { row in
             var id = string(row[gemini ? "name" : "id"])
             if gemini, id.hasPrefix("models/") { id = String(id.dropFirst(7)) }
             guard !id.isEmpty else { return nil }
             if gemini, !contains(row["supportedGenerationMethods"], "generateContent", ifAbsent: false) { return nil }
-            guard isTextChatModel(row, id: id), seen.insert(id).inserted else { return nil }
+            // Every Agent API model is served through /v1/agent; only provider-prefixed ids exist there.
+            let usable = perplexity ? id.contains("/") : isTextChatModel(row, id: id)
+            guard usable, seen.insert(id).inserted else { return nil }
             let name = [gemini ? "displayName" : "display_name", "name", "title"]
                 .map { string(row[$0]) }.first(where: { !$0.isEmpty }) ?? id
             return Model(id: id, name: name)

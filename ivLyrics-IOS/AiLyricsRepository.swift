@@ -1186,6 +1186,8 @@ actor AiLyricsRepository {
             return try await callGemini(prompt: prompt, settings: settings, apiKey: apiKey)
         case "claude":
             return try await callClaude(prompt: prompt, settings: settings, apiKey: apiKey)
+        case PerplexityAgentAPI.providerID:
+            return try await callPerplexityAgent(prompt: prompt, settings: settings, apiKey: apiKey)
         default:
             return try await callOpenAiCompatible(prompt: prompt, settings: settings, apiKey: apiKey)
         }
@@ -1355,6 +1357,11 @@ actor AiLyricsRepository {
                 prompt: prompt, settings: settings, apiKey: apiKey,
                 webSearch: webSearch, maxTokens: researchMaxTokens, onDelta: onDelta
             )
+        case PerplexityAgentAPI.providerID:
+            return try await callPerplexityAgentStream(
+                prompt: prompt, settings: settings, apiKey: apiKey,
+                webSearch: webSearch, maxTokens: researchMaxTokens, onDelta: onDelta
+            )
         case "chatgpt" where webSearch:
             return try await callOpenAiResponsesStream(prompt: prompt, settings: settings, apiKey: apiKey, onDelta: onDelta)
         default:
@@ -1406,6 +1413,11 @@ actor AiLyricsRepository {
             return try await callGeminiStream(prompt: prompt, settings: settings, apiKey: apiKey, onDelta: onDelta)
         case "claude":
             return try await callClaudeStream(prompt: prompt, settings: settings, apiKey: apiKey, onDelta: onDelta)
+        case PerplexityAgentAPI.providerID:
+            return try await callPerplexityAgentStream(
+                prompt: prompt, settings: settings, apiKey: apiKey,
+                webSearch: false, maxTokens: settings.maxTokens, onDelta: onDelta
+            )
         default:
             return try await callOpenAiCompatibleStream(prompt: prompt, settings: settings, apiKey: apiKey, onDelta: onDelta)
         }
@@ -1693,6 +1705,53 @@ actor AiLyricsRepository {
         }
     }
 
+    // Sonar Chat Completions support ended on September 27, 2026; Perplexity is reached through
+    // its Agent API (PerplexityAgentAPI). The OpenAI parameter fallback still applies, so a served
+    // model that rejects temperature is resent once without it.
+    private func callPerplexityAgent(prompt: String, settings: AppSettings.Snapshot, apiKey: String) async throws -> String {
+        let endpoint = PerplexityAgentAPI.agentEndpoint(settings.baseUrl)
+        let body = PerplexityAgentAPI.requestBody(
+            prompt: prompt, model: settings.model, maxOutputTokens: settings.maxTokens,
+            temperature: settings.temperature, stream: false, webSearch: false
+        )
+        let response = try await sendOpenAiRequest(settings: settings, body: body) { body in
+            try await postJson(endpoint, body: body, headers: openAiCompatibleHeaders(settings: settings, apiKey: apiKey))
+        }
+        let text = try PerplexityAgentAPI.responseText(try jsonObject(response))
+        guard !text.trimmed.isEmpty else { throw NSError(domain: "ivLyrics.AI", code: -5, userInfo: [NSLocalizedDescriptionKey: "[\(settings.provider.label)] Empty response from API"]) }
+        return text
+    }
+
+    private func callPerplexityAgentStream(
+        prompt: String,
+        settings: AppSettings.Snapshot,
+        apiKey: String,
+        webSearch: Bool,
+        maxTokens: Int,
+        onDelta: ((String) async -> Void)? = nil
+    ) async throws -> String {
+        let endpoint = PerplexityAgentAPI.agentEndpoint(settings.baseUrl)
+        let body = PerplexityAgentAPI.requestBody(
+            prompt: prompt, model: settings.model, maxOutputTokens: maxTokens,
+            temperature: settings.temperature, stream: true, webSearch: webSearch
+        )
+        let raw = try await sendOpenAiRequest(settings: settings, body: body) { body in
+            let stream = PerplexityAgentAPI.StreamState()
+            let text = try await postJsonSse(
+                endpoint, body: body,
+                headers: openAiCompatibleHeaders(settings: settings, apiKey: apiKey),
+                onDelta: onDelta
+            ) { eventName, data in
+                try stream.consume(eventName: eventName, data: data)
+            }
+            guard stream.completed else {
+                throw NSError(domain: "ivLyrics.AI", code: -5, userInfo: [NSLocalizedDescriptionKey: "[\(settings.provider.label)] Response rejected (missing_completion)"])
+            }
+            return text
+        }
+        return webSearch ? PerplexityAgentAPI.stripWebCitations(raw) : raw
+    }
+
     private func claudeWebSearchTool(model: String) -> [String: Any] {
         let normalized = model.lowercased()
         let pattern = #"(?:opus-(?:4[-.]?[678]|5)|sonnet-(?:4[-.]?6|5)|fable-5|mythos(?:-preview|-5))"#
@@ -1718,13 +1777,6 @@ actor AiLyricsRepository {
             } else {
                 body["tools"] = []
                 body["plugins"] = [["id": "web", "enabled": false]]
-            }
-        case "perplexity":
-            body["disable_search"] = !webSearch
-            body["return_images"] = webSearch
-            if webSearch {
-                body["search_mode"] = "web"
-                body["web_search_options"] = ["search_context_size": "high"]
             }
         default:
             break

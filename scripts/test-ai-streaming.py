@@ -416,6 +416,7 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-ai-streaming-") as directory:
     (directory / "Fixtures.swift").write_text(fixtures)
     (directory / "Regression.swift").write_text(checks)
     executable = directory / "regression"
-    subprocess.run(["swiftc", str(directory / "Fixtures.swift"), str(directory / "Regression.swift"), "-o", str(executable)], check=True)
+    subprocess.run(["swiftc", str(directory / "Fixtures.swift"), str(SRC / "PerplexityAgentAPI.swift"), str(directory / "Regression.swift"),
+                    "-o", str(executable)], check=True)
     subprocess.run([str(executable)], check=True)
 

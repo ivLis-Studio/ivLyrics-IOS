@@ -8708,7 +8708,6 @@ struct SettingsView: View {
     @State private var aiModelsConfiguration: AIProviderModels.Configuration?
     @State private var aiModelsLoading = false
     @State private var aiModelsError = ""
-    @State private var aiModelsBuiltIn = false
     @State private var aiModelsRequestId = UUID()
     @State private var cloudApplyConfirmationPresented = false
     @State private var cloudDeleteConfirmationPresented = false
@@ -10504,7 +10503,6 @@ struct SettingsView: View {
                 .task(id: aiModelConfiguration) {
                     aiModels = []
                     aiModelsError = ""
-                    aiModelsBuiltIn = false
                     do {
                         try await Task.sleep(for: .milliseconds(350))
                         await refreshAIModels()
@@ -10726,9 +10724,6 @@ struct SettingsView: View {
             } else if !aiModelsError.isEmpty {
                 Text(settings.t("status.models_unavailable"))
                     .font(.caption).foregroundStyle(palette.warn)
-            } else if aiModelsBuiltIn {
-                Text(settings.t("status.models_builtin_sonar"))
-                    .font(.caption).foregroundStyle(palette.text3)
             }
             settingsTextField(settings.t("field.model_id"), text: $settings.model)
         }
@@ -10751,7 +10746,6 @@ struct SettingsView: View {
             guard requestId == aiModelsRequestId, configuration == aiModelConfiguration else { return }
             aiModels = catalog.models
             aiModelsConfiguration = configuration
-            aiModelsBuiltIn = catalog.builtIn
             if aiModels.isEmpty { aiModelsError = "empty" }
         } catch {
             guard !Task.isCancelled, requestId == aiModelsRequestId, configuration == aiModelConfiguration else { return }

@@ -817,7 +817,7 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-local-ai-") as directory:
     (directory / "Regression.swift").write_text(checks, encoding="utf-8")
     executable = directory / "regression"
     subprocess.run(["swiftc", str(directory / "Helpers.swift"), str(SRC / "LocalAI.swift"), str(SRC / "LocalAIService.swift"),
-                    str(SRC / "LocalAIController.swift"),
+                    str(SRC / "LocalAIController.swift"), str(SRC / "PerplexityAgentAPI.swift"),
                     str(directory / "Regression.swift"), "-o", str(executable)], check=True)
     work = directory / "work"
     work.mkdir()

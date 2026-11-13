@@ -321,7 +321,7 @@ func responsesStream(_ pieces: String...) -> FixtureHTTP.Reply {
             if body["temperature"] != nil { return rejectTemperature }
             return body["max_tokens"] != nil ? rejectMaxTokens : chatOK
         }
-        text = try await repository.callOpenAiCompatible(prompt: "p", settings: snapshot("perplexity", "future-both"), apiKey: key)
+        text = try await repository.callOpenAiCompatible(prompt: "p", settings: snapshot("openrouter", "future-both"), apiKey: key)
         sent = FixtureHTTP.requests
         check(text == "OK" && sent.count == 3, "One retry per adjustment kind")
         check(sent[2].body["temperature"] == nil && sent[2].body["max_tokens"] == nil && sent[2].body["max_completion_tokens"] as? Int == 4096,
@@ -362,6 +362,65 @@ func responsesStream(_ pieces: String...) -> FixtureHTTP.Reply {
         check(sent[1].path == "/v1/chat/completions" && sent[1].body["model"] as? String == "gemini-search"
               && sent[1].body["temperature"] as? Double == 0.3, "Pollinations dossier body unchanged")
 
+        // Perplexity: Sonar Chat Completions support ended on 2026-09-27; requests go to /v1/agent.
+        func agentReply(_ status: String, _ text: String, error: String? = nil) -> FixtureHTTP.Reply {
+            var response: [String: Any] = ["status": status, "output": [
+                ["type": "search_results", "results": [Any]()] as [String: Any],
+                ["type": "message", "role": "assistant", "content": [["type": "output_text", "text": text]]] as [String: Any]
+            ]]
+            if let error { response["error"] = ["message": error] }
+            return FixtureHTTP.Reply(status: 200, body: String(decoding: try! JSONSerialization.data(withJSONObject: response), as: UTF8.self))
+        }
+        func agentStream(_ events: [[String: Any]]) -> FixtureHTTP.Reply {
+            FixtureHTTP.Reply(status: 200, body: events.map { sseEvent($0) }.joined(), contentType: "text/event-stream")
+        }
+        FixtureHTTP.serve { _ in agentReply("completed", "OK") }
+        try await repository.testConnection(settings: snapshot("perplexity", "sonar-pro", base: "https://api.perplexity.ai"))
+        sent = FixtureHTTP.requests
+        check(sent.count == 1 && sent[0].path == "/v1/agent", "Perplexity posts to the Agent API, not /chat/completions")
+        check(sent[0].body["model"] as? String == "perplexity/sonar" && sent[0].body["input"] as? String == "Reply with only OK."
+              && sent[0].body["max_output_tokens"] as? Int == 4096 && sent[0].body["temperature"] as? Double == 0.3
+              && sent[0].body["store"] as? Bool == false, "Agent body maps the Sonar request")
+        for sonarField in ["messages", "max_tokens", "max_completion_tokens", "tools", "stream", "search_mode",
+                           "web_search_options", "disable_search", "return_images"] {
+            check(sent[0].body[sonarField] == nil, "Agent body never sends \(sonarField)")
+        }
+        let perplexity = snapshot("perplexity", "perplexity/sonar", base: "https://api.perplexity.ai")
+        FixtureHTTP.serve { _ in agentReply("failed", "", error: "model not supported") }
+        do { _ = try await repository.callProviderRawOnce(prompt: "p", settings: perplexity, apiKey: key); fatalError("Failed run accepted") }
+        catch { check(error.localizedDescription.contains("model not supported"), "HTTP 200 failed run keeps its message") }
+        FixtureHTTP.serve { $0["temperature"] != nil ? rejectTemperature : agentReply("completed", "Hi") }
+        text = try await repository.callProviderRawOnce(prompt: "p", settings: snapshot("perplexity", "openai/gpt-6-luna", base: "https://api.perplexity.ai"), apiKey: key)
+        check(text == "Hi" && FixtureHTTP.requests.count == 2 && FixtureHTTP.requests[1].body["temperature"] == nil,
+              "A served model rejecting temperature is resent without it")
+        let researchSink = Sink()
+        FixtureHTTP.serve { _ in agentStream([
+            ["type": "response.created", "response": ["status": "in_progress"]],
+            ["type": "response.output_text.delta", "delta": "{\"trivia\":[\"Recorded in 2006.[web:1]"],
+            ["type": "response.output_text.delta", "delta": "[web:2]\"]}"],
+            ["type": "response.completed", "response": ["status": "completed", "output": [Any]()]]
+        ]) }
+        text = try await repository.callPerplexityAgentStream(prompt: "p", settings: perplexity, apiKey: key, webSearch: true, maxTokens: 4096,
+                                                             onDelta: { researchSink.append($0) })
+        let researchBody = FixtureHTTP.requests[0].body
+        check(text == "{\"trivia\":[\"Recorded in 2006.\"]}" && researchSink.values.count == 2, "Research stream reads typed events without citation markers")
+        check(researchBody["stream"] as? Bool == true && (researchBody["tools"] as? [[String: Any]])?.first?["type"] as? String == "web_search",
+              "Research offers the web_search tool")
+        FixtureHTTP.serve { _ in agentStream([["type": "response.output_text.delta", "delta": "Cut off"]]) }
+        do {
+            _ = try await repository.callPerplexityAgentStream(prompt: "p", settings: perplexity, apiKey: key, webSearch: false, maxTokens: 4096)
+            fatalError("Unterminated stream accepted")
+        } catch { check(error.localizedDescription.contains("missing_completion"), "A stream without a terminal event is rejected") }
+        check(FixtureHTTP.requests[0].body["tools"] == nil, "Lyrics streams never search the web")
+        FixtureHTTP.serve { _ in agentStream([
+            ["type": "response.output_text.delta", "delta": "Partial"],
+            ["type": "response.failed", "response": ["status": "failed", "error": ["message": "upstream model error"]]]
+        ]) }
+        do {
+            _ = try await repository.callPerplexityAgentStream(prompt: "p", settings: perplexity, apiKey: key, webSearch: false, maxTokens: 4096)
+            fatalError("Failed stream accepted")
+        } catch { check(error.localizedDescription.contains("upstream model error"), "A failed stream keeps its message") }
+
         // The in-memory cache stays bounded.
         for index in 0..<70 {
             FixtureHTTP.serve { $0["temperature"] != nil ? rejectTemperature : chatOK }
@@ -378,6 +437,7 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-openai-parameters-") as direct
     (directory / "Fixtures.swift").write_text(fixtures)
     (directory / "Regression.swift").write_text(checks)
     executable = directory / "regression"
-    subprocess.run(["swiftc", str(directory / "Fixtures.swift"), str(directory / "Regression.swift"), "-o", str(executable)], check=True)
+    subprocess.run(["swiftc", str(directory / "Fixtures.swift"), str(SRC / "PerplexityAgentAPI.swift"), str(directory / "Regression.swift"),
+                    "-o", str(executable)], check=True)
     subprocess.run([str(executable)], check=True)
 

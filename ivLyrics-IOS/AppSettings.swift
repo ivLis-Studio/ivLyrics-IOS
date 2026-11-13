@@ -142,7 +142,7 @@ final class AppSettings: ObservableObject {
         Provider(id: "claude", label: "Anthropic Claude", description: "Claude Messages API 사용", defaultBaseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-sonnet-4-20250514", apiKeyURL: "https://console.anthropic.com/settings/keys"),
         Provider(id: "openrouter", label: "OpenRouter", description: "여러 AI 모델 라우팅", defaultBaseUrl: "https://openrouter.ai/api/v1", defaultModel: "anthropic/claude-3.5-sonnet", apiKeyURL: "https://openrouter.ai/keys"),
         Provider(id: "groq", label: "Groq", description: "빠른 OpenAI 호환 추론", defaultBaseUrl: "https://api.groq.com/openai/v1", defaultModel: "llama-3.3-70b-versatile", apiKeyURL: "https://console.groq.com/keys"),
-        Provider(id: "perplexity", label: "Perplexity", description: "Sonar API 사용", defaultBaseUrl: "https://api.perplexity.ai", defaultModel: "sonar-pro", apiKeyURL: "https://www.perplexity.ai/settings/api"),
+        Provider(id: "perplexity", label: "Perplexity", description: "Agent API 사용", defaultBaseUrl: "https://api.perplexity.ai", defaultModel: PerplexityAgentAPI.defaultModel, apiKeyURL: "https://www.perplexity.ai/settings/api"),
         Provider(id: "pollinations", label: "Pollinations.ai", description: "Pollinations OpenAI 호환 API", defaultBaseUrl: "https://gen.pollinations.ai", defaultModel: "openai", apiKeyURL: "https://enter.pollinations.ai"),
         Provider(id: "paxsenix", label: "paxsenix", description: "OpenAI 호환 API 서버", defaultBaseUrl: PaxsenixAIProvider.baseURL, defaultModel: "", apiKeyURL: PaxsenixAIProvider.dashboardURL),
         Provider(id: "deepl", label: "DeepL", description: "DeepL API Free / Pro", defaultBaseUrl: "", defaultModel: "", apiKeyURL: "https://www.deepl.com/your-account/keys")
@@ -1367,7 +1367,8 @@ final class AppSettings: ObservableObject {
                     openAIConnections: stored.openAIConnections,
                     apiKeys: stored.apiKeys,
                     baseUrl: stored.baseUrl.trimmed.isEmpty ? provider.defaultBaseUrl : stored.baseUrl,
-                    model: stored.model,
+                    // A saved Sonar name (sonar-pro, ...) no longer exists on Perplexity's Agent API.
+                    model: PerplexityAgentAPI.normalizeModel(providerID: provider.id, stored.model),
                     maxTokens: max(256, stored.maxTokens),
                     temperature: min(2, max(0, stored.temperature))
                 )
@@ -1380,9 +1381,12 @@ final class AppSettings: ObservableObject {
                     baseUrl: defaults.string(forKey: "base_url")?.trimmed.isEmpty == false
                         ? defaults.string(forKey: "base_url")!
                         : provider.defaultBaseUrl,
-                    model: defaults.string(forKey: "model")?.trimmed.isEmpty == false
-                        ? defaults.string(forKey: "model")!
-                        : provider.defaultModel,
+                    model: PerplexityAgentAPI.normalizeModel(
+                        providerID: provider.id,
+                        defaults.string(forKey: "model")?.trimmed.isEmpty == false
+                            ? defaults.string(forKey: "model")!
+                            : provider.defaultModel
+                    ),
                     maxTokens: max(256, defaults.object(forKey: "max_tokens") as? Int ?? 16000),
                     temperature: min(2, max(0, defaults.object(forKey: "temperature") as? Double ?? 0.3))
                 )

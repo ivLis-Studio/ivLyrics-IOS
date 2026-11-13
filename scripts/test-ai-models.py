@@ -40,10 +40,17 @@ final class FixtureProtocol: URLProtocol {
         .init(provider: provider, baseURL: base, apiKeys: keys, pollinationsAccessToken: "")
     }
     static func main() async throws {
-        for provider in ["chatgpt", "groq", "openrouter", "perplexity", "pollinations", "paxsenix"] {
+        for provider in ["chatgpt", "groq", "openrouter", "pollinations", "paxsenix"] {
             let models = try parse(provider, #"{"data":[{"id":"text-model"},{"id":"text-model"},{"id":"whisper-large"},{"id":"text-embedding-3"},{"id":""}]}"#)
             check(models.map(\.id) == ["text-model"], "\(provider) filtering and duplicate IDs")
         }
+        // Perplexity's Agent API serves every listed model through /v1/agent; bare Sonar names are gone.
+        let agent = try parse("perplexity", #"{"object":"list","data":[{"id":"openai/gpt-6-luna","object":"model"},{"id":"sonar-pro"},{"id":"perplexity/sonar","supported_endpoints":["/v1/responses"]},{"id":"anthropic/claude-sonnet-5-5","display_name":"Claude Sonnet 5.5"},{"id":"perplexity/sonar"}]}"#)
+        check(agent.map(\.id) == ["openai/gpt-6-luna", "perplexity/sonar", "anthropic/claude-sonnet-5-5"] && agent[2].name == "Claude Sonnet 5.5",
+              "Perplexity keeps provider-prefixed Agent API models")
+        check(PerplexityAgentAPI.normalizeModel("sonar-pro") == "perplexity/sonar" && PerplexityAgentAPI.normalizeModel(" ") == "perplexity/sonar"
+              && PerplexityAgentAPI.normalizeModel("openai/gpt-6-luna") == "openai/gpt-6-luna"
+              && PerplexityAgentAPI.normalizeModel(providerID: "chatgpt", "gpt-6-luna") == "gpt-6-luna", "Retired Sonar ids become the Agent default")
         let gemini = try parse("gemini", #"{"models":[{"name":"models/gemini-test","displayName":"Test Gemini","supportedGenerationMethods":["generateContent"]},{"name":"models/embedding","supportedGenerationMethods":["embedContent"]}]}"#)
         check(gemini.count == 1 && gemini[0].id == "gemini-test" && gemini[0].name == "Test Gemini", "Gemini capability and resource name")
         let claude = try parse("claude", #"{"data":[{"id":"claude-test","type":"model","display_name":"Test Claude"}]}"#)
@@ -64,9 +71,11 @@ final class FixtureProtocol: URLProtocol {
         check(URLComponents(url: geminiRequest.url!, resolvingAgainstBaseURL: false)!.queryItems!.contains(URLQueryItem(name: "pageToken", value: "a/b&c")), "Opaque page cursor encoding")
         let claudeRequest = try AIProviderModels.request(configuration("claude"))
         check(claudeRequest.value(forHTTPHeaderField: "x-api-key") == "fixture" && claudeRequest.value(forHTTPHeaderField: "anthropic-version") == "2023-06-01", "Claude headers")
-        let sonar = try await AIProviderModels.fetch(configuration("perplexity", "https://api.perplexity.ai"))
-        check(sonar.builtIn && sonar.models.contains(where: { $0.id == "sonar-pro" }), "Sonar fallback is explicit")
-        check(!configuration("perplexity", "https://api.perplexity.ai/router/v1").usesSonarCatalog, "Router retains live catalog")
+        for base in ["https://api.perplexity.ai", "https://api.perplexity.ai/v1/"] {
+            let request = try AIProviderModels.request(configuration("perplexity", base))
+            check(request.url!.absoluteString == "https://api.perplexity.ai/v1/models" && request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture",
+                  "Perplexity models come from /v1/models, never the 404 /models")
+        }
         do { _ = try parse("chatgpt", #"{"error":"denied"}"#); fatalError("Invalid response accepted") }
         catch { count += 1 }
         do { _ = try AIProviderModels.nextCursor(provider: "claude", root: ["has_more": true]); fatalError("Missing cursor accepted") }
@@ -91,6 +100,13 @@ final class FixtureProtocol: URLProtocol {
         }
         let catalog = try await AIProviderModels.fetch(configuration("gemini"), session: session)
         check(pages == 2 && catalog.models.map(\.id) == ["a", "z"], "Pages merged, deduplicated and sorted")
+        FixtureProtocol.handler = { request in
+            check(request.url!.path == "/v1/models", "Perplexity catalog path")
+            return (200, #"{"data":[{"id":"openai/gpt-6-luna"},{"id":"perplexity/kimi-k3"},{"id":"anthropic/claude-haiku-5-5"},{"id":"perplexity/sonar"}]}"#)
+        }
+        let agentCatalog = try await AIProviderModels.fetch(configuration("perplexity", "https://api.perplexity.ai"), session: session)
+        check(agentCatalog.models.map(\.id) == ["perplexity/sonar", "perplexity/kimi-k3", "anthropic/claude-haiku-5-5", "openai/gpt-6-luna"],
+              "Perplexity default model first, then its own models, then the rest")
         FixtureProtocol.handler = { _ in (401, #"{"error":"denied"}"#) }
         do { _ = try await AIProviderModels.fetch(configuration("chatgpt"), session: session); fatalError("401 accepted") }
         catch let error as HTTPStatusError { check(error.statusCode == 401, "HTTP status propagated") }
@@ -107,7 +123,7 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-ai-models-") as directory:
     (directory / "PollinationsAuthClient.swift").write_text(auth)
     (directory / "Regression.swift").write_text(checks)
     executable = directory / "regression"
-    subprocess.run(["swiftc", str(directory / "Helpers.swift"), str(SRC / "AIProviderModels.swift"),
+    subprocess.run(["swiftc", str(directory / "Helpers.swift"), str(SRC / "AIProviderModels.swift"), str(SRC / "PerplexityAgentAPI.swift"),
                     str(directory / "PollinationsAuthClient.swift"), str(directory / "Regression.swift"),
                     "-o", str(executable)], check=True)
     subprocess.run([str(executable)], check=True)
