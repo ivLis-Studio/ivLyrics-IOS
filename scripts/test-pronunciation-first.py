@@ -64,6 +64,11 @@ assert "restorePronunciationSlots(trackKey: trackKey, cacheKey: pronunciationCac
 assert "let items = PronunciationFirst.timingItems(result).filter { derived[$0.key] == nil }" in repository, \
     "only lines without slots ask AI for unit timing"
 assert "await run(PronunciationSlots.chunks(missing), repair: true)" in repository
+# Pronunciation-first reads 200 ms ahead on the lyric clock, outside the sync offsets.
+assert "+ Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs + pronunciationLeadMs)" in model
+assert "+ Double(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs + pronunciationLeadMs)" in model
+assert "- Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs + pronunciationLeadMs)" in model, "seeking a line inverts the lead"
+assert "pronunciationFirstActive ? Self.pronunciationFirstLeadMs : 0" in model and "static let pronunciationFirstLeadMs = 200" in model
 print("PRONUNCIATION_FIRST_WIRING_PASSED")
 
 

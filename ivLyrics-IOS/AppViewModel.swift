@@ -1161,7 +1161,7 @@ final class AppViewModel: ObservableObject {
     var adjustedPositionMs: Int64 {
         let adjusted = nowPositionMs
             + spotifyDJLyricsOffsetMs
-            + Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
+            + Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs + pronunciationLeadMs)
         if lyricsDurationMs > 0 {
             return max(0, min(lyricsDurationMs, adjusted))
         }
@@ -1172,7 +1172,7 @@ final class AppViewModel: ObservableObject {
     var adjustedContinuousPositionMs: Double {
         let adjusted = nowContinuousPositionMs
             + Double(spotifyDJLyricsOffsetMs)
-            + Double(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
+            + Double(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs + pronunciationLeadMs)
         if lyricsDurationMs > 0 {
             return max(0, min(Double(lyricsDurationMs), adjusted))
         }
@@ -2580,7 +2580,7 @@ final class AppViewModel: ObservableObject {
         let duration = max(0, track.durationMs)
         let target = lyricsTimeMs
             - spotifyDJLyricsOffsetMs
-            - Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs)
+            - Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs + pronunciationLeadMs)
         let position = duration > 0 ? max(0, min(duration, target)) : max(0, target)
         seekPlayer(to: position, track: &track)
         lyricsFocusRequestRevision &+= 1
@@ -4818,6 +4818,14 @@ final class AppViewModel: ObservableObject {
     /// The pronunciation and the original swap rows (the lyrics page toggle).
     var pronunciationFirstActive: Bool {
         settings.pronunciationFirstEnabled && pronunciationShownForCurrentSource
+    }
+
+    /// Singing along reads slightly ahead of the voice: while pronunciation-first is shown, the
+    /// lyric clock runs this much earlier. It is not a sync offset and never appears with them.
+    static let pronunciationFirstLeadMs = 200
+
+    private var pronunciationLeadMs: Int {
+        pronunciationFirstActive ? Self.pronunciationFirstLeadMs : 0
     }
 
     /// Pronunciation rows fill along karaoke timing while pronunciation-first is off.
