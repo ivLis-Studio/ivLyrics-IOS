@@ -118,7 +118,9 @@ struct DebugSettingsUIRoot: View {
     var body: some View {
         Group {
             if DebugSettingsUIHarness.surface == "player" {
-                ContentView()
+                VerticalBarHost {
+                    ContentView()
+                }
             } else {
                 popupContent
             }

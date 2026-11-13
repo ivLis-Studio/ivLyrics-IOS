@@ -166,6 +166,7 @@ jobs:
           python3 scripts/test-pip-layout.py
           python3 scripts/test-pip-lifecycle.py
           python3 scripts/test-pip-pinch.py
+          python3 scripts/test-vertical-bar.py
           python3 scripts/test-lrcred.py
           python3 scripts/test-pronunciation-first.py
           python3 scripts/test-video-sharing.py

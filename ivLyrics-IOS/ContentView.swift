@@ -227,13 +227,15 @@ private struct ProductionAppRoot: View {
     init() { LocalAIController.shared.start() }
 
     var body: some View {
-            ContentView()
-                .environmentObject(settings)
-                .environmentObject(viewModel)
-                .environmentObject(viewModel.playbackClock)
-                .onOpenURL { url in
-                    viewModel.handleOpenURL(url)
-                }
+            VerticalBarHost {
+                ContentView()
+            }
+            .environmentObject(settings)
+            .environmentObject(viewModel)
+            .environmentObject(viewModel.playbackClock)
+            .onOpenURL { url in
+                viewModel.handleOpenURL(url)
+            }
     }
 }
 
@@ -263,6 +265,8 @@ struct ContentView: View {
     @State private var vinylModeVisible = false
     @State private var mainPageFrozen = false
     @State private var mainPageCoverToken = UUID()
+    /// iPhone Duo: the settings button lives in the system vertical bar (VerticalBar.swift).
+    @State private var settingsInVerticalBar = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -276,6 +280,15 @@ struct ContentView: View {
             .environment(\.playbackAdvancing, model.currentTrack?.playing == true)
             .statusBarHidden(isLandscape)
             .persistentSystemOverlays(isLandscape ? .hidden : .automatic)
+            // Landscape hides the status bar and keeps its own auto-hiding command bar.
+            .verticalBarSettingsItem(
+                title: settings.t("settings.title"),
+                allowed: !isLandscape,
+                hidden: verticalBarSettingsCovered,
+                placed: $settingsInVerticalBar
+            ) {
+                showingSettings = true
+            }
             .contentShape(Rectangle())
             .onTapGesture {
                 showLandscapeControlsTemporarily(isLandscape: isLandscape)
@@ -377,6 +390,19 @@ struct ContentView: View {
 #else
         return true
 #endif
+    }
+
+    /// The overlays that cover the page's own settings button also take the vertical bar's.
+    /// The lyrics page is not one of them: its header button gives way to the bar's.
+    private var verticalBarSettingsCovered: Bool {
+        vinylModeVisible
+            || showingLyricsMetaMenu
+            || showingLogs
+            || model.inAppBrowserURL != nil
+            || model.tmiPresented
+            || model.updateDialogPresented
+            || model.firstLanguagePrompt != nil
+            || model.researchTokenConsentPresented
     }
 
     private func rootContent(isLandscape: Bool, size: CGSize, safeAreaInsets: EdgeInsets) -> some View {
@@ -526,6 +552,7 @@ struct ContentView: View {
                 selectedMetaMenuTab: $lyricsMetaMenuTab,
                 metaTipVisible: $lyricsMetaTipVisible,
                 openSettings: { showingSettings = true },
+                settingsInVerticalBar: settingsInVerticalBar,
                 screenHeight: size.height,
                 safeAreaTop: safeAreaInsets.top,
                 safeAreaBottom: safeAreaInsets.bottom
@@ -613,21 +640,24 @@ struct ContentView: View {
             let metadataControlsSpacing = min(38, max(28, height * 0.045))
 
             VStack(spacing: 0) {
-                ZStack(alignment: .topTrailing) {
-                    Color.clear
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        AndroidMoreIcon()
-                            .frame(width: 18, height: 18)
-                            .frame(width: 44, height: 44)
+                // With the button in the vertical bar, its row would only push the page down.
+                if !settingsInVerticalBar {
+                    ZStack(alignment: .topTrailing) {
+                        Color.clear
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            AndroidMoreIcon()
+                                .frame(width: 18, height: 18)
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white)
+                        .accessibilityLabel(settings.t("settings.title"))
+                        .padding(.top, 8)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white)
-                    .accessibilityLabel(settings.t("settings.title"))
-                    .padding(.top, 8)
+                    .frame(height: 56)
                 }
-                .frame(height: 56)
 
                 Spacer(minLength: 0)
                     .frame(maxHeight: 20)
@@ -1803,6 +1833,7 @@ private struct LyricsPageOverlay: View {
     @Binding var selectedMetaMenuTab: LyricsMetaMenuTab
     @Binding var metaTipVisible: Bool
     var openSettings: () -> Void
+    var settingsInVerticalBar: Bool
     var screenHeight: CGFloat
     var safeAreaTop: CGFloat
     var safeAreaBottom: CGFloat
@@ -1917,16 +1948,18 @@ private struct LyricsPageOverlay: View {
                     .onLongPressGesture {
                         openMetaMenu(.language)
                     }
-                    Button(action: openSettings) {
-                        AndroidMoreIcon()
-                            .frame(width: 18, height: 18)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
+                    if !settingsInVerticalBar {
+                        Button(action: openSettings) {
+                            AndroidMoreIcon()
+                                .frame(width: 18, height: 18)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(settings.t("settings.title"))
+                        .accessibilityIdentifier("lyrics.settings")
+                        .layoutPriority(3)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(settings.t("settings.title"))
-                    .accessibilityIdentifier("lyrics.settings")
-                    .layoutPriority(3)
                 }
                 .frame(minHeight: 54)
                 .padding(.top, 12)
