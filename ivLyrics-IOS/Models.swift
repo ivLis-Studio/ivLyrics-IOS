@@ -117,15 +117,15 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
     private static let keyWhitespacePattern = #"\s+"#
     private static let keyWhitespaceRegex = try? NSRegularExpression(pattern: keyWhitespacePattern)
 
-    var title: String
-    var artist: String
+    var title: String { didSet { refreshIdentity() } }
+    var artist: String { didSet { refreshIdentity() } }
     var album: String
     var albumURI: String
     var playbackContextURI: String
     var packageName: String
-    var mediaId: String
+    var mediaId: String { didSet { refreshIdentity() } }
     var isrc: String
-    var durationMs: Int64
+    var durationMs: Int64 { didSet { refreshIdentity() } }
     var positionMs: Int64
     var lastPositionUpdate: Date
     var lastPositionUpdateUptime: TimeInterval
@@ -133,9 +133,11 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
     var playing: Bool
     var artworkURL: URL?
 
-    var trackId: String {
-        Self.extractSpotifyTrackId(mediaId)
-    }
+    /// The track identity is read on every display frame (lyric timeline, vinyl records,
+    /// Spotify DJ correction), so it is derived once when title, artist, media id or duration
+    /// change. Equality and hashing ignore these derived values.
+    private(set) var trackId = ""
+    private(set) var stableKey = ""
 
     init(
         title: String,
@@ -171,6 +173,14 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
         self.playbackSpeed = playbackSpeed > 0 ? playbackSpeed : 1
         self.playing = playing
         self.artworkURL = artworkURL
+        refreshIdentity()
+    }
+
+    private mutating func refreshIdentity() {
+        trackId = Self.extractSpotifyTrackId(mediaId)
+        stableKey = trackId.isEmpty
+            ? "\(Self.normalizeForKey(title))|\(Self.normalizeForKey(artist))|\(durationMs)"
+            : "spotify:\(trackId)"
     }
 
     var hasUsableMetadata: Bool {
@@ -182,14 +192,6 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
         guard normalizedArtist == "dj x" else { return false }
         let normalizedTitle = Self.normalizeForKey(title)
         return normalizedTitle == "welcome" || normalizedTitle == "up next"
-    }
-
-    var stableKey: String {
-        let spotifyTrackId = trackId
-        if !spotifyTrackId.isEmpty {
-            return "spotify:\(spotifyTrackId)"
-        }
-        return "\(Self.normalizeForKey(title))|\(Self.normalizeForKey(artist))|\(durationMs)"
     }
 
     func positionNow(uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Int64 {
