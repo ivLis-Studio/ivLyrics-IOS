@@ -1356,13 +1356,23 @@ struct PlayerBackgroundView: View {
         let background = effectiveBackground
         Group {
             if backgroundShouldAnimate(background) {
-                TimelineView(.animation) { context in
+                TimelineView(.animation(minimumInterval: backgroundFrameInterval(background))) { context in
                     backgroundContent(background: background, date: context.date)
                 }
             } else {
                 backgroundContent(background: background, date: nil)
             }
         }
+    }
+
+    /// The background drifts far slower than the display refreshes, so painting it on every
+    /// frame redraws a large blur for sub-pixel moves. The blurred artwork moves at most
+    /// about 1.2 pt/s (13-inch iPad), 0.1 pt per frame at 12 fps; the gradient blobs at most
+    /// about 20 pt/s, 0.7 pt of a very soft edge per frame at 30 fps.
+    private func backgroundFrameInterval(_ background: AppSettings.BackgroundSettings) -> TimeInterval {
+        background.mode == AppSettings.backgroundGradient && model.currentTrack?.artworkURL != nil
+            ? 1.0 / 12.0
+            : 1.0 / 30.0
     }
 
     @ViewBuilder
