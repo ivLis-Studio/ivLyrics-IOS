@@ -178,7 +178,15 @@ final class AppViewModel: ObservableObject {
     @Published var inputDuration: String
     @Published var inputSpotifyId: String
     @Published var inputIsrc: String
-    @Published private(set) var currentTrack: TrackSnapshot?
+    @Published private(set) var currentTrack: TrackSnapshot? {
+        didSet {
+            #if os(iOS)
+            if oldValue?.playing != currentTrack?.playing {
+                refreshDisplayClockIdle()
+            }
+            #endif
+        }
+    }
     @Published private(set) var lyricsResult = LyricsResult.empty("") {
         didSet {
             // Supplements built on line-timed lrc.red lyrics keep word timing that arrived meanwhile.
@@ -400,6 +408,13 @@ final class AppViewModel: ObservableObject {
             if playbackClock.nowPositionMs != newValue {
                 playbackClock.nowPositionMs = newValue
             }
+            #if os(iOS)
+            // An idle clock last sampled the frame time up to half a second ago; a seek while
+            // paused starts its lyric travel from now.
+            if displayClock?.idle == true {
+                playbackFrameUptime = ProcessInfo.processInfo.systemUptime
+            }
+            #endif
         }
     }
     /// Unrounded playback position sampled for the same display frame as nowPositionMs.
@@ -414,6 +429,9 @@ final class AppViewModel: ObservableObject {
     /// stops publishing, so a travel in flight asks for frame updates until it lands.
     func keepLyricsFramesUpdating(until uptime: TimeInterval) {
         lyricsFrameUpdatesUntilUptime = max(lyricsFrameUpdatesUntilUptime, uptime)
+        #if os(iOS)
+        refreshDisplayClockIdle()
+        #endif
     }
     @Published var trackOffsetMs: Int = 0 {
         didSet {
@@ -5099,8 +5117,24 @@ final class AppViewModel: ObservableObject {
             foregroundActive: foregroundActive ?? (UIApplication.shared.applicationState == .active),
             pictureInPictureEngaged: pictureInPictureController.isEngaged
         ))
+        refreshDisplayClockIdle()
         #endif
     }
+
+    #if os(iOS)
+    /// The display link runs only while something can move with the clock: playback, a lyric
+    /// travel in flight, or engaged PiP. Paused playback publishes nothing, so idling it changes no
+    /// frame (see DisplayRefreshClock).
+    private func refreshDisplayClockIdle(uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        guard let displayClock else { return }
+        let idle = currentTrack?.playing != true
+            && uptime >= lyricsFrameUpdatesUntilUptime
+            && !pictureInPictureController.isEngaged
+        if displayClock.setIdle(idle) {
+            playbackFrameUptime = uptime
+        }
+    }
+    #endif
 
     /// frameUptime is the vsync time of the display frame being prepared (CADisplayLink.timestamp);
     /// without it (background PiP timer, other platforms) the clock is sampled when called.
@@ -5142,6 +5176,9 @@ final class AppViewModel: ObservableObject {
             lastPiPClockUpdateUptime = uptime
             updatePictureInPictureState()
         }
+        #if os(iOS)
+        refreshDisplayClockIdle(uptime: uptime)
+        #endif
     }
 
     private func updateSpotifyDJLyricsTimeline(
