@@ -14,6 +14,9 @@ import UIKit
 /// IVLYRICS_DEBUG_FIXTURE_FROZEN=1 keeps the position fixed while playing (static engaged vinyl).
 /// IVLYRICS_DEBUG_FIXTURE_PAUSE_AFTER_S / _PLAY_AFTER_S toggle playback after a delay, and
 /// IVLYRICS_DEBUG_FIXTURE_NEXT_TRACK_AFTER_S switches to a second fixture track.
+/// IVLYRICS_DEBUG_FIXTURE_SONG=store-ko (Korean, romanized, English translation) or store-ja
+/// (Japanese, Hangul pronunciation, Korean translation) plays a single-language song written for
+/// App Store screenshots instead of the mixed motion fixture.
 enum DebugKaraokeFixture {
     static let title = "ivLyrics Motion Fixture"
     static let artist = "ivLyrics QA"
@@ -27,6 +30,45 @@ enum DebugKaraokeFixture {
         var translation: String
         var pronunciation: String = ""
     }
+
+    private static var songKey: String {
+        ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_FIXTURE_SONG"] ?? ""
+    }
+
+    // Original lyrics written for the store screenshots.
+    private static let storeKoreanPhrases: [Phrase] = [
+        Phrase(text: "창문 너머로 별이 내려와", translation: "Stars drift down past the window", pronunciation: "changmun neomeoro byeori naeryeowa"),
+        Phrase(text: "잠든 도시에 불을 켜", translation: "Lighting up the sleeping city", pronunciation: "jamdeun dosie bureul kyeo"),
+        Phrase(text: "너의 목소리가 들려", translation: "I can hear your voice", pronunciation: "neoui moksoriga deullyeo"),
+        Phrase(text: "멀리 있어도 선명하게", translation: "Clear, even from far away", pronunciation: "meolli isseodo seonmyeonghage"),
+        Phrase(text: "우리 함께 걸어가", translation: "Let's walk on together", pronunciation: "uri hamkke georeoga"),
+        Phrase(text: "끝나지 않을 노래처럼", translation: "Like a song that never ends", pronunciation: "kkeunnaji aneul noraecheoreom"),
+        Phrase(text: "별처럼 빛나는 밤", translation: "A night that shines like stars", pronunciation: "byeolcheoreom binnaneun bam"),
+        Phrase(text: "이 순간을 기억해", translation: "Remember this moment", pronunciation: "i sunganeul gieokae"),
+        Phrase(text: "바람이 불어와도", translation: "Even when the wind blows in", pronunciation: "barami bureowado"),
+        Phrase(text: "네 손을 놓지 않을게", translation: "I won't let go of your hand", pronunciation: "ne soneul nochi aneulge"),
+        Phrase(text: "새벽이 올 때까지", translation: "Until the dawn comes", pronunciation: "saebyeogi ol ttaekkaji"),
+        Phrase(text: "우리 노래를 불러", translation: "Sing our song", pronunciation: "uri noraereul bulleo"),
+        Phrase(text: "별처럼 빛나는 밤", translation: "A night that shines like stars", pronunciation: "byeolcheoreom binnaneun bam"),
+        Phrase(text: "영원히 기억해", translation: "Remember it forever", pronunciation: "yeongwonhi gieokae")
+    ]
+
+    private static let storeJapanesePhrases: [Phrase] = [
+        Phrase(text: "夜明けの街を走り出す", translation: "새벽의 거리를 달리기 시작해", pronunciation: "요아케노 마치오 하시리다스"),
+        Phrase(text: "ネオンが消えていく", translation: "네온이 하나둘 꺼져 가", pronunciation: "네온가 키에테이쿠"),
+        Phrase(text: "君の声が聞こえる", translation: "너의 목소리가 들려", pronunciation: "키미노 코에가 키코에루"),
+        Phrase(text: "遠く離れていても", translation: "멀리 떨어져 있어도", pronunciation: "토오쿠 하나레테 이테모"),
+        Phrase(text: "二人で歩いていこう", translation: "둘이서 함께 걸어가자", pronunciation: "후타리데 아루이테 이코오"),
+        Phrase(text: "終わらない歌のように", translation: "끝나지 않는 노래처럼", pronunciation: "오와라나이 우타노 요오니"),
+        Phrase(text: "星のように輝く夜", translation: "별처럼 빛나는 밤", pronunciation: "호시노 요오니 카가야쿠 요루"),
+        Phrase(text: "この瞬間を忘れない", translation: "이 순간을 잊지 않을게", pronunciation: "코노 슌칸오 와스레나이"),
+        Phrase(text: "風が吹いても", translation: "바람이 불어와도", pronunciation: "카제가 후이테모"),
+        Phrase(text: "この手を離さないで", translation: "이 손을 놓지 말아 줘", pronunciation: "코노 테오 하나사나이데"),
+        Phrase(text: "朝が来るまで", translation: "아침이 올 때까지", pronunciation: "아사가 쿠루마데"),
+        Phrase(text: "僕らの歌を歌おう", translation: "우리의 노래를 부르자", pronunciation: "보쿠라노 우타오 우타오오"),
+        Phrase(text: "星のように輝く夜", translation: "별처럼 빛나는 밤", pronunciation: "호시노 요오니 카가야쿠 요루"),
+        Phrase(text: "いつまでも覚えてる", translation: "언제까지나 기억할게", pronunciation: "이츠마데모 오보에테루")
+    ]
 
     // Original text written for this fixture; translations exercise the supplement rows.
     private static let phrases: [Phrase] = [
@@ -81,6 +123,17 @@ enum DebugKaraokeFixture {
     ]
 
     static func make() -> (result: LyricsResult, durationMs: Int64) {
+        let storePhrases: [Phrase]? = switch songKey {
+        case "store-ko": storeKoreanPhrases
+        case "store-ja": storeJapanesePhrases
+        default: nil
+        }
+        let phrases = storePhrases ?? Self.phrases
+        let schedule = storePhrases.map { lines in
+            lines.indices.map { index -> (durationMs: Int64, gapMs: Int64) in
+                (3_200 + Int64(index % 3) * 200, index == 5 ? 1_200 : 300)
+            }
+        } ?? Self.schedule
         var lines: [LyricsLine] = []
         var cursor: Int64 = 1_500
         for (index, timing) in schedule.enumerated() {
@@ -109,9 +162,12 @@ enum DebugKaraokeFixture {
         return (result, cursor + 4_000)
     }
 
-    /// Word chunks for Latin text and syllable blocks for Hangul, weighted by length.
+    /// Word chunks for Latin text and one block per character for Hangul, kana and kanji,
+    /// weighted by length.
     private static func syllables(_ text: String, startMs: Int64, endMs: Int64) -> [LyricsLine.Syllable] {
-        let hangul = text.unicodeScalars.contains { (0xAC00...0xD7A3).contains($0.value) }
+        let hangul = text.unicodeScalars.contains {
+            (0xAC00...0xD7A3).contains($0.value) || (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value)
+        }
         var units: [String] = []
         if hangul {
             for character in text {

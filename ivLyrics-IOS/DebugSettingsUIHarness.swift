@@ -99,6 +99,11 @@ struct DebugSettingsUIRoot: View {
             defaults.set(true, forKey: "translation_enabled")
             defaults.set(true, forKey: "pronunciation_enabled")
         }
+        // Store screenshots: any further settings as a JSON object of defaults keys.
+        if let raw = ProcessInfo.processInfo.environment["IVLYRICS_UI_DEFAULTS_JSON"],
+           let object = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] {
+            for (key, value) in object { defaults.set(value, forKey: key) }
+        }
         let settings = AppSettings(defaults: defaults)
         if let imported = ProcessInfo.processInfo.environment["IVLYRICS_UI_IMPORT_COVER_TAP"] {
             settings.importCloudSettings(["vinyl_cover_tap_enabled": imported == "1"])

@@ -1109,6 +1109,13 @@ final class AppViewModel: ObservableObject {
         baseLyricsResult = fixture.result
         lyricsResult = fixture.result
         status = .loaded
+        if environment["IVLYRICS_DEBUG_PIP_CURRENT"] == "1" {
+            // The PiP layout preview reads the controller state, which the foreground clock
+            // feeds only in live sessions; give it the fixture track once.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.updatePictureInPictureState(force: true)
+            }
+        }
     }
 
     /// Replaces the fixture track with a second one (same lyrics) to exercise track changes.
