@@ -30,6 +30,8 @@ actor AiLyricsRepository {
     private var metadataMemoryCache = BoundedLRUCache<String, MetadataTranslation>(capacity: 200)
     private var tmiMemoryCache = BoundedLRUCache<String, TmiInfo>(capacity: 100)
     private var culturalAnnotationMemoryCache = BoundedLRUCache<String, [CulturalAnnotation]>(capacity: 100)
+    private var timedPronunciationMemoryCache = BoundedLRUCache<String, [String: [String]]>(capacity: 100)
+    private let timedPronunciationDiskCache = RawResponseDiskCache(namespace: "ai_timed_pronunciation", maxEntries: 300)
     private var researchModelLimitCache: [String: Int] = [:]
     private var openAiParameterAdjustmentCache: [String: OpenAiParameterAdjustments] = [:]
     private var lastPartialEmitUptime: TimeInterval = 0
@@ -175,6 +177,16 @@ actor AiLyricsRepository {
         var requestKey: String
         var annotations: [CulturalAnnotation]
         var logs: [String]
+        var hadError: Bool
+        var errorMessage: String
+    }
+
+    /// Unit pronunciations by item key ("line:group"), for pronunciation-first and the fill.
+    struct TimedPronunciationResponse: Sendable {
+        var requestKey: String
+        var parts: [String: [String]]
+        var logs: [String]
+        var announced: Bool
         var hadError: Bool
         var errorMessage: String
     }
@@ -978,10 +990,12 @@ actor AiLyricsRepository {
         metadataMemoryCache.removeAll()
         tmiMemoryCache.removeAll()
         culturalAnnotationMemoryCache.removeAll()
+        timedPronunciationMemoryCache.removeAll()
         diskCache.clear()
         metadataDiskCache.clear()
         tmiDiskCache.clear()
         culturalAnnotationDiskCache.clear()
+        timedPronunciationDiskCache.clear()
     }
 
     func clearTrackCache(_ trackKey: String) {
@@ -991,10 +1005,117 @@ actor AiLyricsRepository {
         metadataMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("metadata|" + key + "|") }
         tmiMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("tmi|" + key + "|") }
         culturalAnnotationMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("cultural|" + key + "|") }
+        timedPronunciationMemoryCache.removeValues { cacheKey, _ in cacheKey.hasPrefix("timed-pronunciation|" + key + "|") }
         diskCache.removeByKeyPrefix(key + "|")
         metadataDiskCache.removeByKeyPrefix("metadata|" + key + "|")
         tmiDiskCache.removeByKeyPrefix("tmi|" + key + "|")
         culturalAnnotationDiskCache.removeByKeyPrefix("cultural|" + key + "|")
+        timedPronunciationDiskCache.removeByKeyPrefix("timed-pronunciation|" + key + "|")
+    }
+
+    /// Pronunciation-first and the pronunciation fill: AI splits each karaoke line's
+    /// pronunciation across its timed units. The request is chunked with one repair pass for
+    /// items whose slots did not match, and cached per unit timing and reading.
+    func loadTimedPronunciation(
+        track: TrackSnapshot,
+        result: LyricsResult,
+        settings: AppSettings.Snapshot,
+        sourceLang: String,
+        onStarted: @escaping @MainActor @Sendable () -> Void = {}
+    ) async -> TimedPronunciationResponse {
+        var logs: [String] = []
+        let items = PronunciationFirst.timingItems(result)
+        let source = sourceLang.trimmed.isEmpty ? "auto" : sourceLang.trimmed
+        let targetLang = settings.resolveTargetLanguage(sourceLang: source)
+        let requestKey = "timed-pronunciation|" + track.stableKey + "|"
+            + IvLyricsUtilities.sha256(PronunciationFirst.signature(items, targetLang: targetLang, sourceLang: source))
+        func response(
+            parts: [String: [String]] = [:],
+            announced: Bool = false,
+            hadError: Bool = false,
+            errorMessage: String = ""
+        ) -> TimedPronunciationResponse {
+            TimedPronunciationResponse(
+                requestKey: requestKey,
+                parts: parts,
+                logs: logs,
+                announced: announced,
+                hadError: hadError,
+                errorMessage: errorMessage
+            )
+        }
+        guard !items.isEmpty else { return response() }
+        if let cached = timedPronunciationMemoryCache.value(forKey: requestKey) {
+            logs.append("pronunciation timing cache hit: items=\(cached.count)")
+            return response(parts: cached)
+        }
+        if let cached = timedPronunciationFromDisk(requestKey) {
+            timedPronunciationMemoryCache.insert(cached, forKey: requestKey)
+            logs.append("pronunciation timing disk cache hit: items=\(cached.count)")
+            return response(parts: cached)
+        }
+        guard settings.hasApiKey, settings.hasModel else {
+            logs.append("pronunciation timing skipped: AI provider not ready")
+            return response(hadError: true, errorMessage: AppI18n.t(
+                settings.uiLang,
+                settings.hasApiKey ? "status.ai_model_needed" : "tmi.require_key"
+            ))
+        }
+        await onStarted()
+        logs.append("pronunciation timing: provider=\(settings.provider.label) / items=\(items.count)")
+        let context = PronunciationFirst.lyricsText(result)
+        var aligned: [String: [String]] = [:]
+        var firstError: Error?
+        for chunk in PronunciationFirst.chunks(items) {
+            do {
+                aligned.merge(try await requestTimedPronunciation(chunk, context: context, sourceLang: source, settings: settings)) { _, next in next }
+            } catch {
+                if error is CancellationError { return response(announced: true, hadError: true, errorMessage: "cancelled") }
+                firstError = firstError ?? error
+            }
+        }
+        // One repair pass, in smaller requests, for items whose slots did not match.
+        let missing = items.filter { aligned[$0.key] == nil }
+        if !missing.isEmpty && !aligned.isEmpty {
+            for chunk in PronunciationFirst.chunks(missing, maxUnits: 200, maxItems: 8) {
+                if let repaired = try? await requestTimedPronunciation(chunk, context: context, sourceLang: source, settings: settings) {
+                    aligned.merge(repaired) { _, next in next }
+                }
+            }
+        }
+        guard !aligned.isEmpty else {
+            let message = firstError?.localizedDescription ?? "AI returned no usable pronunciation timing"
+            logs.append("pronunciation timing error: \(message)")
+            return response(announced: true, hadError: true, errorMessage: message)
+        }
+        timedPronunciationMemoryCache.insert(aligned, forKey: requestKey)
+        if let data = try? JSONEncoder().encode(aligned), let raw = String(data: data, encoding: .utf8) {
+            timedPronunciationDiskCache.put(requestKey, body: raw)
+        }
+        logs.append("pronunciation timing response: \(aligned.count)/\(items.count)")
+        return response(parts: aligned, announced: true)
+    }
+
+    private func requestTimedPronunciation(
+        _ chunk: [PronunciationFirst.Item],
+        context: String,
+        sourceLang: String,
+        settings: AppSettings.Snapshot
+    ) async throws -> [String: [String]] {
+        let prompt = PronunciationFirst.prompt(chunk, lyricsText: context, sourceLang: sourceLang)
+        return try await withOpenAIConnections(settings: settings) { connection in
+            PronunciationFirst.parse(try await callProviderRaw(prompt: prompt, settings: connection), items: chunk)
+        }
+    }
+
+    private func timedPronunciationFromDisk(_ cacheKey: String) -> [String: [String]]? {
+        let raw = timedPronunciationDiskCache.get(cacheKey)
+        guard !raw.trimmed.isEmpty, let data = raw.data(using: .utf8) else { return nil }
+        guard let parts = try? JSONDecoder().decode([String: [String]].self, from: data), !parts.isEmpty else {
+            timedPronunciationDiskCache.remove(cacheKey)
+            return nil
+        }
+        return parts
     }
 
     private func translateDeepL(texts: [String], language: String, settings: AppSettings.Snapshot,

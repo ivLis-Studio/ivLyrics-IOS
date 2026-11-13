@@ -1806,6 +1806,9 @@ private struct LyricsPageOverlay: View {
     var screenHeight: CGFloat
     var safeAreaTop: CGFloat
     var safeAreaBottom: CGFloat
+    // Any touch on the page shows the pronunciation-first toggle for a few seconds.
+    @GestureState private var pageTouched = false
+    @State private var pronunciationToggleReveal = 0
 
     var body: some View {
         ZStack {
@@ -1838,6 +1841,17 @@ private struct LyricsPageOverlay: View {
             LyricsProviderAttribution()
                 .padding(.horizontal, 24)
                 .padding(.bottom, safeAreaBottom + 12)
+            PronunciationFirstToggle(revealRevision: pronunciationToggleReveal)
+                .padding(.leading, 14)
+                .padding(.bottom, safeAreaBottom + 6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .updating($pageTouched) { _, touched, _ in touched = true }
+        )
+        .onChange(of: pageTouched) { _, touched in
+            if touched { pronunciationToggleReveal &+= 1 }
         }
         .clipShape(RoundedRectangle(cornerRadius: dragOffset > 1 ? 28 : 0, style: .continuous))
         .offset(y: dragOffset)
@@ -2759,6 +2773,80 @@ private struct LandscapeCommandBar: View {
         .foregroundStyle(.white)
         .accessibilityLabel(settings.t("settings.title"))
         .accessibilityIdentifier("player.settings.landscape")
+    }
+}
+
+/// Pronunciation-first toggle on the lyrics page. Like the vocal control of the Spotify module on
+/// Android, it appears on touch while the song has a pronunciation and fades after idle seconds.
+private struct PronunciationFirstToggle: View {
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var model: AppViewModel
+    var revealRevision: Int
+    @State private var shown = false
+    @State private var hideTask: Task<Void, Never>?
+
+    private static let accent = Color(red: 30.0 / 255.0, green: 215.0 / 255.0, blue: 96.0 / 255.0)
+
+    var body: some View {
+        let enabled = settings.pronunciationFirstEnabled
+        let available = model.pronunciationFirstAvailable
+        Button {
+            model.setPronunciationFirst(!enabled)
+            reveal()
+        } label: {
+            PronunciationFirstIcon()
+                .stroke(enabled ? Self.accent : Color.white, style: StrokeStyle(lineWidth: 1.9, lineCap: .round, lineJoin: .round))
+                .frame(width: 22, height: 22)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Color.white.opacity(0.05)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(available && shown ? 1 : 0)
+        .allowsHitTesting(available && shown)
+        .accessibilityHidden(!available)
+        .accessibilityLabel(settings.t(enabled ? "pronunciation_first.state_on" : "pronunciation_first.state_off"))
+        .animation(.easeOut(duration: 0.18), value: shown)
+        .onChange(of: revealRevision) { _, _ in reveal() }
+        .onChange(of: available) { _, nowAvailable in
+            if nowAvailable { reveal() }
+        }
+        .onAppear {
+            if available { reveal() }
+        }
+        .onDisappear { hideTask?.cancel() }
+    }
+
+    private func reveal() {
+        guard model.pronunciationFirstAvailable else { return }
+        shown = true
+        hideTask?.cancel()
+        hideTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            shown = false
+        }
+    }
+}
+
+/// Two lyric rows trading places: three text lines and a vertical double arrow.
+private struct PronunciationFirstIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let scaleX = rect.width / 24
+        let scaleY = rect.height / 24
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * scaleX, y: rect.minY + y * scaleY)
+        }
+        var path = Path()
+        let segments: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
+            (3, 7, 13, 7), (3, 12, 9, 12), (3, 17, 13, 17),
+            (18, 4, 18, 20), (15, 7, 18, 4), (18, 4, 21, 7), (15, 17, 18, 20), (18, 20, 21, 17)
+        ]
+        for (x1, y1, x2, y2) in segments {
+            path.move(to: point(x1, y1))
+            path.addLine(to: point(x2, y2))
+        }
+        return path
     }
 }
 
@@ -4790,6 +4878,7 @@ struct LyricsTimelineView: View {
                 let _ = settings.speakerColorRevision
                 let typography = settings.typographySettings()
                 let speakerColors = settings.speakerColorSettings()
+                let pronunciationFill = model.pronunciationFill
                 ForEach(EnumeratedRandomAccessCollection(items), id: \.element.id) { displayIndex, item in
                     let itemActive = item.id == activeItemID
                     // Colors stop changing past maximumEffectiveDistance, so farther rows keep
@@ -4833,6 +4922,7 @@ struct LyricsTimelineView: View {
                                 translationLoading: model.lyricsSupplementTranslationLoading,
                                 typography: typography,
                                 speakerColors: speakerColors,
+                                pronunciationFill: pronunciationFill.lineFill(line),
                                 onSeek: { model.seek(toLyricsTimeMs: $0) }
                             )
                             .equatable()
@@ -6294,6 +6384,8 @@ struct LyricsLineView: View, Equatable {
     var translationLoading: Bool
     var typography: AppSettings.TypographySettings
     var speakerColors: AppSettings.SpeakerColorSettings
+    /// Timed pronunciation units when the pronunciation fill is on.
+    var pronunciationFill: PronunciationFirst.LineFill = .empty
     var onSeek: (Int64) -> Void
 
     static func == (lhs: LyricsLineView, rhs: LyricsLineView) -> Bool {
@@ -6314,6 +6406,7 @@ struct LyricsLineView: View, Equatable {
             && lhs.translationLoading == rhs.translationLoading
             && lhs.typography == rhs.typography
             && lhs.speakerColors == rhs.speakerColors
+            && lhs.pronunciationFill == rhs.pronunciationFill
     }
 
     var body: some View {
@@ -6333,13 +6426,25 @@ struct LyricsLineView: View, Equatable {
             )
                 .font(typography.font(slotId: AppSettings.typoLyricsOriginal, baseSize: 25))
             if !useVocalPartSupplements, !linePronunciationText.isEmpty {
-                fadingSupplementText(
-                    linePronunciationText,
-                    slotId: AppSettings.typoLyricsPronunciation,
-                    baseSize: 14,
-                    activeColor: lineActiveColor.opacity(212.0 / 255.0),
-                    inactiveColor: lineSupplementInactiveColor
-                )
+                if let units = PronunciationFirst.Fill.matching(pronunciationFill.line, pronunciation: linePronunciationText) {
+                    pronunciationFillText(
+                        units,
+                        startTimeMs: line.startTimeMs,
+                        endTimeMs: line.endTimeMs,
+                        animating: animationActive,
+                        baseSize: 14,
+                        activeColor: lineActiveColor.opacity(212.0 / 255.0),
+                        inactiveColor: lineSupplementInactiveColor
+                    )
+                } else {
+                    fadingSupplementText(
+                        linePronunciationText,
+                        slotId: AppSettings.typoLyricsPronunciation,
+                        baseSize: 14,
+                        activeColor: lineActiveColor.opacity(212.0 / 255.0),
+                        inactiveColor: lineSupplementInactiveColor
+                    )
+                }
             } else if !useVocalPartSupplements, pronunciationLoading {
                 supplementReserveText(LyricsTimelineDisplayBuilder.supplementPlaceholderText(line), slotId: AppSettings.typoLyricsPronunciation, baseSize: 14)
             }
@@ -6429,7 +6534,7 @@ struct LyricsLineView: View, Equatable {
                         .id(LyricsTimelineDisplayBuilder.vocalPartTargetID(lineIndex: lineIndex, line: line, partIndex: index))
                         }
                         if useVocalPartSupplements {
-                            vocalPartSupplements(part, active: partActive)
+                            vocalPartSupplements(part, active: partActive, animating: partAnimating)
                         }
                     }
                     .padding(.top, vocalPartTopSpacing(index: index, parts: displayVocalParts))
@@ -6515,14 +6620,24 @@ struct LyricsLineView: View, Equatable {
     }
 
     @ViewBuilder
-    private func vocalPartSupplements(_ part: LyricsLine.VocalPart, active: Bool) -> some View {
+    private func vocalPartSupplements(_ part: LyricsLine.VocalPart, active: Bool, animating: Bool) -> some View {
         let speakerColor = vocalPartActiveColor(part)
         let inactiveColor = vocalPartSupplementInactiveColor(part, active: active)
         let pronunciationText = distinctPronunciation(
             part.pronunciationText,
             original: LyricsTimelineDisplayBuilder.vocalPartDisplayText(part)
         )
-        if !pronunciationText.isEmpty {
+        if let units = PronunciationFirst.Fill.matching(pronunciationFill.part(part), pronunciation: pronunciationText) {
+            pronunciationFillText(
+                units,
+                startTimeMs: part.startTimeMs,
+                endTimeMs: part.endTimeMs,
+                animating: animating,
+                baseSize: active ? 14 : 12.5,
+                activeColor: speakerColor.opacity(212.0 / 255.0),
+                inactiveColor: inactiveColor
+            )
+        } else if !pronunciationText.isEmpty {
             fadingSupplementText(
                 pronunciationText,
                 slotId: AppSettings.typoLyricsPronunciation,
@@ -6581,6 +6696,40 @@ struct LyricsLineView: View, Equatable {
             .foregroundStyle(.clear)
             .multilineTextAlignment(textAlignment)
             .accessibilityHidden(true)
+    }
+
+    /// A pronunciation row that fills along its timed units like the karaoke row above it, in
+    /// the pronunciation row's typography and colors, with no bounce or other karaoke effect.
+    private func pronunciationFillText(
+        _ units: [LyricsLine.Syllable],
+        startTimeMs: Int64,
+        endTimeMs: Int64,
+        animating: Bool,
+        baseSize: CGFloat,
+        activeColor: Color,
+        inactiveColor: Color
+    ) -> some View {
+        SyllableKaraokeText(
+            text: units.map(\.text).joined(),
+            syllables: units,
+            displayGranularity: settings.karaokeDisplayGranularity,
+            startTimeMs: startTimeMs,
+            endTimeMs: endTimeMs,
+            positionMs: positionMs,
+            continuousPositionMs: continuousPositionMs,
+            active: animating,
+            completedColorOpacity: completedColorOpacity,
+            activeColor: activeColor,
+            alignment: textAlignment,
+            kind: "vocal",
+            speakerColors: speakerColors,
+            useCreatorSpeakerColors: false,
+            speakerColorDistance: displayDistance,
+            inactiveColor: inactiveColor,
+            bounceEnabled: false,
+            bounceTextSize: typography.scaledSize(slotId: AppSettings.typoLyricsPronunciation, baseSize: baseSize)
+        )
+        .font(typography.font(slotId: AppSettings.typoLyricsPronunciation, baseSize: baseSize))
     }
 
     private var shouldRenderTimedKaraoke: Bool {
@@ -9171,6 +9320,8 @@ struct SettingsView: View {
                   value: onOff(settings.syncedLyricsKaraokeAnimationEnabled)),
             entry("setting.karaoke_bounce_effect", .lyrics, section: karaoke, description: "setting.karaoke_bounce_effect_desc",
                   value: onOff(settings.karaokeBounceEffectEnabled)),
+            entry("setting.pronunciation_karaoke_fill", .lyrics, section: karaoke, description: "setting.pronunciation_karaoke_fill_desc",
+                  value: onOff(settings.pronunciationKaraokeFillEnabled)),
             entry("setting.karaoke_display_granularity", .lyrics, section: karaoke, description: "setting.karaoke_display_granularity_desc",
                   options: karaokeGranularityOptions.map { $0.title })
         ]
@@ -10960,6 +11111,8 @@ struct SettingsView: View {
                               isOn: settingsSavedBinding(\.syncedLyricsKaraokeAnimationEnabled))
                     toggleRow("setting.karaoke_bounce_effect", descriptionKey: "setting.karaoke_bounce_effect_desc",
                               isOn: settingsSavedBinding(\.karaokeBounceEffectEnabled))
+                    toggleRow("setting.pronunciation_karaoke_fill", descriptionKey: "setting.pronunciation_karaoke_fill_desc",
+                              isOn: pronunciationFillBinding)
                     segmentedRow("setting.karaoke_display_granularity", descriptionKey: "setting.karaoke_display_granularity_desc",
                                  selection: karaokeGranularityBinding, options: karaokeGranularityOptions)
                 }
@@ -10972,6 +11125,17 @@ struct SettingsView: View {
             get: { AppSettings.normalizeKaraokeDisplayGranularity(settings.karaokeDisplayGranularity) },
             set: { value in
                 settings.karaokeDisplayGranularity = value
+                model.showSavedToast(settings.t("toast.settings_saved"))
+            }
+        )
+    }
+
+    /// The view model also starts or stops the AI unit timing the fill draws with.
+    private var pronunciationFillBinding: Binding<Bool> {
+        Binding(
+            get: { settings.pronunciationKaraokeFillEnabled },
+            set: { value in
+                model.setPronunciationKaraokeFill(value)
                 model.showSavedToast(settings.t("toast.settings_saved"))
             }
         )

@@ -189,6 +189,9 @@ final class AppViewModel: ObservableObject {
             culturalAnnotationLineCache.removeAll()
             cachedCurrentLyricsSourceLang = nil
             refreshCreatorSupportPresentations(for: lyricsResult)
+            // Pronunciation-first and the pronunciation fill follow the lyrics they were made for.
+            lyricsResultRevision &+= 1
+            schedulePronunciationTiming()
         }
     }
     @Published private(set) var baseLyricsResult = LyricsResult.empty("") {
@@ -269,6 +272,21 @@ final class AppViewModel: ObservableObject {
     private var lyricsTimingUpgrade: LyricsResult?
     private var wordTimingTask: Task<Void, Never>?
     private var wordSyncFailureResetTask: Task<Void, Never>?
+    // AI unit timing for the pronunciation (pronunciation-first and the pronunciation fill).
+    @Published private(set) var pronunciationSyncLoading = false
+    @Published private(set) var pronunciationSyncFailed = false
+    @Published private(set) var pronunciationTimedRevision = 0
+    private var pronunciationTimedParts: [String: [String]] = [:]
+    private var pronunciationTimedSignature = ""
+    private var pronunciationTimingRequestSignature = ""
+    private var pronunciationTimingTask: Task<Void, Never>?
+    private var pronunciationTimingDebounceTask: Task<Void, Never>?
+    private var pronunciationSyncFailureResetTask: Task<Void, Never>?
+    private var lyricsResultRevision = 0
+    private var pronunciationSignatureCache: (revision: Int, source: String, target: String, value: String)?
+    private var pronunciationDisplayCache: (key: PronunciationDisplayKey, value: LyricsResult)?
+    private var pronunciationFillCache: (key: PronunciationDisplayKey, value: PronunciationFirst.Fill)?
+    private var cachedTimelineDisplayKey: PronunciationDisplayKey?
     @Published private(set) var lyricsFocusRequestRevision = 0
     @Published var selectedRuleSourceLang = "auto"
     @Published private(set) var pendingUpdateInfo: AppUpdateInfo?
@@ -327,16 +345,17 @@ final class AppViewModel: ObservableObject {
     }
 
     var lyricsGenerationLoadingText: String? {
-        let supplementText = supplementGenerationLoadingText
-        guard lyricsWordSyncLoading else { return supplementText }
-        let wordSyncText = settings.t("loading.word_sync")
-        return supplementText.map { $0 + " · " + wordSyncText } ?? wordSyncText
+        var texts = supplementGenerationLoadingText.map { [$0] } ?? []
+        if lyricsWordSyncLoading { texts.append(settings.t("loading.word_sync")) }
+        if pronunciationSyncLoading { texts.append(settings.t("loading.pronunciation_sync")) }
+        return texts.isEmpty ? nil : texts.joined(separator: " · ")
     }
 
-    /// The generation pill: work in progress, or a word timing failure shown briefly.
+    /// The generation pill: work in progress, or a timing failure shown briefly.
     var lyricsGenerationStatus: (text: String, failed: Bool)? {
         if let text = lyricsGenerationLoadingText { return (text, false) }
         if lyricsWordSyncFailed { return (settings.t("status.word_sync_failed"), true) }
+        if pronunciationSyncFailed { return (settings.t("status.pronunciation_sync_failed"), true) }
         return nil
     }
 
@@ -567,15 +586,18 @@ final class AppViewModel: ObservableObject {
 
     var timelineContext: LyricsTimelineContext {
         let cacheLyricEndTimes = settings.autoInstrumentalBreakEnabled
+        let displayKey = pronunciationFirstActive ? pronunciationDisplayKey : nil
         if let cachedTimelineContext,
-           cachedTimelineContext.cachesLyricEndTimes == cacheLyricEndTimes {
+           cachedTimelineContext.cachesLyricEndTimes == cacheLyricEndTimes,
+           cachedTimelineDisplayKey == displayKey {
             return cachedTimelineContext
         }
         let context = LyricsTimelineContext(
-            lines: lyricsResult.lines,
+            lines: displayLyricsResult.lines,
             cacheLyricEndTimes: cacheLyricEndTimes
         )
         cachedTimelineContext = context
+        cachedTimelineDisplayKey = displayKey
         return context
     }
 
@@ -4486,6 +4508,7 @@ final class AppViewModel: ObservableObject {
         resetCurrentFurigana()
         resetLyricsSupplementLoading()
         resetWordTiming()
+        resetPronunciationTiming()
     }
 
     /// Requests lrc.red word timing for line-timed lrc.red lyrics shown because no enabled
@@ -4556,6 +4579,208 @@ final class AppViewModel: ObservableObject {
         lyricsWordSyncFailed = false
     }
 
+    // MARK: - Pronunciation-first and pronunciation fill
+
+    /// Cache key of the displayed pronunciation transforms.
+    private struct PronunciationDisplayKey: Equatable {
+        var lyrics: Int
+        var timed: Int
+        var source: String
+        var target: String
+        var first: Bool
+        var fill: Bool
+    }
+
+    private var pronunciationShownForCurrentSource: Bool {
+        let snapshot = settings.snapshot
+        return snapshot.enabled && snapshot.ruleForSource(effectiveSelectedRuleSourceLang).pronunciationEnabled
+    }
+
+    /// The pronunciation and the original swap rows (the lyrics page toggle).
+    var pronunciationFirstActive: Bool {
+        settings.pronunciationFirstEnabled && pronunciationShownForCurrentSource
+    }
+
+    /// Pronunciation rows fill along karaoke timing while pronunciation-first is off.
+    var pronunciationFillActive: Bool {
+        settings.pronunciationKaraokeFillEnabled && !settings.pronunciationFirstEnabled && pronunciationShownForCurrentSource
+    }
+
+    /// The lyrics page offers the pronunciation-first toggle while pronunciation is shown.
+    var pronunciationFirstAvailable: Bool {
+        pronunciationShownForCurrentSource && lyricsResult.lines.contains { line in
+            !line.pronunciationText.trimmed.isEmpty
+                || line.vocalParts.contains { !$0.pronunciationText.trimmed.isEmpty }
+        }
+    }
+
+    private var pronunciationTimingWanted: Bool {
+        pronunciationFirstActive || pronunciationFillActive
+    }
+
+    private var pronunciationDisplayKey: PronunciationDisplayKey {
+        let source = effectiveSelectedRuleSourceLang
+        return PronunciationDisplayKey(
+            lyrics: lyricsResultRevision,
+            timed: pronunciationTimedRevision,
+            source: source,
+            target: settings.snapshot.resolveTargetLanguage(sourceLang: source),
+            first: pronunciationFirstActive,
+            fill: pronunciationFillActive
+        )
+    }
+
+    /// The karaoke units and readings of the current lyrics, for matching AI unit timing.
+    private var currentPronunciationSignature: String {
+        let source = effectiveSelectedRuleSourceLang
+        let target = settings.snapshot.resolveTargetLanguage(sourceLang: source)
+        if let cache = pronunciationSignatureCache, cache.revision == lyricsResultRevision,
+           cache.source == source, cache.target == target {
+            return cache.value
+        }
+        let items = PronunciationFirst.timingItems(lyricsResult)
+        let value = items.isEmpty ? "" : PronunciationFirst.signature(items, targetLang: target, sourceLang: source)
+        pronunciationSignatureCache = (lyricsResultRevision, source, target, value)
+        return value
+    }
+
+    /// AI unit timing, only when it was made for the current lyrics' units and readings.
+    private var currentPronunciationTiming: [String: [String]]? {
+        guard lyricsResult.karaoke else { return nil }
+        let signature = currentPronunciationSignature
+        return !signature.isEmpty && signature == pronunciationTimedSignature ? pronunciationTimedParts : nil
+    }
+
+    /// What the lyric views show: the lyrics, or their pronunciation-first copy.
+    var displayLyricsResult: LyricsResult {
+        guard pronunciationFirstActive, !lyricsResult.lines.isEmpty else { return lyricsResult }
+        let key = pronunciationDisplayKey
+        if let cache = pronunciationDisplayCache, cache.key == key { return cache.value }
+        let value = PronunciationFirst.apply(lyricsResult, timed: currentPronunciationTiming)
+        pronunciationDisplayCache = (key, value)
+        return value
+    }
+
+    /// Timed pronunciation units for the rows that fill along karaoke timing.
+    var pronunciationFill: PronunciationFirst.Fill {
+        guard pronunciationFillActive, lyricsResult.karaoke else { return .empty }
+        let key = pronunciationDisplayKey
+        if let cache = pronunciationFillCache, cache.key == key { return cache.value }
+        let value = PronunciationFirst.fill(lyricsResult, timed: currentPronunciationTiming)
+        pronunciationFillCache = (key, value)
+        return value
+    }
+
+    func setPronunciationFirst(_ enabled: Bool) {
+        settings.pronunciationFirstEnabled = enabled
+        pronunciationSettingsChanged()
+    }
+
+    func setPronunciationKaraokeFill(_ enabled: Bool) {
+        settings.pronunciationKaraokeFillEnabled = enabled
+        pronunciationSettingsChanged()
+    }
+
+    private func pronunciationSettingsChanged() {
+        if !pronunciationTimingWanted {
+            pronunciationTimingDebounceTask?.cancel()
+            pronunciationSyncLoading = false
+        }
+        pronunciationTimedRevision &+= 1
+        lyricsSupplementLayoutRevision &+= 1
+        updatePictureInPictureState()
+        schedulePronunciationTiming()
+    }
+
+    /// Asks AI for unit timing once the pronunciation of karaoke lyrics has settled.
+    private func schedulePronunciationTiming() {
+        pronunciationTimingDebounceTask?.cancel()
+        // Settings first: with both displays off this runs on every lyrics update and does nothing.
+        guard settings.pronunciationFirstEnabled || settings.pronunciationKaraokeFillEnabled,
+              lyricsResult.karaoke, currentTrack != nil else { return }
+        pronunciationTimingDebounceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard !Task.isCancelled else { return }
+            self?.requestPronunciationTiming()
+        }
+    }
+
+    private func requestPronunciationTiming() {
+        guard pronunciationTimingWanted, lyricsResult.karaoke, !lyricsSupplementPronunciationLoading,
+              let track = currentTrack else { return }
+        let signature = currentPronunciationSignature
+        guard !signature.isEmpty, signature != pronunciationTimedSignature,
+              signature != pronunciationTimingRequestSignature else { return }
+        pronunciationTimingRequestSignature = signature
+        pronunciationTimingTask?.cancel()
+        let result = lyricsResult
+        let snapshot = settings.snapshot
+        let sourceLang = effectiveSelectedRuleSourceLang
+        let trackKey = track.stableKey
+        pronunciationTimingTask = Task { [weak self, aiRepository] in
+            let response = await aiRepository.loadTimedPronunciation(
+                track: track,
+                result: result,
+                settings: snapshot,
+                sourceLang: sourceLang,
+                onStarted: { @MainActor [weak self] in
+                    self?.markPronunciationTimingStarted(signature: signature, trackKey: trackKey)
+                }
+            )
+            guard let self, !Task.isCancelled else { return }
+            self.appendLogs(response.logs)
+            self.finishPronunciationTiming(response, signature: signature, trackKey: trackKey)
+        }
+    }
+
+    private func markPronunciationTimingStarted(signature: String, trackKey: String) {
+        guard currentTrack?.stableKey == trackKey, pronunciationTimingRequestSignature == signature else { return }
+        pronunciationSyncFailureResetTask?.cancel()
+        pronunciationSyncFailed = false
+        pronunciationSyncLoading = true
+    }
+
+    private func finishPronunciationTiming(
+        _ response: AiLyricsRepository.TimedPronunciationResponse,
+        signature: String,
+        trackKey: String
+    ) {
+        guard currentTrack?.stableKey == trackKey, pronunciationTimingRequestSignature == signature else { return }
+        pronunciationSyncLoading = false
+        if !response.parts.isEmpty {
+            pronunciationTimedParts = response.parts
+            pronunciationTimedSignature = signature
+            pronunciationTimedRevision &+= 1
+            lyricsSupplementLayoutRevision &+= 1
+            updatePictureInPictureState()
+            appendLog("pronunciation timing applied: items=\(response.parts.count)")
+            return
+        }
+        // Proportional timing stays on screen; say that the AI timing failed.
+        guard response.announced else { return }
+        pronunciationSyncFailed = true
+        pronunciationSyncFailureResetTask?.cancel()
+        pronunciationSyncFailureResetTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.pronunciationSyncFailed = false
+        }
+    }
+
+    private func resetPronunciationTiming() {
+        pronunciationTimingDebounceTask?.cancel()
+        pronunciationTimingDebounceTask = nil
+        pronunciationTimingTask?.cancel()
+        pronunciationTimingTask = nil
+        pronunciationSyncFailureResetTask?.cancel()
+        pronunciationSyncFailureResetTask = nil
+        pronunciationTimedParts = [:]
+        pronunciationTimedSignature = ""
+        pronunciationTimingRequestSignature = ""
+        pronunciationSyncLoading = false
+        pronunciationSyncFailed = false
+    }
+
     private func aiProviderLoadingText(formatKey: String, fallbackKey: String, providerName: String? = nil) -> String {
         let providerName = (providerName ?? settings.snapshot.provider.label).trimmed
         return providerName.isEmpty
@@ -4585,6 +4810,8 @@ final class AppViewModel: ObservableObject {
         supplementProviderProgress.setLoading(pronunciation: pronunciation, translation: translation)
         lyricsSupplementFuriganaLoading = furigana
         aiLyricsGenerating = pronunciation || translation
+        // Finished pronunciations may now be split over karaoke units.
+        if !pronunciation { schedulePronunciationTiming() }
     }
 
     private func aiSupplementLoadingState(
@@ -4953,7 +5180,7 @@ final class AppViewModel: ObservableObject {
         }
         pictureInPictureController.update(
             track: currentTrack,
-            lyrics: lyricsResult,
+            lyrics: displayLyricsResult,
             positionMs: adjustedPositionMs,
             title: titleText,
             artist: artistText,

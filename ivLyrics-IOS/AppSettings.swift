@@ -280,6 +280,12 @@ final class AppSettings: ObservableObject {
     @Published var interludeLabelsEnabled: Bool { didSet { set("interlude_labels_enabled", interludeLabelsEnabled) } }
     @Published var syncedLyricsKaraokeAnimationEnabled: Bool { didSet { set("synced_lyrics_karaoke_animation", syncedLyricsKaraokeAnimationEnabled) } }
     @Published var karaokeBounceEffectEnabled: Bool { didSet { set("karaoke_bounce_effect", karaokeBounceEffectEnabled) } }
+    /// Pronunciation-first: the pronunciation and the original swap rows.
+    @Published var pronunciationFirstEnabled: Bool { didSet { set("pronunciation_first_enabled", pronunciationFirstEnabled) } }
+    /// Pronunciation rows fill along karaoke timing while pronunciation-first is off.
+    @Published var pronunciationKaraokeFillEnabled: Bool {
+        didSet { set("pronunciation_karaoke_fill_enabled", pronunciationKaraokeFillEnabled) }
+    }
     @Published var karaokeDisplayGranularity: String {
         didSet {
             let normalized = Self.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
@@ -408,6 +414,8 @@ final class AppSettings: ObservableObject {
         interludeLabelsEnabled = defaults.object(forKey: "interlude_labels_enabled") as? Bool ?? true
         syncedLyricsKaraokeAnimationEnabled = defaults.object(forKey: "synced_lyrics_karaoke_animation") as? Bool ?? false
         karaokeBounceEffectEnabled = defaults.object(forKey: "karaoke_bounce_effect") as? Bool ?? true
+        pronunciationFirstEnabled = defaults.object(forKey: "pronunciation_first_enabled") as? Bool ?? false
+        pronunciationKaraokeFillEnabled = defaults.object(forKey: "pronunciation_karaoke_fill_enabled") as? Bool ?? false
         karaokeDisplayGranularity = Self.normalizeKaraokeDisplayGranularity(
             defaults.string(forKey: "karaoke_display_granularity_v1")
                 ?? ((defaults.object(forKey: "karaoke_data_as_line_synced") as? Bool ?? false)

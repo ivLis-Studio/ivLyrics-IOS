@@ -76,6 +76,9 @@ final class DetectionProbe {
     var culturalAnnotationLineCache = AnnotationCache()
     var cachedCurrentLyricsSourceLang: String?
     var selectedRuleSourceLang = "auto"
+    // Pronunciation timing reads settings before any language detection; not exercised here.
+    var lyricsResultRevision = 0
+    func schedulePronunciationTiming() {}
     func refreshCreatorSupportPresentations(for result: LyricsResult) {}
 '''
 for prefix in ["@Published private(set) var lyricsResult =", "@Published private(set) var baseLyricsResult =",

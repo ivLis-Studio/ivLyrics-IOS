@@ -910,7 +910,13 @@
     "onboarding.credentials.desc": "Client ID는 필수예요. 저장 후 Spotify에서 연결을 승인해 주세요.",
     "onboarding.retry": "다시 시도",
     "first_language.translation_provider_required": "번역을 생성하려면 설정에서 번역 제공자를 켜주세요.",
-    "onboarding.metadata_optional": "메타데이터 보강 (선택)"
+    "onboarding.metadata_optional": "메타데이터 보강 (선택)",
+    "pronunciation_first.state_on": "발음 우선 켜짐. 눌러서 끄기",
+    "pronunciation_first.state_off": "발음 우선 꺼짐. 눌러서 켜기",
+    "loading.pronunciation_sync": "AI가 발음을 가사 싱크에 맞추는 중...",
+    "status.pronunciation_sync_failed": "발음 싱크 실패",
+    "setting.pronunciation_karaoke_fill": "발음 노래방 채우기",
+    "setting.pronunciation_karaoke_fill_desc": "발음 우선 모드가 꺼져 있어도 원문 아래 발음이 부르는 타이밍에 맞춰 노래방처럼 채워집니다. AI가 발음을 단어·글자 타이밍에 맞춰 나눕니다. 바운스·글로우 같은 다른 효과는 적용되지 않습니다."
   },
   "en": {
     "lyrics.local.import": "Import lyrics file",
@@ -1823,7 +1829,13 @@
     "onboarding.credentials.desc": "A Client ID is required. After saving, approve the connection in Spotify.",
     "onboarding.retry": "Try again",
     "first_language.translation_provider_required": "Enable a translation provider in Settings to generate translations.",
-    "onboarding.metadata_optional": "Metadata enrichment (optional)"
+    "onboarding.metadata_optional": "Metadata enrichment (optional)",
+    "pronunciation_first.state_on": "Pronunciation first on. Tap to turn off",
+    "pronunciation_first.state_off": "Pronunciation first off. Tap to turn on",
+    "loading.pronunciation_sync": "AI is matching the pronunciation to the lyric timing...",
+    "status.pronunciation_sync_failed": "Pronunciation timing failed",
+    "setting.pronunciation_karaoke_fill": "Fill pronunciation like karaoke",
+    "setting.pronunciation_karaoke_fill_desc": "Even with pronunciation-first mode off, the pronunciation row fills in time with the singing. AI splits the pronunciation across the word or character timing. Other effects such as bounce and glow are not applied."
   },
   "zh-CN": {
     "lyrics.local.import": "导入歌词文件",
@@ -2736,7 +2748,13 @@
     "onboarding.credentials.desc": "必须填写 Client ID。保存后，请在 Spotify 中批准连接。",
     "onboarding.retry": "重试",
     "first_language.translation_provider_required": "请在设置中启用翻译提供商以生成翻译。",
-    "onboarding.metadata_optional": "元数据增强（可选）"
+    "onboarding.metadata_optional": "元数据增强（可选）",
+    "pronunciation_first.state_on": "发音优先已开启。点按关闭",
+    "pronunciation_first.state_off": "发音优先已关闭。点按开启",
+    "loading.pronunciation_sync": "AI 正在将发音与歌词时间对齐...",
+    "status.pronunciation_sync_failed": "发音同步失败",
+    "setting.pronunciation_karaoke_fill": "发音卡拉OK填充",
+    "setting.pronunciation_karaoke_fill_desc": "即使关闭发音优先模式，原文下方的发音也会随演唱时间像卡拉OK一样填充。AI 会按单词或字符的时间拆分发音。不会应用弹跳、发光等其他效果。"
   },
   "zh-TW": {
     "lyrics.local.import": "匯入歌詞檔案",
@@ -3649,7 +3667,13 @@
     "onboarding.credentials.desc": "必須填寫 Client ID。儲存後，請在 Spotify 中允許連線。",
     "onboarding.retry": "再試一次",
     "first_language.translation_provider_required": "請在設定中啟用翻譯供應商以產生翻譯。",
-    "onboarding.metadata_optional": "中繼資料增強（選用）"
+    "onboarding.metadata_optional": "中繼資料增強（選用）",
+    "pronunciation_first.state_on": "發音優先已開啟。點按關閉",
+    "pronunciation_first.state_off": "發音優先已關閉。點按開啟",
+    "loading.pronunciation_sync": "AI 正在將發音與歌詞時間對齊...",
+    "status.pronunciation_sync_failed": "發音同步失敗",
+    "setting.pronunciation_karaoke_fill": "發音卡拉OK填色",
+    "setting.pronunciation_karaoke_fill_desc": "即使關閉發音優先模式，原文下方的發音也會隨演唱時間像卡拉OK一樣填色。AI 會依單字或字元的時間拆分發音。不會套用彈跳、發光等其他效果。"
   },
   "ja": {
     "lyrics.local.import": "歌詞ファイルを読み込む",
@@ -4562,7 +4586,13 @@
     "onboarding.credentials.desc": "Client ID は必須です。保存後、Spotify で接続を許可してください。",
     "onboarding.retry": "再試行",
     "first_language.translation_provider_required": "翻訳を生成するには、設定で翻訳プロバイダーを有効にしてください。",
-    "onboarding.metadata_optional": "メタデータの補完（任意）"
+    "onboarding.metadata_optional": "メタデータの補完（任意）",
+    "pronunciation_first.state_on": "発音優先オン。タップでオフ",
+    "pronunciation_first.state_off": "発音優先オフ。タップでオン",
+    "loading.pronunciation_sync": "AIが発音を歌詞のタイミングに合わせています...",
+    "status.pronunciation_sync_failed": "発音の同期に失敗",
+    "setting.pronunciation_karaoke_fill": "発音をカラオケのように塗る",
+    "setting.pronunciation_karaoke_fill_desc": "発音優先モードがオフでも、原文の下の発音が歌うタイミングに合わせてカラオケのように塗られます。AIが発音を単語・文字のタイミングに合わせて分割します。バウンスやグローなどの他の効果は適用されません。"
   },
   "hi": {
     "lyrics.local.import": "गीत फ़ाइल आयात करें",
@@ -5475,7 +5505,13 @@
     "onboarding.credentials.desc": "Client ID ज़रूरी है। सहेजने के बाद Spotify में कनेक्शन की अनुमति दें।",
     "onboarding.retry": "फिर कोशिश करें",
     "first_language.translation_provider_required": "अनुवाद बनाने के लिए सेटिंग्स में अनुवाद प्रदाता चालू करें।",
-    "onboarding.metadata_optional": "मेटाडेटा संवर्धन (वैकल्पिक)"
+    "onboarding.metadata_optional": "मेटाडेटा संवर्धन (वैकल्पिक)",
+    "pronunciation_first.state_on": "उच्चारण पहले चालू। बंद करने के लिए टैप करें",
+    "pronunciation_first.state_off": "उच्चारण पहले बंद। चालू करने के लिए टैप करें",
+    "loading.pronunciation_sync": "AI उच्चारण को बोलों की टाइमिंग से मिला रहा है...",
+    "status.pronunciation_sync_failed": "उच्चारण टाइमिंग विफल",
+    "setting.pronunciation_karaoke_fill": "उच्चारण को कराओके की तरह भरें",
+    "setting.pronunciation_karaoke_fill_desc": "उच्चारण-पहले मोड बंद होने पर भी उच्चारण की पंक्ति गाने की टाइमिंग के साथ भरती है। AI उच्चारण को हर शब्द या अक्षर की टाइमिंग के अनुसार बाँटता है। उछाल और चमक जैसे अन्य प्रभाव लागू नहीं होते।"
   },
   "es": {
     "lyrics.local.import": "Importar archivo de letras",
@@ -6388,7 +6424,13 @@
     "onboarding.credentials.desc": "El Client ID es obligatorio. Tras guardar, autoriza la conexión en Spotify.",
     "onboarding.retry": "Reintentar",
     "first_language.translation_provider_required": "Activa un proveedor de traducción en Ajustes para generar traducciones.",
-    "onboarding.metadata_optional": "Ampliar metadatos (opcional)"
+    "onboarding.metadata_optional": "Ampliar metadatos (opcional)",
+    "pronunciation_first.state_on": "Pronunciación primero activada. Toca para desactivar",
+    "pronunciation_first.state_off": "Pronunciación primero desactivada. Toca para activar",
+    "loading.pronunciation_sync": "La IA está ajustando la pronunciación a los tiempos de la letra...",
+    "status.pronunciation_sync_failed": "Error en la sincronía de pronunciación",
+    "setting.pronunciation_karaoke_fill": "Rellenar la pronunciación como karaoke",
+    "setting.pronunciation_karaoke_fill_desc": "Aunque el modo pronunciación primero esté desactivado, la fila de pronunciación se rellena al ritmo del canto. La IA reparte la pronunciación según el tiempo de cada palabra o carácter. No se aplican otros efectos como el rebote o el brillo."
   },
   "fr": {
     "lyrics.local.import": "Importer un fichier de paroles",
@@ -7301,7 +7343,13 @@
     "onboarding.credentials.desc": "Le Client ID est requis. Après l’enregistrement, autorisez la connexion dans Spotify.",
     "onboarding.retry": "Réessayer",
     "first_language.translation_provider_required": "Activez un fournisseur de traduction dans les réglages pour générer des traductions.",
-    "onboarding.metadata_optional": "Enrichir les métadonnées (facultatif)"
+    "onboarding.metadata_optional": "Enrichir les métadonnées (facultatif)",
+    "pronunciation_first.state_on": "Prononciation d'abord activée. Touchez pour désactiver",
+    "pronunciation_first.state_off": "Prononciation d'abord désactivée. Touchez pour activer",
+    "loading.pronunciation_sync": "L'IA aligne la prononciation sur le minutage des paroles...",
+    "status.pronunciation_sync_failed": "Échec de la synchro de la prononciation",
+    "setting.pronunciation_karaoke_fill": "Remplir la prononciation comme au karaoké",
+    "setting.pronunciation_karaoke_fill_desc": "Même lorsque le mode prononciation d'abord est désactivé, la ligne de prononciation se remplit au rythme du chant. L'IA répartit la prononciation selon le minutage des mots ou des caractères. Les autres effets, comme le rebond et la lueur, ne sont pas appliqués."
   },
   "ar": {
     "lyrics.local.import": "استيراد ملف كلمات",
@@ -8214,7 +8262,13 @@
     "onboarding.credentials.desc": "Client ID مطلوب. بعد الحفظ، وافق على الاتصال في Spotify.",
     "onboarding.retry": "إعادة المحاولة",
     "first_language.translation_provider_required": "فعّل مزوّد ترجمة في الإعدادات لإنشاء الترجمات.",
-    "onboarding.metadata_optional": "إثراء البيانات الوصفية (اختياري)"
+    "onboarding.metadata_optional": "إثراء البيانات الوصفية (اختياري)",
+    "pronunciation_first.state_on": "النطق أولًا مفعّل. انقر لإيقافه",
+    "pronunciation_first.state_off": "النطق أولًا متوقف. انقر لتفعيله",
+    "loading.pronunciation_sync": "يطابق الذكاء الاصطناعي النطق مع توقيت كلمات الأغنية...",
+    "status.pronunciation_sync_failed": "تعذّر توقيت النطق",
+    "setting.pronunciation_karaoke_fill": "تلوين النطق مثل الكاريوكي",
+    "setting.pronunciation_karaoke_fill_desc": "حتى عند إيقاف وضع النطق أولًا، يتلوّن سطر النطق مع توقيت الغناء. يقسّم الذكاء الاصطناعي النطق حسب توقيت كل كلمة أو حرف. لا تُطبَّق التأثيرات الأخرى مثل الارتداد والتوهج."
   },
   "fa": {
     "lyrics.local.import": "وارد کردن فایل متن آهنگ",
@@ -9127,7 +9181,13 @@
     "onboarding.credentials.desc": "Client ID الزامی است. پس از ذخیره، اتصال را در Spotify تأیید کنید.",
     "onboarding.retry": "تلاش دوباره",
     "first_language.translation_provider_required": "برای تولید ترجمه، یک ارائه‌دهندهٔ ترجمه را در تنظیمات فعال کنید.",
-    "onboarding.metadata_optional": "تکمیل فراداده (اختیاری)"
+    "onboarding.metadata_optional": "تکمیل فراداده (اختیاری)",
+    "pronunciation_first.state_on": "اول تلفظ روشن است. برای خاموش کردن ضربه بزنید",
+    "pronunciation_first.state_off": "اول تلفظ خاموش است. برای روشن کردن ضربه بزنید",
+    "loading.pronunciation_sync": "هوش مصنوعی در حال تطبیق تلفظ با زمان‌بندی متن آهنگ است...",
+    "status.pronunciation_sync_failed": "زمان‌بندی تلفظ ناموفق بود",
+    "setting.pronunciation_karaoke_fill": "پر کردن تلفظ مانند کارائوکه",
+    "setting.pronunciation_karaoke_fill_desc": "حتی وقتی حالت اول تلفظ خاموش است، ردیف تلفظ هم‌زمان با خواندن پر می‌شود. هوش مصنوعی تلفظ را بر اساس زمان‌بندی هر کلمه یا نویسه تقسیم می‌کند. جلوه‌های دیگر مانند پرش و درخشش اعمال نمی‌شوند."
   },
   "de": {
     "lyrics.local.import": "Liedtextdatei importieren",
@@ -10040,7 +10100,13 @@
     "onboarding.credentials.desc": "Eine Client ID ist erforderlich. Bestätige nach dem Speichern die Verbindung in Spotify.",
     "onboarding.retry": "Erneut versuchen",
     "first_language.translation_provider_required": "Aktiviere in den Einstellungen einen Übersetzungsanbieter, um Übersetzungen zu erzeugen.",
-    "onboarding.metadata_optional": "Metadaten ergänzen (optional)"
+    "onboarding.metadata_optional": "Metadaten ergänzen (optional)",
+    "pronunciation_first.state_on": "Aussprache zuerst an. Tippen zum Ausschalten",
+    "pronunciation_first.state_off": "Aussprache zuerst aus. Tippen zum Einschalten",
+    "loading.pronunciation_sync": "KI passt die Aussprache an das Liedtext-Timing an...",
+    "status.pronunciation_sync_failed": "Aussprache-Timing fehlgeschlagen",
+    "setting.pronunciation_karaoke_fill": "Aussprache wie Karaoke füllen",
+    "setting.pronunciation_karaoke_fill_desc": "Auch wenn der Aussprache-zuerst-Modus aus ist, füllt sich die Aussprachezeile im Takt des Gesangs. Die KI verteilt die Aussprache auf das Wort- oder Zeichentiming. Andere Effekte wie Hüpfen und Leuchten werden nicht angewendet."
   },
   "ru": {
     "lyrics.local.import": "Импортировать файл текста",
@@ -10953,7 +11019,13 @@
     "onboarding.credentials.desc": "Client ID обязателен. После сохранения разрешите подключение в Spotify.",
     "onboarding.retry": "Повторить",
     "first_language.translation_provider_required": "Включите поставщика перевода в настройках для создания переводов.",
-    "onboarding.metadata_optional": "Дополнение метаданных (необязательно)"
+    "onboarding.metadata_optional": "Дополнение метаданных (необязательно)",
+    "pronunciation_first.state_on": "Сначала произношение: вкл. Нажмите, чтобы выключить",
+    "pronunciation_first.state_off": "Сначала произношение: выкл. Нажмите, чтобы включить",
+    "loading.pronunciation_sync": "ИИ подгоняет произношение под тайминг текста...",
+    "status.pronunciation_sync_failed": "Не удалось синхронизировать произношение",
+    "setting.pronunciation_karaoke_fill": "Заполнять произношение как в караоке",
+    "setting.pronunciation_karaoke_fill_desc": "Даже когда режим «сначала произношение» выключен, строка произношения заполняется в такт пению. ИИ распределяет произношение по таймингу слов или символов. Другие эффекты, например подпрыгивание и свечение, не применяются."
   },
   "sv": {
     "lyrics.local.import": "Importera textfil",
@@ -11866,7 +11938,13 @@
     "onboarding.credentials.desc": "Ett Client ID krävs. Godkänn anslutningen i Spotify när du har sparat.",
     "onboarding.retry": "Försök igen",
     "first_language.translation_provider_required": "Aktivera en översättningsleverantör i inställningarna för att skapa översättningar.",
-    "onboarding.metadata_optional": "Utöka metadata (valfritt)"
+    "onboarding.metadata_optional": "Utöka metadata (valfritt)",
+    "pronunciation_first.state_on": "Uttal först på. Tryck för att stänga av",
+    "pronunciation_first.state_off": "Uttal först av. Tryck för att slå på",
+    "loading.pronunciation_sync": "AI anpassar uttalet till låttextens timing...",
+    "status.pronunciation_sync_failed": "Uttalstiming misslyckades",
+    "setting.pronunciation_karaoke_fill": "Fyll uttalet som karaoke",
+    "setting.pronunciation_karaoke_fill_desc": "Även när läget uttal först är av fylls uttalsraden i takt med sången. AI delar upp uttalet efter ord- eller teckentimingen. Andra effekter som studs och glöd används inte."
   },
   "pt": {
     "lyrics.local.import": "Importar arquivo de letras",
@@ -12779,7 +12857,13 @@
     "onboarding.credentials.desc": "O Client ID é obrigatório. Após salvar, autorize a conexão no Spotify.",
     "onboarding.retry": "Tentar novamente",
     "first_language.translation_provider_required": "Ative um provedor de tradução nas configurações para gerar traduções.",
-    "onboarding.metadata_optional": "Enriquecer metadados (opcional)"
+    "onboarding.metadata_optional": "Enriquecer metadados (opcional)",
+    "pronunciation_first.state_on": "Pronúncia primeiro ativada. Toque para desativar",
+    "pronunciation_first.state_off": "Pronúncia primeiro desativada. Toque para ativar",
+    "loading.pronunciation_sync": "A IA está ajustando a pronúncia ao tempo da letra...",
+    "status.pronunciation_sync_failed": "Falha na sincronia da pronúncia",
+    "setting.pronunciation_karaoke_fill": "Preencher a pronúncia como karaokê",
+    "setting.pronunciation_karaoke_fill_desc": "Mesmo com o modo pronúncia primeiro desativado, a linha de pronúncia é preenchida no ritmo do canto. A IA divide a pronúncia conforme o tempo de cada palavra ou caractere. Outros efeitos, como salto e brilho, não são aplicados."
   },
   "bn": {
     "lyrics.local.import": "গানের কথা ফাইল আমদানি করুন",
@@ -13692,7 +13776,13 @@
     "onboarding.credentials.desc": "Client ID আবশ্যক। সেভ করার পরে Spotify-তে সংযোগের অনুমতি দিন।",
     "onboarding.retry": "আবার চেষ্টা করুন",
     "first_language.translation_provider_required": "অনুবাদ তৈরি করতে সেটিংসে অনুবাদ প্রদানকারী চালু করুন।",
-    "onboarding.metadata_optional": "মেটাডেটা সমৃদ্ধি (ঐচ্ছিক)"
+    "onboarding.metadata_optional": "মেটাডেটা সমৃদ্ধি (ঐচ্ছিক)",
+    "pronunciation_first.state_on": "উচ্চারণ আগে চালু। বন্ধ করতে ট্যাপ করুন",
+    "pronunciation_first.state_off": "উচ্চারণ আগে বন্ধ। চালু করতে ট্যাপ করুন",
+    "loading.pronunciation_sync": "AI উচ্চারণকে গানের কথার টাইমিংয়ের সঙ্গে মেলাচ্ছে...",
+    "status.pronunciation_sync_failed": "উচ্চারণের টাইমিং ব্যর্থ",
+    "setting.pronunciation_karaoke_fill": "উচ্চারণ কারাওকের মতো ভরাট করুন",
+    "setting.pronunciation_karaoke_fill_desc": "উচ্চারণ-আগে মোড বন্ধ থাকলেও উচ্চারণের সারি গানের সময়ের সাথে ভরাট হয়। AI প্রতিটি শব্দ বা অক্ষরের সময় অনুযায়ী উচ্চারণ ভাগ করে। লাফানো ও আভার মতো অন্য প্রভাব প্রয়োগ হয় না।"
   },
   "cs": {
     "lyrics.local.import": "Importovat soubor textu",
@@ -14605,7 +14695,13 @@
     "onboarding.credentials.desc": "Client ID je povinné. Po uložení povolte připojení ve Spotify.",
     "onboarding.retry": "Zkusit znovu",
     "first_language.translation_provider_required": "Pro vytváření překladů zapněte v nastavení poskytovatele překladu.",
-    "onboarding.metadata_optional": "Doplnit metadata (volitelné)"
+    "onboarding.metadata_optional": "Doplnit metadata (volitelné)",
+    "pronunciation_first.state_on": "Nejdřív výslovnost zapnuto. Klepnutím vypnete",
+    "pronunciation_first.state_off": "Nejdřív výslovnost vypnuto. Klepnutím zapnete",
+    "loading.pronunciation_sync": "AI přizpůsobuje výslovnost časování textu...",
+    "status.pronunciation_sync_failed": "Časování výslovnosti selhalo",
+    "setting.pronunciation_karaoke_fill": "Vyplňovat výslovnost jako karaoke",
+    "setting.pronunciation_karaoke_fill_desc": "I když je režim nejdřív výslovnost vypnutý, řádek výslovnosti se vyplňuje v rytmu zpěvu. AI rozdělí výslovnost podle časování slov nebo znaků. Další efekty, jako poskakování a záře, se nepoužijí."
   },
   "it": {
     "lyrics.local.import": "Importa file del testo",
@@ -15518,7 +15614,13 @@
     "onboarding.credentials.desc": "Il Client ID è obbligatorio. Dopo il salvataggio, autorizza il collegamento in Spotify.",
     "onboarding.retry": "Riprova",
     "first_language.translation_provider_required": "Attiva un fornitore di traduzione nelle impostazioni per generare traduzioni.",
-    "onboarding.metadata_optional": "Arricchire i metadati (facoltativo)"
+    "onboarding.metadata_optional": "Arricchire i metadati (facoltativo)",
+    "pronunciation_first.state_on": "Prima la pronuncia attiva. Tocca per disattivare",
+    "pronunciation_first.state_off": "Prima la pronuncia disattivata. Tocca per attivare",
+    "loading.pronunciation_sync": "L'IA sta allineando la pronuncia ai tempi del testo...",
+    "status.pronunciation_sync_failed": "Sincronia della pronuncia non riuscita",
+    "setting.pronunciation_karaoke_fill": "Riempi la pronuncia come nel karaoke",
+    "setting.pronunciation_karaoke_fill_desc": "Anche con la modalità prima la pronuncia disattivata, la riga della pronuncia si riempie a tempo con il canto. L'IA suddivide la pronuncia secondo i tempi di parole o caratteri. Altri effetti come rimbalzo e bagliore non vengono applicati."
   },
   "th": {
     "lyrics.local.import": "นำเข้าไฟล์เนื้อเพลง",
@@ -16431,7 +16533,13 @@
     "onboarding.credentials.desc": "จำเป็นต้องมี Client ID หลังบันทึก ให้อนุญาตการเชื่อมต่อใน Spotify",
     "onboarding.retry": "ลองอีกครั้ง",
     "first_language.translation_provider_required": "เปิดใช้ผู้ให้บริการแปลในการตั้งค่าเพื่อสร้างคำแปล",
-    "onboarding.metadata_optional": "เพิ่มข้อมูลเมตา (ไม่บังคับ)"
+    "onboarding.metadata_optional": "เพิ่มข้อมูลเมตา (ไม่บังคับ)",
+    "pronunciation_first.state_on": "เน้นคำอ่านเปิดอยู่ แตะเพื่อปิด",
+    "pronunciation_first.state_off": "เน้นคำอ่านปิดอยู่ แตะเพื่อเปิด",
+    "loading.pronunciation_sync": "AI กำลังจัดคำอ่านให้ตรงกับจังหวะเนื้อเพลง...",
+    "status.pronunciation_sync_failed": "จัดจังหวะคำอ่านไม่สำเร็จ",
+    "setting.pronunciation_karaoke_fill": "เติมสีคำอ่านแบบคาราโอเกะ",
+    "setting.pronunciation_karaoke_fill_desc": "แม้ปิดโหมดเน้นคำอ่าน บรรทัดคำอ่านก็จะเติมสีตามจังหวะการร้อง AI จะแบ่งคำอ่านตามจังหวะของแต่ละคำหรือตัวอักษร โดยไม่ใช้เอฟเฟกต์อื่น เช่น การเด้งและการเรืองแสง"
   },
   "vi": {
     "lyrics.local.import": "Nhập tệp lời bài hát",
@@ -17344,7 +17452,13 @@
     "onboarding.credentials.desc": "Bắt buộc có Client ID. Sau khi lưu, hãy cho phép kết nối trong Spotify.",
     "onboarding.retry": "Thử lại",
     "first_language.translation_provider_required": "Bật nhà cung cấp dịch trong Cài đặt để tạo bản dịch.",
-    "onboarding.metadata_optional": "Bổ sung siêu dữ liệu (không bắt buộc)"
+    "onboarding.metadata_optional": "Bổ sung siêu dữ liệu (không bắt buộc)",
+    "pronunciation_first.state_on": "Ưu tiên phát âm đang bật. Chạm để tắt",
+    "pronunciation_first.state_off": "Ưu tiên phát âm đang tắt. Chạm để bật",
+    "loading.pronunciation_sync": "AI đang khớp phát âm với thời gian lời bài hát...",
+    "status.pronunciation_sync_failed": "Đồng bộ phát âm thất bại",
+    "setting.pronunciation_karaoke_fill": "Tô phát âm như karaoke",
+    "setting.pronunciation_karaoke_fill_desc": "Ngay cả khi chế độ ưu tiên phát âm đang tắt, dòng phát âm vẫn được tô theo nhịp hát. AI chia phát âm theo thời gian của từng từ hoặc ký tự. Không áp dụng các hiệu ứng khác như nảy và phát sáng."
   },
   "id": {
     "lyrics.local.import": "Impor berkas lirik",
@@ -18257,7 +18371,13 @@
     "onboarding.credentials.desc": "Client ID wajib diisi. Setelah menyimpan, izinkan koneksi di Spotify.",
     "onboarding.retry": "Coba lagi",
     "first_language.translation_provider_required": "Aktifkan penyedia terjemahan di Pengaturan untuk membuat terjemahan.",
-    "onboarding.metadata_optional": "Pelengkapan metadata (opsional)"
+    "onboarding.metadata_optional": "Pelengkapan metadata (opsional)",
+    "pronunciation_first.state_on": "Pelafalan dulu aktif. Ketuk untuk menonaktifkan",
+    "pronunciation_first.state_off": "Pelafalan dulu nonaktif. Ketuk untuk mengaktifkan",
+    "loading.pronunciation_sync": "AI sedang menyesuaikan pelafalan dengan waktu lirik...",
+    "status.pronunciation_sync_failed": "Sinkron pelafalan gagal",
+    "setting.pronunciation_karaoke_fill": "Isi pelafalan seperti karaoke",
+    "setting.pronunciation_karaoke_fill_desc": "Meski mode pelafalan dulu nonaktif, baris pelafalan terisi mengikuti waktu nyanyian. AI membagi pelafalan sesuai waktu tiap kata atau karakter. Efek lain seperti pantulan dan kilau tidak diterapkan."
   },
   "ms": {
     "lyrics.local.import": "Import fail lirik",
@@ -19170,7 +19290,13 @@
     "onboarding.credentials.desc": "Client ID diperlukan. Selepas menyimpan, benarkan sambungan dalam Spotify.",
     "onboarding.retry": "Cuba lagi",
     "first_language.translation_provider_required": "Aktifkan penyedia terjemahan dalam Tetapan untuk menjana terjemahan.",
-    "onboarding.metadata_optional": "Pengayaan metadata (pilihan)"
+    "onboarding.metadata_optional": "Pengayaan metadata (pilihan)",
+    "pronunciation_first.state_on": "Sebutan dahulu hidup. Ketik untuk mematikan",
+    "pronunciation_first.state_off": "Sebutan dahulu mati. Ketik untuk menghidupkan",
+    "loading.pronunciation_sync": "AI sedang menyelaraskan sebutan dengan masa lirik...",
+    "status.pronunciation_sync_failed": "Penyegerakan sebutan gagal",
+    "setting.pronunciation_karaoke_fill": "Isi sebutan seperti karaoke",
+    "setting.pronunciation_karaoke_fill_desc": "Walaupun mod sebutan dahulu dimatikan, baris sebutan diisi mengikut masa nyanyian. AI membahagikan sebutan mengikut masa setiap perkataan atau aksara. Kesan lain seperti lantunan dan cahaya tidak digunakan."
   },
   "tr": {
     "lyrics.local.import": "Şarkı sözü dosyası içe aktar",
@@ -20083,6 +20209,12 @@
     "onboarding.credentials.desc": "Client ID gereklidir. Kaydettikten sonra Spotify’da bağlantıya izin verin.",
     "onboarding.retry": "Yeniden dene",
     "first_language.translation_provider_required": "Çeviri oluşturmak için Ayarlar’da bir çeviri sağlayıcısını etkinleştirin.",
-    "onboarding.metadata_optional": "Meta veri zenginleştirme (isteğe bağlı)"
+    "onboarding.metadata_optional": "Meta veri zenginleştirme (isteğe bağlı)",
+    "pronunciation_first.state_on": "Önce telaffuz açık. Kapatmak için dokunun",
+    "pronunciation_first.state_off": "Önce telaffuz kapalı. Açmak için dokunun",
+    "loading.pronunciation_sync": "Yapay zekâ telaffuzu söz zamanlamasına uyduruyor...",
+    "status.pronunciation_sync_failed": "Telaffuz zamanlaması başarısız",
+    "setting.pronunciation_karaoke_fill": "Telaffuzu karaoke gibi doldur",
+    "setting.pronunciation_karaoke_fill_desc": "Önce telaffuz modu kapalıyken bile telaffuz satırı şarkının zamanlamasıyla dolar. Yapay zekâ telaffuzu kelime veya karakter zamanlamasına göre böler. Zıplama ve parlama gibi diğer efektler uygulanmaz."
   }
 }
