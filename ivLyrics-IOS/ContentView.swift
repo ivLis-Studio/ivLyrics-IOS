@@ -1182,6 +1182,29 @@ private struct PlaybackProgressReader<Content: View>: View {
     }
 }
 
+/// Re-renders its content whenever LyricsDisplayClock publishes: the lyric state derived from the
+/// playback position changed, or a lyric travel frame is due.
+private struct LyricsDisplayReader<Content: View>: View {
+    @ObservedObject var clock: LyricsDisplayClock
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+    }
+}
+
+/// Re-renders its content on every frame of the playback clock while `clock` is the live one.
+/// PlaybackClock.never stops it without changing the view's identity, so the content keeps its
+/// state (karaoke preparation, layout caches) when it starts or stops following.
+private struct PlaybackClockFollower<Content: View>: View {
+    @ObservedObject var clock: PlaybackClock
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+    }
+}
+
 private func androidPlayerTime(_ milliseconds: Int64) -> String {
     let total = max(0, Int(milliseconds / 1000))
     let minutes = Int32(truncatingIfNeeded: total / 60)
@@ -3808,8 +3831,7 @@ struct MainLyricPreviewPanel: View {
 
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
-    @EnvironmentObject private var playbackClock: PlaybackClock
+    @Environment(\.coveredPageDecorationsPaused) private var coveredPagePaused
     var chromeless = false
     var typographyOverride: AppSettings.TypographySettings? = nil
     var showsCulturalAnnotations = false
@@ -3820,7 +3842,17 @@ struct MainLyricPreviewPanel: View {
     @State private var hiddenEmptyLyricsPreviewKey = ""
     @State private var emptyLyricsPreviewToken = UUID()
 
+    /// The rows to show follow LyricsDisplayClock; the text and interlude rows themselves (karaoke,
+    /// the long-line slide, the interlude entry) follow the playback clock. A covered page follows
+    /// neither.
     var body: some View {
+        LyricsDisplayReader(clock: coveredPagePaused ? .frozen : model.lyricsDisplay) {
+            panel
+        }
+    }
+
+    @ViewBuilder
+    private var panel: some View {
 #if DEBUG && os(iOS)
         let _ = debugProbeCount(.previewBody)
 #endif
@@ -3831,12 +3863,15 @@ struct MainLyricPreviewPanel: View {
                 if !rows.isEmpty {
                     VStack(spacing: 4) {
                         ForEach(rows) { row in
-                            MainLyricPreviewRowView(
-                                row: row,
-                                positionMs: model.adjustedPositionMs,
-                                continuousPositionMs: model.adjustedContinuousPositionMs,
-                                typographyOverride: typographyOverride
-                            )
+                            let followsClock = !coveredPagePaused && (row.type == .text || row.type == .interlude)
+                            PlaybackClockFollower(clock: followsClock ? model.playbackClock : .never) {
+                                MainLyricPreviewRowView(
+                                    row: row,
+                                    positionMs: model.adjustedPositionMs,
+                                    continuousPositionMs: model.adjustedContinuousPositionMs,
+                                    typographyOverride: typographyOverride
+                                )
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, minHeight: reservedContentHeight, alignment: .center)
@@ -4879,20 +4914,25 @@ private struct EnumeratedRandomAccessCollection<Base: RandomAccessCollection>: R
 struct LyricsTimelineView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
-    @EnvironmentObject private var playbackClock: PlaybackClock
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var animatedCenterIndex: Double?
     /// Owned by LyricsTimelineScrollView; nil where the list does not scroll.
     var travelCascade: LyricsTravelCascade? = nil
     var onInterludeFrame: ((String, CGRect) -> Void)? = nil
 
+    /// The list follows LyricsDisplayClock; rows that paint continuously follow the playback clock.
     var body: some View {
+        LyricsDisplayReader(clock: model.lyricsDisplay) {
+            timeline
+        }
+    }
+
+    @ViewBuilder
+    private var timeline: some View {
 #if DEBUG && os(iOS)
         let _ = debugProbeCount(.timelineBody)
 #endif
         let position = model.adjustedPositionMs
-        let continuousPosition = model.adjustedContinuousPositionMs
         let frameUptime = model.playbackFrameUptime
         let timelineContext = model.timelineContext
         let displaySnapshot = LyricsTimelineDisplayBuilder.displaySnapshot(
@@ -4974,43 +5014,39 @@ struct LyricsTimelineView: View {
                                 trackDurationMs: model.lyricsDurationMs,
                                 autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
                             )
-                            let lineActive = visualState.highlighted
-                                || (activeItemID == nil && index == model.activeLineIndex)
-                            let originalText = model.displayText(for: line)
-                            LyricsLineView(
-                                lineIndex: index,
+                            let lineFill = pronunciationFill.lineFill(line)
+                            let followsClock = LyricsTimelineDisplayBuilder.lineFollowsPlaybackClock(
                                 line: line,
-                                originalText: originalText,
-                                culturalAnnotations: settings.culturalAnnotationsEnabled
-                                    ? model.culturalAnnotations(
-                                        forLine: index,
-                                        text: originalText
-                                    )
-                                    : [],
-                                active: lineActive,
-                                animationActive: visualState.animating,
-                                completedColorOpacity: visualState.completedColorOpacity,
-                                displayDistance: displayDistance,
-                                progress: lineActive ? model.progress(for: line) : 0,
-                                positionMs: visualState.renderPositionMs,
-                                continuousPositionMs: visualState.animating ? continuousPosition : nil,
-                                alignment: settings.lyricsTextAlignment,
-                                pronunciationLoading: model.lyricsSupplementPronunciationLoading,
-                                translationLoading: model.lyricsSupplementTranslationLoading,
-                                typography: typography,
-                                speakerColors: speakerColors,
-                                pronunciationFill: pronunciationFill.lineFill(line),
-                                onSeek: { model.seek(toLyricsTimeMs: $0) }
+                                visualState: visualState,
+                                syncedLyricsKaraokeAnimation: settings.syncedLyricsKaraokeAnimationEnabled,
+                                pronunciationFill: lineFill
                             )
-                            .equatable()
+                            PlaybackClockFollower(clock: followsClock ? model.playbackClock : .never) {
+                                lineRow(
+                                    index: index,
+                                    line: line,
+                                    context: timelineContext,
+                                    activeItemID: activeItemID,
+                                    displayDistance: displayDistance,
+                                    typography: typography,
+                                    speakerColors: speakerColors,
+                                    pronunciationFill: pronunciationFill
+                                )
+                            }
                         case .interlude(let info):
-                            LyricsInterludeView(
-                                info: info,
-                                active: itemActive,
-                                displayDistance: displayDistance,
-                                showLabel: settings.interludeLabelsEnabled,
-                                alignment: settings.lyricsTextAlignment
-                            )
+                            // The entry fade reads the clock (LyricsInterludeView).
+                            let entering = settings.syncedLyricsKaraokeAnimationEnabled
+                                && InterludeTransition.entryOpacity(positionMs: Double(position),
+                                                                    startMs: info.startTimeMs, enabled: true) < 1
+                            PlaybackClockFollower(clock: entering ? model.playbackClock : .never) {
+                                LyricsInterludeView(
+                                    info: info,
+                                    active: itemActive,
+                                    displayDistance: displayDistance,
+                                    showLabel: settings.interludeLabelsEnabled,
+                                    alignment: settings.lyricsTextAlignment
+                                )
+                            }
                             .onGeometryChange(for: CGRect.self) { proxy in
                                 proxy.frame(in: .named("lyrics-interlude-viewport"))
                             } action: { frame in onInterludeFrame?(item.id, frame) }
@@ -5061,6 +5097,56 @@ struct LyricsTimelineView: View {
         }
 #endif
         return offset
+    }
+
+    /// A line row with its playback-derived state read when it renders: on every frame while
+    /// the row follows the clock, and whenever the list re-renders.
+    private func lineRow(
+        index: Int,
+        line: LyricsLine,
+        context: LyricsTimelineContext,
+        activeItemID: String?,
+        displayDistance: Double,
+        typography: AppSettings.TypographySettings,
+        speakerColors: AppSettings.SpeakerColorSettings,
+        pronunciationFill: PronunciationFirst.Fill
+    ) -> some View {
+        let visualState = LyricsTimelineDisplayBuilder.playbackVisualState(
+            context: context,
+            lineIndex: index,
+            positionMs: model.adjustedPositionMs,
+            trackDurationMs: model.lyricsDurationMs,
+            autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled
+        )
+        let lineActive = visualState.highlighted
+            || (activeItemID == nil && index == model.activeLineIndex)
+        let originalText = model.displayText(for: line)
+        return LyricsLineView(
+            lineIndex: index,
+            line: line,
+            originalText: originalText,
+            culturalAnnotations: settings.culturalAnnotationsEnabled
+                ? model.culturalAnnotations(
+                    forLine: index,
+                    text: originalText
+                )
+                : [],
+            active: lineActive,
+            animationActive: visualState.animating,
+            completedColorOpacity: visualState.completedColorOpacity,
+            displayDistance: displayDistance,
+            progress: lineActive ? model.progress(for: line) : 0,
+            positionMs: visualState.renderPositionMs,
+            continuousPositionMs: visualState.animating ? model.adjustedContinuousPositionMs : nil,
+            alignment: settings.lyricsTextAlignment,
+            pronunciationLoading: model.lyricsSupplementPronunciationLoading,
+            translationLoading: model.lyricsSupplementTranslationLoading,
+            typography: typography,
+            speakerColors: speakerColors,
+            pronunciationFill: pronunciationFill.lineFill(line),
+            onSeek: { model.seek(toLyricsTimeMs: $0) }
+        )
+        .equatable()
     }
 }
 
@@ -5148,8 +5234,6 @@ private struct InterludeExitOverlay<Content: View>: View {
 private struct LyricsTimelineScrollView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
-    @EnvironmentObject private var playbackClock: PlaybackClock
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var autoScrollPaused = false
     @State private var lastScrolledTargetID: String?
@@ -5168,7 +5252,15 @@ private struct LyricsTimelineScrollView: View {
 
     private static let manualScrollHoldSeconds: TimeInterval = 4.0
 
+    /// The scroll target and interlude state follow LyricsDisplayClock.
     var body: some View {
+        LyricsDisplayReader(clock: model.lyricsDisplay) {
+            scrollContent
+        }
+    }
+
+    @ViewBuilder
+    private var scrollContent: some View {
 #if DEBUG && os(iOS)
         let _ = debugProbeCount(.scrollBody)
 #endif

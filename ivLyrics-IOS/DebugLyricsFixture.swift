@@ -129,6 +129,8 @@ enum DebugKaraokeFixture {
         default: nil
         }
         let phrases = storePhrases ?? Self.phrases
+        // IVLYRICS_DEBUG_FIXTURE_LINE_SYNCED=1: line timing only, like most LRCLIB and Spotify lyrics.
+        let lineSynced = ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_FIXTURE_LINE_SYNCED"] == "1"
         let schedule = storePhrases.map { lines in
             lines.indices.map { index -> (durationMs: Int64, gapMs: Int64) in
                 (3_200 + Int64(index % 3) * 200, index == 5 ? 1_200 : 300)
@@ -144,7 +146,7 @@ enum DebugKaraokeFixture {
                 startTimeMs: start,
                 endTimeMs: end,
                 text: phrase.text,
-                syllables: syllables(phrase.text, startMs: start, endMs: end),
+                syllables: lineSynced ? [] : syllables(phrase.text, startMs: start, endMs: end),
                 pronunciationText: phrase.pronunciation,
                 translationText: phrase.translation
             ))
@@ -154,9 +156,9 @@ enum DebugKaraokeFixture {
             lines: lines,
             providerLabel: "Fixture",
             detail: "DEBUG karaoke fixture",
-            karaoke: true,
+            karaoke: !lineSynced,
             providerId: "fixture",
-            syncType: "syllable",
+            syncType: lineSynced ? "line" : "syllable",
             syncPoints: lines.count
         )
         return (result, cursor + 4_000)

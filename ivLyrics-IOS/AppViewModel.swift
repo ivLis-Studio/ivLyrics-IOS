@@ -10,6 +10,145 @@ import UIKit
 @MainActor
 final class PlaybackClock: ObservableObject {
     @Published fileprivate(set) var nowPositionMs: Int64 = 0
+
+    /// Never publishes. A view that should stop following the clock observes it in place of the
+    /// live one, which keeps the view's identity and state.
+    static let never = PlaybackClock()
+}
+
+/// Publishes when the lyric list, its scroll view and the main-page preview would derive a
+/// different state from the playback position (LyricsDisplayKey), and on every frame of a lyric
+/// travel. Parts that paint continuously (timed karaoke, pronunciation fill, completed-color fades,
+/// interlude entry, the preview slide) follow PlaybackClock themselves, so the list is not rebuilt
+/// on every display frame.
+@MainActor
+final class LyricsDisplayClock: ObservableObject {
+    /// Observed by a covered page; never publishes.
+    static let frozen = LyricsDisplayClock()
+
+    private var key: LyricsDisplayKey?
+
+    /// nil publishes unconditionally (a frame of lyric travel).
+    func update(_ next: LyricsDisplayKey?) {
+        guard self !== Self.frozen else { return }
+        if let next, next == key { return }
+        key = next
+        objectWillChange.send()
+    }
+}
+
+/// Everything the lyric list, its scroll view and the main-page preview derive from the playback
+/// position, except what rows paint continuously (LyricsTimelineDisplayBuilder
+/// .lineFollowsPlaybackClock, interlude entry, the preview rows). The model compares it on every
+/// display frame and republishes LyricsDisplayClock only when it changes.
+struct LyricsDisplayKey: Equatable {
+    struct LineState: Equatable {
+        var index: Int
+        var highlighted: Bool
+        var animating: Bool
+        /// LyricsTimelineDisplayBuilder.completedColorFadePhase.
+        var fade: UInt8
+    }
+
+    /// Cached per query interval (TimelineIntervalCache); a new instance means different rows.
+    var snapshot: LyricsTimelineDisplaySnapshot
+    var previewItemID: String?
+    var advancedItemID: String?
+    var scrollTargetID: String?
+    var activeLineIndices: [Int]
+    var activeLineIndex: Int
+    /// Lines that are highlighted, animating or fading.
+    var lines: [LineState]
+    var interludeEntering: Bool
+
+    static func == (lhs: LyricsDisplayKey, rhs: LyricsDisplayKey) -> Bool {
+        lhs.snapshot === rhs.snapshot
+            && lhs.previewItemID == rhs.previewItemID
+            && lhs.advancedItemID == rhs.advancedItemID
+            && lhs.scrollTargetID == rhs.scrollTargetID
+            && lhs.activeLineIndices == rhs.activeLineIndices
+            && lhs.activeLineIndex == rhs.activeLineIndex
+            && lhs.lines == rhs.lines
+            && lhs.interludeEntering == rhs.interludeEntering
+    }
+}
+
+extension LyricsTimelineDisplayBuilder {
+    /// 0 before a line's completed-color fade, 1 while it runs, 2 after it.
+    static func completedColorFadePhase(_ state: LyricsLinePlaybackVisualState) -> UInt8 {
+        if state.highlighted || state.completedColorOpacity >= 1 { return 0 }
+        return state.completedColorOpacity > 0 ? 1 : 2
+    }
+
+    /// Whether a line row paints from the playback clock at this moment: timed karaoke, timed
+    /// vocal parts, the synced-line karaoke animation and the pronunciation fill while the row
+    /// animates, and the completed-color fade of any row. Other rows only change with
+    /// LyricsDisplayKey.
+    static func lineFollowsPlaybackClock(
+        line: LyricsLine,
+        visualState: LyricsLinePlaybackVisualState,
+        syncedLyricsKaraokeAnimation: Bool,
+        pronunciationFill: PronunciationFirst.LineFill
+    ) -> Bool {
+        if completedColorFadePhase(visualState) == 1 { return true }
+        guard visualState.animating else { return false }
+        return syncedLyricsKaraokeAnimation
+            || !line.vocalParts.isEmpty
+            || pronunciationFill != .empty
+            // Any syllables, even zero-length ones, switch at their start times.
+            || !line.syllables.isEmpty
+    }
+
+    /// Lines that started this long ago are settled (past their hold, release and fade).
+    private static let displayKeyLookbackMs: Int64 = 60_000
+
+    static func displayKey(
+        context: LyricsTimelineContext,
+        positionMs: Int64,
+        trackDurationMs: Int64,
+        autoInstrumentalBreakEnabled: Bool,
+        syncedLyricsKaraokeAnimation: Bool,
+        vocalPartAnchorsEnabled: Bool,
+        activeLineIndex: Int
+    ) -> LyricsDisplayKey {
+        let preview = previewItem(context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
+                                  autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled)
+        // The scroll and center look 300 ms ahead while the synced-line animation is on.
+        let advanced = syncedLyricsKaraokeAnimation
+            ? previewItem(context: context, positionMs: positionMs + 300, trackDurationMs: trackDurationMs,
+                          autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled)
+            : nil
+        var lines: [LyricsDisplayKey.LineState] = []
+        let earliestStartMs = positionMs - displayKeyLookbackMs
+        for index in context.lines.indices {
+            let startTimeMs = context.lines[index].startTimeMs
+            guard startTimeMs <= positionMs, startTimeMs >= earliestStartMs else { continue }
+            let state = playbackVisualState(context: context, lineIndex: index, positionMs: positionMs,
+                                            trackDurationMs: trackDurationMs,
+                                            autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled)
+            let fade = completedColorFadePhase(state)
+            guard state.highlighted || state.animating || fade == 1 else { continue }
+            lines.append(.init(index: index, highlighted: state.highlighted, animating: state.animating, fade: fade))
+        }
+        var interludeEntering = false
+        if syncedLyricsKaraokeAnimation, case .interlude(let info)? = preview {
+            interludeEntering = InterludeTransition.entryOpacity(
+                positionMs: Double(positionMs), startMs: info.startTimeMs, enabled: true) < 1
+        }
+        return LyricsDisplayKey(
+            snapshot: displaySnapshot(context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
+                                      autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled),
+            previewItemID: preview?.id,
+            advancedItemID: advanced?.id,
+            scrollTargetID: scrollTargetID(context: context, positionMs: positionMs, trackDurationMs: trackDurationMs,
+                                           autoInstrumentalBreakEnabled: autoInstrumentalBreakEnabled,
+                                           vocalPartAnchorsEnabled: vocalPartAnchorsEnabled),
+            activeLineIndices: activeLineIndices(context: context, positionMs: positionMs),
+            activeLineIndex: activeLineIndex,
+            lines: lines,
+            interludeEntering: interludeEntering
+        )
+    }
 }
 
 /// Coarse companion of PlaybackClock for the progress bars and the elapsed and remaining time
@@ -449,6 +588,7 @@ final class AppViewModel: ObservableObject {
 
     let playbackClock = PlaybackClock()
     let playbackProgress = PlaybackProgressClock()
+    let lyricsDisplay = LyricsDisplayClock()
     private(set) var nowPositionMs: Int64 {
         get { playbackClock.nowPositionMs }
         set {
@@ -468,6 +608,7 @@ final class AppViewModel: ObservableObject {
                 playbackFrameUptime = ProcessInfo.processInfo.systemUptime
             }
             #endif
+            refreshLyricsDisplay()
         }
     }
     /// Unrounded playback position sampled for the same display frame as nowPositionMs.
@@ -5174,6 +5315,25 @@ final class AppViewModel: ObservableObject {
         #endif
     }
 
+    /// Republishes LyricsDisplayClock when the position-derived lyric state changes, and on every
+    /// frame while a lyric travel is in flight (its row offsets are painted from the frame time).
+    private func refreshLyricsDisplay() {
+        if playbackFrameUptime < lyricsFrameUpdatesUntilUptime {
+            lyricsDisplay.update(nil)
+            return
+        }
+        let position = adjustedPositionMs
+        lyricsDisplay.update(LyricsTimelineDisplayBuilder.displayKey(
+            context: timelineContext,
+            positionMs: position,
+            trackDurationMs: lyricsDurationMs,
+            autoInstrumentalBreakEnabled: settings.autoInstrumentalBreakEnabled,
+            syncedLyricsKaraokeAnimation: settings.syncedLyricsKaraokeAnimationEnabled,
+            vocalPartAnchorsEnabled: !settings.karaokeDataAsLineSynced,
+            activeLineIndex: activeLineIndex(at: position)
+        ))
+    }
+
     #if os(iOS)
     /// The display link runs only while something can move with the clock: playback, a lyric
     /// travel in flight, or engaged PiP. Paused playback publishes nothing, so idling it changes no
@@ -5221,6 +5381,7 @@ final class AppViewModel: ObservableObject {
             nowPositionMs = position
         } else if uptime < lyricsFrameUpdatesUntilUptime {
             playbackClock.objectWillChange.send()
+            lyricsDisplay.update(nil)
         }
         // PiP renders at its own cadence. Avoid rebuilding settings and the inactive
         // priming frame for every foreground glyph update, including 120Hz displays.
