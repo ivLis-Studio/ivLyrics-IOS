@@ -1444,9 +1444,13 @@ struct PlayerBackgroundView: View {
 }
 
 private struct YouTubeBackdropSection: View {
+    /// The web player is synced every 0.5 s, and at once after a jump of more than 1.2 s
+    /// (YouTubeBackdropView.updateUIView). Sampling the playback position ten times a second
+    /// keeps both without updating the web view on every display frame.
+    private static let positionSampleInterval: TimeInterval = 0.1
+    private static let sampleEpoch = Date(timeIntervalSinceReferenceDate: 0)
+
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
-    @EnvironmentObject private var playbackClock: PlaybackClock
     var info: YouTubeVideoInfo
     var background: AppSettings.BackgroundSettings
     var isLandscape: Bool
@@ -1455,24 +1459,26 @@ private struct YouTubeBackdropSection: View {
     var body: some View {
         ZStack {
             if let selection = model.currentYouTubePlayerSelection {
-                YouTubeBackdropView(
-                    info: info,
-                    playerSeconds: model.youtubePlayerSeconds,
-                    playing: model.currentTrack?.playing ?? false,
-                    firstLyricSeconds: model.youtubeFirstLyricSeconds,
-                    offsetSeconds: model.youtubeOffsetSeconds,
-                    hasCaptionStartTime: info.hasCaptionStartTime,
-                    captionStartTimeSeconds: info.captionStartTimeSeconds,
-                    autoMatchedUnknownCaptionStart: info.isAutoMatchedUnknownCaptionStart,
-                    brightness: background.brightness,
-                    blur: background.blur,
-                    videoScale: background.videoScale,
-                    videoAspect: background.videoAspect,
-                    videoVisible: $videoVisible,
-                    selection: selection,
-                    onPlayerMounted: model.registerYouTubePlayer,
-                    onPlayerEvent: model.receiveYouTubePlayerEvent
-                )
+                TimelineView(.periodic(from: Self.sampleEpoch, by: Self.positionSampleInterval)) { _ in
+                    YouTubeBackdropView(
+                        info: info,
+                        playerSeconds: model.youtubePlayerSeconds,
+                        playing: model.currentTrack?.playing ?? false,
+                        firstLyricSeconds: model.youtubeFirstLyricSeconds,
+                        offsetSeconds: model.youtubeOffsetSeconds,
+                        hasCaptionStartTime: info.hasCaptionStartTime,
+                        captionStartTimeSeconds: info.captionStartTimeSeconds,
+                        autoMatchedUnknownCaptionStart: info.isAutoMatchedUnknownCaptionStart,
+                        brightness: background.brightness,
+                        blur: background.blur,
+                        videoScale: background.videoScale,
+                        videoAspect: background.videoAspect,
+                        videoVisible: $videoVisible,
+                        selection: selection,
+                        onPlayerMounted: model.registerYouTubePlayer,
+                        onPlayerEvent: model.receiveYouTubePlayerEvent
+                    )
+                }
                 .blur(radius: youtubeBackgroundBlurRadius(background.blur))
             }
             Color.black.opacity(videoVisible ? AppearancePolicy.videoDimOpacity(background.brightness) : 0)
