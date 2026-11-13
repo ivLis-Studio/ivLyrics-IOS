@@ -1132,12 +1132,11 @@ struct ContentView: View {
 
 private struct PortraitPlayerProgressSection: View {
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
-    @EnvironmentObject private var playbackClock: PlaybackClock
+    @Environment(\.coveredPageDecorationsPaused) private var coveredPagePaused
     var metadataControlsSpacing: CGFloat
 
     var body: some View {
-        Group {
+        PlaybackProgressReader(clock: coveredPagePaused ? .frozen : model.playbackProgress) {
             PlayerProgressBar(
                 positionMs: model.nowPositionMs,
                 durationMs: model.durationMs,
@@ -1155,6 +1154,30 @@ private struct PortraitPlayerProgressSection: View {
                     .foregroundStyle(.white.opacity(174.0 / 255.0))
             }
             .font(.pretendard(12))
+        }
+    }
+}
+
+/// Re-renders its content whenever the playback position can move a progress bar or change a
+/// time label (PlaybackProgressClock), and reports its width as the widest track it may hold.
+/// The content stays a group, so its views keep the enclosing stack's spacing.
+private struct PlaybackProgressReader<Content: View>: View {
+    @ObservedObject var clock: PlaybackProgressClock
+    @Environment(\.displayScale) private var displayScale
+    @State private var trackID = UUID()
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Group {
+            content()
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            clock.setTrackPixelWidth(width * displayScale, for: trackID)
+        }
+        .onDisappear {
+            clock.setTrackPixelWidth(nil, for: trackID)
         }
     }
 }
@@ -2605,10 +2628,15 @@ private struct LandscapeArtworkView: View {
 private struct LandscapeTransportControls: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
-    // Subscribed (not read directly) so this view re-renders with the display-rate playback clock driving model.nowPositionMs.
-    @EnvironmentObject private var playbackClock: PlaybackClock
+    @Environment(\.coveredPageDecorationsPaused) private var coveredPagePaused
 
     var body: some View {
+        PlaybackProgressReader(clock: coveredPagePaused ? .frozen : model.playbackProgress) {
+            controls
+        }
+    }
+
+    private var controls: some View {
         VStack(spacing: 5) {
             PlayerProgressBar(
                 positionMs: model.nowPositionMs,

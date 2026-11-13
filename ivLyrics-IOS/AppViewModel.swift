@@ -12,6 +12,54 @@ final class PlaybackClock: ObservableObject {
     @Published fileprivate(set) var nowPositionMs: Int64 = 0
 }
 
+/// Coarse companion of PlaybackClock for the progress bars and the elapsed and remaining time
+/// labels. The playback clock publishes on every display frame, while a 3-4 minute track moves a
+/// phone-wide bar by about a pixel every quarter second and the labels once a second. This clock
+/// publishes only when one of them can change on screen: a whole second of elapsed or remaining
+/// time, half a device pixel on the widest registered track, a duration change or a seek.
+@MainActor
+final class PlaybackProgressClock: ObservableObject {
+    /// Observed by a covered page; never publishes.
+    static let frozen = PlaybackProgressClock()
+
+    private var trackPixelWidths: [UUID: CGFloat] = [:]
+    private var publishedPositionMs: Int64?
+    private var publishedDurationMs: Int64 = -1
+
+    /// nil removes the track (it left the screen).
+    func setTrackPixelWidth(_ pixels: CGFloat?, for id: UUID) {
+        trackPixelWidths[id] = pixels
+    }
+
+    func update(positionMs: Int64, durationMs: Int64) {
+        guard self !== Self.frozen else { return }
+        if let published = publishedPositionMs, durationMs == publishedDurationMs,
+           !Self.changesOnScreen(from: published, to: positionMs, durationMs: durationMs,
+                                 widestTrackPixels: trackPixelWidths.values.max()) {
+            return
+        }
+        publishedPositionMs = positionMs
+        publishedDurationMs = durationMs
+        objectWillChange.send()
+    }
+
+    nonisolated static func changesOnScreen(from published: Int64, to position: Int64, durationMs: Int64,
+                                            widestTrackPixels: CGFloat?) -> Bool {
+        guard position != published else { return false }
+        // The labels show whole seconds of max(0, ms), truncated (androidPlayerTime).
+        func seconds(_ ms: Int64) -> Int64 { max(0, ms) / 1_000 }
+        if seconds(position) != seconds(published)
+            || seconds(durationMs - position) != seconds(durationMs - published) {
+            return true
+        }
+        guard durationMs > 0, let widestTrackPixels, widestTrackPixels > 0 else { return false }
+        let clampedPosition = max(0, min(durationMs, position))
+        let clampedPublished = max(0, min(durationMs, published))
+        return Double(abs(clampedPosition - clampedPublished)) / Double(durationMs)
+            * Double(widestTrackPixels) >= 0.5
+    }
+}
+
 enum CreatorPrivacyState: Equatable {
     case signedOut
     case loading
@@ -185,6 +233,9 @@ final class AppViewModel: ObservableObject {
                 refreshDisplayClockIdle()
             }
             #endif
+            if oldValue?.durationMs != currentTrack?.durationMs {
+                playbackProgress.update(positionMs: nowPositionMs, durationMs: durationMs)
+            }
         }
     }
     @Published private(set) var lyricsResult = LyricsResult.empty("") {
@@ -397,6 +448,7 @@ final class AppViewModel: ObservableObject {
     }
 
     let playbackClock = PlaybackClock()
+    let playbackProgress = PlaybackProgressClock()
     private(set) var nowPositionMs: Int64 {
         get { playbackClock.nowPositionMs }
         set {
@@ -408,6 +460,7 @@ final class AppViewModel: ObservableObject {
             if playbackClock.nowPositionMs != newValue {
                 playbackClock.nowPositionMs = newValue
             }
+            playbackProgress.update(positionMs: newValue, durationMs: durationMs)
             #if os(iOS)
             // An idle clock last sampled the frame time up to half a second ago; a seek while
             // paused starts its lyric travel from now.
