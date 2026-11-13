@@ -57,6 +57,10 @@ for (orientation, width, height) in [("portrait", 360.0, 640.0), ("square", 480,
             if orientation != "landscape" {
                 check(layout.lyricsRect.minY >= layout.artworkRect.maxY + 18, "Portrait/square reserve artwork and breathing room")
                 check(layout.lyricsRect.maxY <= canvas.maxY - 16, "Wrapped supplements retain bottom margin")
+            } else {
+                let metadata = layout.artworkRect.union(layout.titleRect).union(layout.artistRect)
+                check(abs(metadata.midY - layout.lyricsRect.midY) <= 1, "Landscape artwork block is centred with the lyric line")
+                check(metadata.minY >= 18 && metadata.maxY <= canvas.maxY - 18, "Landscape artwork block keeps its margins")
             }
         } else {
             check(layout.lyricsRect.minY == 0 && layout.lyricsRect.height == height, "Hiding artwork preserves full-height lyrics")

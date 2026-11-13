@@ -877,13 +877,18 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             let weightedWidth = horizontalContentWidth - gap
             let metadataWidth = weightedWidth * 0.82 / 1.82
             let lyricsX = 26 + metadataWidth + gap
-            let artworkRect = CGRect(x: 26, y: 18, width: 150, height: 150)
+            // Artwork, title and artist form one block centred on the frame, level with the
+            // vertically centred lyric line, instead of hanging from the top-left corner.
+            let artworkSize: CGFloat = 150
+            let metadataHeight = artworkSize + 14 + 30 + 5 + 22
+            let metadataTop = (rect.minY + (rect.height - metadataHeight) / 2).rounded()
+            let artworkRect = CGRect(x: 26, y: metadataTop, width: artworkSize, height: artworkSize)
             return PictureInPictureFrameLayout(
                 lyricsRect: CGRect(x: lyricsX, y: 18, width: rect.maxX - 30 - lyricsX, height: rect.height - 36),
                 artworkRect: artworkRect,
                 artworkCornerRadius: 12,
-                titleRect: CGRect(x: 26, y: 182, width: metadataWidth, height: 30),
-                artistRect: CGRect(x: 26, y: 217, width: metadataWidth, height: 22),
+                titleRect: CGRect(x: 26, y: artworkRect.maxY + 14, width: metadataWidth, height: 30),
+                artistRect: CGRect(x: 26, y: artworkRect.maxY + 49, width: metadataWidth, height: 22),
                 titleFontSize: 22,
                 artistFontSize: 15
             )
