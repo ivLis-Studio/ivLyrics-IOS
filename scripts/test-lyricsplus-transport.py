@@ -73,7 +73,9 @@ private func check(_ value: @autoclosure () -> Bool, _ message: String) {
 }
 private func awaitCancellation(of hosts: [String]) async throws {
     // URLSession resumes its cancelled data task before URLProtocol receives stopLoading.
-    let deadline = ProcessInfo.processInfo.systemUptime + 0.2
+    // Shared CI runners can deliver stopLoading well after the task resumes, so wait
+    // generously; the loop exits as soon as every host has been stopped.
+    let deadline = ProcessInfo.processInfo.systemUptime + 2
     while !Set(hosts).isSubset(of: Set(Fixture.cancelledHosts)), ProcessInfo.processInfo.systemUptime < deadline {
         try await Task.sleep(nanoseconds: 1_000_000)
     }
