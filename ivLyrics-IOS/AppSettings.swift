@@ -295,6 +295,11 @@ final class AppSettings: ObservableObject {
     @Published var pronunciationKaraokeFillEnabled: Bool {
         didSet { set("pronunciation_karaoke_fill_enabled", pronunciationKaraokeFillEnabled) }
     }
+    /// Synced pronunciation: karaoke pronunciation is requested split over the sung units, and
+    /// pronunciation-first and the fill become available. Off (the default), it is plain line text.
+    @Published var syncedPronunciationEnabled: Bool {
+        didSet { set("synced_pronunciation_enabled", syncedPronunciationEnabled) }
+    }
     @Published var karaokeDisplayGranularity: String {
         didSet {
             let normalized = Self.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity)
@@ -426,6 +431,7 @@ final class AppSettings: ObservableObject {
         karaokeMotionStyle = Self.normalizeKaraokeMotionStyle(defaults.string(forKey: "karaoke_motion_style"))
         pronunciationFirstEnabled = defaults.object(forKey: "pronunciation_first_enabled") as? Bool ?? false
         pronunciationKaraokeFillEnabled = defaults.object(forKey: "pronunciation_karaoke_fill_enabled") as? Bool ?? false
+        syncedPronunciationEnabled = defaults.object(forKey: "synced_pronunciation_enabled") as? Bool ?? false
         karaokeDisplayGranularity = Self.normalizeKaraokeDisplayGranularity(
             defaults.string(forKey: "karaoke_display_granularity_v1")
                 ?? ((defaults.object(forKey: "karaoke_data_as_line_synced") as? Bool ?? false)
@@ -748,7 +754,8 @@ final class AppSettings: ObservableObject {
             preferLyricsTypeOverProviderOrder: preferLyricsTypeOverProviderOrder,
             localAITier: LocalAI.Tier.stored(localAITier).rawValue,
             localAIProcessor: LocalAI.Processor.stored(localAIProcessor).rawValue,
-            localAIIdleMinutes: LocalAI.normalizedIdleMinutes(localAIIdleMinutes)
+            localAIIdleMinutes: LocalAI.normalizedIdleMinutes(localAIIdleMinutes),
+            syncedPronunciationEnabled: syncedPronunciationEnabled
         )
         cachedSnapshot = snapshot
         return snapshot
@@ -2037,6 +2044,8 @@ final class AppSettings: ObservableObject {
         var localAITier: String
         var localAIProcessor: String
         var localAIIdleMinutes: Int
+        /// Karaoke pronunciation is requested by sung unit (AppSettings.syncedPronunciationEnabled).
+        var syncedPronunciationEnabled = false
 
         var hasApiKey: Bool {
             if provider.id == "pollinations", !pollinationsAccessToken.trimmed.isEmpty {

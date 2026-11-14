@@ -12,10 +12,9 @@ enum PronunciationSlots {
     /// Bump when the unit split or the stored shape changes.
     static let version = 1
     /// Reasoning models think long before writing unit slots and that time grows with the
-    /// request, so songs go out in small chunks that run in parallel.
-    static let maxChunkUnits = 110
-    static let maxChunkItems = 8
-    static let parallelRequests = 5
+    /// request, so songs go out in small chunks that run in parallel (PronunciationRequests).
+    static let maxChunkUnits = PronunciationRequests.batchUnits
+    static let maxChunkItems = PronunciationRequests.batchLines
     /// Normalized pronunciation notations (AppSettings.pronunciationNotationLatin / IPA).
     static let latinNotation = "latin"
     static let ipaNotation = "ipa"
@@ -411,5 +410,95 @@ enum PronunciationSlots {
             lines[key] = parts
         }
         return Stored(v: version, lines: lines)
+    }
+}
+
+/// A song's pronunciation as small AI requests side by side, the same as the desktop app's
+/// runParallelBatches (AIAddonManager.js) and the Android app.
+///
+/// Reasoning models think longer than linearly with the lines of a request (gpt-6-luna: one
+/// line 6 s, two 14 s, three up to 29 s, seven up to 60 s), so the opening line goes out alone
+/// and the rest as two-line requests, up to twelve at a time. The lines a request answered
+/// wrongly are asked again as soon as it returns. A rate-limited request halves the requests in
+/// flight and is sent again after a pause, so a provider that refuses parallel requests still
+/// gets the song one request at a time.
+enum PronunciationRequests {
+    static let parallelRequests = 12
+    static let batchLines = 2
+    static let batchUnits = 60
+    static let rateLimitRetries = 3
+    static let rateLimitPauseMs: UInt64 = 1_500
+
+    /// The opening item alone, then `chunk` of the rest.
+    static func batches<Item>(_ items: [Item], chunk: ([Item]) -> [[Item]]) -> [[Item]] {
+        guard let first = items.first else { return [] }
+        return [[first]] + chunk(Array(items.dropFirst()))
+    }
+
+    static func isRateLimited(_ error: Error) -> Bool {
+        if (error as NSError).code == 429 { return true }
+        let message = error.localizedDescription.lowercased()
+        return ["429", "rate limit", "rate_limit", "too many requests", "resource_exhausted", "resource exhausted"]
+            .contains { message.contains($0) }
+    }
+
+    /// 1.5 s, 3 s, 6 s.
+    static func pause(attempt: Int) async {
+        try? await Task.sleep(nanoseconds: (rateLimitPauseMs * 1_000_000) << UInt64(max(0, attempt)))
+    }
+
+    private struct Outcome<Job: Sendable, Answer: Sendable>: Sendable {
+        let job: Job
+        let attempt: Int
+        let result: Result<Answer, Error>
+    }
+
+    /// Runs jobs in order, at most `limit` at a time. `handle` gets each answer on the caller's
+    /// side, one at a time, and returns follow-up jobs (repairs), which go out next.
+    /// - Returns: Errors of the jobs that failed for good.
+    static func run<Job: Sendable, Answer: Sendable>(
+        _ jobs: [Job],
+        limit: Int = parallelRequests,
+        retries: Int = rateLimitRetries,
+        pause: @escaping @Sendable (Int) async -> Void = { await PronunciationRequests.pause(attempt: $0) },
+        perform: @escaping @Sendable (Job) async throws -> Answer,
+        handle: (Job, Answer) async -> [Job]
+    ) async -> [Error] {
+        var queue = jobs.map { (job: $0, attempt: 0) }
+        var errors: [Error] = []
+        var allowed = max(1, limit)
+        var active = 0
+        await withTaskGroup(of: Outcome<Job, Answer>.self) { group in
+            while true {
+                while active < allowed, !queue.isEmpty, !Task.isCancelled {
+                    let next = queue.removeFirst()
+                    active += 1
+                    group.addTask {
+                        // A retried request waits first, keeping its place while it does.
+                        if next.attempt > 0 { await pause(next.attempt - 1) }
+                        do {
+                            return Outcome(job: next.job, attempt: next.attempt, result: .success(try await perform(next.job)))
+                        } catch {
+                            return Outcome(job: next.job, attempt: next.attempt, result: .failure(error))
+                        }
+                    }
+                }
+                guard let outcome = await group.next() else { break }
+                active -= 1
+                switch outcome.result {
+                case .success(let answer):
+                    let more = await handle(outcome.job, answer)
+                    queue.insert(contentsOf: more.map { (job: $0, attempt: 0) }, at: 0)
+                case .failure(let error):
+                    if !(error is CancellationError), !Task.isCancelled, outcome.attempt < retries, isRateLimited(error) {
+                        allowed = min(allowed, max(1, (active + 1) / 2))
+                        queue.insert((job: outcome.job, attempt: outcome.attempt + 1), at: 0)
+                    } else {
+                        errors.append(error)
+                    }
+                }
+            }
+        }
+        return errors
     }
 }

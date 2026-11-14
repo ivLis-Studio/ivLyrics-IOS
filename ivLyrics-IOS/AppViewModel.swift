@@ -4815,9 +4815,10 @@ final class AppViewModel: ObservableObject {
         return snapshot.enabled && snapshot.ruleForSource(effectiveSelectedRuleSourceLang).pronunciationEnabled
     }
 
-    /// The pronunciation and the original swap rows (the lyrics page toggle).
+    /// The pronunciation and the original swap rows (the lyrics page toggle). It belongs to synced
+    /// pronunciation, so it stays off without it whatever was stored.
     var pronunciationFirstActive: Bool {
-        settings.pronunciationFirstEnabled && pronunciationShownForCurrentSource
+        settings.syncedPronunciationEnabled && settings.pronunciationFirstEnabled && pronunciationShownForCurrentSource
     }
 
     /// Singing along reads slightly ahead of the voice: while pronunciation-first is shown, the
@@ -4830,12 +4831,14 @@ final class AppViewModel: ObservableObject {
 
     /// Pronunciation rows fill along karaoke timing while pronunciation-first is off.
     var pronunciationFillActive: Bool {
-        settings.pronunciationKaraokeFillEnabled && !settings.pronunciationFirstEnabled && pronunciationShownForCurrentSource
+        settings.syncedPronunciationEnabled && settings.pronunciationKaraokeFillEnabled
+            && !settings.pronunciationFirstEnabled && pronunciationShownForCurrentSource
     }
 
-    /// The lyrics page offers the pronunciation-first toggle while pronunciation is shown.
+    /// The lyrics page offers the pronunciation-first toggle while synced pronunciation is on and
+    /// pronunciation is shown.
     var pronunciationFirstAvailable: Bool {
-        pronunciationShownForCurrentSource && lyricsResult.lines.contains { line in
+        settings.syncedPronunciationEnabled && pronunciationShownForCurrentSource && lyricsResult.lines.contains { line in
             !line.pronunciationText.trimmed.isEmpty
                 || line.vocalParts.contains { !$0.pronunciationText.trimmed.isEmpty }
         }
@@ -4908,6 +4911,11 @@ final class AppViewModel: ObservableObject {
         pronunciationSettingsChanged()
     }
 
+    func setSyncedPronunciation(_ enabled: Bool) {
+        settings.syncedPronunciationEnabled = enabled
+        pronunciationSettingsChanged()
+    }
+
     private func pronunciationSettingsChanged() {
         if !pronunciationTimingWanted {
             pronunciationTimingDebounceTask?.cancel()
@@ -4923,7 +4931,8 @@ final class AppViewModel: ObservableObject {
     private func schedulePronunciationTiming() {
         pronunciationTimingDebounceTask?.cancel()
         // Settings first: with both displays off this runs on every lyrics update and does nothing.
-        guard settings.pronunciationFirstEnabled || settings.pronunciationKaraokeFillEnabled,
+        guard settings.syncedPronunciationEnabled,
+              settings.pronunciationFirstEnabled || settings.pronunciationKaraokeFillEnabled,
               lyricsResult.karaoke, currentTrack != nil else { return }
         pronunciationTimingDebounceTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 700_000_000)

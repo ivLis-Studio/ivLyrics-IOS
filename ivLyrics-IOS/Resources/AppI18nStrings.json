@@ -919,7 +919,9 @@
     "loading.pronunciation_sync": "AI가 발음을 가사 싱크에 맞추는 중...",
     "status.pronunciation_sync_failed": "발음 싱크 실패",
     "setting.pronunciation_karaoke_fill": "발음 노래방 채우기",
-    "setting.pronunciation_karaoke_fill_desc": "발음 우선 모드가 꺼져 있어도 원문 아래 발음이 부르는 타이밍에 맞춰 노래방처럼 채워집니다. AI가 발음을 단어·글자 타이밍에 맞춰 나눕니다. 바운스·글로우 같은 다른 효과는 적용되지 않습니다."
+    "setting.pronunciation_karaoke_fill_desc": "발음 우선 모드가 꺼져 있어도 원문 아래 발음이 부르는 타이밍에 맞춰 노래방처럼 채워집니다. AI가 발음을 단어·글자 타이밍에 맞춰 나눕니다. 바운스·글로우 같은 다른 효과는 적용되지 않습니다.",
+    "setting.synced_pronunciation": "싱크 발음 사용",
+    "setting.synced_pronunciation_desc": "노래방 가사의 발음을 부르는 단어·글자 타이밍에 맞춰 받아옵니다. 켜면 발음 우선 모드와 발음 노래방 채우기를 쓸 수 있습니다. 끄면 발음을 줄 단위 평문으로 더 빠르게 받아옵니다."
   },
   "en": {
     "lyrics.local.import": "Import lyrics file",
@@ -1841,7 +1843,9 @@
     "loading.pronunciation_sync": "AI is matching the pronunciation to the lyric timing...",
     "status.pronunciation_sync_failed": "Pronunciation timing failed",
     "setting.pronunciation_karaoke_fill": "Fill pronunciation like karaoke",
-    "setting.pronunciation_karaoke_fill_desc": "Even with pronunciation-first mode off, the pronunciation row fills in time with the singing. AI splits the pronunciation across the word or character timing. Other effects such as bounce and glow are not applied."
+    "setting.pronunciation_karaoke_fill_desc": "Even with pronunciation-first mode off, the pronunciation row fills in time with the singing. AI splits the pronunciation across the word or character timing. Other effects such as bounce and glow are not applied.",
+    "setting.synced_pronunciation": "Synced pronunciation",
+    "setting.synced_pronunciation_desc": "Gets karaoke pronunciation split along the timing of each sung word or character. On, pronunciation-first mode and pronunciation fill become available. Off, pronunciation comes faster as plain line text."
   },
   "zh-CN": {
     "lyrics.local.import": "导入歌词文件",
@@ -2763,7 +2767,9 @@
     "loading.pronunciation_sync": "AI 正在将发音与歌词时间对齐...",
     "status.pronunciation_sync_failed": "发音同步失败",
     "setting.pronunciation_karaoke_fill": "发音卡拉OK填充",
-    "setting.pronunciation_karaoke_fill_desc": "即使关闭发音优先模式，原文下方的发音也会随演唱时间像卡拉OK一样填充。AI 会按单词或字符的时间拆分发音。不会应用弹跳、发光等其他效果。"
+    "setting.pronunciation_karaoke_fill_desc": "即使关闭发音优先模式，原文下方的发音也会随演唱时间像卡拉OK一样填充。AI 会按单词或字符的时间拆分发音。不会应用弹跳、发光等其他效果。",
+    "setting.synced_pronunciation": "使用同步发音",
+    "setting.synced_pronunciation_desc": "按演唱的每个词或字的时间获取卡拉OK歌词的发音。开启后可使用发音优先模式和发音卡拉OK填充。关闭时，发音以整行纯文本更快获取。"
   },
   "zh-TW": {
     "lyrics.local.import": "匯入歌詞檔案",
@@ -3685,7 +3691,9 @@
     "loading.pronunciation_sync": "AI 正在將發音與歌詞時間對齊...",
     "status.pronunciation_sync_failed": "發音同步失敗",
     "setting.pronunciation_karaoke_fill": "發音卡拉OK填色",
-    "setting.pronunciation_karaoke_fill_desc": "即使關閉發音優先模式，原文下方的發音也會隨演唱時間像卡拉OK一樣填色。AI 會依單字或字元的時間拆分發音。不會套用彈跳、發光等其他效果。"
+    "setting.pronunciation_karaoke_fill_desc": "即使關閉發音優先模式，原文下方的發音也會隨演唱時間像卡拉OK一樣填色。AI 會依單字或字元的時間拆分發音。不會套用彈跳、發光等其他效果。",
+    "setting.synced_pronunciation": "使用同步發音",
+    "setting.synced_pronunciation_desc": "依演唱的每個詞或字的時間取得卡拉OK歌詞的發音。開啟後可使用發音優先模式與發音卡拉OK填色。關閉時，發音會以整行純文字更快取得。"
   },
   "ja": {
     "lyrics.local.import": "歌詞ファイルを読み込む",
@@ -4607,7 +4615,9 @@
     "loading.pronunciation_sync": "AIが発音を歌詞のタイミングに合わせています...",
     "status.pronunciation_sync_failed": "発音の同期に失敗",
     "setting.pronunciation_karaoke_fill": "発音をカラオケのように塗る",
-    "setting.pronunciation_karaoke_fill_desc": "発音優先モードがオフでも、原文の下の発音が歌うタイミングに合わせてカラオケのように塗られます。AIが発音を単語・文字のタイミングに合わせて分割します。バウンスやグローなどの他の効果は適用されません。"
+    "setting.pronunciation_karaoke_fill_desc": "発音優先モードがオフでも、原文の下の発音が歌うタイミングに合わせてカラオケのように塗られます。AIが発音を単語・文字のタイミングに合わせて分割します。バウンスやグローなどの他の効果は適用されません。",
+    "setting.synced_pronunciation": "同期発音を使う",
+    "setting.synced_pronunciation_desc": "カラオケ歌詞の発音を、歌う単語・文字のタイミングに合わせて取得します。オンにすると発音優先モードと発音のカラオケ塗りを使えます。オフにすると発音は行ごとのテキストとして、より速く取得されます。"
   },
   "hi": {
     "lyrics.local.import": "गीत फ़ाइल आयात करें",
@@ -5529,7 +5539,9 @@
     "loading.pronunciation_sync": "AI उच्चारण को बोलों की टाइमिंग से मिला रहा है...",
     "status.pronunciation_sync_failed": "उच्चारण टाइमिंग विफल",
     "setting.pronunciation_karaoke_fill": "उच्चारण को कराओके की तरह भरें",
-    "setting.pronunciation_karaoke_fill_desc": "उच्चारण-पहले मोड बंद होने पर भी उच्चारण की पंक्ति गाने की टाइमिंग के साथ भरती है। AI उच्चारण को हर शब्द या अक्षर की टाइमिंग के अनुसार बाँटता है। उछाल और चमक जैसे अन्य प्रभाव लागू नहीं होते।"
+    "setting.pronunciation_karaoke_fill_desc": "उच्चारण-पहले मोड बंद होने पर भी उच्चारण की पंक्ति गाने की टाइमिंग के साथ भरती है। AI उच्चारण को हर शब्द या अक्षर की टाइमिंग के अनुसार बाँटता है। उछाल और चमक जैसे अन्य प्रभाव लागू नहीं होते।",
+    "setting.synced_pronunciation": "सिंक उच्चारण इस्तेमाल करें",
+    "setting.synced_pronunciation_desc": "कराओके बोलों का उच्चारण हर गाए गए शब्द या अक्षर की टाइमिंग के अनुसार बाँटकर लाता है। चालू करने पर उच्चारण पहले मोड और उच्चारण को कराओके की तरह भरना उपलब्ध होता है। बंद होने पर उच्चारण पंक्ति-वार सादे टेक्स्ट के रूप में तेज़ी से आता है।"
   },
   "es": {
     "lyrics.local.import": "Importar archivo de letras",
@@ -6451,7 +6463,9 @@
     "loading.pronunciation_sync": "La IA está ajustando la pronunciación a los tiempos de la letra...",
     "status.pronunciation_sync_failed": "Error en la sincronía de pronunciación",
     "setting.pronunciation_karaoke_fill": "Rellenar la pronunciación como karaoke",
-    "setting.pronunciation_karaoke_fill_desc": "Aunque el modo pronunciación primero esté desactivado, la fila de pronunciación se rellena al ritmo del canto. La IA reparte la pronunciación según el tiempo de cada palabra o carácter. No se aplican otros efectos como el rebote o el brillo."
+    "setting.pronunciation_karaoke_fill_desc": "Aunque el modo pronunciación primero esté desactivado, la fila de pronunciación se rellena al ritmo del canto. La IA reparte la pronunciación según el tiempo de cada palabra o carácter. No se aplican otros efectos como el rebote o el brillo.",
+    "setting.synced_pronunciation": "Pronunciación sincronizada",
+    "setting.synced_pronunciation_desc": "Obtiene la pronunciación de las letras de karaoke dividida según el tiempo de cada palabra o carácter cantado. Al activarla, están disponibles el modo de pronunciación primero y el relleno de la pronunciación como karaoke. Desactivada, la pronunciación llega más rápido como texto por líneas."
   },
   "fr": {
     "lyrics.local.import": "Importer un fichier de paroles",
@@ -7373,7 +7387,9 @@
     "loading.pronunciation_sync": "L'IA aligne la prononciation sur le minutage des paroles...",
     "status.pronunciation_sync_failed": "Échec de la synchro de la prononciation",
     "setting.pronunciation_karaoke_fill": "Remplir la prononciation comme au karaoké",
-    "setting.pronunciation_karaoke_fill_desc": "Même lorsque le mode prononciation d'abord est désactivé, la ligne de prononciation se remplit au rythme du chant. L'IA répartit la prononciation selon le minutage des mots ou des caractères. Les autres effets, comme le rebond et la lueur, ne sont pas appliqués."
+    "setting.pronunciation_karaoke_fill_desc": "Même lorsque le mode prononciation d'abord est désactivé, la ligne de prononciation se remplit au rythme du chant. L'IA répartit la prononciation selon le minutage des mots ou des caractères. Les autres effets, comme le rebond et la lueur, ne sont pas appliqués.",
+    "setting.synced_pronunciation": "Prononciation synchronisée",
+    "setting.synced_pronunciation_desc": "Récupère la prononciation des paroles karaoké découpée selon le minutage de chaque mot ou caractère chanté. Activée, elle rend disponibles le mode Prononciation d'abord et le remplissage de la prononciation comme au karaoké. Désactivée, la prononciation arrive plus vite en texte simple par ligne."
   },
   "ar": {
     "lyrics.local.import": "استيراد ملف كلمات",
@@ -8295,7 +8311,9 @@
     "loading.pronunciation_sync": "يطابق الذكاء الاصطناعي النطق مع توقيت كلمات الأغنية...",
     "status.pronunciation_sync_failed": "تعذّر توقيت النطق",
     "setting.pronunciation_karaoke_fill": "تلوين النطق مثل الكاريوكي",
-    "setting.pronunciation_karaoke_fill_desc": "حتى عند إيقاف وضع النطق أولًا، يتلوّن سطر النطق مع توقيت الغناء. يقسّم الذكاء الاصطناعي النطق حسب توقيت كل كلمة أو حرف. لا تُطبَّق التأثيرات الأخرى مثل الارتداد والتوهج."
+    "setting.pronunciation_karaoke_fill_desc": "حتى عند إيقاف وضع النطق أولًا، يتلوّن سطر النطق مع توقيت الغناء. يقسّم الذكاء الاصطناعي النطق حسب توقيت كل كلمة أو حرف. لا تُطبَّق التأثيرات الأخرى مثل الارتداد والتوهج.",
+    "setting.synced_pronunciation": "استخدام النطق المتزامن",
+    "setting.synced_pronunciation_desc": "يجلب نطق كلمات الكاريوكي مقسّمًا حسب توقيت كل كلمة أو حرف يُغنّى. عند التشغيل يصبح وضع النطق أولًا وتلوين النطق مثل الكاريوكي متاحين. عند الإيقاف يأتي النطق أسرع كنص عادي لكل سطر."
   },
   "fa": {
     "lyrics.local.import": "وارد کردن فایل متن آهنگ",
@@ -9217,7 +9235,9 @@
     "loading.pronunciation_sync": "هوش مصنوعی در حال تطبیق تلفظ با زمان‌بندی متن آهنگ است...",
     "status.pronunciation_sync_failed": "زمان‌بندی تلفظ ناموفق بود",
     "setting.pronunciation_karaoke_fill": "پر کردن تلفظ مانند کارائوکه",
-    "setting.pronunciation_karaoke_fill_desc": "حتی وقتی حالت اول تلفظ خاموش است، ردیف تلفظ هم‌زمان با خواندن پر می‌شود. هوش مصنوعی تلفظ را بر اساس زمان‌بندی هر کلمه یا نویسه تقسیم می‌کند. جلوه‌های دیگر مانند پرش و درخشش اعمال نمی‌شوند."
+    "setting.pronunciation_karaoke_fill_desc": "حتی وقتی حالت اول تلفظ خاموش است، ردیف تلفظ هم‌زمان با خواندن پر می‌شود. هوش مصنوعی تلفظ را بر اساس زمان‌بندی هر کلمه یا نویسه تقسیم می‌کند. جلوه‌های دیگر مانند پرش و درخشش اعمال نمی‌شوند.",
+    "setting.synced_pronunciation": "استفاده از تلفظ همگام",
+    "setting.synced_pronunciation_desc": "تلفظ متن‌های کارائوکه را بر اساس زمان‌بندی هر واژه یا حرفی که خوانده می‌شود تقسیم‌شده دریافت می‌کند. با روشن کردن آن، حالت اول تلفظ و پر کردن تلفظ مانند کارائوکه در دسترس است. وقتی خاموش است، تلفظ سریع‌تر به‌صورت متن ساده هر خط دریافت می‌شود."
   },
   "de": {
     "lyrics.local.import": "Liedtextdatei importieren",
@@ -10139,7 +10159,9 @@
     "loading.pronunciation_sync": "KI passt die Aussprache an das Liedtext-Timing an...",
     "status.pronunciation_sync_failed": "Aussprache-Timing fehlgeschlagen",
     "setting.pronunciation_karaoke_fill": "Aussprache wie Karaoke füllen",
-    "setting.pronunciation_karaoke_fill_desc": "Auch wenn der Aussprache-zuerst-Modus aus ist, füllt sich die Aussprachezeile im Takt des Gesangs. Die KI verteilt die Aussprache auf das Wort- oder Zeichentiming. Andere Effekte wie Hüpfen und Leuchten werden nicht angewendet."
+    "setting.pronunciation_karaoke_fill_desc": "Auch wenn der Aussprache-zuerst-Modus aus ist, füllt sich die Aussprachezeile im Takt des Gesangs. Die KI verteilt die Aussprache auf das Wort- oder Zeichentiming. Andere Effekte wie Hüpfen und Leuchten werden nicht angewendet.",
+    "setting.synced_pronunciation": "Synchronisierte Aussprache",
+    "setting.synced_pronunciation_desc": "Lädt die Aussprache von Karaoke-Texten aufgeteilt nach dem Timing jedes gesungenen Worts oder Zeichens. Eingeschaltet stehen der Modus „Aussprache zuerst“ und das Füllen der Aussprache wie Karaoke zur Verfügung. Ausgeschaltet kommt die Aussprache schneller als einfacher Zeilentext."
   },
   "ru": {
     "lyrics.local.import": "Импортировать файл текста",
@@ -11061,7 +11083,9 @@
     "loading.pronunciation_sync": "ИИ подгоняет произношение под тайминг текста...",
     "status.pronunciation_sync_failed": "Не удалось синхронизировать произношение",
     "setting.pronunciation_karaoke_fill": "Заполнять произношение как в караоке",
-    "setting.pronunciation_karaoke_fill_desc": "Даже когда режим «сначала произношение» выключен, строка произношения заполняется в такт пению. ИИ распределяет произношение по таймингу слов или символов. Другие эффекты, например подпрыгивание и свечение, не применяются."
+    "setting.pronunciation_karaoke_fill_desc": "Даже когда режим «сначала произношение» выключен, строка произношения заполняется в такт пению. ИИ распределяет произношение по таймингу слов или символов. Другие эффекты, например подпрыгивание и свечение, не применяются.",
+    "setting.synced_pronunciation": "Синхронное произношение",
+    "setting.synced_pronunciation_desc": "Получает произношение караоке-текстов, разбитое по таймингу каждого пропеваемого слова или символа. Когда включено, доступны режим «Сначала произношение» и заполнение произношения как в караоке. Когда выключено, произношение приходит быстрее обычным текстом по строкам."
   },
   "sv": {
     "lyrics.local.import": "Importera textfil",
@@ -11983,7 +12007,9 @@
     "loading.pronunciation_sync": "AI anpassar uttalet till låttextens timing...",
     "status.pronunciation_sync_failed": "Uttalstiming misslyckades",
     "setting.pronunciation_karaoke_fill": "Fyll uttalet som karaoke",
-    "setting.pronunciation_karaoke_fill_desc": "Även när läget uttal först är av fylls uttalsraden i takt med sången. AI delar upp uttalet efter ord- eller teckentimingen. Andra effekter som studs och glöd används inte."
+    "setting.pronunciation_karaoke_fill_desc": "Även när läget uttal först är av fylls uttalsraden i takt med sången. AI delar upp uttalet efter ord- eller teckentimingen. Andra effekter som studs och glöd används inte.",
+    "setting.synced_pronunciation": "Synkroniserat uttal",
+    "setting.synced_pronunciation_desc": "Hämtar uttalet för karaoketexter uppdelat efter tidpunkten för varje sjunget ord eller tecken. När det är på blir läget Uttal först och fyllning av uttalet som karaoke tillgängliga. När det är av kommer uttalet snabbare som vanlig text per rad."
   },
   "pt": {
     "lyrics.local.import": "Importar arquivo de letras",
@@ -12905,7 +12931,9 @@
     "loading.pronunciation_sync": "A IA está ajustando a pronúncia ao tempo da letra...",
     "status.pronunciation_sync_failed": "Falha na sincronia da pronúncia",
     "setting.pronunciation_karaoke_fill": "Preencher a pronúncia como karaokê",
-    "setting.pronunciation_karaoke_fill_desc": "Mesmo com o modo pronúncia primeiro desativado, a linha de pronúncia é preenchida no ritmo do canto. A IA divide a pronúncia conforme o tempo de cada palavra ou caractere. Outros efeitos, como salto e brilho, não são aplicados."
+    "setting.pronunciation_karaoke_fill_desc": "Mesmo com o modo pronúncia primeiro desativado, a linha de pronúncia é preenchida no ritmo do canto. A IA divide a pronúncia conforme o tempo de cada palavra ou caractere. Outros efeitos, como salto e brilho, não são aplicados.",
+    "setting.synced_pronunciation": "Pronúncia sincronizada",
+    "setting.synced_pronunciation_desc": "Obtém a pronúncia das letras de karaokê dividida conforme o tempo de cada palavra ou caractere cantado. Ativada, ficam disponíveis o modo pronúncia primeiro e o preenchimento da pronúncia como karaokê. Desativada, a pronúncia chega mais rápido como texto simples por linha."
   },
   "bn": {
     "lyrics.local.import": "গানের কথা ফাইল আমদানি করুন",
@@ -13827,7 +13855,9 @@
     "loading.pronunciation_sync": "AI উচ্চারণকে গানের কথার টাইমিংয়ের সঙ্গে মেলাচ্ছে...",
     "status.pronunciation_sync_failed": "উচ্চারণের টাইমিং ব্যর্থ",
     "setting.pronunciation_karaoke_fill": "উচ্চারণ কারাওকের মতো ভরাট করুন",
-    "setting.pronunciation_karaoke_fill_desc": "উচ্চারণ-আগে মোড বন্ধ থাকলেও উচ্চারণের সারি গানের সময়ের সাথে ভরাট হয়। AI প্রতিটি শব্দ বা অক্ষরের সময় অনুযায়ী উচ্চারণ ভাগ করে। লাফানো ও আভার মতো অন্য প্রভাব প্রয়োগ হয় না।"
+    "setting.pronunciation_karaoke_fill_desc": "উচ্চারণ-আগে মোড বন্ধ থাকলেও উচ্চারণের সারি গানের সময়ের সাথে ভরাট হয়। AI প্রতিটি শব্দ বা অক্ষরের সময় অনুযায়ী উচ্চারণ ভাগ করে। লাফানো ও আভার মতো অন্য প্রভাব প্রয়োগ হয় না।",
+    "setting.synced_pronunciation": "সিঙ্ক করা উচ্চারণ ব্যবহার করুন",
+    "setting.synced_pronunciation_desc": "কারাওকে লিরিকের উচ্চারণ প্রতিটি গাওয়া শব্দ বা অক্ষরের সময় অনুযায়ী ভাগ করে আনে। চালু করলে উচ্চারণ আগে মোড এবং উচ্চারণ কারাওকের মতো ভরাট ব্যবহার করা যায়। বন্ধ থাকলে উচ্চারণ লাইনভিত্তিক সাধারণ লেখা হিসেবে দ্রুত আসে।"
   },
   "cs": {
     "lyrics.local.import": "Importovat soubor textu",
@@ -14749,7 +14779,9 @@
     "loading.pronunciation_sync": "AI přizpůsobuje výslovnost časování textu...",
     "status.pronunciation_sync_failed": "Časování výslovnosti selhalo",
     "setting.pronunciation_karaoke_fill": "Vyplňovat výslovnost jako karaoke",
-    "setting.pronunciation_karaoke_fill_desc": "I když je režim nejdřív výslovnost vypnutý, řádek výslovnosti se vyplňuje v rytmu zpěvu. AI rozdělí výslovnost podle časování slov nebo znaků. Další efekty, jako poskakování a záře, se nepoužijí."
+    "setting.pronunciation_karaoke_fill_desc": "I když je režim nejdřív výslovnost vypnutý, řádek výslovnosti se vyplňuje v rytmu zpěvu. AI rozdělí výslovnost podle časování slov nebo znaků. Další efekty, jako poskakování a záře, se nepoužijí.",
+    "setting.synced_pronunciation": "Synchronizovaná výslovnost",
+    "setting.synced_pronunciation_desc": "Načte výslovnost karaoke textů rozdělenou podle načasování každého zpívaného slova nebo znaku. Po zapnutí je k dispozici režim Nejdřív výslovnost a vyplňování výslovnosti jako karaoke. Po vypnutí se výslovnost načte rychleji jako prostý text po řádcích."
   },
   "it": {
     "lyrics.local.import": "Importa file del testo",
@@ -15671,7 +15703,9 @@
     "loading.pronunciation_sync": "L'IA sta allineando la pronuncia ai tempi del testo...",
     "status.pronunciation_sync_failed": "Sincronia della pronuncia non riuscita",
     "setting.pronunciation_karaoke_fill": "Riempi la pronuncia come nel karaoke",
-    "setting.pronunciation_karaoke_fill_desc": "Anche con la modalità prima la pronuncia disattivata, la riga della pronuncia si riempie a tempo con il canto. L'IA suddivide la pronuncia secondo i tempi di parole o caratteri. Altri effetti come rimbalzo e bagliore non vengono applicati."
+    "setting.pronunciation_karaoke_fill_desc": "Anche con la modalità prima la pronuncia disattivata, la riga della pronuncia si riempie a tempo con il canto. L'IA suddivide la pronuncia secondo i tempi di parole o caratteri. Altri effetti come rimbalzo e bagliore non vengono applicati.",
+    "setting.synced_pronunciation": "Pronuncia sincronizzata",
+    "setting.synced_pronunciation_desc": "Ottiene la pronuncia dei testi karaoke suddivisa secondo il tempo di ogni parola o carattere cantato. Se attiva, sono disponibili la modalità Prima la pronuncia e il riempimento della pronuncia come nel karaoke. Se disattivata, la pronuncia arriva più velocemente come testo semplice per riga."
   },
   "th": {
     "lyrics.local.import": "นำเข้าไฟล์เนื้อเพลง",
@@ -16593,7 +16627,9 @@
     "loading.pronunciation_sync": "AI กำลังจัดคำอ่านให้ตรงกับจังหวะเนื้อเพลง...",
     "status.pronunciation_sync_failed": "จัดจังหวะคำอ่านไม่สำเร็จ",
     "setting.pronunciation_karaoke_fill": "เติมสีคำอ่านแบบคาราโอเกะ",
-    "setting.pronunciation_karaoke_fill_desc": "แม้ปิดโหมดเน้นคำอ่าน บรรทัดคำอ่านก็จะเติมสีตามจังหวะการร้อง AI จะแบ่งคำอ่านตามจังหวะของแต่ละคำหรือตัวอักษร โดยไม่ใช้เอฟเฟกต์อื่น เช่น การเด้งและการเรืองแสง"
+    "setting.pronunciation_karaoke_fill_desc": "แม้ปิดโหมดเน้นคำอ่าน บรรทัดคำอ่านก็จะเติมสีตามจังหวะการร้อง AI จะแบ่งคำอ่านตามจังหวะของแต่ละคำหรือตัวอักษร โดยไม่ใช้เอฟเฟกต์อื่น เช่น การเด้งและการเรืองแสง",
+    "setting.synced_pronunciation": "ใช้คำอ่านแบบซิงก์",
+    "setting.synced_pronunciation_desc": "ดึงคำอ่านของเนื้อเพลงคาราโอเกะโดยแบ่งตามจังหวะของแต่ละคำหรือตัวอักษรที่ร้อง เมื่อเปิด จะใช้โหมดเน้นคำอ่านและการเติมสีคำอ่านแบบคาราโอเกะได้ เมื่อปิด คำอ่านจะมาเร็วขึ้นเป็นข้อความธรรมดาทีละบรรทัด"
   },
   "vi": {
     "lyrics.local.import": "Nhập tệp lời bài hát",
@@ -17515,7 +17551,9 @@
     "loading.pronunciation_sync": "AI đang khớp phát âm với thời gian lời bài hát...",
     "status.pronunciation_sync_failed": "Đồng bộ phát âm thất bại",
     "setting.pronunciation_karaoke_fill": "Tô phát âm như karaoke",
-    "setting.pronunciation_karaoke_fill_desc": "Ngay cả khi chế độ ưu tiên phát âm đang tắt, dòng phát âm vẫn được tô theo nhịp hát. AI chia phát âm theo thời gian của từng từ hoặc ký tự. Không áp dụng các hiệu ứng khác như nảy và phát sáng."
+    "setting.pronunciation_karaoke_fill_desc": "Ngay cả khi chế độ ưu tiên phát âm đang tắt, dòng phát âm vẫn được tô theo nhịp hát. AI chia phát âm theo thời gian của từng từ hoặc ký tự. Không áp dụng các hiệu ứng khác như nảy và phát sáng.",
+    "setting.synced_pronunciation": "Dùng phát âm đồng bộ",
+    "setting.synced_pronunciation_desc": "Lấy phát âm của lời karaoke được chia theo thời điểm của từng từ hoặc ký tự được hát. Khi bật, có thể dùng chế độ ưu tiên phát âm và tô phát âm như karaoke. Khi tắt, phát âm được lấy nhanh hơn dưới dạng văn bản thường theo từng dòng."
   },
   "id": {
     "lyrics.local.import": "Impor berkas lirik",
@@ -18437,7 +18475,9 @@
     "loading.pronunciation_sync": "AI sedang menyesuaikan pelafalan dengan waktu lirik...",
     "status.pronunciation_sync_failed": "Sinkron pelafalan gagal",
     "setting.pronunciation_karaoke_fill": "Isi pelafalan seperti karaoke",
-    "setting.pronunciation_karaoke_fill_desc": "Meski mode pelafalan dulu nonaktif, baris pelafalan terisi mengikuti waktu nyanyian. AI membagi pelafalan sesuai waktu tiap kata atau karakter. Efek lain seperti pantulan dan kilau tidak diterapkan."
+    "setting.pronunciation_karaoke_fill_desc": "Meski mode pelafalan dulu nonaktif, baris pelafalan terisi mengikuti waktu nyanyian. AI membagi pelafalan sesuai waktu tiap kata atau karakter. Efek lain seperti pantulan dan kilau tidak diterapkan.",
+    "setting.synced_pronunciation": "Gunakan pelafalan tersinkron",
+    "setting.synced_pronunciation_desc": "Mengambil pelafalan lirik karaoke yang dibagi sesuai waktu setiap kata atau karakter yang dinyanyikan. Jika aktif, mode pelafalan dulu dan isi pelafalan seperti karaoke dapat digunakan. Jika nonaktif, pelafalan diambil lebih cepat sebagai teks biasa per baris."
   },
   "ms": {
     "lyrics.local.import": "Import fail lirik",
@@ -19359,7 +19399,9 @@
     "loading.pronunciation_sync": "AI sedang menyelaraskan sebutan dengan masa lirik...",
     "status.pronunciation_sync_failed": "Penyegerakan sebutan gagal",
     "setting.pronunciation_karaoke_fill": "Isi sebutan seperti karaoke",
-    "setting.pronunciation_karaoke_fill_desc": "Walaupun mod sebutan dahulu dimatikan, baris sebutan diisi mengikut masa nyanyian. AI membahagikan sebutan mengikut masa setiap perkataan atau aksara. Kesan lain seperti lantunan dan cahaya tidak digunakan."
+    "setting.pronunciation_karaoke_fill_desc": "Walaupun mod sebutan dahulu dimatikan, baris sebutan diisi mengikut masa nyanyian. AI membahagikan sebutan mengikut masa setiap perkataan atau aksara. Kesan lain seperti lantunan dan cahaya tidak digunakan.",
+    "setting.synced_pronunciation": "Guna sebutan disegerakkan",
+    "setting.synced_pronunciation_desc": "Mendapatkan sebutan lirik karaoke yang dibahagikan mengikut masa setiap perkataan atau aksara yang dinyanyikan. Apabila dihidupkan, mod sebutan dahulu dan isi sebutan seperti karaoke boleh digunakan. Apabila dimatikan, sebutan diperoleh lebih cepat sebagai teks biasa mengikut baris."
   },
   "tr": {
     "lyrics.local.import": "Şarkı sözü dosyası içe aktar",
@@ -20281,6 +20323,8 @@
     "loading.pronunciation_sync": "Yapay zekâ telaffuzu söz zamanlamasına uyduruyor...",
     "status.pronunciation_sync_failed": "Telaffuz zamanlaması başarısız",
     "setting.pronunciation_karaoke_fill": "Telaffuzu karaoke gibi doldur",
-    "setting.pronunciation_karaoke_fill_desc": "Önce telaffuz modu kapalıyken bile telaffuz satırı şarkının zamanlamasıyla dolar. Yapay zekâ telaffuzu kelime veya karakter zamanlamasına göre böler. Zıplama ve parlama gibi diğer efektler uygulanmaz."
+    "setting.pronunciation_karaoke_fill_desc": "Önce telaffuz modu kapalıyken bile telaffuz satırı şarkının zamanlamasıyla dolar. Yapay zekâ telaffuzu kelime veya karakter zamanlamasına göre böler. Zıplama ve parlama gibi diğer efektler uygulanmaz.",
+    "setting.synced_pronunciation": "Senkronize telaffuz kullan",
+    "setting.synced_pronunciation_desc": "Karaoke sözlerinin telaffuzunu, söylenen her kelimenin veya karakterin zamanlamasına göre bölünmüş olarak alır. Açıkken önce telaffuz modu ve telaffuzu karaoke gibi doldurma kullanılabilir. Kapalıyken telaffuz satır satır düz metin olarak daha hızlı gelir."
   }
 }

@@ -505,9 +505,10 @@ actor AiLyricsRepository {
                     )
                 }
 
-                // Karaoke songs: pronunciation split over the sung units of every line.
+                // With synced pronunciation on, karaoke songs get their pronunciation split over
+                // the sung units of every line. Otherwise it is plain line text.
                 var slots: [Int: [String]] = [:]
-                if baseResult.karaoke {
+                if baseResult.karaoke && settings.syncedPronunciationEnabled {
                     slots = await loadPronunciationSlots(
                         requests: requests,
                         settings: settings,
@@ -1076,8 +1077,10 @@ actor AiLyricsRepository {
     // MARK: - Pronunciation by sung unit
 
     /// Asks for the pronunciation of every request split over its sung units (the same request
-    /// as the desktop app). Chunks run in parallel, with one smaller repair pass for lines whose
-    /// slots did not match. Empty when no provider answered with exact slots.
+    /// as the desktop app). Small requests run side by side (PronunciationRequests), and the lines
+    /// a request answered with the wrong slots are asked again as soon as it returns; until any
+    /// line has worked for a provider they wait, so a failing provider is not asked twice. Empty
+    /// when no provider answered with exact slots.
     private func loadPronunciationSlots(
         requests: [SupplementRequest],
         settings: AppSettings.Snapshot,
@@ -1102,66 +1105,69 @@ actor AiLyricsRepository {
             await providerUpdate(providerSettings.provider.label)
             log("ai pronunciation by unit: provider=\(providerSettings.provider.label) / lines=\(items.count)")
             var slots: [Int: [String]] = [:]
-            var firstError: Error?
-            func run(_ chunks: [[PronunciationSlots.Item]], repair: Bool) async {
-                var next = 0
-                while next < chunks.count {
-                    let batch = Array(chunks[next..<min(next + PronunciationSlots.parallelRequests, chunks.count)])
-                    next += batch.count
-                    let answers = await withTaskGroup(of: (Int, Result<String, Error>).self) { group in
-                        for (position, chunk) in batch.enumerated() {
-                            let base = PronunciationSlots.prompt(
-                                chunk,
-                                lang: lang,
-                                sourceLang: sourceLang,
-                                notation: notation,
-                                scriptInstruction: scriptInstruction,
-                                outputScript: outputScript,
-                                audience: audience
-                            )
-                            let prompt = repair ? base + "\n\n" + PronunciationSlots.repairNote : base
-                            group.addTask { [self] in
-                                do {
-                                    let raw = try await withOpenAIConnections(settings: providerSettings) { connection in
-                                        try await callProviderRaw(prompt: prompt, settings: connection)
-                                    }
-                                    return (position, .success(raw))
-                                } catch {
-                                    return (position, .failure(error))
-                                }
-                            }
-                        }
-                        var collected: [(Int, Result<String, Error>)] = []
-                        for await answer in group { collected.append(answer) }
-                        return collected
-                    }
-                    for (position, answer) in answers {
-                        switch answer {
-                        case .success(let raw):
-                            for (index, parts) in PronunciationSlots.parse(raw, items: batch[position], notation: notation) {
-                                slots[index] = parts
-                                if let lineUnits = units[index] {
-                                    await onLine(index, PronunciationSlots.join(lineUnits, parts))
-                                }
-                            }
-                        case .failure(let error):
-                            firstError = firstError ?? error
-                        }
+            var deferred: [PronunciationSlots.Item] = []
+            let perform: @Sendable (SlotJob) async throws -> String = { [self] job in
+                let base = PronunciationSlots.prompt(
+                    job.items,
+                    lang: lang,
+                    sourceLang: sourceLang,
+                    notation: notation,
+                    scriptInstruction: scriptInstruction,
+                    outputScript: outputScript,
+                    audience: audience
+                )
+                let prompt = job.repair ? base + "\n\n" + PronunciationSlots.repairNote : base
+                return try await withOpenAIConnections(settings: providerSettings) { connection in
+                    try await callProviderRaw(prompt: prompt, settings: connection)
+                }
+            }
+            func apply(_ job: SlotJob, _ raw: String) async {
+                for (index, parts) in PronunciationSlots.parse(raw, items: job.items, notation: notation) {
+                    slots[index] = parts
+                    if let lineUnits = units[index] {
+                        await onLine(index, PronunciationSlots.join(lineUnits, parts))
                     }
                 }
             }
-            await run(PronunciationSlots.chunks(items), repair: false)
-            let missing = items.filter { slots[$0.index] == nil }
-            if !missing.isEmpty && !slots.isEmpty && !Task.isCancelled {
-                await run(PronunciationSlots.chunks(missing), repair: true)
+            var errors = await PronunciationRequests.run(
+                PronunciationRequests.batches(items) { PronunciationSlots.chunks($0) }.map { SlotJob(items: $0, repair: false) },
+                perform: perform
+            ) { job, raw in
+                await apply(job, raw)
+                let missing = job.repair ? [] : job.items.filter { slots[$0.index] == nil }
+                guard !missing.isEmpty else { return [] }
+                if slots.isEmpty {
+                    deferred += missing
+                    return []
+                }
+                return PronunciationSlots.chunks(missing).map { SlotJob(items: $0, repair: true) }
+            }
+            if !deferred.isEmpty && !slots.isEmpty && !Task.isCancelled {
+                errors += await PronunciationRequests.run(
+                    PronunciationSlots.chunks(deferred).map { SlotJob(items: $0, repair: true) },
+                    perform: perform
+                ) { job, raw in
+                    await apply(job, raw)
+                    return []
+                }
             }
             if !slots.isEmpty {
                 log("ai pronunciation by unit response: \(slots.count)/\(items.count)")
                 return slots
             }
-            log("ai pronunciation by unit failed: provider=\(providerSettings.provider.label) / error=\(firstError?.localizedDescription ?? "no usable lines")")
+            log("ai pronunciation by unit failed: provider=\(providerSettings.provider.label) / error=\(errors.first?.localizedDescription ?? "no usable lines")")
         }
         return [:]
+    }
+
+    private struct SlotJob: Sendable {
+        let items: [PronunciationSlots.Item]
+        let repair: Bool
+    }
+
+    private struct TimedJob: Sendable {
+        let items: [PronunciationFirst.Item]
+        let repair: Bool
     }
 
     private func storePronunciationSlots(trackKey: String, cacheKey: String, stored: PronunciationSlots.Stored) {
@@ -1262,24 +1268,38 @@ actor AiLyricsRepository {
         logs.append("pronunciation timing: provider=\(settings.provider.label) / items=\(items.count)")
         let context = PronunciationFirst.lyricsText(result)
         var aligned: [String: [String]] = [:]
-        var firstError: Error?
-        for chunk in PronunciationFirst.chunks(items) {
-            do {
-                aligned.merge(try await requestTimedPronunciation(chunk, context: context, sourceLang: source, settings: settings)) { _, next in next }
-            } catch {
-                if error is CancellationError { return response(announced: true, hadError: true, errorMessage: "cancelled") }
-                firstError = firstError ?? error
+        // Small requests side by side; the items a request did not split exactly are asked again
+        // as soon as it returns (PronunciationRequests).
+        func chunks(_ list: [PronunciationFirst.Item]) -> [[PronunciationFirst.Item]] {
+            PronunciationFirst.chunks(list, maxUnits: PronunciationRequests.batchUnits, maxItems: PronunciationRequests.batchLines)
+        }
+        let perform: @Sendable (TimedJob) async throws -> [String: [String]] = { [self] job in
+            try await requestTimedPronunciation(job.items, context: context, sourceLang: source, settings: settings)
+        }
+        var deferred: [PronunciationFirst.Item] = []
+        var errors = await PronunciationRequests.run(
+            PronunciationRequests.batches(items, chunk: chunks).map { TimedJob(items: $0, repair: false) },
+            perform: perform
+        ) { job, answer in
+            aligned.merge(answer) { _, next in next }
+            let missing = job.repair ? [] : job.items.filter { aligned[$0.key] == nil }
+            guard !missing.isEmpty else { return [] }
+            if aligned.isEmpty {
+                deferred += missing
+                return []
+            }
+            return chunks(missing).map { TimedJob(items: $0, repair: true) }
+        }
+        if !deferred.isEmpty && !aligned.isEmpty && !Task.isCancelled {
+            errors += await PronunciationRequests.run(chunks(deferred).map { TimedJob(items: $0, repair: true) }, perform: perform) { _, answer in
+                aligned.merge(answer) { _, next in next }
+                return []
             }
         }
-        // One repair pass, in smaller requests, for items whose slots did not match.
-        let missing = items.filter { aligned[$0.key] == nil }
-        if !missing.isEmpty && !aligned.isEmpty {
-            for chunk in PronunciationFirst.chunks(missing, maxUnits: 200, maxItems: 8) {
-                if let repaired = try? await requestTimedPronunciation(chunk, context: context, sourceLang: source, settings: settings) {
-                    aligned.merge(repaired) { _, next in next }
-                }
-            }
+        if Task.isCancelled || errors.contains(where: { $0 is CancellationError }) {
+            return response(announced: true, hadError: true, errorMessage: "cancelled")
         }
+        let firstError = errors.first
         guard !aligned.isEmpty else {
             let message = firstError?.localizedDescription ?? "AI returned no usable pronunciation timing"
             logs.append("pronunciation timing error: \(message)")

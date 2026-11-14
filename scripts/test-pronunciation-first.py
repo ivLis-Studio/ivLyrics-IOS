@@ -46,24 +46,38 @@ assert "return !signature.isEmpty && signature == pronunciationTimedSignature ? 
     "AI timing is used only for the lyrics it was made for (late lrc.red word timing re-requests)"
 assert "guard currentTrack?.stableKey == trackKey, pronunciationTimingRequestSignature == signature else { return }" in model
 assert "resetWordTiming()\n        resetPronunciationTiming()" in model, "a new track drops the previous timing"
-assert "guard settings.pronunciationFirstEnabled || settings.pronunciationKaraokeFillEnabled," in model, \
-    "with both displays off a lyrics update does no pronunciation work"
+assert "guard settings.syncedPronunciationEnabled,\n              settings.pronunciationFirstEnabled || settings.pronunciationKaraokeFillEnabled," in model, \
+    "with synced pronunciation or both displays off a lyrics update does no pronunciation work"
 assert view.count("PronunciationFirst.Fill.matching(pronunciationFill.") == 2, "line and voice pronunciation rows fill"
 fill_row = view[view.index("    private func pronunciationFillText("):view.index("struct SyllableKaraokeText: View")]
 assert "bounceEnabled: false" in fill_row and 'kind: "vocal"' in fill_row, "the fill row has no bounce or effect"
 assert "pronunciationFill: pronunciationFill.lineFill(line)," in view
 assert "model.setPronunciationFirst(!enabled)" in view and "isOn: pronunciationFillBinding)" in view
 assert "PronunciationFirst.parse(try await callProviderRaw(prompt: prompt, settings: connection), items: chunk)" in repository
-assert "PronunciationFirst.chunks(missing, maxUnits: 200, maxItems: 8)" in repository, "one smaller repair pass"
-# Karaoke pronunciation is made per sung unit; timing for those lines is derived locally.
-assert "if baseResult.karaoke {\n                    slots = await loadPronunciationSlots(" in repository
+assert "PronunciationRequests.batches(items, chunk: chunks).map { TimedJob(items: $0, repair: false) }" in repository, \
+    "pronunciation timing goes out as small requests side by side"
+assert "return chunks(missing).map { TimedJob(items: $0, repair: true) }" in repository, "a request's misses are asked again at once"
+# With synced pronunciation on, karaoke pronunciation is made per sung unit; timing for those lines is derived locally.
+assert "if baseResult.karaoke && settings.syncedPronunciationEnabled {\n                    slots = await loadPronunciationSlots(" in repository, \
+    "plain line pronunciation unless synced pronunciation is on"
 assert "let missing = requests.indices.filter { !requests[$0].text.trimmed.isEmpty && combined[$0].trimmed.isEmpty }" in repository, \
     "lines without exact slots fall back to the line request"
 assert "restorePronunciationSlots(trackKey: trackKey, cacheKey: pronunciationCacheKey)" in repository, \
     "cached pronunciation brings its slots back"
 assert "let items = PronunciationFirst.timingItems(result).filter { derived[$0.key] == nil }" in repository, \
     "only lines without slots ask AI for unit timing"
-assert "await run(PronunciationSlots.chunks(missing), repair: true)" in repository
+assert "PronunciationRequests.batches(items) { PronunciationSlots.chunks($0) }.map { SlotJob(items: $0, repair: false) }" in repository
+assert "return PronunciationSlots.chunks(missing).map { SlotJob(items: $0, repair: true) }" in repository
+# Synced pronunciation is a setting; pronunciation-first, its toggle and the fill belong to it.
+settings_source = (SRC / "AppSettings.swift").read_text()
+assert 'syncedPronunciationEnabled = defaults.object(forKey: "synced_pronunciation_enabled") as? Bool ?? false' in settings_source
+assert "syncedPronunciationEnabled: syncedPronunciationEnabled\n        )" in settings_source, "the snapshot carries it to the repository"
+assert "settings.syncedPronunciationEnabled && settings.pronunciationFirstEnabled && pronunciationShownForCurrentSource" in model
+assert "settings.syncedPronunciationEnabled && pronunciationShownForCurrentSource && lyricsResult.lines.contains" in model, \
+    "the lyrics page toggle appears only with synced pronunciation"
+assert 'toggleRow("setting.synced_pronunciation", descriptionKey: "setting.synced_pronunciation_desc",' in view
+assert 'if settings.syncedPronunciationEnabled || revealedRowID == "setting.pronunciation_karaoke_fill" {' in view, \
+    "the fill row needs synced pronunciation"
 # Pronunciation-first reads 200 ms ahead on the lyric clock, outside the sync offsets.
 assert "+ Int64(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs + pronunciationLeadMs)" in model
 assert "+ Double(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs + pronunciationLeadMs)" in model
@@ -89,6 +103,7 @@ struct SnapshotStub: Sendable {
 @MainActor final class SettingsStub {
     var pronunciationFirstEnabled = false
     var pronunciationKaraokeFillEnabled = false
+    var syncedPronunciationEnabled = true
     var snapshot = SnapshotStub()
     func t(_ key: String) -> String { key }
 }
@@ -220,6 +235,22 @@ private func settle() async { try? await Task.sleep(nanoseconds: 1_000_000_000) 
         // Pronunciation not shown for this language: no toggle and no work.
         probe.settings.snapshot.pronunciation = false
         expect(!probe.pronunciationFirstAvailable && !probe.pronunciationFirstActive, "toggle hidden without pronunciation")
+
+        // Synced pronunciation off: no toggle, no swapped copy, no fill and no AI timing.
+        probe.settings.snapshot.pronunciation = true
+        expect(probe.pronunciationFirstAvailable && probe.pronunciationFirstActive, "on again with pronunciation shown")
+        probe.setSyncedPronunciation(false)
+        expect(!probe.pronunciationFirstAvailable && !probe.pronunciationFirstActive, "pronunciation-first belongs to synced pronunciation")
+        expect(probe.displayLyricsResult == probe.lyricsResult, "lyrics shown as they are")
+        probe.setPronunciationFirst(false)
+        expect(!probe.pronunciationFillActive && probe.pronunciationFill.isEmpty, "the fill belongs to synced pronunciation")
+        let callsBeforeOff = await probe.aiRepository.calls
+        var plain = retimed
+        plain.lines[0].pronunciationText = "유루사레루네"
+        probe.lyricsResult = plain
+        await settle()
+        let callsAfterOff = await probe.aiRepository.calls
+        expect(callsAfterOff == callsBeforeOff, "no AI timing without synced pronunciation")
         print("PRONUNCIATION_VIEW_MODEL_PASSED assertions=\(modelAssertions)")
     }
 }

@@ -11,7 +11,7 @@ private func karaokeUnits() -> [LyricsLine.Syllable] {
 }
 
 @main struct PronunciationFirstChecks {
-    static func main() {
+    static func main() async {
         // Proportional split keeps every sound, in order, on the singing units.
         let spread = PronunciationFirst.distribute(["許", "さ", "れ", "る"], "유루사레루")
         check(spread.count == 4 && spread.joined() == "유루사레루" && !spread.contains(""), "proportional split: \(spread)")
@@ -149,10 +149,83 @@ private func karaokeUnits() -> [LyricsLine.Syllable] {
               "target-language notation is not script-checked")
         check(PronunciationSlots.parse("{\"l\":[{\"i\":0,\"p\":[\"유메\",\"나\",\"라\",\"ㄴ\"]}]}", items: slotItems, notation: "translation").isEmpty,
               "a lone Hangul letter is asked again")
-        check(PronunciationSlots.chunks(Array(repeating: slotItems[0], count: 17)).count == 3, "small chunks of eight lines")
+        check(PronunciationSlots.chunks(Array(repeating: slotItems[0], count: 17)).count == 9, "small chunks of two lines")
+        let ramped = PronunciationRequests.batches(Array(repeating: slotItems[0], count: 7)) { PronunciationSlots.chunks($0) }
+        check(ramped.map(\.count) == [1, 2, 2, 2], "the opening line goes out alone: \(ramped.map(\.count))")
         let stored = PronunciationSlots.stored(texts: ["夢ならば", "♪", " 今日も "], slots: [0: ["yume", "na", "ra", "ba"], 2: ["kyou ", "", "mo"]])
         check(stored.v == PronunciationSlots.version && stored.lines["今日も"] == ["kyou ", "", "mo"] && stored.lines.count == 2, "stored by line text")
 
+        await checkRequests()
         print("PRONUNCIATION_FIRST_PASSED assertions=\(assertions)")
     }
+}
+
+private actor Gauge {
+    var active = 0
+    var peak = 0
+    var peakAfterLimit = 0
+    var limited = false
+    var attempts: [Int: Int] = [:]
+    func enter(_ job: Int) -> Int {
+        active += 1
+        peak = max(peak, active)
+        if limited { peakAfterLimit = max(peakAfterLimit, active) }
+        attempts[job, default: 0] += 1
+        return attempts[job]!
+    }
+    func leave(limiting: Bool = false) {
+        active -= 1
+        if limiting { limited = true }
+    }
+}
+
+private struct RateLimited: LocalizedError {
+    var errorDescription: String? { "HTTP 429 — rate limited" }
+}
+
+/// PronunciationRequests: twelve at a time, follow-ups at once, rate limits halve and retry.
+private func checkRequests() async {
+    let gauge = Gauge()
+    var handled: [Int] = []
+    var errors = await PronunciationRequests.run(Array(0..<30), pause: { _ in }, perform: { job in
+        _ = await gauge.enter(job)
+        try? await Task.sleep(nanoseconds: 2_000_000)
+        await gauge.leave()
+        return job
+    }) { job, answer in
+        handled.append(answer)
+        return job == 3 ? [100] : []
+    }
+    let peak = await gauge.peak
+    check(errors.isEmpty && peak == 12, "twelve requests at a time (\(peak))")
+    check(Set(handled) == Set(Array(0..<30) + [100]), "every job and its follow-up are handled")
+    let follow = handled.firstIndex(of: 100) ?? .max
+    check(follow < handled.count - 3, "the follow-up goes out before the queue is done (\(follow))")
+
+    let limited = Gauge()
+    errors = await PronunciationRequests.run(Array(0..<12), pause: { _ in }, perform: { job in
+        let attempt = await limited.enter(job)
+        try? await Task.sleep(nanoseconds: 2_000_000)
+        if job < 4 && attempt == 1 {
+            await limited.leave(limiting: true)
+            throw RateLimited()
+        }
+        await limited.leave()
+        return job
+    }) { _, _ in [] }
+    let after = await limited.peakAfterLimit
+    let tries = await limited.attempts
+    check(errors.isEmpty && tries.values.reduce(0, +) == 16, "rate-limited jobs are sent again: \(tries)")
+    check(after <= 6, "half the requests after a rate limit (\(after))")
+
+    let stuck = Gauge()
+    errors = await PronunciationRequests.run([0], pause: { _ in }, perform: { job -> Int in
+        _ = await stuck.enter(job)
+        await stuck.leave()
+        throw RateLimited()
+    }) { _, _ in [] }
+    let stuckTries = await stuck.attempts[0]
+    check(errors.count == 1 && PronunciationRequests.isRateLimited(errors[0]) && stuckTries == 4,
+          "a job that stays rate limited fails after three retries (\(stuckTries ?? 0))")
+    check(PronunciationRequests.isRateLimited(NSError(domain: "x", code: 1, userInfo: [NSLocalizedDescriptionKey: "Too Many Requests"])), "message")
 }

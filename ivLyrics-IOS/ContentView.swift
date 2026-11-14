@@ -9558,6 +9558,8 @@ struct SettingsView: View {
                   value: onOff(settings.karaokeBounceEffectEnabled)),
             entry("setting.karaoke_motion_style", .lyrics, section: karaoke, description: "setting.karaoke_motion_style_desc",
                   options: karaokeMotionStyleOptions.map { $0.title }),
+            entry("setting.synced_pronunciation", .lyrics, section: karaoke, description: "setting.synced_pronunciation_desc",
+                  value: onOff(settings.syncedPronunciationEnabled)),
             entry("setting.pronunciation_karaoke_fill", .lyrics, section: karaoke, description: "setting.pronunciation_karaoke_fill_desc",
                   value: onOff(settings.pronunciationKaraokeFillEnabled)),
             entry("setting.karaoke_display_granularity", .lyrics, section: karaoke, description: "setting.karaoke_display_granularity_desc",
@@ -11350,8 +11352,14 @@ struct SettingsView: View {
                         segmentedRow("setting.karaoke_motion_style", descriptionKey: "setting.karaoke_motion_style_desc",
                                      selection: karaokeMotionStyleBinding, options: karaokeMotionStyleOptions)
                     }
-                    toggleRow("setting.pronunciation_karaoke_fill", descriptionKey: "setting.pronunciation_karaoke_fill_desc",
-                              isOn: pronunciationFillBinding)
+                    toggleRow("setting.synced_pronunciation", descriptionKey: "setting.synced_pronunciation_desc",
+                              isOn: syncedPronunciationBinding)
+                    // The fill splits the pronunciation by sung unit, so it needs synced pronunciation.
+                    if settings.syncedPronunciationEnabled || revealedRowID == "setting.pronunciation_karaoke_fill" {
+                        if !settings.syncedPronunciationEnabled { conditionNote("setting.synced_pronunciation") }
+                        toggleRow("setting.pronunciation_karaoke_fill", descriptionKey: "setting.pronunciation_karaoke_fill_desc",
+                                  isOn: pronunciationFillBinding)
+                    }
                     segmentedRow("setting.karaoke_display_granularity", descriptionKey: "setting.karaoke_display_granularity_desc",
                                  selection: karaokeGranularityBinding, options: karaokeGranularityOptions)
                 }
@@ -11392,6 +11400,17 @@ struct SettingsView: View {
             get: { settings.pronunciationKaraokeFillEnabled },
             set: { value in
                 model.setPronunciationKaraokeFill(value)
+                model.showSavedToast(settings.t("toast.settings_saved"))
+            }
+        )
+    }
+
+    /// The view model also starts or stops pronunciation-first, the fill and their AI unit timing.
+    private var syncedPronunciationBinding: Binding<Bool> {
+        Binding(
+            get: { settings.syncedPronunciationEnabled },
+            set: { value in
+                model.setSyncedPronunciation(value)
                 model.showSavedToast(settings.t("toast.settings_saved"))
             }
         )
