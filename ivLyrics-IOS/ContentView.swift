@@ -39,7 +39,16 @@ private struct InterludeMotionEnabledKey: EnvironmentKey {
     static let defaultValue = true
 }
 
+private struct KaraokeExpressiveMotionKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
+    /// PC's expressive karaoke motion, chosen in Settings > Karaoke (needs the bounce on).
+    var karaokeExpressiveMotion: Bool {
+        get { self[KaraokeExpressiveMotionKey.self] }
+        set { self[KaraokeExpressiveMotionKey.self] = newValue }
+    }
     var interludeMotionEnabled: Bool {
         get { self[InterludeMotionEnabledKey.self] }
         set { self[InterludeMotionEnabledKey.self] = newValue }
@@ -277,6 +286,7 @@ struct ContentView: View {
                 safeAreaInsets: geometry.safeAreaInsets
             )
             .environment(\.lyricsSegmentationLocale, model.effectiveSelectedRuleSourceLang)
+            .environment(\.karaokeExpressiveMotion, settings.karaokeExpressiveMotionEnabled)
             .environment(\.playbackAdvancing, model.currentTrack?.playing == true)
             .statusBarHidden(isLandscape)
             .persistentSystemOverlays(isLandscape ? .hidden : .automatic)
@@ -7007,6 +7017,7 @@ struct SyllableKaraokeText: View {
     @State private var preparationCache = KaraokeRenderPreparationCache()
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.lyricsSegmentationLocale) private var lyricsSegmentationLocale
+    @Environment(\.karaokeExpressiveMotion) private var karaokeExpressiveMotion
     var text: String
     var rubyText: String = ""
     var syllables: [LyricsLine.Syllable]
@@ -7115,6 +7126,10 @@ struct SyllableKaraokeText: View {
         let displaySyllables = prepared.display
         var timedSegments: [KaraokeSyllableSegment] = []
         timedSegments.reserveCapacity(displaySyllables.count)
+        let pendingPose = expressiveMotionActive
+            ? KaraokeExpressiveMotion.pendingPose(active: active, positionMs: paintPositionMs,
+                                                  lineStartMs: Double(startTimeMs), lineEndMs: Double(endTimeMs))
+            : 0
         for (index, syllable) in displaySyllables.enumerated() {
             let fillTiming = fillTimings.indices.contains(index)
                 ? fillTimings[index]
@@ -7124,8 +7139,7 @@ struct SyllableKaraokeText: View {
             )
             guard !syllable.text.isEmpty else { continue }
             let metadata = prepared.displayMetadata[index]
-            let bounce = karaokeBounce(profile: prepared.motionProfiles.indices.contains(index)
-                ? prepared.motionProfiles[index] : nil)
+            let bounce = karaokeMotion(at: index, prepared: prepared, pendingPose: pendingPose)
             timedSegments.append(KaraokeSyllableSegment(
                 id: index,
                 text: syllable.text,
@@ -7139,6 +7153,7 @@ struct SyllableKaraokeText: View {
                 kind: segmentKind(for: syllable),
                 bounceOffsetY: bounce.offsetY,
                 bounceScale: bounce.scale,
+                glow: bounce.glow,
                 completedColorOpacity: completedColorOpacity,
                 isWhitespace: metadata.isWhitespace
             ))
@@ -7402,13 +7417,44 @@ struct SyllableKaraokeText: View {
             let displayUnits = source.enumerated().map { index, syllable in
                 KaraokeMotionProfile.Unit(text: syllable.text, startMs: Double(timings[index].startTimeMs), endMs: Double(timings[index].endTimeMs))
             }
+            // Expressive units are prepared with the row; the setting only decides whether they are read.
+            let expressiveUnits = isLineDisplayGranularity ? [] : KaraokeExpressiveMotion.units(
+                for: source.enumerated().map { index, syllable in
+                    KaraokeExpressiveMotion.Segment(text: syllable.text, startMs: Double(timings[index].startTimeMs),
+                                                    endMs: Double(timings[index].endTimeMs))
+                },
+                wordGranularity: isWordDisplayGranularity
+            )
             return KaraokeRenderPreparationCache.Value(
                 source: source,
                 display: CulturalAnnotation.annotateSyllables(text: text, syllables: source, annotations: culturalAnnotations),
                 fillTimings: timings, annotations: rubyAnnotations,
-                motionProfiles: KaraokeMotionProfile.prepare(source: sourceUnits, display: displayUnits)
+                motionProfiles: KaraokeMotionProfile.prepare(source: sourceUnits, display: displayUnits),
+                expressiveUnits: expressiveUnits
             )
         }
+    }
+
+    private var expressiveMotionActive: Bool {
+        bounceEnabled && karaokeExpressiveMotion && !accessibilityReduceMotion && !isLineDisplayGranularity
+    }
+
+    private func karaokeMotion(
+        at index: Int,
+        prepared: KaraokeRenderPreparationCache.Value,
+        pendingPose: Double
+    ) -> KaraokeBounceMetrics {
+        guard expressiveMotionActive else {
+            return karaokeBounce(profile: prepared.motionProfiles.indices.contains(index)
+                ? prepared.motionProfiles[index] : nil)
+        }
+        guard prepared.expressiveUnits.indices.contains(index), let unit = prepared.expressiveUnits[index] else {
+            return .idle
+        }
+        let values = KaraokeExpressiveMotion.values(unit, positionMs: paintPositionMs, pendingPose: pendingPose)
+        guard values != .idle else { return .idle }
+        return KaraokeBounceMetrics(offsetY: CGFloat(values.offsetEm) * bounceTextSize, scale: CGFloat(values.scale),
+                                    glow: CGFloat(values.glow))
     }
 
     private func karaokeBounce(profile: KaraokeMotionProfile?) -> KaraokeBounceMetrics {
@@ -7439,6 +7485,7 @@ final class KaraokeRenderPreparationCache {
         var fillTimings: [KaraokeSyllableTimingNormalizer.FillTiming]
         var annotations: [FuriganaRepository.RubyAnnotation]
         var motionProfiles: [KaraokeMotionProfile?]
+        var expressiveUnits: [KaraokeExpressiveMotion.Unit?]
         var displayMetadata: [DisplayMetadata]
 
         init(
@@ -7446,13 +7493,15 @@ final class KaraokeRenderPreparationCache {
             display: [LyricsLine.Syllable],
             fillTimings: [KaraokeSyllableTimingNormalizer.FillTiming],
             annotations: [FuriganaRepository.RubyAnnotation],
-            motionProfiles: [KaraokeMotionProfile?]
+            motionProfiles: [KaraokeMotionProfile?],
+            expressiveUnits: [KaraokeExpressiveMotion.Unit?] = []
         ) {
             self.source = source
             self.display = display
             self.fillTimings = fillTimings
             self.annotations = annotations
             self.motionProfiles = motionProfiles
+            self.expressiveUnits = expressiveUnits
             // Ruby overlap and whitespace depend on prepared text, not playback.
             // Preserve source offsets before cultural markers enlarge display text.
             var sourceOffset = 0
@@ -7525,6 +7574,7 @@ private struct KaraokeBounceMetrics {
 
     var offsetY: CGFloat
     var scale: CGFloat
+    var glow: CGFloat = 0
 }
 
 private struct KaraokeSyllableSegment: Identifiable {
@@ -7537,6 +7587,7 @@ private struct KaraokeSyllableSegment: Identifiable {
     var kind: String
     var bounceOffsetY: CGFloat
     var bounceScale: CGFloat
+    var glow: CGFloat = 0
     var completedColorOpacity: CGFloat
     var isWhitespace: Bool
 }
@@ -7590,8 +7641,25 @@ private struct KaraokeSyllableSegmentView: View {
         .fixedSize(horizontal: true, vertical: false)
             .scaleEffect(segment.bounceScale, anchor: .bottom)
             .offset(y: segment.bounceOffsetY)
+            .modifier(KaraokeExpressiveGlowModifier(glow: segment.glow, color: segment.activeColor, radius: textSize * 0.12))
             .modifier(LyricGlyphEffectModifier(kind: kind, active: active, nowMs: nowMs, textSize: textSize, segmentIndex: segment.id, rowSeed: rowSeed, color: segment.activeColor))
             .layoutValue(key: KaraokeWhitespaceLayoutKey.self, value: segment.isWhitespace)
+    }
+}
+
+/// Expressive motion glows in the active color while a unit swells, like PC's 0.24em text shadow.
+private struct KaraokeExpressiveGlowModifier: ViewModifier {
+    var glow: CGFloat
+    var color: Color
+    var radius: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if glow > 0.005 {
+            content.shadow(color: color.opacity(Double(min(1, glow))), radius: radius)
+        } else {
+            content
+        }
     }
 }
 
@@ -9488,6 +9556,8 @@ struct SettingsView: View {
                   value: onOff(settings.syncedLyricsKaraokeAnimationEnabled)),
             entry("setting.karaoke_bounce_effect", .lyrics, section: karaoke, description: "setting.karaoke_bounce_effect_desc",
                   value: onOff(settings.karaokeBounceEffectEnabled)),
+            entry("setting.karaoke_motion_style", .lyrics, section: karaoke, description: "setting.karaoke_motion_style_desc",
+                  options: karaokeMotionStyleOptions.map { $0.title }),
             entry("setting.pronunciation_karaoke_fill", .lyrics, section: karaoke, description: "setting.pronunciation_karaoke_fill_desc",
                   value: onOff(settings.pronunciationKaraokeFillEnabled)),
             entry("setting.karaoke_display_granularity", .lyrics, section: karaoke, description: "setting.karaoke_display_granularity_desc",
@@ -11274,6 +11344,12 @@ struct SettingsView: View {
                               isOn: settingsSavedBinding(\.syncedLyricsKaraokeAnimationEnabled))
                     toggleRow("setting.karaoke_bounce_effect", descriptionKey: "setting.karaoke_bounce_effect_desc",
                               isOn: settingsSavedBinding(\.karaokeBounceEffectEnabled))
+                    // Expressive motion is a style of the bounce, so it needs the bounce on.
+                    if settings.karaokeBounceEffectEnabled || revealedRowID == "setting.karaoke_motion_style" {
+                        if !settings.karaokeBounceEffectEnabled { conditionNote("setting.karaoke_bounce_effect") }
+                        segmentedRow("setting.karaoke_motion_style", descriptionKey: "setting.karaoke_motion_style_desc",
+                                     selection: karaokeMotionStyleBinding, options: karaokeMotionStyleOptions)
+                    }
                     toggleRow("setting.pronunciation_karaoke_fill", descriptionKey: "setting.pronunciation_karaoke_fill_desc",
                               isOn: pronunciationFillBinding)
                     segmentedRow("setting.karaoke_display_granularity", descriptionKey: "setting.karaoke_display_granularity_desc",
@@ -11288,6 +11364,23 @@ struct SettingsView: View {
             get: { AppSettings.normalizeKaraokeDisplayGranularity(settings.karaokeDisplayGranularity) },
             set: { value in
                 settings.karaokeDisplayGranularity = value
+                model.showSavedToast(settings.t("toast.settings_saved"))
+            }
+        )
+    }
+
+    private var karaokeMotionStyleOptions: [(value: String, title: String)] {
+        [
+            (value: AppSettings.karaokeMotionClassic, title: settings.t("karaoke.motion.classic")),
+            (value: AppSettings.karaokeMotionExpressive, title: settings.t("karaoke.motion.expressive"))
+        ]
+    }
+
+    private var karaokeMotionStyleBinding: Binding<String> {
+        Binding(
+            get: { AppSettings.normalizeKaraokeMotionStyle(settings.karaokeMotionStyle) },
+            set: { value in
+                settings.karaokeMotionStyle = value
                 model.showSavedToast(settings.t("toast.settings_saved"))
             }
         )

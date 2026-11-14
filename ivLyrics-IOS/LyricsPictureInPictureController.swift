@@ -154,6 +154,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             solidColor: settings.backgroundSolidColor,
             syncedLyricsKaraokeAnimationEnabled: settings.syncedLyricsKaraokeAnimationEnabled,
             karaokeBounceEffectEnabled: settings.karaokeBounceEffectEnabled,
+            karaokeExpressiveMotion: settings.karaokeExpressiveMotionEnabled,
             karaokeDisplayGranularity: settings.karaokeDisplayGranularity,
             useSyncCreatorSpeakerColors: settings.useSyncCreatorSpeakerColors,
             typography: settings.typography,
@@ -765,6 +766,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             }
         }
         .environment(\.lyricsSegmentationLocale, state.lyricsLocale)
+        .environment(\.karaokeExpressiveMotion, state.karaokeExpressiveMotion)
         .frame(width: width, alignment: state.swiftUIFrameAlignment)
         .fixedSize(horizontal: false, vertical: true)
 
@@ -1113,6 +1115,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var solidColor: String
         var syncedLyricsKaraokeAnimationEnabled: Bool
         var karaokeBounceEffectEnabled: Bool
+        var karaokeExpressiveMotion: Bool = false
         var karaokeDisplayGranularity: String
         var useSyncCreatorSpeakerColors: Bool
         var typography: AppSettings.TypographySettings
@@ -1269,6 +1272,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             identity.append("|")
             identity.append(String(karaokeBounceEffectEnabled))
             identity.append("|")
+            identity.append(String(karaokeExpressiveMotion))
+            identity.append("|")
             identity.append(AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity))
             identity.append("|")
             identity.append(String(useSyncCreatorSpeakerColors))
@@ -1359,6 +1364,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
                   state.solidColor == other.state.solidColor,
                   state.syncedLyricsKaraokeAnimationEnabled == other.state.syncedLyricsKaraokeAnimationEnabled,
                   state.karaokeBounceEffectEnabled == other.state.karaokeBounceEffectEnabled,
+                  state.karaokeExpressiveMotion == other.state.karaokeExpressiveMotion,
                   state.karaokeDisplayGranularity == other.state.karaokeDisplayGranularity,
                   state.useSyncCreatorSpeakerColors == other.state.useSyncCreatorSpeakerColors,
                   state.typography == other.state.typography,

@@ -52,6 +52,8 @@ final class AppSettings: ObservableObject {
     static let karaokeDisplayCharacter = "character"
     static let karaokeDisplayWord = "word"
     static let karaokeDisplayLine = "line"
+    static let karaokeMotionClassic = "classic"
+    static let karaokeMotionExpressive = "expressive"
     static let vinylTonearmStyleS = "s"
     static let vinylTonearmStyleStraight = "straight"
     static let vinylTonearmStyleJ = "j"
@@ -70,7 +72,7 @@ final class AppSettings: ObservableObject {
         "cultural_annotations_vinyl_font_weight", "cultural_annotations_vinyl_opacity", "model", "max_tokens",
         "temperature", "preview_mode", "preview_items", "auto_instrumental_break", "interlude_labels_enabled",
         "synced_lyrics_karaoke_animation", "karaoke_bounce_effect", "karaoke_data_as_line_synced",
-        "karaoke_display_granularity_v1",
+        "karaoke_display_granularity_v1", "karaoke_motion_style",
         "use_sync_creator_speaker_colors", "lyrics_text_alignment", "keep_screen_on",
         "landscape_auto_hide_controls", "landscape_center_no_lyrics", "pip_show_artwork", "pip_orientation",
         "pip_background_mode", "pip_lyrics_text_alignment", "pip_lyrics_size_percent",
@@ -280,6 +282,13 @@ final class AppSettings: ObservableObject {
     @Published var interludeLabelsEnabled: Bool { didSet { set("interlude_labels_enabled", interludeLabelsEnabled) } }
     @Published var syncedLyricsKaraokeAnimationEnabled: Bool { didSet { set("synced_lyrics_karaoke_animation", syncedLyricsKaraokeAnimationEnabled) } }
     @Published var karaokeBounceEffectEnabled: Bool { didSet { set("karaoke_bounce_effect", karaokeBounceEffectEnabled) } }
+    /// PC's karaoke motion style. Expressive is a style of the bounce, so it needs the bounce on.
+    @Published var karaokeMotionStyle: String {
+        didSet { set("karaoke_motion_style", Self.normalizeKaraokeMotionStyle(karaokeMotionStyle)) }
+    }
+    var karaokeExpressiveMotionEnabled: Bool {
+        karaokeBounceEffectEnabled && Self.normalizeKaraokeMotionStyle(karaokeMotionStyle) == Self.karaokeMotionExpressive
+    }
     /// Pronunciation-first: the pronunciation and the original swap rows.
     @Published var pronunciationFirstEnabled: Bool { didSet { set("pronunciation_first_enabled", pronunciationFirstEnabled) } }
     /// Pronunciation rows fill along karaoke timing while pronunciation-first is off.
@@ -414,6 +423,7 @@ final class AppSettings: ObservableObject {
         interludeLabelsEnabled = defaults.object(forKey: "interlude_labels_enabled") as? Bool ?? true
         syncedLyricsKaraokeAnimationEnabled = defaults.object(forKey: "synced_lyrics_karaoke_animation") as? Bool ?? false
         karaokeBounceEffectEnabled = defaults.object(forKey: "karaoke_bounce_effect") as? Bool ?? true
+        karaokeMotionStyle = Self.normalizeKaraokeMotionStyle(defaults.string(forKey: "karaoke_motion_style"))
         pronunciationFirstEnabled = defaults.object(forKey: "pronunciation_first_enabled") as? Bool ?? false
         pronunciationKaraokeFillEnabled = defaults.object(forKey: "pronunciation_karaoke_fill_enabled") as? Bool ?? false
         karaokeDisplayGranularity = Self.normalizeKaraokeDisplayGranularity(
@@ -589,6 +599,7 @@ final class AppSettings: ObservableObject {
         interludeLabelsEnabled = loaded.interludeLabelsEnabled
         syncedLyricsKaraokeAnimationEnabled = loaded.syncedLyricsKaraokeAnimationEnabled
         karaokeBounceEffectEnabled = loaded.karaokeBounceEffectEnabled
+        karaokeMotionStyle = loaded.karaokeMotionStyle
         karaokeDisplayGranularity = loaded.karaokeDisplayGranularity
         useSyncCreatorSpeakerColors = loaded.useSyncCreatorSpeakerColors
         lyricsTextAlignment = loaded.lyricsTextAlignment
@@ -704,6 +715,7 @@ final class AppSettings: ObservableObject {
             interludeLabelsEnabled: interludeLabelsEnabled,
             syncedLyricsKaraokeAnimationEnabled: syncedLyricsKaraokeAnimationEnabled,
             karaokeBounceEffectEnabled: karaokeBounceEffectEnabled,
+            karaokeMotionStyle: Self.normalizeKaraokeMotionStyle(karaokeMotionStyle),
             karaokeDisplayGranularity: Self.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity),
             useSyncCreatorSpeakerColors: useSyncCreatorSpeakerColors,
             lyricsTextAlignment: lyricsTextAlignment,
@@ -1639,6 +1651,10 @@ final class AppSettings: ObservableObject {
         return "left"
     }
 
+    static func normalizeKaraokeMotionStyle(_ style: String?) -> String {
+        (style ?? "").trimmed.lowercased() == karaokeMotionExpressive ? karaokeMotionExpressive : karaokeMotionClassic
+    }
+
     static func normalizeKaraokeDisplayGranularity(_ granularity: String?) -> String {
         switch (granularity ?? "").trimmed.lowercased() {
         case karaokeDisplayWord:
@@ -1981,6 +1997,10 @@ final class AppSettings: ObservableObject {
         var interludeLabelsEnabled: Bool
         var syncedLyricsKaraokeAnimationEnabled: Bool
         var karaokeBounceEffectEnabled: Bool
+        var karaokeMotionStyle: String
+        var karaokeExpressiveMotionEnabled: Bool {
+            karaokeBounceEffectEnabled && karaokeMotionStyle == AppSettings.karaokeMotionExpressive
+        }
         var karaokeDisplayGranularity: String
         var karaokeDataAsLineSynced: Bool {
             AppSettings.normalizeKaraokeDisplayGranularity(karaokeDisplayGranularity) == AppSettings.karaokeDisplayLine

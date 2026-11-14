@@ -43,6 +43,9 @@ on:
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
+      - 'ivLyrics-IOS/Karaoke*.swift'
+      - 'scripts/test-karaoke-expressive.py'
+      - 'scripts/fixtures/karaoke-expressive-desktop.json'
       - 'ivLyrics-IOS/AppViewModel.swift'
       - 'ivLyrics-IOS/CommunityVideoClient.swift'
       - 'ivLyrics-IOS/YouTubePlayerReadiness.swift'
@@ -99,6 +102,9 @@ on:
       - 'ivLyrics-IOS/LocalAISettingsView.swift'
       - 'ivLyrics-IOS/LyricsMetaMenuView.swift'
       - 'ivLyrics-IOS/ContentView.swift'
+      - 'ivLyrics-IOS/Karaoke*.swift'
+      - 'scripts/test-karaoke-expressive.py'
+      - 'scripts/fixtures/karaoke-expressive-desktop.json'
       - 'ivLyrics-IOS/AppViewModel.swift'
       - 'ivLyrics-IOS/CommunityVideoClient.swift'
       - 'ivLyrics-IOS/YouTubePlayerReadiness.swift'
@@ -158,6 +164,7 @@ jobs:
       - name: Validate playback, motion and provider regressions
         run: |
           python3 scripts/test-playback-regressions.py
+          python3 scripts/test-karaoke-expressive.py
           python3 scripts/test-karaoke-display-metadata.py
           python3 scripts/test-timeline-cache.py
           python3 scripts/test-provider-overlap.py

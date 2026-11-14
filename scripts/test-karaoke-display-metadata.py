@@ -76,6 +76,10 @@ def probe(source, name, cache_name, original):
     var completedColorOpacity: CGFloat = 1, bounceTextSize: CGFloat = 22
     var normalizedKind = "vocal", creatorColors = true
     var isWordDisplayGranularity: Bool { granularity == "word" }
+    var isLineDisplayGranularity: Bool { granularity == "line" }
+    var karaokeExpressiveMotion = false
+    var startTimeMs: Int64 { sourceStart }
+    var endTimeMs: Int64 { sourceEnd }
     func segmentBaseColor(for syllable: LyricsLine.Syllable) -> Color {
         Color(token: baseColor.token + "|\(syllable.styleSpeaker ?? "")|\(creatorColors)")
     }
@@ -105,6 +109,8 @@ def probe(source, name, cache_name, original):
         code += reading.replace("return annotations.compactMap { annotation in", "return annotations.compactMap { annotation in\n            legacyRubyVisits += 1")
     code += assembly
     code += section(source, "    private func fillFraction(", "    private var preparedKaraoke:")
+    if "    private var expressiveMotionActive: Bool {" in source:
+        code += section(source, "    private var expressiveMotionActive: Bool {", "    private func karaokeBounce(")
     code += section(source, "    private func karaokeBounce(", "\n}\n\n/// One preparation")
     return (code + "}\n").replace("private ", "")
 
@@ -237,6 +243,7 @@ with tempfile.TemporaryDirectory(prefix="ivlyrics-ios-display-metadata-") as pat
     work = Path(path)
     (work / "main.swift").write_text(production + checks)
     subprocess.run(["xcrun", "swiftc", "-O", str(SRC / "BoundedLRUCache.swift"),
-                    str(SRC / "KaraokeMotionProfile.swift"), str(work / "main.swift"),
+                    str(SRC / "KaraokeMotionProfile.swift"), str(SRC / "KaraokeExpressiveMotion.swift"),
+                    str(work / "main.swift"),
                     "-o", str(work / "regression")], check=True)
     subprocess.run([str(work / "regression")], check=True)
