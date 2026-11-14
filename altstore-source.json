@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.15",
+          "buildVersion": "88",
+          "date": "2026-11-14",
+          "localizedDescription": "이번 릴리스에서는 데스크톱과 동일한 표현력 있는 가라오케 모션 스타일을 iOS에 추가했습니다. 가사 페이지, 미리보기 및 PiP에서 더욱 역동적인 현재 가사 강조를 제공하면서, 손쉬운 사용의 동작 줄이기 설정도 준수합니다. 또한 릴리스 빌드 및 AltStore 배포 메타데이터를 정비했습니다.\n\nThis release adds the desktop-style expressive karaoke motion style to iOS. It provides more dynamic highlighting for the currently sung lyrics on the lyrics page, in previews, and in Picture in Picture while respecting the Reduce Motion accessibility setting. Release build and AltStore distribution metadata were also updated.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.15/ivLyrics-IOS-v2.0.15-unsigned.ipa",
+          "size": 14819850,
+          "sha256": "06908e366740f398419c1883083c37690429b0f3d34e4cf6fa0e9f48cfb88cd7",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.14",
           "buildVersion": "87",
           "date": "2026-11-13",
