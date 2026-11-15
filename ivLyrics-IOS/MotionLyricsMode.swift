@@ -360,7 +360,16 @@ struct MotionLyricsModeView: View {
     private static let sampleEpoch = Date(timeIntervalSinceReferenceDate: 0)
     /// The page keeps its own clock between reports.
     private static let positionSampleInterval: TimeInterval = 0.25
-    private static let controlsHideDelay: TimeInterval = 3
+    private static let controlsHideDelay: TimeInterval = {
+#if DEBUG
+        // UI tests on a loaded runner cannot land two taps within three seconds.
+        if let raw = ProcessInfo.processInfo.environment["IVLYRICS_DEBUG_MOTION_CONTROLS_S"],
+           let seconds = TimeInterval(raw), seconds > 0 {
+            return seconds
+        }
+#endif
+        return 3
+    }()
     /// The close button sits in the top trailing corner; the page keeps its small print clear of it.
     private static let closeButtonReserve: CGFloat = 52
 

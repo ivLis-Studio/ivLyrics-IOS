@@ -54,6 +54,7 @@ on:
       - 'ivLyrics-IOS/MotionLyrics*.swift'
       - 'ivLyrics-IOS/Resources/MotionLyricsPage.html'
       - 'scripts/test-motion-lyrics.py'
+      - 'scripts/test-motion-lyrics-ui.sh'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
       - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
@@ -116,6 +117,7 @@ on:
       - 'ivLyrics-IOS/MotionLyrics*.swift'
       - 'ivLyrics-IOS/Resources/MotionLyricsPage.html'
       - 'scripts/test-motion-lyrics.py'
+      - 'scripts/test-motion-lyrics-ui.sh'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
       - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
@@ -261,6 +263,19 @@ jobs:
         with:
           name: ios-settings-navigation
           path: ${{ runner.temp }}/settings-navigation/navigation.xcresult
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Open and leave motion lyrics by touch
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-motion-lyrics-ui.sh "$RUNNER_TEMP/settings-navigation"
+
+      - name: Save motion lyrics evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-motion-lyrics-ui
+          path: ${{ runner.temp }}/settings-navigation/motion-lyrics.xcresult
           if-no-files-found: warn
           retention-days: 14
 

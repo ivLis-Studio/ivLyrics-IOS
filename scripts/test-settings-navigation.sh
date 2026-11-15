@@ -50,7 +50,6 @@ IVLYRICS_LLAMA_STUB=1 xcodebuild \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLyricsPageSettingsOpenAndReturn \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLyricsPageSettingsLargeTextAndLandscape \
     -only-testing:ivLyrics-IOSUITests/SettingsLayoutUITests/testLandscapeSettingsRevealAfterAutoHide \
-    -only-testing:ivLyrics-IOSUITests/MotionLyricsUITests/testCloseButtonReturnsAfterAutoHideAndRestoresPortrait \
     SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
     SWIFT_ENABLE_OPAQUE_TYPE_ERASURE=NO \
     CODE_SIGNING_ALLOWED=NO \

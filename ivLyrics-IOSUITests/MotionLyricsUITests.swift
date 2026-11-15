@@ -6,6 +6,9 @@ import XCTest
 @MainActor
 final class MotionLyricsUITests: XCTestCase {
     private var app: XCUIApplication!
+    /// The close button fades after three idle seconds in the app. A loaded runner takes longer
+    /// than that between two taps, so the fixture keeps the button for this long instead.
+    private let controlsSeconds: TimeInterval = 15
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
@@ -25,34 +28,56 @@ final class MotionLyricsUITests: XCTestCase {
 
     func testCloseButtonReturnsAfterAutoHideAndRestoresPortrait() {
         app = XCUIApplication()
-        app.launchEnvironment = ["IVLYRICS_DEBUG_FIXTURE": "1", "IVLYRICS_DEBUG_SHOW_MOTION": "1"]
+        app.launchEnvironment = ["IVLYRICS_DEBUG_FIXTURE": "1", "IVLYRICS_DEBUG_SHOW_MOTION": "1",
+                                 "IVLYRICS_DEBUG_MOTION_CONTROLS_S": String(Int(controlsSeconds))]
         app.launch()
         let window = app.windows.firstMatch
         let root = app.otherElements["motion.root"]
         XCTAssertTrue(root.waitForExistence(timeout: 20), "Motion lyrics did not open")
         // A phone turns to landscape while the mode is open.
         wait("landscape") { window.frame.width > window.frame.height }
-        // The button fades out after three idle seconds but stays in the accessibility tree,
-        // so the screen is driven by touch where a finger would land.
-        pause(5)
+        // The button fades out when left alone but stays in the accessibility tree, so the
+        // screen is driven by touch where a finger would land.
+        pause(controlsSeconds + 1.5)
         capture("motion-idle")
-        // 40pt button, 14pt below and 16pt inside the top trailing corner of the safe area.
-        let safeArea = root.frame
-        let closePoint = window.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: safeArea.maxX - 36, dy: safeArea.minY + 34))
         // The page itself takes no touches, so a tap anywhere must bring the button back.
         window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        pause(0.6)
         XCTAssertTrue(root.exists, "A tap on the page must not close the mode")
-        capture("motion-controls")
-        closePoint.tap()
-        // A loaded runner can use up the button's three visible seconds before this tap lands;
-        // the tap then only brings the button back, and the next one presses it.
-        if !settles(within: 3, { !root.exists }) {
-            closePoint.tap()
-        }
+        closePoint(of: root, in: window).tap()
         wait("closed", timeout: 12) { !root.exists && window.frame.width < window.frame.height }
         capture("motion-closed")
+    }
+
+    /// The entry people use: the button in the menu a long press on the title opens.
+    func testOpensFromTheLyricsMenuOverTheLyricsPage() {
+        app = XCUIApplication()
+        app.launchEnvironment = ["IVLYRICS_DEBUG_FIXTURE": "1", "IVLYRICS_DEBUG_SHOW_META_MENU": "1",
+                                 "IVLYRICS_DEBUG_MOTION_CONTROLS_S": String(Int(controlsSeconds))]
+        app.launch()
+        let window = app.windows.firstMatch
+        let entry = app.buttons["lyrics.menu.motion"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 20), "The lyrics menu has no motion lyrics entry")
+        capture("motion-menu")
+        entry.tap()
+        let root = app.otherElements["motion.root"]
+        XCTAssertTrue(root.waitForExistence(timeout: 10), "The entry did not open motion lyrics")
+        wait("landscape") { window.frame.width > window.frame.height }
+        // Neither the menu nor the lyrics page it was opened over stays above the mode.
+        wait("menu gone") { !entry.exists && !self.app.otherElements["lyrics.menu.root"].exists }
+        capture("motion-from-menu")
+        // The button shows from the moment the mode opens.
+        closePoint(of: root, in: window).tap()
+        wait("closed", timeout: 12) { !root.exists && window.frame.width < window.frame.height }
+        pause(1)
+        capture("motion-menu-closed")
+    }
+
+    /// The middle of the 40pt close button, 14pt below and 16pt inside the top trailing corner
+    /// of the safe area.
+    private func closePoint(of root: XCUIElement, in window: XCUIElement) -> XCUICoordinate {
+        let safeArea = root.frame
+        return window.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: safeArea.maxX - 36, dy: safeArea.minY + 34))
     }
 
     private func pause(_ seconds: TimeInterval) {
