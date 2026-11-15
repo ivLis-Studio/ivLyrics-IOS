@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.17",
+          "buildVersion": "90",
+          "date": "2026-11-15",
+          "localizedDescription": "이번 릴리스에는 단어 또는 문자 단위 타이밍이 있는 곡을 위한 새로운 모션 가사 프레젠테이션이 추가되었습니다. 플레이어 배경 위에서 데스크톱 스타일의 키네틱 타이포그래피를 보여 주며, 접근성의 동작 줄이기 설정도 준수합니다. 또한 배포 메타데이터와 릴리스 프로젝트 설정을 정비했습니다.\n\nThis release adds a new Motion Lyrics presentation for songs with word- or character-level timing. It displays desktop-style kinetic typography over the player background while respecting the Reduce Motion accessibility setting. Distribution metadata and release project settings were also updated.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.17/ivLyrics-IOS-v2.0.17-unsigned.ipa",
+          "size": 14983606,
+          "sha256": "172e62ef8fcf889386da7cd9be1edc4ef569ef7fbece4fc3705413a928d5e2da",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.16",
           "buildVersion": "89",
           "date": "2026-11-14",
