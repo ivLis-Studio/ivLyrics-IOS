@@ -1183,6 +1183,47 @@ final class AppViewModel: ObservableObject {
         durationMs > 0 ? durationMs + spotifyDJLyricsOffsetMs : 0
     }
 
+    // MARK: Motion lyrics
+
+    /// The lyric position at this instant, sync offsets applied. The motion lyrics page runs its
+    /// own clock between reports, so it needs a fresh reading: the frame clock's last one can be
+    /// half a second old while that clock idles.
+    func motionLyricsPositionMs() -> Double {
+        guard let track = currentTrack else { return 0 }
+        let position = track.continuousPositionMs(uptime: ProcessInfo.processInfo.systemUptime)
+        return max(0, position + Double(spotifyDJLyricsOffsetMs) + Double(globalOffsetMs + trackOffsetMs + bluetoothOffsetMs))
+    }
+
+    /// An AI provider that answers prompts is set up (the translation-only ones cannot direct).
+    var motionDirectionAvailable: Bool {
+        let snapshot = settings.snapshot
+        return !snapshot.provider.translationOnly && snapshot.hasApiKey && snapshot.hasModel
+    }
+
+    /// The provider's raw answer to the motion lyrics page's direction prompt.
+    func requestMotionDirection(prompt: String) async throws -> String {
+        let snapshot = settings.snapshot
+        appendLog("motion lyrics: asking \(snapshot.provider.label) for a direction")
+        do {
+            return try await aiRepository.motionDirection(prompt: prompt, settings: snapshot)
+        } catch {
+            appendLog("motion lyrics: direction failed: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    func cachedMotionDirection(_ key: String) async -> String {
+        await aiRepository.cachedMotionDirection(key)
+    }
+
+    func storeMotionDirection(_ key: String, value: String) {
+        Task { await aiRepository.storeMotionDirection(key, body: value) }
+    }
+
+    func logMotionLyrics(_ message: String) {
+        appendLog(message)
+    }
+
     var firstLyricTimeMs: Int64 {
         let source = baseLyricsResult.lines.isEmpty ? lyricsResult : baseLyricsResult
         return Self.firstLyricTimeMs(in: source)

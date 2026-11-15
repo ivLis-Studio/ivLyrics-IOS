@@ -34,6 +34,8 @@ struct LyricsMetaMenuOverlay: View {
     var screenHeight: CGFloat
     var openPictureInPicture: () -> Void = {}
     var openVinyl: (() -> Void)? = nil
+    /// nil hides the entry (Reduce Motion).
+    var openMotion: (() -> Void)? = nil
     var isSettingsPage = false
     @State private var videoURL = ""
     @State private var videoError = ""
@@ -145,6 +147,14 @@ struct LyricsMetaMenuOverlay: View {
                             }
                             .buttonStyle(SettingsActionButtonStyle())
                             .accessibilityIdentifier("lyrics.menu.vinyl")
+                        }
+                        if let openMotion {
+                            Button { openMotion(); dismiss() } label: {
+                                SettingsActionLabel(title: settings.t("motion.mode"), systemImage: "wand.and.stars")
+                                    .background(controlBackground(0.15), in: RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(SettingsActionButtonStyle())
+                            .accessibilityIdentifier("lyrics.menu.motion")
                         }
                         Button { openPictureInPicture(); dismiss() } label: {
                             SettingsActionLabel(title: settings.t("pip.open_lyrics"), systemImage: "pip")

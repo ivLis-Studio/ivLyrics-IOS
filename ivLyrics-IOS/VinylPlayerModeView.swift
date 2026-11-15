@@ -1793,7 +1793,8 @@ private enum VinylTonearmArtwork {
     }
 }
 
-private enum VinylArtworkAccent {
+/// Also colours the motion lyrics type (MotionLyricsMode.swift).
+enum VinylArtworkAccent {
     struct Asset {
         let color: Color
         let image: UIImage?

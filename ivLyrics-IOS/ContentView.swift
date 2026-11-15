@@ -213,6 +213,11 @@ private struct AndroidSlidingMetadataText: View {
 
 @main
 struct IvLyricsIOSApp: App {
+#if os(iOS)
+    /// Motion lyrics holds a phone in landscape while it is open (MotionLyricsOrientation).
+    @UIApplicationDelegateAdaptor(IvLyricsAppDelegate.self) private var appDelegate
+#endif
+
     init() {
         IvLyricsFontLoader.registerPretendard()
     }
@@ -272,6 +277,8 @@ struct ContentView: View {
     @State private var lyricsMetaTipToken = UUID()
     @State private var inAppBrowserDragOffset: CGFloat = 0
     @State private var vinylModeVisible = false
+    @State private var motionModeVisible = false
+    @StateObject private var motionCamera = MotionBackdropCamera()
     @State private var mainPageFrozen = false
     @State private var mainPageCoverToken = UUID()
     /// iPhone Duo: the settings button lives in the system vertical bar (VerticalBar.swift).
@@ -379,6 +386,11 @@ struct ContentView: View {
                         vinylModeVisible = false
                     }
                 }
+                if !available && motionModeVisible {
+                    withAnimation(.easeOut(duration: 0.26)) {
+                        motionModeVisible = false
+                    }
+                }
             }
             .fullScreenCover(isPresented: $showingSettings) {
                 SettingsView()
@@ -406,6 +418,7 @@ struct ContentView: View {
     /// The lyrics page is not one of them: its header button gives way to the bar's.
     private var verticalBarSettingsCovered: Bool {
         vinylModeVisible
+            || motionModeVisible
             || showingLyricsMetaMenu
             || showingLogs
             || model.inAppBrowserURL != nil
@@ -428,6 +441,10 @@ struct ContentView: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             PlayerBackgroundView(isLandscape: isLandscape)
+                .modifier(MotionBackdropFollower(
+                    camera: motionCamera,
+                    screenCenter: MotionBackdropFollower.screenCenter(size: size, safeArea: safeAreaInsets)
+                ))
             primaryContent(
                 isLandscape: isLandscape,
                 size: size,
@@ -446,11 +463,11 @@ struct ContentView: View {
                 \.coveredPageDecorationsPaused,
                 mainPageFrozen && mainPageCovered(isLandscape: isLandscape)
             )
-            .opacity(vinylModeVisible ? 0 : 1)
-            .scaleEffect(vinylModeVisible ? 0.985 : 1)
-            .allowsHitTesting(!vinylModeVisible)
+            .opacity(playerModeVisible ? 0 : 1)
+            .scaleEffect(playerModeVisible ? 0.985 : 1)
+            .allowsHitTesting(!playerModeVisible)
             .accessibilityHidden(
-                vinylModeVisible
+                playerModeVisible
                     || showingLyricsMetaMenu
                     || model.researchTokenConsentPresented
                     || model.tmiPresented
@@ -463,6 +480,7 @@ struct ContentView: View {
                     : nil,
                 value: vinylModeVisible
             )
+            .animation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.26), value: motionModeVisible)
             if vinylModeVisible {
                 VinylPlayerModeView(isPresented: $vinylModeVisible)
                     .transition(
@@ -470,6 +488,11 @@ struct ContentView: View {
                             ? .opacity.combined(with: .scale(scale: 0.975))
                             : .identity
                     )
+                    .zIndex(4)
+            }
+            if motionModeVisible {
+                MotionLyricsModeView(isPresented: $motionModeVisible, camera: motionCamera)
+                    .transition(.opacity)
                     .zIndex(4)
             }
             overlayContent(
@@ -534,6 +557,8 @@ struct ContentView: View {
     /// Portrait only: the landscape pane shows the lyric list itself, and holding it would turn
     /// the vinyl dismissal into a catch-up scroll.
     private func mainPageCovered(isLandscape: Bool) -> Bool {
+        // Motion lyrics hides the whole player, in either orientation.
+        if motionModeVisible { return true }
         guard !isLandscape else { return false }
         return vinylModeVisible || (lyricsPageVisible && lyricsPageDragOffset == 0)
     }
@@ -575,7 +600,8 @@ struct ContentView: View {
                 selectedTab: $lyricsMetaMenuTab,
                 screenHeight: size.height,
                 openPictureInPicture: openSystemLyricsPictureInPicture,
-                openVinyl: presentVinylMode
+                openVinyl: presentVinylMode,
+                openMotion: motionModeEntry
             )
             .zIndex(8)
         }
@@ -790,13 +816,22 @@ struct ContentView: View {
                 presentVinylMode()
             }
         }
+        if environment["IVLYRICS_DEBUG_SHOW_MOTION"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                presentMotionMode()
+            }
+        }
         // Uncover the main page after a delay to verify it resumes the live clock immediately.
         if let rawDelay = environment["IVLYRICS_DEBUG_REVEAL_MAIN_AFTER_S"], let delay = Double(rawDelay) {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
 #if os(iOS)
                 DebugFrameProbe.shared.recordEvent("revealMain")
 #endif
-                if vinylModeVisible {
+                if motionModeVisible {
+                    withAnimation(.easeOut(duration: 0.26)) {
+                        motionModeVisible = false
+                    }
+                } else if vinylModeVisible {
                     withAnimation(.timingCurve(0.22, 0.74, 0.28, 1, duration: 0.36)) {
                         vinylModeVisible = false
                     }
@@ -1004,6 +1039,34 @@ struct ContentView: View {
         }
     }
 
+    /// Vinyl mode or motion lyrics is shown in place of the player.
+    private var playerModeVisible: Bool {
+        vinylModeVisible || motionModeVisible
+    }
+
+    /// Reduce Motion leaves motion lyrics out of the menu.
+    private var motionModeEntry: (() -> Void)? {
+        accessibilityReduceMotion ? nil : { presentMotionMode() }
+    }
+
+    private func presentMotionMode() {
+        guard model.currentTrack?.hasUsableMetadata == true else {
+            model.showSavedToast(settings.t("status.waiting_current_track"))
+            return
+        }
+        guard MotionLyricsSong.canPlay(model.lyricsResult) else {
+            model.showSavedToast(settings.t("motion.unavailable"))
+            return
+        }
+        showLyricsPage(false)
+        showingLyricsMetaMenu = false
+        dismissLyricsMetaTip()
+        vinylModeVisible = false
+        withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.26)) {
+            motionModeVisible = true
+        }
+    }
+
     private func updateLandscapeAutoHide(isLandscape: Bool) {
         landscapeAutoHideToken = UUID()
         landscapeControlsVisible = true
@@ -1123,6 +1186,7 @@ struct ContentView: View {
         model.currentTrack != nil
             && !model.pictureInPictureController.isEngaged
             && !vinylModeVisible
+            && !motionModeVisible
             && !showingSettings
             && !showingLogs
             && !model.initialSetupPresented

@@ -51,6 +51,9 @@ on:
       - 'ivLyrics-IOS/YouTubePlayerReadiness.swift'
       - 'ivLyrics-IOS/YouTubeBackdropView.swift'
       - 'scripts/test-video-sharing.py'
+      - 'ivLyrics-IOS/MotionLyrics*.swift'
+      - 'ivLyrics-IOS/Resources/MotionLyricsPage.html'
+      - 'scripts/test-motion-lyrics.py'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
       - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
@@ -110,6 +113,9 @@ on:
       - 'ivLyrics-IOS/YouTubePlayerReadiness.swift'
       - 'ivLyrics-IOS/YouTubeBackdropView.swift'
       - 'scripts/test-video-sharing.py'
+      - 'ivLyrics-IOS/MotionLyrics*.swift'
+      - 'ivLyrics-IOS/Resources/MotionLyricsPage.html'
+      - 'scripts/test-motion-lyrics.py'
       - 'ivLyrics-IOS/DebugSettingsUIHarness.swift'
       - 'ivLyrics-IOSUITests/**'
       - 'ivLyrics-IOSUITests/SetupFlowUITests.swift'
@@ -193,6 +199,7 @@ jobs:
           python3 scripts/test-appearance.py
           python3 scripts/test-vinyl.py
           python3 scripts/test-interlude.py
+          python3 scripts/test-motion-lyrics.py
           python3 scripts/test-settings-ui.py
           python3 scripts/test-setup-flows.py
 

@@ -26,6 +26,7 @@ actor AiLyricsRepository {
         maxEntries: 500,
         formatVersion: 4
     )
+    private let motionDirectionDiskCache = RawResponseDiskCache(namespace: "motion_direction", maxEntries: 500)
     private var memoryCache = BoundedLRUCache<String, LyricsResult>(capacity: 250)
     private var metadataMemoryCache = BoundedLRUCache<String, MetadataTranslation>(capacity: 200)
     private var tmiMemoryCache = BoundedLRUCache<String, TmiInfo>(capacity: 100)
@@ -1055,6 +1056,25 @@ actor AiLyricsRepository {
         culturalAnnotationDiskCache.clear()
         timedPronunciationDiskCache.clear()
         pronunciationSlotsDiskCache.clear()
+        motionDirectionDiskCache.clear()
+    }
+
+    // MARK: Motion lyrics direction
+
+    /// The motion lyrics page writes the prompt and checks the answer (MotionLyricsMode.swift);
+    /// this carries the prompt to the provider and keeps the directions the page accepted.
+    func motionDirection(prompt: String, settings: AppSettings.Snapshot) async throws -> String {
+        try await withOpenAIConnections(settings: settings) { connection in
+            try await callProviderRaw(prompt: prompt, settings: connection)
+        }
+    }
+
+    func cachedMotionDirection(_ key: String) -> String {
+        motionDirectionDiskCache.get(key)
+    }
+
+    func storeMotionDirection(_ key: String, body: String) {
+        motionDirectionDiskCache.put(key, body: body)
     }
 
     func clearTrackCache(_ trackKey: String) {
