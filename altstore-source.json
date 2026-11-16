@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.18",
+          "buildVersion": "91",
+          "date": "2026-11-16",
+          "localizedDescription": "v2.0.18에서는 화면 전체를 덮지 않는 가로형 동영상 재생 시 남는 영역이 앨범 아트 대신 검은색으로 표시되도록 개선했습니다. 또한 모션 가사 종료 동작과 가사 메뉴 진입 경로에 대한 UI 검증을 분리·보강해 자동화 테스트의 안정성을 높였습니다. 프로젝트 빌드 메타데이터와 AltStore 소스 정보도 정리했습니다.\n\nv2.0.18 improves landscape video playback by showing black in areas not covered by the video instead of exposing album artwork. It also strengthens and separates UI validation for leaving Motion Lyrics and opening it from the Lyrics menu, improving automated test reliability. Project build metadata and AltStore source information were also maintained.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.18/ivLyrics-IOS-v2.0.18-unsigned.ipa",
+          "size": 14984639,
+          "sha256": "aacfe116375050b8b20b8ba04472e0944b10ee884ea5e9e9fd96792258505d4c",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.17",
           "buildVersion": "90",
           "date": "2026-11-15",
