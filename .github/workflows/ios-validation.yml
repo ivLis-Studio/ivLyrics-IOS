@@ -207,6 +207,9 @@ jobs:
 
       # The unfiltered test action runs both SettingsLayoutUITests and SetupFlowUITests.
       # ivLyrics-IOSUITests/** above includes SetupFlowUITests.swift in both event filters.
+      # MotionLyricsUITests is skipped here: it timed out on this unoptimized build on the
+      # runner while passing on the optimized build below (scripts/test-motion-lyrics-ui.sh),
+      # which is where it runs.
       - name: Check native settings, onboarding and language prompts
         id: settings_ui
         env:
@@ -227,6 +230,7 @@ jobs:
             -configuration Debug \
             -destination "platform=iOS Simulator,id=$ivlyrics_ui_device" \
             -parallel-testing-enabled NO \
+            -skip-testing:ivLyrics-IOSUITests/MotionLyricsUITests \
             -resultBundlePath "$RUNNER_TEMP/settings-ui.xcresult" \
             -derivedDataPath "$RUNNER_TEMP/settings-ui-derived" \
             CODE_SIGNING_ALLOWED=NO \
