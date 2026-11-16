@@ -1578,6 +1578,25 @@ private struct YouTubeBackdropSection: View {
 
     var body: some View {
         ZStack {
+            // Black where the video does not reach. A video that covers the screen has no need of
+            // it, and fades in over the artwork as before.
+            if AppearancePolicy.videoLeavesScreenUncovered(
+                aspect: background.videoAspect, edgeToEdge: background.videoEdgeToEdge, landscape: isLandscape
+            ) {
+                Color.black
+                    .opacity(videoVisible ? 1 : 0)
+                    .animation(.easeInOut(duration: videoVisible ? 0.28 : 0.18), value: videoVisible)
+                    .ignoresSafeArea()
+            }
+            videoLayer
+                // The decorative video and dimming always cover the home indicator area.
+                // Keep landscape top/side insets when edge-to-edge is disabled.
+                .ignoresSafeArea(.container, edges: background.videoEdgeToEdge || !isLandscape ? .all : .bottom)
+        }
+    }
+
+    private var videoLayer: some View {
+        ZStack {
             if let selection = model.currentYouTubePlayerSelection {
                 TimelineView(.periodic(from: Self.sampleEpoch, by: Self.positionSampleInterval)) { _ in
                     YouTubeBackdropView(
@@ -1603,9 +1622,6 @@ private struct YouTubeBackdropSection: View {
             }
             Color.black.opacity(videoVisible ? AppearancePolicy.videoDimOpacity(background.brightness) : 0)
         }
-        // The decorative video and dimming always cover the home indicator area.
-        // Keep landscape top/side insets when edge-to-edge is disabled.
-        .ignoresSafeArea(.container, edges: background.videoEdgeToEdge || !isLandscape ? .all : .bottom)
     }
 }
 

@@ -14,6 +14,12 @@ enum AppearancePolicy {
         1 - Double(min(100, max(0, brightness))) / 100
     }
 
+    /// A fitted video leaves bands, and a landscape video kept inside the safe area leaves the
+    /// screen's edges. Those are black while the video shows, rather than the artwork behind it.
+    static func videoLeavesScreenUncovered(aspect: String, edgeToEdge: Bool, landscape: Bool) -> Bool {
+        videoAspect(aspect) == "fit" || (landscape && !edgeToEdge)
+    }
+
     static func videoStageCSS(_ aspect: String) -> String {
         switch videoAspect(aspect) {
         case "fit": return "width:min(100vw,177.7778vh);height:min(56.25vw,100vh);"

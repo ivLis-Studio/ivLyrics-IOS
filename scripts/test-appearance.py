@@ -89,6 +89,15 @@ for value in -10...110 {
 }
 check(AppearancePolicy.videoStageCSS("fit").contains("min(100vw"), "Fit preserves full 16:9 frame")
 check(AppearancePolicy.videoStageCSS("fill").contains("min-width:"), "Fill covers viewport")
+for landscape in [false, true] {
+    for edges in [false, true] {
+        check(AppearancePolicy.videoLeavesScreenUncovered(aspect: "fit", edgeToEdge: edges, landscape: landscape), "A fitted video leaves bands")
+        for aspect in ["fill", "stretch", "invalid"] {
+            check(AppearancePolicy.videoLeavesScreenUncovered(aspect: aspect, edgeToEdge: edges, landscape: landscape) == (landscape && !edges),
+                  "A covering video leaves only the landscape safe area, and only without edge-to-edge")
+        }
+    }
+}
 for uri in ["spotify:album:abc123", "spotify:playlist:abc123", "spotify:artist:abc123", "spotify:track:abc123"] {
     let destination = AppearancePolicy.spotifyDestination(uri)!
     check(destination.app.absoluteString == uri && destination.web.host == "open.spotify.com", "Navigation only deep link")
@@ -107,6 +116,11 @@ assert '.environment(\\.originalLyricsVisible, settings.landscapeOriginalLyricsE
 assert 'if originalLyricsVisible {' in view and 'if useVocalPartSupplements {' in view
 assert 'scaleY(var(--stretch-y,1))' in video and "reportVideo('failed')" in video
 assert 'videoVisible ? AppearancePolicy.videoDimOpacity' in view
+# What the video leaves uncovered is black while it shows; a covering video keeps the old fade.
+section = view[view.index("private struct YouTubeBackdropSection: View"):view.index("private func backgroundShouldAnimate(")]
+assert section.index("if AppearancePolicy.videoLeavesScreenUncovered(") < section.index("Color.black\n                    .opacity(videoVisible ? 1 : 0)") \
+    < section.index(".ignoresSafeArea()") < section.index("videoLayer\n")
+assert ".ignoresSafeArea(.container, edges: background.videoEdgeToEdge || !isLandscape ? .all : .bottom)" in section
 assert "func handleTitleTap()" in (SRC / "AppViewModel.swift").read_text()
 with tempfile.TemporaryDirectory(prefix="ivlyrics-appearance-") as temp:
     path = Path(temp)
