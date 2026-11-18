@@ -178,9 +178,17 @@ struct TrackSnapshot: Equatable, Hashable, Sendable {
 
     private mutating func refreshIdentity() {
         trackId = Self.extractSpotifyTrackId(mediaId)
+        // A searched song learns its length from its lyrics; that must not make it another track.
         stableKey = trackId.isEmpty
-            ? "\(Self.normalizeForKey(title))|\(Self.normalizeForKey(artist))|\(durationMs)"
+            ? "\(Self.normalizeForKey(title))|\(Self.normalizeForKey(artist))|\(isLocalTimeline ? 0 : durationMs)"
             : "spotify:\(trackId)"
+    }
+
+    /// A song opened from lyrics search, without Spotify. It plays on the app's own timer.
+    static let localTimelinePackage = "ios.search"
+
+    var isLocalTimeline: Bool {
+        packageName == Self.localTimelinePackage
     }
 
     var hasUsableMetadata: Bool {

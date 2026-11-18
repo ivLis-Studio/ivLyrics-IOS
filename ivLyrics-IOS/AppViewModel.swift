@@ -390,6 +390,7 @@ final class AppViewModel: ObservableObject {
             // Pronunciation-first and the pronunciation fill follow the lyrics they were made for.
             lyricsResultRevision &+= 1
             schedulePronunciationTiming()
+            adoptLocalTimelineLength()
         }
     }
     @Published private(set) var baseLyricsResult = LyricsResult.empty("") {
@@ -491,6 +492,9 @@ final class AppViewModel: ObservableObject {
     @Published var updateDialogPresented = false
     @Published var initialSetupPresented = false
     @Published var onboardingStep = 0
+    /// Lyrics search: finds lyrics by title and artist and plays them on the app's own timer.
+    @Published var lyricsSearchPresented = false
+    private var localTimelineEndTask: Task<Void, Never>?
     @Published var setupWelcomeGreeting = SetupWelcomeGreeting()
     @Published private(set) var firstLanguagePrompt: FirstLanguagePrompt?
 
@@ -2548,6 +2552,11 @@ final class AppViewModel: ObservableObject {
 
     func togglePlayback() {
         guard let track = currentTrack else { return }
+        if track.isLocalTimeline, !track.playing, track.durationMs > 0, track.positionNow() >= track.durationMs {
+            // Play at the end of a searched song starts it again.
+            var restarted = track
+            seekPlayer(to: 0, track: &restarted)
+        }
         setPlayback(playing: !track.playing)
     }
 
@@ -2575,6 +2584,10 @@ final class AppViewModel: ObservableObject {
             track = track.withPlayback(positionMs: position, playing: targetPlaying)
             currentTrack = track
             nowPositionMs = track.positionNow()
+        }
+        if track.isLocalTimeline {
+            scheduleLocalTimelineEnd()
+            return
         }
         if spotifyAppRemotePlaybackService.connected {
             spotifyAppRemotePlaybackService.setPlayback(playing: targetPlaying)
@@ -2639,6 +2652,10 @@ final class AppViewModel: ObservableObject {
             playerPositionMs: position,
             uptime: ProcessInfo.processInfo.systemUptime
         )
+        if track.isLocalTimeline {
+            scheduleLocalTimelineEnd()
+            return
+        }
         guard shouldSendSeekCommand(target: position) else { return }
         if spotifyAppRemotePlaybackService.connected || spotifyLivePolling {
             spotifyPlaybackInteractionGuard.registerSeek(
@@ -2671,6 +2688,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func skipToNextTrack() {
+        if currentTrack?.isLocalTimeline == true {
+            appendLog("lyrics search: a searched song has no next track")
+            return
+        }
         if spotifyAppRemotePlaybackService.connected {
             spotifyAppRemotePlaybackService.skipToNext()
             scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: true)
@@ -2692,6 +2713,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func skipToPreviousTrack() {
+        if var track = currentTrack, track.isLocalTimeline {
+            seekPlayer(to: 0, track: &track)
+            return
+        }
         if spotifyAppRemotePlaybackService.connected {
             spotifyAppRemotePlaybackService.skipToPrevious()
             scheduleSpotifyPlaybackRefreshBurst(loadLyricsIfNeeded: true)
@@ -3142,6 +3167,107 @@ final class AppViewModel: ObservableObject {
         initialSetupPresented = false
     }
 
+    // MARK: Lyrics search without Spotify
+
+    /// ivLyrics is usable without Spotify: setup can be left for lyrics search at any step.
+    func continueWithoutSpotify() {
+        defaults.set(true, forKey: keyInitialSetupDismissed)
+        initialSetupPresented = false
+        appendLog("setup: continuing without Spotify; lyrics search opens")
+        presentAfterCurrentCover { $0.lyricsSearchPresented = true }
+    }
+
+    /// Lyrics search stays offered while no Spotify connection is following playback.
+    var offersLyricsSearch: Bool {
+        !spotifyAppRemoteConnected && !spotifyLivePolling
+    }
+
+    func presentLyricsSearch() {
+        lyricsSearchPresented = true
+    }
+
+    /// Connects Spotify when a Client ID is saved; otherwise opens setup at its Spotify steps.
+    func connectSpotifyOrOpenSetup() {
+        if settings.snapshot.hasSpotifyClientId {
+            connectSpotifyUserAndStartPolling()
+        } else {
+            showInitialSetup()
+            onboardingStep = 1
+        }
+    }
+
+    func connectSpotifyFromLyricsSearch() {
+        lyricsSearchPresented = false
+        presentAfterCurrentCover { $0.connectSpotifyOrOpenSetup() }
+    }
+
+    /// Opens a searched song. Its lyrics play on the app's own timer once timed lyrics arrive.
+    func searchLyricsWithoutSpotify(title: String, artist: String) {
+        let safeTitle = title.trimmed
+        let safeArtist = artist.trimmed
+        guard !safeTitle.isEmpty, !safeArtist.isEmpty else {
+            setFailedStatus { $0.t("status.manual_track_required") }
+            return
+        }
+        lyricsSearchPresented = false
+        localTimelineEndTask?.cancel()
+        localTimelineEndTask = nil
+        let track = TrackSnapshot(
+            title: safeTitle,
+            artist: safeArtist,
+            packageName: TrackSnapshot.localTimelinePackage
+        )
+        resetSpotifyDJLyricsTimeline()
+        currentTrack = track
+        nowPositionMs = 0
+        selectedRuleSourceLang = "auto"
+        metadataTranslation = nil
+        resetYouTubeBackgroundForTrack()
+        trackOffsetMs = settings.trackSyncOffsetMs(track.stableKey)
+        videoOffsetMs = settings.trackVideoSyncOffsetMs(track.stableKey)
+        reloadLyrics(bypassCache: false)
+        appendLog("lyrics search: \(safeTitle) - \(safeArtist) on the app timer")
+    }
+
+    /// A searched song has no player to report its length. Timed lyrics give it one, and the
+    /// first timed lyrics for it start its timer.
+    private func adoptLocalTimelineLength() {
+        guard var track = currentTrack, track.isLocalTimeline, track.durationMs == 0 else { return }
+        let lastTimeMs = lyricsResult.lines.reduce(Int64(0)) { max($0, max($1.startTimeMs, $1.endTimeMs)) }
+        guard lastTimeMs > 0 else { return }
+        track.durationMs = lastTimeMs + 4_000
+        track = track.withPlayback(positionMs: 0, playing: true)
+        currentTrack = track
+        nowPositionMs = 0
+        appendLog("lyrics search: timer length \(track.durationMs)ms from the lyrics")
+        scheduleLocalTimelineEnd()
+    }
+
+    private func scheduleLocalTimelineEnd() {
+        localTimelineEndTask?.cancel()
+        localTimelineEndTask = nil
+        guard let track = currentTrack, track.isLocalTimeline, track.playing, track.durationMs > 0 else { return }
+        let remainingMs = max(0, track.durationMs - track.positionNow())
+        let key = track.stableKey
+        localTimelineEndTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(remainingMs + 50) * 1_000_000)
+            guard !Task.isCancelled, let self, let current = self.currentTrack,
+                  current.isLocalTimeline, current.playing, current.stableKey == key else { return }
+            let ended = current.withPlayback(positionMs: current.durationMs, playing: false)
+            self.currentTrack = ended
+            self.nowPositionMs = ended.durationMs
+        }
+    }
+
+    /// A sheet or cover presented while another one is still leaving would be dropped.
+    private func presentAfterCurrentCover(_ action: @escaping (AppViewModel) -> Void) {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard let self else { return }
+            action(self)
+        }
+    }
+
     func finishInitialSetup(validateMetadata: Bool = true) {
         // Metadata enrichment is separate from Web API/PKCE playback authorization.
         // An old optional Secret must not prevent the basic Client ID connection.
@@ -3396,6 +3522,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func handleTitleTap() {
+        if currentTrack?.isLocalTimeline == true {
+            presentLyricsSearch()
+            return
+        }
         switch AppearancePolicy.titleAction(settings.titleTapAction) {
         case "disabled": return
         case "album": openSpotifyDestination(currentTrack?.albumURI ?? "")
@@ -4236,6 +4366,13 @@ final class AppViewModel: ObservableObject {
     }
 
     private func startSpotifyWebApiLive(clientId: String) {
+        if !settings.spotifyWebAPIEnabled, spotifyAppRemotePlaybackService.spotifyAppMissing {
+            // Without the Spotify app, Spotify's sign-in inside ivLyrics is the way to follow playback.
+            settings.spotifyWebAPIEnabled = true
+            spotifyWebAPIAuthorizationCoordinator.resetForUserInitiatedConnection()
+            showSavedToast(settings.t("spotify.app_missing_web_login"))
+            appendLog("spotify live: Spotify app missing; in-app Spotify sign-in enabled")
+        }
         guard SpotifyWebAPIFeaturePolicy.allowsAuthorization(
             enabled: settings.spotifyWebAPIEnabled
         ) else {

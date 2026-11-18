@@ -18,6 +18,8 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
 
     @Published private(set) var connected = false
     @Published private(set) var connecting = false
+    /// Without the Spotify app, App Remote cannot connect; Spotify's in-app sign-in is used instead.
+    @Published private(set) var spotifyAppMissing = false
 
     var onPlaybackSnapshot: ((SpotifyPlaybackSnapshot) -> Void)?
     var onLog: ((String) -> Void)?
@@ -36,12 +38,21 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
         }
 #if targetEnvironment(simulator)
         log("spotify app remote: unavailable in simulator; using Web API")
+        spotifyAppMissing = true
         fallback()
 #else
         guard !connecting else {
             log("spotify app remote: connection already in progress")
             return
         }
+        // Asking App Remote to authorize without the app would only send the user to the App Store.
+        guard Self.spotifyAppInstalled else {
+            spotifyAppMissing = true
+            log("spotify app remote: Spotify app is not installed; using in-app Spotify sign-in")
+            fallback()
+            return
+        }
+        spotifyAppMissing = false
         pendingFallback = fallback
         configureIfNeeded(clientId: safeClientId)
         if connected {
@@ -236,6 +247,7 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
                 guard let service else { return }
                 if !spotifyInstalled {
                     service.log("spotify app remote: Spotify app is not installed")
+                    service.spotifyAppMissing = true
                     service.connecting = false
                     service.runFallback()
                 }
@@ -336,6 +348,11 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
         onLog?(message)
     }
 
+    private static var spotifyAppInstalled: Bool {
+        guard let url = URL(string: "spotify:") else { return false }
+        return UIApplication.shared.canOpenURL(url)
+    }
+
     private var storedAccessToken: String? {
         get {
             SecureStringStore.shared.migratedString(
@@ -356,6 +373,7 @@ final class SpotifyAppRemotePlaybackService: NSObject, ObservableObject, SPTAppR
 final class SpotifyAppRemotePlaybackService: ObservableObject {
     @Published private(set) var connected = false
     @Published private(set) var connecting = false
+    @Published private(set) var spotifyAppMissing = true
     var onPlaybackSnapshot: ((SpotifyPlaybackSnapshot) -> Void)?
     var onLog: ((String) -> Void)?
     var onConnectionChanged: ((Bool) -> Void)?

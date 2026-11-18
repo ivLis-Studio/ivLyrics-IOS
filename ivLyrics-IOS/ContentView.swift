@@ -403,6 +403,11 @@ struct ContentView: View {
                     .environmentObject(settings)
                     .environmentObject(model)
             }
+            .sheet(isPresented: $model.lyricsSearchPresented) {
+                LyricsSearchSheet()
+                    .environmentObject(settings)
+                    .environmentObject(model)
+            }
         }
     }
 
@@ -680,6 +685,21 @@ struct ContentView: View {
                 if !settingsInVerticalBar {
                     ZStack(alignment: .topTrailing) {
                         Color.clear
+                        if model.offersLyricsSearch {
+                            Button {
+                                model.presentLyricsSearch()
+                            } label: {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.white)
+                            .accessibilityLabel(settings.t("lyrics_search.title"))
+                            .accessibilityIdentifier("main.lyrics-search-button")
+                            .padding(.top, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                         Button {
                             showingSettings = true
                         } label: {
@@ -741,11 +761,15 @@ struct ContentView: View {
 
                 Spacer(minLength: 12)
 
-                MainLyricPreviewPanel(chromeless: true)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        showLyricsPage(true)
-                    }
+                if model.offersLyricsSearch && model.currentTrack?.hasUsableMetadata != true {
+                    LyricsSearchEntryCard()
+                } else {
+                    MainLyricPreviewPanel(chromeless: true)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            showLyricsPage(true)
+                        }
+                }
             }
             .frame(width: contentWidth, height: max(0, height))
             .padding(.horizontal, horizontalPadding)
@@ -3063,6 +3087,13 @@ private struct LandscapeLyricsPane: View {
                 LyricsGenerationLoadingPill(text: generation.text, failed: generation.failed)
                     .padding(.top, 8)
                     .padding(.horizontal, 12)
+            }
+        }
+        .overlay {
+            if model.offersLyricsSearch && model.currentTrack?.hasUsableMetadata != true {
+                LyricsSearchEntryCard()
+                    .frame(maxWidth: 420)
+                    .padding(.horizontal, 16)
             }
         }
     }

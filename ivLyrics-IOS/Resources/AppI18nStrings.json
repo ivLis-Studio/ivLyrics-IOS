@@ -925,7 +925,17 @@
     "setting.pronunciation_karaoke_fill": "발음 노래방 채우기",
     "setting.pronunciation_karaoke_fill_desc": "발음 우선 모드가 꺼져 있어도 원문 아래 발음이 부르는 타이밍에 맞춰 노래방처럼 채워집니다. AI가 발음을 단어·글자 타이밍에 맞춰 나눕니다. 바운스·글로우 같은 다른 효과는 적용되지 않습니다.",
     "setting.synced_pronunciation": "싱크 발음 사용",
-    "setting.synced_pronunciation_desc": "노래방 가사의 발음을 부르는 단어·글자 타이밍에 맞춰 받아옵니다. 켜면 발음 우선 모드와 발음 노래방 채우기를 쓸 수 있습니다. 끄면 발음을 줄 단위 평문으로 더 빠르게 받아옵니다."
+    "setting.synced_pronunciation_desc": "노래방 가사의 발음을 부르는 단어·글자 타이밍에 맞춰 받아옵니다. 켜면 발음 우선 모드와 발음 노래방 채우기를 쓸 수 있습니다. 끄면 발음을 줄 단위 평문으로 더 빠르게 받아옵니다.",
+    "lyrics_search.title": "가사 검색",
+    "lyrics_search.desc": "Spotify 없이 곡 제목과 아티스트로 가사를 찾아요. 번역과 발음도 그대로 쓸 수 있어요.",
+    "lyrics_search.submit": "가사 찾기",
+    "lyrics_search.timer_note": "찾은 가사는 앱의 타이머로 재생돼요. 재생 버튼과 진행 막대로 원하는 부분을 볼 수 있어요.",
+    "lyrics_search.empty_title": "재생 중인 곡이 없어요",
+    "lyrics_search.empty_desc": "Spotify를 연결하면 재생 중인 곡을 따라가요. 연결하지 않아도 가사를 검색할 수 있어요.",
+    "lyrics_search.connect_spotify": "Spotify 연결",
+    "onboarding.without_spotify": "Spotify 없이 사용하기",
+    "onboarding.without_spotify_desc": "가사 검색으로 바로 시작해요. Spotify는 나중에 연결할 수 있어요.",
+    "spotify.app_missing_web_login": "Spotify 앱이 없어 ivLyrics 안에서 Spotify에 로그인해요"
   },
   "en": {
     "lyrics.local.import": "Import lyrics file",
@@ -1853,7 +1863,17 @@
     "setting.pronunciation_karaoke_fill": "Fill pronunciation like karaoke",
     "setting.pronunciation_karaoke_fill_desc": "Even with pronunciation-first mode off, the pronunciation row fills in time with the singing. AI splits the pronunciation across the word or character timing. Other effects such as bounce and glow are not applied.",
     "setting.synced_pronunciation": "Synced pronunciation",
-    "setting.synced_pronunciation_desc": "Gets karaoke pronunciation split along the timing of each sung word or character. On, pronunciation-first mode and pronunciation fill become available. Off, pronunciation comes faster as plain line text."
+    "setting.synced_pronunciation_desc": "Gets karaoke pronunciation split along the timing of each sung word or character. On, pronunciation-first mode and pronunciation fill become available. Off, pronunciation comes faster as plain line text.",
+    "lyrics_search.title": "Search lyrics",
+    "lyrics_search.desc": "Find lyrics by song title and artist, without Spotify. Translation and pronunciation work as usual.",
+    "lyrics_search.submit": "Find lyrics",
+    "lyrics_search.timer_note": "Found lyrics play on the app's own timer. Use the play button and progress bar to move through them.",
+    "lyrics_search.empty_title": "Nothing playing",
+    "lyrics_search.empty_desc": "Connect Spotify to follow the song you're playing, or search lyrics without it.",
+    "lyrics_search.connect_spotify": "Connect Spotify",
+    "onboarding.without_spotify": "Use without Spotify",
+    "onboarding.without_spotify_desc": "Start with lyrics search. You can connect Spotify later.",
+    "spotify.app_missing_web_login": "Spotify isn't installed, so sign in to Spotify within ivLyrics"
   },
   "zh-CN": {
     "lyrics.local.import": "导入歌词文件",
@@ -2781,7 +2801,17 @@
     "setting.pronunciation_karaoke_fill": "发音卡拉OK填充",
     "setting.pronunciation_karaoke_fill_desc": "即使关闭发音优先模式，原文下方的发音也会随演唱时间像卡拉OK一样填充。AI 会按单词或字符的时间拆分发音。不会应用弹跳、发光等其他效果。",
     "setting.synced_pronunciation": "使用同步发音",
-    "setting.synced_pronunciation_desc": "按演唱的每个词或字的时间获取卡拉OK歌词的发音。开启后可使用发音优先模式和发音卡拉OK填充。关闭时，发音以整行纯文本更快获取。"
+    "setting.synced_pronunciation_desc": "按演唱的每个词或字的时间获取卡拉OK歌词的发音。开启后可使用发音优先模式和发音卡拉OK填充。关闭时，发音以整行纯文本更快获取。",
+    "lyrics_search.title": "搜索歌词",
+    "lyrics_search.desc": "无需 Spotify，按歌曲名和艺人查找歌词。翻译和发音照常可用。",
+    "lyrics_search.submit": "查找歌词",
+    "lyrics_search.timer_note": "找到的歌词按应用内计时器播放。可用播放按钮和进度条浏览。",
+    "lyrics_search.empty_title": "当前没有播放",
+    "lyrics_search.empty_desc": "连接 Spotify 可跟随正在播放的歌曲；不连接也能搜索歌词。",
+    "lyrics_search.connect_spotify": "连接 Spotify",
+    "onboarding.without_spotify": "不使用 Spotify",
+    "onboarding.without_spotify_desc": "直接从搜索歌词开始。之后可随时连接 Spotify。",
+    "spotify.app_missing_web_login": "未安装 Spotify 应用，请在 ivLyrics 内登录 Spotify"
   },
   "zh-TW": {
     "lyrics.local.import": "匯入歌詞檔案",
@@ -3709,7 +3739,17 @@
     "setting.pronunciation_karaoke_fill": "發音卡拉OK填色",
     "setting.pronunciation_karaoke_fill_desc": "即使關閉發音優先模式，原文下方的發音也會隨演唱時間像卡拉OK一樣填色。AI 會依單字或字元的時間拆分發音。不會套用彈跳、發光等其他效果。",
     "setting.synced_pronunciation": "使用同步發音",
-    "setting.synced_pronunciation_desc": "依演唱的每個詞或字的時間取得卡拉OK歌詞的發音。開啟後可使用發音優先模式與發音卡拉OK填色。關閉時，發音會以整行純文字更快取得。"
+    "setting.synced_pronunciation_desc": "依演唱的每個詞或字的時間取得卡拉OK歌詞的發音。開啟後可使用發音優先模式與發音卡拉OK填色。關閉時，發音會以整行純文字更快取得。",
+    "lyrics_search.title": "搜尋歌詞",
+    "lyrics_search.desc": "不需要 Spotify，依歌曲名稱和藝人尋找歌詞。翻譯和發音照常可用。",
+    "lyrics_search.submit": "尋找歌詞",
+    "lyrics_search.timer_note": "找到的歌詞會依 App 內的計時器播放。可用播放按鈕和進度列瀏覽。",
+    "lyrics_search.empty_title": "目前沒有播放",
+    "lyrics_search.empty_desc": "連接 Spotify 即可跟隨正在播放的歌曲；不連接也能搜尋歌詞。",
+    "lyrics_search.connect_spotify": "連接 Spotify",
+    "onboarding.without_spotify": "不使用 Spotify",
+    "onboarding.without_spotify_desc": "直接從搜尋歌詞開始。之後可隨時連接 Spotify。",
+    "spotify.app_missing_web_login": "未安裝 Spotify App，請在 ivLyrics 內登入 Spotify"
   },
   "ja": {
     "lyrics.local.import": "歌詞ファイルを読み込む",
@@ -4637,7 +4677,17 @@
     "setting.pronunciation_karaoke_fill": "発音をカラオケのように塗る",
     "setting.pronunciation_karaoke_fill_desc": "発音優先モードがオフでも、原文の下の発音が歌うタイミングに合わせてカラオケのように塗られます。AIが発音を単語・文字のタイミングに合わせて分割します。バウンスやグローなどの他の効果は適用されません。",
     "setting.synced_pronunciation": "同期発音を使う",
-    "setting.synced_pronunciation_desc": "カラオケ歌詞の発音を、歌う単語・文字のタイミングに合わせて取得します。オンにすると発音優先モードと発音のカラオケ塗りを使えます。オフにすると発音は行ごとのテキストとして、より速く取得されます。"
+    "setting.synced_pronunciation_desc": "カラオケ歌詞の発音を、歌う単語・文字のタイミングに合わせて取得します。オンにすると発音優先モードと発音のカラオケ塗りを使えます。オフにすると発音は行ごとのテキストとして、より速く取得されます。",
+    "lyrics_search.title": "歌詞を検索",
+    "lyrics_search.desc": "Spotify なしで、曲名とアーティストから歌詞を探します。翻訳と発音もそのまま使えます。",
+    "lyrics_search.submit": "歌詞を探す",
+    "lyrics_search.timer_note": "見つかった歌詞はアプリのタイマーで再生されます。再生ボタンとシークバーで移動できます。",
+    "lyrics_search.empty_title": "再生中の曲はありません",
+    "lyrics_search.empty_desc": "Spotify に接続すると再生中の曲に合わせて表示します。接続しなくても歌詞を検索できます。",
+    "lyrics_search.connect_spotify": "Spotify に接続",
+    "onboarding.without_spotify": "Spotify なしで使う",
+    "onboarding.without_spotify_desc": "歌詞検索からすぐに始めます。Spotify はあとで接続できます。",
+    "spotify.app_missing_web_login": "Spotify アプリがないため、ivLyrics 内で Spotify にログインします"
   },
   "hi": {
     "lyrics.local.import": "गीत फ़ाइल आयात करें",
@@ -5565,7 +5615,17 @@
     "setting.pronunciation_karaoke_fill": "उच्चारण को कराओके की तरह भरें",
     "setting.pronunciation_karaoke_fill_desc": "उच्चारण-पहले मोड बंद होने पर भी उच्चारण की पंक्ति गाने की टाइमिंग के साथ भरती है। AI उच्चारण को हर शब्द या अक्षर की टाइमिंग के अनुसार बाँटता है। उछाल और चमक जैसे अन्य प्रभाव लागू नहीं होते।",
     "setting.synced_pronunciation": "सिंक उच्चारण इस्तेमाल करें",
-    "setting.synced_pronunciation_desc": "कराओके बोलों का उच्चारण हर गाए गए शब्द या अक्षर की टाइमिंग के अनुसार बाँटकर लाता है। चालू करने पर उच्चारण पहले मोड और उच्चारण को कराओके की तरह भरना उपलब्ध होता है। बंद होने पर उच्चारण पंक्ति-वार सादे टेक्स्ट के रूप में तेज़ी से आता है।"
+    "setting.synced_pronunciation_desc": "कराओके बोलों का उच्चारण हर गाए गए शब्द या अक्षर की टाइमिंग के अनुसार बाँटकर लाता है। चालू करने पर उच्चारण पहले मोड और उच्चारण को कराओके की तरह भरना उपलब्ध होता है। बंद होने पर उच्चारण पंक्ति-वार सादे टेक्स्ट के रूप में तेज़ी से आता है।",
+    "lyrics_search.title": "बोल खोजें",
+    "lyrics_search.desc": "Spotify के बिना, गाने के शीर्षक और कलाकार से बोल खोजें। अनुवाद और उच्चारण पहले की तरह काम करते हैं।",
+    "lyrics_search.submit": "बोल ढूँढें",
+    "lyrics_search.timer_note": "मिले हुए बोल ऐप के अपने टाइमर पर चलते हैं। प्ले बटन और प्रगति बार से आगे-पीछे जाएँ।",
+    "lyrics_search.empty_title": "कुछ नहीं चल रहा",
+    "lyrics_search.empty_desc": "चल रहे गाने के साथ चलने के लिए Spotify कनेक्ट करें, या उसके बिना बोल खोजें।",
+    "lyrics_search.connect_spotify": "Spotify कनेक्ट करें",
+    "onboarding.without_spotify": "Spotify के बिना उपयोग करें",
+    "onboarding.without_spotify_desc": "बोल खोज से शुरू करें। Spotify बाद में कनेक्ट कर सकते हैं।",
+    "spotify.app_missing_web_login": "Spotify ऐप इंस्टॉल नहीं है, इसलिए ivLyrics के अंदर Spotify में साइन इन करें"
   },
   "es": {
     "lyrics.local.import": "Importar archivo de letras",
@@ -6493,7 +6553,17 @@
     "setting.pronunciation_karaoke_fill": "Rellenar la pronunciación como karaoke",
     "setting.pronunciation_karaoke_fill_desc": "Aunque el modo pronunciación primero esté desactivado, la fila de pronunciación se rellena al ritmo del canto. La IA reparte la pronunciación según el tiempo de cada palabra o carácter. No se aplican otros efectos como el rebote o el brillo.",
     "setting.synced_pronunciation": "Pronunciación sincronizada",
-    "setting.synced_pronunciation_desc": "Obtiene la pronunciación de las letras de karaoke dividida según el tiempo de cada palabra o carácter cantado. Al activarla, están disponibles el modo de pronunciación primero y el relleno de la pronunciación como karaoke. Desactivada, la pronunciación llega más rápido como texto por líneas."
+    "setting.synced_pronunciation_desc": "Obtiene la pronunciación de las letras de karaoke dividida según el tiempo de cada palabra o carácter cantado. Al activarla, están disponibles el modo de pronunciación primero y el relleno de la pronunciación como karaoke. Desactivada, la pronunciación llega más rápido como texto por líneas.",
+    "lyrics_search.title": "Buscar letras",
+    "lyrics_search.desc": "Encuentra letras por título y artista, sin Spotify. La traducción y la pronunciación funcionan igual.",
+    "lyrics_search.submit": "Buscar letra",
+    "lyrics_search.timer_note": "Las letras encontradas avanzan con el temporizador de la app. Usa el botón de reproducción y la barra de progreso para moverte.",
+    "lyrics_search.empty_title": "No se está reproduciendo nada",
+    "lyrics_search.empty_desc": "Conecta Spotify para seguir la canción que suena, o busca letras sin conectarlo.",
+    "lyrics_search.connect_spotify": "Conectar Spotify",
+    "onboarding.without_spotify": "Usar sin Spotify",
+    "onboarding.without_spotify_desc": "Empieza buscando letras. Puedes conectar Spotify más tarde.",
+    "spotify.app_missing_web_login": "Spotify no está instalado; inicia sesión en Spotify dentro de ivLyrics"
   },
   "fr": {
     "lyrics.local.import": "Importer un fichier de paroles",
@@ -7421,7 +7491,17 @@
     "setting.pronunciation_karaoke_fill": "Remplir la prononciation comme au karaoké",
     "setting.pronunciation_karaoke_fill_desc": "Même lorsque le mode prononciation d'abord est désactivé, la ligne de prononciation se remplit au rythme du chant. L'IA répartit la prononciation selon le minutage des mots ou des caractères. Les autres effets, comme le rebond et la lueur, ne sont pas appliqués.",
     "setting.synced_pronunciation": "Prononciation synchronisée",
-    "setting.synced_pronunciation_desc": "Récupère la prononciation des paroles karaoké découpée selon le minutage de chaque mot ou caractère chanté. Activée, elle rend disponibles le mode Prononciation d'abord et le remplissage de la prononciation comme au karaoké. Désactivée, la prononciation arrive plus vite en texte simple par ligne."
+    "setting.synced_pronunciation_desc": "Récupère la prononciation des paroles karaoké découpée selon le minutage de chaque mot ou caractère chanté. Activée, elle rend disponibles le mode Prononciation d'abord et le remplissage de la prononciation comme au karaoké. Désactivée, la prononciation arrive plus vite en texte simple par ligne.",
+    "lyrics_search.title": "Rechercher des paroles",
+    "lyrics_search.desc": "Trouvez des paroles par titre et artiste, sans Spotify. La traduction et la prononciation fonctionnent comme d'habitude.",
+    "lyrics_search.submit": "Trouver les paroles",
+    "lyrics_search.timer_note": "Les paroles trouvées défilent avec le minuteur de l'app. Utilisez le bouton lecture et la barre de progression pour vous déplacer.",
+    "lyrics_search.empty_title": "Aucune lecture en cours",
+    "lyrics_search.empty_desc": "Connectez Spotify pour suivre le morceau en cours, ou recherchez des paroles sans lui.",
+    "lyrics_search.connect_spotify": "Connecter Spotify",
+    "onboarding.without_spotify": "Utiliser sans Spotify",
+    "onboarding.without_spotify_desc": "Commencez par la recherche de paroles. Vous pourrez connecter Spotify plus tard.",
+    "spotify.app_missing_web_login": "Spotify n'est pas installé : connectez-vous à Spotify dans ivLyrics"
   },
   "ar": {
     "lyrics.local.import": "استيراد ملف كلمات",
@@ -8349,7 +8429,17 @@
     "setting.pronunciation_karaoke_fill": "تلوين النطق مثل الكاريوكي",
     "setting.pronunciation_karaoke_fill_desc": "حتى عند إيقاف وضع النطق أولًا، يتلوّن سطر النطق مع توقيت الغناء. يقسّم الذكاء الاصطناعي النطق حسب توقيت كل كلمة أو حرف. لا تُطبَّق التأثيرات الأخرى مثل الارتداد والتوهج.",
     "setting.synced_pronunciation": "استخدام النطق المتزامن",
-    "setting.synced_pronunciation_desc": "يجلب نطق كلمات الكاريوكي مقسّمًا حسب توقيت كل كلمة أو حرف يُغنّى. عند التشغيل يصبح وضع النطق أولًا وتلوين النطق مثل الكاريوكي متاحين. عند الإيقاف يأتي النطق أسرع كنص عادي لكل سطر."
+    "setting.synced_pronunciation_desc": "يجلب نطق كلمات الكاريوكي مقسّمًا حسب توقيت كل كلمة أو حرف يُغنّى. عند التشغيل يصبح وضع النطق أولًا وتلوين النطق مثل الكاريوكي متاحين. عند الإيقاف يأتي النطق أسرع كنص عادي لكل سطر.",
+    "lyrics_search.title": "البحث عن الكلمات",
+    "lyrics_search.desc": "ابحث عن كلمات الأغاني بالعنوان والفنان دون Spotify. تعمل الترجمة والنطق كالمعتاد.",
+    "lyrics_search.submit": "ابحث عن الكلمات",
+    "lyrics_search.timer_note": "تُعرض الكلمات التي يُعثر عليها وفق مؤقّت التطبيق. استخدم زر التشغيل وشريط التقدّم للتنقّل.",
+    "lyrics_search.empty_title": "لا شيء قيد التشغيل",
+    "lyrics_search.empty_desc": "اربط Spotify لمتابعة الأغنية التي تُشغَّل، أو ابحث عن الكلمات دونه.",
+    "lyrics_search.connect_spotify": "ربط Spotify",
+    "onboarding.without_spotify": "الاستخدام دون Spotify",
+    "onboarding.without_spotify_desc": "ابدأ بالبحث عن الكلمات. يمكنك ربط Spotify لاحقًا.",
+    "spotify.app_missing_web_login": "تطبيق Spotify غير مثبّت، لذا سجّل الدخول إلى Spotify داخل ivLyrics"
   },
   "fa": {
     "lyrics.local.import": "وارد کردن فایل متن آهنگ",
@@ -9277,7 +9367,17 @@
     "setting.pronunciation_karaoke_fill": "پر کردن تلفظ مانند کارائوکه",
     "setting.pronunciation_karaoke_fill_desc": "حتی وقتی حالت اول تلفظ خاموش است، ردیف تلفظ هم‌زمان با خواندن پر می‌شود. هوش مصنوعی تلفظ را بر اساس زمان‌بندی هر کلمه یا نویسه تقسیم می‌کند. جلوه‌های دیگر مانند پرش و درخشش اعمال نمی‌شوند.",
     "setting.synced_pronunciation": "استفاده از تلفظ همگام",
-    "setting.synced_pronunciation_desc": "تلفظ متن‌های کارائوکه را بر اساس زمان‌بندی هر واژه یا حرفی که خوانده می‌شود تقسیم‌شده دریافت می‌کند. با روشن کردن آن، حالت اول تلفظ و پر کردن تلفظ مانند کارائوکه در دسترس است. وقتی خاموش است، تلفظ سریع‌تر به‌صورت متن ساده هر خط دریافت می‌شود."
+    "setting.synced_pronunciation_desc": "تلفظ متن‌های کارائوکه را بر اساس زمان‌بندی هر واژه یا حرفی که خوانده می‌شود تقسیم‌شده دریافت می‌کند. با روشن کردن آن، حالت اول تلفظ و پر کردن تلفظ مانند کارائوکه در دسترس است. وقتی خاموش است، تلفظ سریع‌تر به‌صورت متن ساده هر خط دریافت می‌شود.",
+    "lyrics_search.title": "جستجوی متن آهنگ",
+    "lyrics_search.desc": "بدون Spotify، متن آهنگ را با نام آهنگ و هنرمند پیدا کنید. ترجمه و تلفظ مثل همیشه کار می‌کنند.",
+    "lyrics_search.submit": "یافتن متن آهنگ",
+    "lyrics_search.timer_note": "متن پیداشده با زمان‌سنج خود برنامه پخش می‌شود. با دکمهٔ پخش و نوار پیشرفت جابه‌جا شوید.",
+    "lyrics_search.empty_title": "چیزی در حال پخش نیست",
+    "lyrics_search.empty_desc": "Spotify را وصل کنید تا آهنگ در حال پخش دنبال شود، یا بدون آن متن آهنگ را جستجو کنید.",
+    "lyrics_search.connect_spotify": "اتصال Spotify",
+    "onboarding.without_spotify": "استفاده بدون Spotify",
+    "onboarding.without_spotify_desc": "با جستجوی متن آهنگ شروع کنید. بعداً می‌توانید Spotify را وصل کنید.",
+    "spotify.app_missing_web_login": "برنامهٔ Spotify نصب نیست؛ در خود ivLyrics وارد Spotify شوید"
   },
   "de": {
     "lyrics.local.import": "Liedtextdatei importieren",
@@ -10205,7 +10305,17 @@
     "setting.pronunciation_karaoke_fill": "Aussprache wie Karaoke füllen",
     "setting.pronunciation_karaoke_fill_desc": "Auch wenn der Aussprache-zuerst-Modus aus ist, füllt sich die Aussprachezeile im Takt des Gesangs. Die KI verteilt die Aussprache auf das Wort- oder Zeichentiming. Andere Effekte wie Hüpfen und Leuchten werden nicht angewendet.",
     "setting.synced_pronunciation": "Synchronisierte Aussprache",
-    "setting.synced_pronunciation_desc": "Lädt die Aussprache von Karaoke-Texten aufgeteilt nach dem Timing jedes gesungenen Worts oder Zeichens. Eingeschaltet stehen der Modus „Aussprache zuerst“ und das Füllen der Aussprache wie Karaoke zur Verfügung. Ausgeschaltet kommt die Aussprache schneller als einfacher Zeilentext."
+    "setting.synced_pronunciation_desc": "Lädt die Aussprache von Karaoke-Texten aufgeteilt nach dem Timing jedes gesungenen Worts oder Zeichens. Eingeschaltet stehen der Modus „Aussprache zuerst“ und das Füllen der Aussprache wie Karaoke zur Verfügung. Ausgeschaltet kommt die Aussprache schneller als einfacher Zeilentext.",
+    "lyrics_search.title": "Songtexte suchen",
+    "lyrics_search.desc": "Finde Songtexte über Titel und Interpret, ohne Spotify. Übersetzung und Aussprache funktionieren wie gewohnt.",
+    "lyrics_search.submit": "Songtext finden",
+    "lyrics_search.timer_note": "Gefundene Songtexte laufen mit dem Timer der App. Mit der Wiedergabetaste und dem Fortschrittsbalken springst du darin.",
+    "lyrics_search.empty_title": "Keine Wiedergabe",
+    "lyrics_search.empty_desc": "Verbinde Spotify, um dem laufenden Song zu folgen, oder suche Songtexte ohne Spotify.",
+    "lyrics_search.connect_spotify": "Spotify verbinden",
+    "onboarding.without_spotify": "Ohne Spotify verwenden",
+    "onboarding.without_spotify_desc": "Starte mit der Songtextsuche. Spotify kannst du später verbinden.",
+    "spotify.app_missing_web_login": "Spotify ist nicht installiert. Melde dich in ivLyrics bei Spotify an"
   },
   "ru": {
     "lyrics.local.import": "Импортировать файл текста",
@@ -11133,7 +11243,17 @@
     "setting.pronunciation_karaoke_fill": "Заполнять произношение как в караоке",
     "setting.pronunciation_karaoke_fill_desc": "Даже когда режим «сначала произношение» выключен, строка произношения заполняется в такт пению. ИИ распределяет произношение по таймингу слов или символов. Другие эффекты, например подпрыгивание и свечение, не применяются.",
     "setting.synced_pronunciation": "Синхронное произношение",
-    "setting.synced_pronunciation_desc": "Получает произношение караоке-текстов, разбитое по таймингу каждого пропеваемого слова или символа. Когда включено, доступны режим «Сначала произношение» и заполнение произношения как в караоке. Когда выключено, произношение приходит быстрее обычным текстом по строкам."
+    "setting.synced_pronunciation_desc": "Получает произношение караоке-текстов, разбитое по таймингу каждого пропеваемого слова или символа. Когда включено, доступны режим «Сначала произношение» и заполнение произношения как в караоке. Когда выключено, произношение приходит быстрее обычным текстом по строкам.",
+    "lyrics_search.title": "Поиск текста",
+    "lyrics_search.desc": "Находите тексты песен по названию и исполнителю без Spotify. Перевод и произношение работают как обычно.",
+    "lyrics_search.submit": "Найти текст",
+    "lyrics_search.timer_note": "Найденный текст идёт по таймеру приложения. Перемещайтесь кнопкой воспроизведения и полосой прогресса.",
+    "lyrics_search.empty_title": "Ничего не воспроизводится",
+    "lyrics_search.empty_desc": "Подключите Spotify, чтобы следить за играющей песней, или ищите тексты без него.",
+    "lyrics_search.connect_spotify": "Подключить Spotify",
+    "onboarding.without_spotify": "Использовать без Spotify",
+    "onboarding.without_spotify_desc": "Начните с поиска текстов. Spotify можно подключить позже.",
+    "spotify.app_missing_web_login": "Приложение Spotify не установлено, войдите в Spotify прямо в ivLyrics"
   },
   "sv": {
     "lyrics.local.import": "Importera textfil",
@@ -12061,7 +12181,17 @@
     "setting.pronunciation_karaoke_fill": "Fyll uttalet som karaoke",
     "setting.pronunciation_karaoke_fill_desc": "Även när läget uttal först är av fylls uttalsraden i takt med sången. AI delar upp uttalet efter ord- eller teckentimingen. Andra effekter som studs och glöd används inte.",
     "setting.synced_pronunciation": "Synkroniserat uttal",
-    "setting.synced_pronunciation_desc": "Hämtar uttalet för karaoketexter uppdelat efter tidpunkten för varje sjunget ord eller tecken. När det är på blir läget Uttal först och fyllning av uttalet som karaoke tillgängliga. När det är av kommer uttalet snabbare som vanlig text per rad."
+    "setting.synced_pronunciation_desc": "Hämtar uttalet för karaoketexter uppdelat efter tidpunkten för varje sjunget ord eller tecken. När det är på blir läget Uttal först och fyllning av uttalet som karaoke tillgängliga. När det är av kommer uttalet snabbare som vanlig text per rad.",
+    "lyrics_search.title": "Sök låttext",
+    "lyrics_search.desc": "Hitta låttexter via titel och artist, utan Spotify. Översättning och uttal fungerar som vanligt.",
+    "lyrics_search.submit": "Hitta låttext",
+    "lyrics_search.timer_note": "Hittade låttexter spelas med appens egen timer. Använd uppspelningsknappen och förloppsfältet för att hoppa.",
+    "lyrics_search.empty_title": "Inget spelas",
+    "lyrics_search.empty_desc": "Anslut Spotify för att följa låten som spelas, eller sök låttexter utan det.",
+    "lyrics_search.connect_spotify": "Anslut Spotify",
+    "onboarding.without_spotify": "Använd utan Spotify",
+    "onboarding.without_spotify_desc": "Börja med att söka låttexter. Du kan ansluta Spotify senare.",
+    "spotify.app_missing_web_login": "Spotify är inte installerat, så logga in på Spotify i ivLyrics"
   },
   "pt": {
     "lyrics.local.import": "Importar arquivo de letras",
@@ -12989,7 +13119,17 @@
     "setting.pronunciation_karaoke_fill": "Preencher a pronúncia como karaokê",
     "setting.pronunciation_karaoke_fill_desc": "Mesmo com o modo pronúncia primeiro desativado, a linha de pronúncia é preenchida no ritmo do canto. A IA divide a pronúncia conforme o tempo de cada palavra ou caractere. Outros efeitos, como salto e brilho, não são aplicados.",
     "setting.synced_pronunciation": "Pronúncia sincronizada",
-    "setting.synced_pronunciation_desc": "Obtém a pronúncia das letras de karaokê dividida conforme o tempo de cada palavra ou caractere cantado. Ativada, ficam disponíveis o modo pronúncia primeiro e o preenchimento da pronúncia como karaokê. Desativada, a pronúncia chega mais rápido como texto simples por linha."
+    "setting.synced_pronunciation_desc": "Obtém a pronúncia das letras de karaokê dividida conforme o tempo de cada palavra ou caractere cantado. Ativada, ficam disponíveis o modo pronúncia primeiro e o preenchimento da pronúncia como karaokê. Desativada, a pronúncia chega mais rápido como texto simples por linha.",
+    "lyrics_search.title": "Pesquisar letras",
+    "lyrics_search.desc": "Encontre letras por título e artista, sem o Spotify. Tradução e pronúncia funcionam normalmente.",
+    "lyrics_search.submit": "Encontrar letra",
+    "lyrics_search.timer_note": "As letras encontradas avançam com o temporizador do app. Use o botão de reprodução e a barra de progresso para navegar.",
+    "lyrics_search.empty_title": "Nada tocando",
+    "lyrics_search.empty_desc": "Conecte o Spotify para acompanhar a música que está tocando ou pesquise letras sem ele.",
+    "lyrics_search.connect_spotify": "Conectar Spotify",
+    "onboarding.without_spotify": "Usar sem o Spotify",
+    "onboarding.without_spotify_desc": "Comece pela pesquisa de letras. Você pode conectar o Spotify depois.",
+    "spotify.app_missing_web_login": "O Spotify não está instalado; entre no Spotify dentro do ivLyrics"
   },
   "bn": {
     "lyrics.local.import": "গানের কথা ফাইল আমদানি করুন",
@@ -13917,7 +14057,17 @@
     "setting.pronunciation_karaoke_fill": "উচ্চারণ কারাওকের মতো ভরাট করুন",
     "setting.pronunciation_karaoke_fill_desc": "উচ্চারণ-আগে মোড বন্ধ থাকলেও উচ্চারণের সারি গানের সময়ের সাথে ভরাট হয়। AI প্রতিটি শব্দ বা অক্ষরের সময় অনুযায়ী উচ্চারণ ভাগ করে। লাফানো ও আভার মতো অন্য প্রভাব প্রয়োগ হয় না।",
     "setting.synced_pronunciation": "সিঙ্ক করা উচ্চারণ ব্যবহার করুন",
-    "setting.synced_pronunciation_desc": "কারাওকে লিরিকের উচ্চারণ প্রতিটি গাওয়া শব্দ বা অক্ষরের সময় অনুযায়ী ভাগ করে আনে। চালু করলে উচ্চারণ আগে মোড এবং উচ্চারণ কারাওকের মতো ভরাট ব্যবহার করা যায়। বন্ধ থাকলে উচ্চারণ লাইনভিত্তিক সাধারণ লেখা হিসেবে দ্রুত আসে।"
+    "setting.synced_pronunciation_desc": "কারাওকে লিরিকের উচ্চারণ প্রতিটি গাওয়া শব্দ বা অক্ষরের সময় অনুযায়ী ভাগ করে আনে। চালু করলে উচ্চারণ আগে মোড এবং উচ্চারণ কারাওকের মতো ভরাট ব্যবহার করা যায়। বন্ধ থাকলে উচ্চারণ লাইনভিত্তিক সাধারণ লেখা হিসেবে দ্রুত আসে।",
+    "lyrics_search.title": "গানের কথা খুঁজুন",
+    "lyrics_search.desc": "Spotify ছাড়াই গানের নাম ও শিল্পী দিয়ে গানের কথা খুঁজুন। অনুবাদ ও উচ্চারণ আগের মতোই কাজ করে।",
+    "lyrics_search.submit": "কথা খুঁজে বের করুন",
+    "lyrics_search.timer_note": "পাওয়া গানের কথা অ্যাপের নিজস্ব টাইমারে চলে। প্লে বোতাম ও অগ্রগতি বার দিয়ে এগোন-পিছোন।",
+    "lyrics_search.empty_title": "কিছুই চলছে না",
+    "lyrics_search.empty_desc": "চলমান গান অনুসরণ করতে Spotify সংযুক্ত করুন, অথবা এটি ছাড়াই গানের কথা খুঁজুন।",
+    "lyrics_search.connect_spotify": "Spotify সংযুক্ত করুন",
+    "onboarding.without_spotify": "Spotify ছাড়া ব্যবহার করুন",
+    "onboarding.without_spotify_desc": "গানের কথা খোঁজা দিয়ে শুরু করুন। পরে Spotify সংযুক্ত করতে পারবেন।",
+    "spotify.app_missing_web_login": "Spotify অ্যাপ ইনস্টল করা নেই, তাই ivLyrics-এর ভেতরেই Spotify-তে সাইন ইন করুন"
   },
   "cs": {
     "lyrics.local.import": "Importovat soubor textu",
@@ -14845,7 +14995,17 @@
     "setting.pronunciation_karaoke_fill": "Vyplňovat výslovnost jako karaoke",
     "setting.pronunciation_karaoke_fill_desc": "I když je režim nejdřív výslovnost vypnutý, řádek výslovnosti se vyplňuje v rytmu zpěvu. AI rozdělí výslovnost podle časování slov nebo znaků. Další efekty, jako poskakování a záře, se nepoužijí.",
     "setting.synced_pronunciation": "Synchronizovaná výslovnost",
-    "setting.synced_pronunciation_desc": "Načte výslovnost karaoke textů rozdělenou podle načasování každého zpívaného slova nebo znaku. Po zapnutí je k dispozici režim Nejdřív výslovnost a vyplňování výslovnosti jako karaoke. Po vypnutí se výslovnost načte rychleji jako prostý text po řádcích."
+    "setting.synced_pronunciation_desc": "Načte výslovnost karaoke textů rozdělenou podle načasování každého zpívaného slova nebo znaku. Po zapnutí je k dispozici režim Nejdřív výslovnost a vyplňování výslovnosti jako karaoke. Po vypnutí se výslovnost načte rychleji jako prostý text po řádcích.",
+    "lyrics_search.title": "Hledat texty",
+    "lyrics_search.desc": "Najděte texty písní podle názvu a interpreta, bez Spotify. Překlad a výslovnost fungují jako obvykle.",
+    "lyrics_search.submit": "Najít text",
+    "lyrics_search.timer_note": "Nalezené texty běží podle časovače aplikace. Pohybujte se tlačítkem přehrávání a ukazatelem průběhu.",
+    "lyrics_search.empty_title": "Nic nehraje",
+    "lyrics_search.empty_desc": "Připojte Spotify a sledujte právě hranou skladbu, nebo hledejte texty bez něj.",
+    "lyrics_search.connect_spotify": "Připojit Spotify",
+    "onboarding.without_spotify": "Používat bez Spotify",
+    "onboarding.without_spotify_desc": "Začněte hledáním textů. Spotify můžete připojit později.",
+    "spotify.app_missing_web_login": "Aplikace Spotify není nainstalovaná, přihlaste se ke Spotify přímo v ivLyrics"
   },
   "it": {
     "lyrics.local.import": "Importa file del testo",
@@ -15773,7 +15933,17 @@
     "setting.pronunciation_karaoke_fill": "Riempi la pronuncia come nel karaoke",
     "setting.pronunciation_karaoke_fill_desc": "Anche con la modalità prima la pronuncia disattivata, la riga della pronuncia si riempie a tempo con il canto. L'IA suddivide la pronuncia secondo i tempi di parole o caratteri. Altri effetti come rimbalzo e bagliore non vengono applicati.",
     "setting.synced_pronunciation": "Pronuncia sincronizzata",
-    "setting.synced_pronunciation_desc": "Ottiene la pronuncia dei testi karaoke suddivisa secondo il tempo di ogni parola o carattere cantato. Se attiva, sono disponibili la modalità Prima la pronuncia e il riempimento della pronuncia come nel karaoke. Se disattivata, la pronuncia arriva più velocemente come testo semplice per riga."
+    "setting.synced_pronunciation_desc": "Ottiene la pronuncia dei testi karaoke suddivisa secondo il tempo di ogni parola o carattere cantato. Se attiva, sono disponibili la modalità Prima la pronuncia e il riempimento della pronuncia come nel karaoke. Se disattivata, la pronuncia arriva più velocemente come testo semplice per riga.",
+    "lyrics_search.title": "Cerca testi",
+    "lyrics_search.desc": "Trova i testi per titolo e artista, senza Spotify. Traduzione e pronuncia funzionano come sempre.",
+    "lyrics_search.submit": "Trova il testo",
+    "lyrics_search.timer_note": "I testi trovati scorrono con il timer dell'app. Usa il pulsante di riproduzione e la barra di avanzamento per spostarti.",
+    "lyrics_search.empty_title": "Nessuna riproduzione",
+    "lyrics_search.empty_desc": "Collega Spotify per seguire il brano in riproduzione, oppure cerca i testi senza collegarlo.",
+    "lyrics_search.connect_spotify": "Collega Spotify",
+    "onboarding.without_spotify": "Usa senza Spotify",
+    "onboarding.without_spotify_desc": "Inizia dalla ricerca dei testi. Puoi collegare Spotify in seguito.",
+    "spotify.app_missing_web_login": "Spotify non è installato: accedi a Spotify all'interno di ivLyrics"
   },
   "th": {
     "lyrics.local.import": "นำเข้าไฟล์เนื้อเพลง",
@@ -16701,7 +16871,17 @@
     "setting.pronunciation_karaoke_fill": "เติมสีคำอ่านแบบคาราโอเกะ",
     "setting.pronunciation_karaoke_fill_desc": "แม้ปิดโหมดเน้นคำอ่าน บรรทัดคำอ่านก็จะเติมสีตามจังหวะการร้อง AI จะแบ่งคำอ่านตามจังหวะของแต่ละคำหรือตัวอักษร โดยไม่ใช้เอฟเฟกต์อื่น เช่น การเด้งและการเรืองแสง",
     "setting.synced_pronunciation": "ใช้คำอ่านแบบซิงก์",
-    "setting.synced_pronunciation_desc": "ดึงคำอ่านของเนื้อเพลงคาราโอเกะโดยแบ่งตามจังหวะของแต่ละคำหรือตัวอักษรที่ร้อง เมื่อเปิด จะใช้โหมดเน้นคำอ่านและการเติมสีคำอ่านแบบคาราโอเกะได้ เมื่อปิด คำอ่านจะมาเร็วขึ้นเป็นข้อความธรรมดาทีละบรรทัด"
+    "setting.synced_pronunciation_desc": "ดึงคำอ่านของเนื้อเพลงคาราโอเกะโดยแบ่งตามจังหวะของแต่ละคำหรือตัวอักษรที่ร้อง เมื่อเปิด จะใช้โหมดเน้นคำอ่านและการเติมสีคำอ่านแบบคาราโอเกะได้ เมื่อปิด คำอ่านจะมาเร็วขึ้นเป็นข้อความธรรมดาทีละบรรทัด",
+    "lyrics_search.title": "ค้นหาเนื้อเพลง",
+    "lyrics_search.desc": "ค้นหาเนื้อเพลงจากชื่อเพลงและศิลปินได้โดยไม่ต้องใช้ Spotify คำแปลและคำอ่านยังใช้ได้ตามปกติ",
+    "lyrics_search.submit": "หาเนื้อเพลง",
+    "lyrics_search.timer_note": "เนื้อเพลงที่พบจะเล่นตามตัวจับเวลาของแอป ใช้ปุ่มเล่นและแถบความคืบหน้าเพื่อเลื่อนดู",
+    "lyrics_search.empty_title": "ไม่มีเพลงที่กำลังเล่น",
+    "lyrics_search.empty_desc": "เชื่อมต่อ Spotify เพื่อติดตามเพลงที่กำลังเล่น หรือค้นหาเนื้อเพลงได้โดยไม่ต้องเชื่อมต่อ",
+    "lyrics_search.connect_spotify": "เชื่อมต่อ Spotify",
+    "onboarding.without_spotify": "ใช้งานโดยไม่มี Spotify",
+    "onboarding.without_spotify_desc": "เริ่มจากการค้นหาเนื้อเพลง เชื่อมต่อ Spotify ภายหลังได้",
+    "spotify.app_missing_web_login": "ไม่ได้ติดตั้งแอป Spotify จึงเข้าสู่ระบบ Spotify ภายใน ivLyrics"
   },
   "vi": {
     "lyrics.local.import": "Nhập tệp lời bài hát",
@@ -17629,7 +17809,17 @@
     "setting.pronunciation_karaoke_fill": "Tô phát âm như karaoke",
     "setting.pronunciation_karaoke_fill_desc": "Ngay cả khi chế độ ưu tiên phát âm đang tắt, dòng phát âm vẫn được tô theo nhịp hát. AI chia phát âm theo thời gian của từng từ hoặc ký tự. Không áp dụng các hiệu ứng khác như nảy và phát sáng.",
     "setting.synced_pronunciation": "Dùng phát âm đồng bộ",
-    "setting.synced_pronunciation_desc": "Lấy phát âm của lời karaoke được chia theo thời điểm của từng từ hoặc ký tự được hát. Khi bật, có thể dùng chế độ ưu tiên phát âm và tô phát âm như karaoke. Khi tắt, phát âm được lấy nhanh hơn dưới dạng văn bản thường theo từng dòng."
+    "setting.synced_pronunciation_desc": "Lấy phát âm của lời karaoke được chia theo thời điểm của từng từ hoặc ký tự được hát. Khi bật, có thể dùng chế độ ưu tiên phát âm và tô phát âm như karaoke. Khi tắt, phát âm được lấy nhanh hơn dưới dạng văn bản thường theo từng dòng.",
+    "lyrics_search.title": "Tìm lời bài hát",
+    "lyrics_search.desc": "Tìm lời bài hát theo tên bài và nghệ sĩ mà không cần Spotify. Bản dịch và phát âm vẫn hoạt động như thường.",
+    "lyrics_search.submit": "Tìm lời",
+    "lyrics_search.timer_note": "Lời tìm được sẽ chạy theo bộ hẹn giờ của ứng dụng. Dùng nút phát và thanh tiến trình để di chuyển.",
+    "lyrics_search.empty_title": "Không có gì đang phát",
+    "lyrics_search.empty_desc": "Kết nối Spotify để theo bài đang phát, hoặc tìm lời bài hát mà không cần kết nối.",
+    "lyrics_search.connect_spotify": "Kết nối Spotify",
+    "onboarding.without_spotify": "Dùng không cần Spotify",
+    "onboarding.without_spotify_desc": "Bắt đầu bằng tìm lời bài hát. Bạn có thể kết nối Spotify sau.",
+    "spotify.app_missing_web_login": "Chưa cài ứng dụng Spotify, hãy đăng nhập Spotify ngay trong ivLyrics"
   },
   "id": {
     "lyrics.local.import": "Impor berkas lirik",
@@ -18557,7 +18747,17 @@
     "setting.pronunciation_karaoke_fill": "Isi pelafalan seperti karaoke",
     "setting.pronunciation_karaoke_fill_desc": "Meski mode pelafalan dulu nonaktif, baris pelafalan terisi mengikuti waktu nyanyian. AI membagi pelafalan sesuai waktu tiap kata atau karakter. Efek lain seperti pantulan dan kilau tidak diterapkan.",
     "setting.synced_pronunciation": "Gunakan pelafalan tersinkron",
-    "setting.synced_pronunciation_desc": "Mengambil pelafalan lirik karaoke yang dibagi sesuai waktu setiap kata atau karakter yang dinyanyikan. Jika aktif, mode pelafalan dulu dan isi pelafalan seperti karaoke dapat digunakan. Jika nonaktif, pelafalan diambil lebih cepat sebagai teks biasa per baris."
+    "setting.synced_pronunciation_desc": "Mengambil pelafalan lirik karaoke yang dibagi sesuai waktu setiap kata atau karakter yang dinyanyikan. Jika aktif, mode pelafalan dulu dan isi pelafalan seperti karaoke dapat digunakan. Jika nonaktif, pelafalan diambil lebih cepat sebagai teks biasa per baris.",
+    "lyrics_search.title": "Cari lirik",
+    "lyrics_search.desc": "Temukan lirik berdasarkan judul lagu dan artis, tanpa Spotify. Terjemahan dan pelafalan tetap berfungsi.",
+    "lyrics_search.submit": "Temukan lirik",
+    "lyrics_search.timer_note": "Lirik yang ditemukan berjalan dengan timer aplikasi. Gunakan tombol putar dan bilah progres untuk berpindah.",
+    "lyrics_search.empty_title": "Tidak ada yang diputar",
+    "lyrics_search.empty_desc": "Hubungkan Spotify untuk mengikuti lagu yang diputar, atau cari lirik tanpa menghubungkannya.",
+    "lyrics_search.connect_spotify": "Hubungkan Spotify",
+    "onboarding.without_spotify": "Gunakan tanpa Spotify",
+    "onboarding.without_spotify_desc": "Mulai dengan mencari lirik. Spotify bisa dihubungkan nanti.",
+    "spotify.app_missing_web_login": "Aplikasi Spotify belum terpasang, jadi masuk ke Spotify di dalam ivLyrics"
   },
   "ms": {
     "lyrics.local.import": "Import fail lirik",
@@ -19485,7 +19685,17 @@
     "setting.pronunciation_karaoke_fill": "Isi sebutan seperti karaoke",
     "setting.pronunciation_karaoke_fill_desc": "Walaupun mod sebutan dahulu dimatikan, baris sebutan diisi mengikut masa nyanyian. AI membahagikan sebutan mengikut masa setiap perkataan atau aksara. Kesan lain seperti lantunan dan cahaya tidak digunakan.",
     "setting.synced_pronunciation": "Guna sebutan disegerakkan",
-    "setting.synced_pronunciation_desc": "Mendapatkan sebutan lirik karaoke yang dibahagikan mengikut masa setiap perkataan atau aksara yang dinyanyikan. Apabila dihidupkan, mod sebutan dahulu dan isi sebutan seperti karaoke boleh digunakan. Apabila dimatikan, sebutan diperoleh lebih cepat sebagai teks biasa mengikut baris."
+    "setting.synced_pronunciation_desc": "Mendapatkan sebutan lirik karaoke yang dibahagikan mengikut masa setiap perkataan atau aksara yang dinyanyikan. Apabila dihidupkan, mod sebutan dahulu dan isi sebutan seperti karaoke boleh digunakan. Apabila dimatikan, sebutan diperoleh lebih cepat sebagai teks biasa mengikut baris.",
+    "lyrics_search.title": "Cari lirik",
+    "lyrics_search.desc": "Cari lirik mengikut tajuk lagu dan artis, tanpa Spotify. Terjemahan dan sebutan berfungsi seperti biasa.",
+    "lyrics_search.submit": "Dapatkan lirik",
+    "lyrics_search.timer_note": "Lirik yang ditemui berjalan mengikut pemasa aplikasi. Gunakan butang main dan bar kemajuan untuk beralih.",
+    "lyrics_search.empty_title": "Tiada yang dimainkan",
+    "lyrics_search.empty_desc": "Sambungkan Spotify untuk mengikuti lagu yang dimainkan, atau cari lirik tanpanya.",
+    "lyrics_search.connect_spotify": "Sambungkan Spotify",
+    "onboarding.without_spotify": "Guna tanpa Spotify",
+    "onboarding.without_spotify_desc": "Mulakan dengan carian lirik. Anda boleh menyambungkan Spotify kemudian.",
+    "spotify.app_missing_web_login": "Aplikasi Spotify tidak dipasang, jadi log masuk ke Spotify di dalam ivLyrics"
   },
   "tr": {
     "lyrics.local.import": "Şarkı sözü dosyası içe aktar",
@@ -20413,6 +20623,16 @@
     "setting.pronunciation_karaoke_fill": "Telaffuzu karaoke gibi doldur",
     "setting.pronunciation_karaoke_fill_desc": "Önce telaffuz modu kapalıyken bile telaffuz satırı şarkının zamanlamasıyla dolar. Yapay zekâ telaffuzu kelime veya karakter zamanlamasına göre böler. Zıplama ve parlama gibi diğer efektler uygulanmaz.",
     "setting.synced_pronunciation": "Senkronize telaffuz kullan",
-    "setting.synced_pronunciation_desc": "Karaoke sözlerinin telaffuzunu, söylenen her kelimenin veya karakterin zamanlamasına göre bölünmüş olarak alır. Açıkken önce telaffuz modu ve telaffuzu karaoke gibi doldurma kullanılabilir. Kapalıyken telaffuz satır satır düz metin olarak daha hızlı gelir."
+    "setting.synced_pronunciation_desc": "Karaoke sözlerinin telaffuzunu, söylenen her kelimenin veya karakterin zamanlamasına göre bölünmüş olarak alır. Açıkken önce telaffuz modu ve telaffuzu karaoke gibi doldurma kullanılabilir. Kapalıyken telaffuz satır satır düz metin olarak daha hızlı gelir.",
+    "lyrics_search.title": "Şarkı sözü ara",
+    "lyrics_search.desc": "Spotify olmadan, şarkı adı ve sanatçıya göre şarkı sözü bulun. Çeviri ve telaffuz her zamanki gibi çalışır.",
+    "lyrics_search.submit": "Sözleri bul",
+    "lyrics_search.timer_note": "Bulunan sözler uygulamanın kendi zamanlayıcısıyla akar. Oynat düğmesi ve ilerleme çubuğuyla gezinin.",
+    "lyrics_search.empty_title": "Çalan bir şey yok",
+    "lyrics_search.empty_desc": "Çalan şarkıyı takip etmek için Spotify'ı bağlayın veya onsuz şarkı sözü arayın.",
+    "lyrics_search.connect_spotify": "Spotify'ı bağla",
+    "onboarding.without_spotify": "Spotify olmadan kullan",
+    "onboarding.without_spotify_desc": "Şarkı sözü aramayla başlayın. Spotify'ı daha sonra bağlayabilirsiniz.",
+    "spotify.app_missing_web_login": "Spotify uygulaması yüklü değil; Spotify'a ivLyrics içinde giriş yapın"
   }
 }

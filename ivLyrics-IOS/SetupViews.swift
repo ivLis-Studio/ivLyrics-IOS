@@ -290,6 +290,24 @@ struct InitialSetupView: View {
                 .buttonStyle(SettingsButtonStyle(fullWidth: true))
                 .accessibilityIdentifier("onboarding.back")
             }
+            // Spotify is optional: every step can leave setup for lyrics search.
+            Button {
+                endEditing()
+                model.continueWithoutSpotify()
+            } label: {
+                SettingsButtonLabel(title: settings.t("onboarding.without_spotify"), systemImage: "magnifyingglass")
+            }
+            .buttonStyle(SettingsButtonStyle(fullWidth: true))
+            .disabled(model.spotifyCredentialsValidationInFlight)
+            .accessibilityHint(settings.t("onboarding.without_spotify_desc"))
+            .accessibilityIdentifier("onboarding.without-spotify")
+            Text(settings.t("onboarding.without_spotify_desc"))
+                .font(.footnote)
+                .foregroundStyle(palette.text3)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .multilineTextAlignment(.center)
+                .padding(.top, 2)
+                .accessibilityHidden(true)
         }
         .fixedSize(horizontal: false, vertical: true)
     }
