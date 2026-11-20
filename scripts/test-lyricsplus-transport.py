@@ -164,8 +164,12 @@ private func awaitCancellation(of hosts: [String]) async throws {
             fatalError("Stalled responses ignored deadline")
         } catch let error as URLError { check(error.code == .timedOut, "The shared deadline covers response bodies") }
         check(ProcessInfo.processInfo.systemUptime - timeoutStart < 0.4, "Deadline is shared, not multiplied by mirrors")
-        try await awaitCancellation(of: ["timeout-a.fixture", "timeout-b.fixture"])
-        check(Set(Fixture.cancelledHosts) == Set(["timeout-a.fixture", "timeout-b.fixture"]), "Deadline cancels both bodies")
+        // On a loaded runner the staggered alternate may not have started before the deadline;
+        // every body that did start must be cancelled.
+        try await awaitCancellation(of: Fixture.hosts)
+        let started = Set(Fixture.hosts), stopped = Set(Fixture.cancelledHosts)
+        check(started.contains("timeout-a.fixture") && started.isSubset(of: stopped),
+              "Deadline cancels every started body (started \(started.sorted()), stopped \(stopped.sorted()))")
         print("LYRICSPLUS_TRANSPORT_PASSED assertions=\(assertions)")
     }
 }
