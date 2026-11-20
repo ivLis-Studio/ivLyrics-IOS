@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.20",
+          "buildVersion": "94",
+          "date": "2026-11-20",
+          "localizedDescription": "v2.0.20은 앨범 아트 배경 고정 옵션, iOS 백그라운드에서도 계속 진행되는 PiP 가사, 개선된 모션 가사를 제공합니다. 또한 릴리스·검증 자동화와 가사 전송 테스트를 강화하고 앱 빌드 정보를 2.0.20(빌드 94)으로 업데이트했습니다.\n\nv2.0.20 adds an option to lock the album-art background, keeps PiP lyrics advancing while iOS suspends the app, and improves Motion Lyrics. It also strengthens release and validation automation, improves lyrics-transport testing, and updates the app build to 2.0.20 (build 94).",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.20/ivLyrics-IOS-v2.0.20-unsigned.ipa",
+          "size": 15042505,
+          "sha256": "1355705e38bd7ea2a51375fc09946a9ab1940f670411077586808c090c3658fc",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.19",
           "buildVersion": "92",
           "date": "2026-11-18",
