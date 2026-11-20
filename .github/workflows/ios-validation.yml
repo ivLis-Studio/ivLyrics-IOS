@@ -31,6 +31,7 @@ on:
       - 'scripts/test-lyric-runtime-cache.py'
       - 'scripts/test-pip-layout.py'
       - 'scripts/test-pip-lifecycle.py'
+      - 'scripts/test-pip-suspension.py'
       - 'scripts/test-pip-pinch.py'
       - 'scripts/test-lrcred.py'
       - 'scripts/test-pronunciation-first.py'
@@ -94,6 +95,7 @@ on:
       - 'scripts/test-lyric-runtime-cache.py'
       - 'scripts/test-pip-layout.py'
       - 'scripts/test-pip-lifecycle.py'
+      - 'scripts/test-pip-suspension.py'
       - 'scripts/test-pip-pinch.py'
       - 'scripts/test-lrcred.py'
       - 'scripts/test-pronunciation-first.py'
@@ -180,6 +182,7 @@ jobs:
           python3 scripts/test-pip-static-frame-cache.py
           python3 scripts/test-pip-layout.py
           python3 scripts/test-pip-lifecycle.py
+          python3 scripts/test-pip-suspension.py
           python3 scripts/test-pip-pinch.py
           python3 scripts/test-vertical-bar.py
           python3 scripts/test-lrcred.py
