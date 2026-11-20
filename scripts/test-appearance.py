@@ -24,7 +24,8 @@ def declaration(source, prefix):
 
 
 names = ["titleTapAction", "landscapeOriginalLyricsEnabled", "landscapeArtworkEnabled",
-         "lyricsNotFoundNoticeEnabled", "backgroundVideoFallback", "backgroundVideoAspect", "backgroundVideoEdgeToEdge"]
+         "lyricsNotFoundNoticeEnabled", "backgroundVideoFallback", "backgroundVideoAspect", "backgroundVideoEdgeToEdge",
+         "backgroundArtworkFixed"]
 cloud_start = settings.index("    private static let cloudSettingKeys:")
 cloud_end = settings.index("\n    ]", cloud_start) + len("\n    ]")
 merge_start = settings.index("        for key in Self.cloudSettingKeys {", settings.index("    func importCloudSettings("))
@@ -63,22 +64,35 @@ let s = AppSettings(defaults: defaults)
 check(s.titleTapAction == "track", "Preserve existing title navigation default")
 check(s.landscapeOriginalLyricsEnabled && s.landscapeArtworkEnabled && s.lyricsNotFoundNoticeEnabled, "Existing visibility defaults")
 check(s.backgroundVideoFallback == AppSettings.backgroundBlurGradient && s.backgroundVideoAspect == "fill" && s.backgroundVideoEdgeToEdge, "Preserve old video defaults")
+check(!s.backgroundArtworkFixed, "Album art keeps drifting by default")
 s.titleTapAction = "disabled"; s.landscapeOriginalLyricsEnabled = false; s.landscapeArtworkEnabled = false
 s.lyricsNotFoundNoticeEnabled = false; s.backgroundVideoFallback = AppSettings.backgroundSolid
-s.backgroundVideoAspect = "stretch"; s.backgroundVideoEdgeToEdge = false
+s.backgroundVideoAspect = "stretch"; s.backgroundVideoEdgeToEdge = false; s.backgroundArtworkFixed = true
 let cloud = s.exportCloudSettings()
-check(cloud.count == 7, "All new settings exported")
+check(cloud.count == 8, "All new settings exported")
 defaults.removePersistentDomain(forName: suite)
 s.importCloudSettings(cloud.merging(["spotify_client_secret": "never sync"]) { a, _ in a })
 let restored = AppSettings(defaults: defaults)
 check(restored.titleTapAction == "disabled" && !s.landscapeOriginalLyricsEnabled && !s.landscapeArtworkEnabled && !s.lyricsNotFoundNoticeEnabled, "Cloud reload updates observed visibility")
 check(restored.backgroundVideoAspect == "stretch" && !restored.backgroundVideoEdgeToEdge && restored.backgroundVideoFallback == AppSettings.backgroundSolid, "Video preferences survive restart/cloud sync")
+check(restored.backgroundArtworkFixed, "Fixed album art survives restart/cloud sync")
 check(defaults.string(forKey: "spotify_client_secret") == nil, "Cloud allowlist remains intact")
 let background = AppSettings.BackgroundSettings(mode: AppSettings.backgroundVideo, brightness: 100, blur: 0, noise: false, reduceMotion: false, solidColor: "#123456", videoScale: 100, videoFallback: AppSettings.backgroundSolid, videoAspect: "fit", videoEdgeToEdge: false)
 let json = AppSettings.backgroundSettingsJson(background)
 check(AppSettings.backgroundSettings(from: json, fallback: background) == background, "Per-track background fields round-trip")
 let legacy = AppSettings.backgroundSettings(from: ["mode": AppSettings.backgroundVideo], fallback: background)
 check(legacy.videoAspect == "fit" && !legacy.videoEdgeToEdge, "Old track overrides inherit new global fields")
+// Fixing the album art stills only an album-art background, as Reduce motion does.
+for mode in [AppSettings.backgroundGradient, AppSettings.backgroundBlurGradient, AppSettings.backgroundSolid, AppSettings.backgroundVideo] {
+    var moving = background
+    moving.mode = mode
+    check(AppearancePolicy.artworkFixed(moving, fixed: false) == moving, "Off leaves every background unchanged")
+    let fixed = AppearancePolicy.artworkFixed(moving, fixed: true)
+    check(fixed.reduceMotion == (mode == AppSettings.backgroundGradient), "Only album art holds still")
+    var expected = moving
+    expected.reduceMotion = fixed.reduceMotion
+    check(fixed == expected, "Nothing else changes")
+}
 for aspect in ["fit", "fill", "stretch"] { check(AppearancePolicy.videoAspect(aspect) == aspect, "Supported aspect") }
 check(AppearancePolicy.videoAspect("invalid") == "fill", "Invalid aspect fallback")
 check(AppSettings.normalizeVideoFallback(AppSettings.backgroundVideo) == AppSettings.backgroundBlurGradient, "No recursive video fallback")
@@ -116,6 +130,9 @@ assert '.environment(\\.originalLyricsVisible, settings.landscapeOriginalLyricsE
 assert 'if originalLyricsVisible {' in view and 'if useVocalPartSupplements {' in view
 assert 'scaleY(var(--stretch-y,1))' in video and "reportVideo('failed')" in video
 assert 'videoVisible ? AppearancePolicy.videoDimOpacity' in view
+# The player background reads the fixed-artwork choice; per-track overrides stay as stored.
+assert "AppearancePolicy.artworkFixed(settings.effectiveBackgroundSettings(trackKey: model.currentTrackKey)," in view
+assert 'toggleRow("setting.artwork_fixed", descriptionKey: "setting.artwork_fixed_desc"' in view
 # What the video leaves uncovered is black while it shows; a covering video keeps the old fade.
 section = view[view.index("private struct YouTubeBackdropSection: View"):view.index("private func backgroundShouldAnimate(")]
 assert section.index("if AppearancePolicy.videoLeavesScreenUncovered(") < section.index("Color.black\n                    .opacity(videoVisible ? 1 : 0)") \

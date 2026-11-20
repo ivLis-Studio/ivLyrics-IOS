@@ -82,6 +82,7 @@ final class AppSettings: ObservableObject {
         "background_brightness", "background_blur", "background_noise", "background_reduce_motion",
         "background_solid_color", "background_video_scale", "lyrics_provider_order_v1",
         "background_video_fallback", "background_video_aspect", "background_video_edge_to_edge",
+        "background_artwork_fixed",
         "title_tap_action", "landscape_original_lyrics", "landscape_artwork", "lyrics_not_found_notice",
         "vinyl_track_change_animations", "vinyl_rotation_speed_percent", "simplify_title",
         "lyrics_provider_enabled_v1", "lyrics_provider_types_v1", "lyrics_prefer_sync_data_provider",
@@ -347,6 +348,7 @@ final class AppSettings: ObservableObject {
     @Published var backgroundVideoFallback: String { didSet { set("background_video_fallback", Self.normalizeVideoFallback(backgroundVideoFallback)); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundVideoAspect: String { didSet { set("background_video_aspect", AppearancePolicy.videoAspect(backgroundVideoAspect)); bumpBackgroundRevisionIfNeeded() } }
     @Published var backgroundVideoEdgeToEdge: Bool { didSet { set("background_video_edge_to_edge", backgroundVideoEdgeToEdge); bumpBackgroundRevisionIfNeeded() } }
+    @Published var backgroundArtworkFixed: Bool { didSet { set("background_artwork_fixed", backgroundArtworkFixed); bumpBackgroundRevisionIfNeeded() } }
     @Published var spotifyClientId: String { didSet { set("spotify_client_id", spotifyClientId) } }
     @Published var spotifyClientSecret: String { didSet { setSecure("spotify_client_secret", spotifyClientSecret) } }
     @Published var spotifyWebAPIEnabled: Bool { didSet { set("spotify_web_api_enabled", spotifyWebAPIEnabled) } }
@@ -475,6 +477,7 @@ final class AppSettings: ObservableObject {
         backgroundVideoFallback = Self.normalizeVideoFallback(defaults.string(forKey: "background_video_fallback"))
         backgroundVideoAspect = AppearancePolicy.videoAspect(defaults.string(forKey: "background_video_aspect"))
         backgroundVideoEdgeToEdge = defaults.object(forKey: "background_video_edge_to_edge") as? Bool ?? true
+        backgroundArtworkFixed = defaults.object(forKey: "background_artwork_fixed") as? Bool ?? false
         spotifyClientId = defaults.string(forKey: "spotify_client_id") ?? ""
         spotifyClientSecret = SecureStringStore.shared.migratedString(
             forKey: "spotify_client_secret",
@@ -644,6 +647,7 @@ final class AppSettings: ObservableObject {
         backgroundVideoFallback = loaded.backgroundVideoFallback
         backgroundVideoAspect = loaded.backgroundVideoAspect
         backgroundVideoEdgeToEdge = loaded.backgroundVideoEdgeToEdge
+        backgroundArtworkFixed = loaded.backgroundArtworkFixed
         lyricsProviderOrder = loaded.lyricsProviderOrder
         lyricsProviderEnabled = loaded.lyricsProviderEnabled
         lyricsProviderTypes = loaded.lyricsProviderTypes

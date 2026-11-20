@@ -14,6 +14,14 @@ enum AppearancePolicy {
         1 - Double(min(100, max(0, brightness))) / 100
     }
 
+    /// With the album art fixed, an album-art background holds still as with Reduce motion.
+    static func artworkFixed(_ background: AppSettings.BackgroundSettings, fixed: Bool) -> AppSettings.BackgroundSettings {
+        guard fixed, !background.reduceMotion, background.mode == AppSettings.backgroundGradient else { return background }
+        var still = background
+        still.reduceMotion = true
+        return still
+    }
+
     /// A fitted video leaves bands, and a landscape video kept inside the safe area leaves the
     /// screen's edges. Those are black while the video shows, rather than the artwork behind it.
     static func videoLeavesScreenUncovered(aspect: String, edgeToEdge: Bool, landscape: Bool) -> Bool {

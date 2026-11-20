@@ -1583,7 +1583,8 @@ struct PlayerBackgroundView: View {
 
     private var effectiveBackground: AppSettings.BackgroundSettings {
         _ = settings.backgroundSettingsRevision
-        return settings.effectiveBackgroundSettings(trackKey: model.currentTrackKey)
+        return AppearancePolicy.artworkFixed(settings.effectiveBackgroundSettings(trackKey: model.currentTrackKey),
+                                             fixed: settings.backgroundArtworkFixed)
     }
 }
 
@@ -9654,6 +9655,8 @@ struct SettingsView: View {
             entry("setting.blur", .appearance, section: background, value: "\(settings.backgroundBlur)%"),
             entry("setting.noise", .appearance, section: background, value: onOff(settings.backgroundNoiseEnabled)),
             entry("setting.reduce_motion", .appearance, section: background, value: onOff(settings.backgroundReduceMotionEnabled)),
+            entry("setting.artwork_fixed", .appearance, section: background, description: "setting.artwork_fixed_desc",
+                  value: onOff(settings.backgroundArtworkFixed)),
             entry("lyrics.background.override", .appearance, section: "section.track_background")
         ]
         let interlude = "settings.section.interlude"
@@ -11315,6 +11318,8 @@ struct SettingsView: View {
                           range: 0...100, onEditingChanged: backgroundSliderEditingChanged)
                 toggleRow("setting.noise", isOn: backgroundNoiseBinding)
                 toggleRow("setting.reduce_motion", isOn: backgroundReduceMotionBinding)
+                toggleRow("setting.artwork_fixed", descriptionKey: "setting.artwork_fixed_desc",
+                          isOn: settingsSavedBinding(\.backgroundArtworkFixed))
             }
         }
     }
