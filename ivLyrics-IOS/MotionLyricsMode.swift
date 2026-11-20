@@ -58,8 +58,9 @@ enum MotionLyricsSong {
             object["text2"] = line.translationText
         }
         // The first lead part leads the line; the others sing with it (a duet partner is another lead).
+        // Without a part marked lead (only other voices, or unmarked parts) the first one sung leads.
         let sung = line.vocalParts.filter { !$0.syllables.isEmpty }
-        if let lead = sung.first(where: { $0.role == "lead" }) {
+        if let lead = sung.first(where: { $0.role == "lead" }) ?? sung.first {
             object["vocals"] = [
                 "lead": part(lead),
                 "background": sung.filter { $0.id != lead.id }.map(part)

@@ -78,6 +78,13 @@ check(sentLead["text"] as? String == "Hold on" && sentLead["speaker"] as? String
 check(others.count == 2, "Parts without timing are left out")
 check(others[0]["role"] as? String == "lead" && others[0]["speaker"] as? String == "v2", "A second lead part is a duet partner")
 check(others[1]["role"] as? String == "background" && (others[1]["syllables"] as? [[String: Any]])?.count == 1, "Background vocals keep their timing")
+// Parts none of which is marked lead (only other voices, unmarked parts): the first one sung leads, none is lost.
+let echoA = LyricsLine.VocalPart(id: "e", role: "background", speaker: "", kind: "vocal", text: "oh", syllables: timed(["oh"], 7000))
+let echoB = LyricsLine.VocalPart(id: "f", role: "background", speaker: "", kind: "vocal", text: "yeah", syllables: timed(["yeah"], 7400))
+let unled = decode(MotionLyricsSong.json(track: TrackSnapshot(trackId: "id1"), lyrics: .init(lines: [LyricsLine(startTimeMs: 7000, endTimeMs: 7800, text: "oh yeah", vocalParts: [echoA, echoB])], karaoke: true), accentHex: "", language: ""))
+let unledVocals = ((unled["lyrics"] as? [[String: Any]])?.first?["vocals"] as? [String: Any]) ?? [:]
+check((unledVocals["lead"] as? [String: Any])?["text"] as? String == "oh", "Without a lead part the first one sung leads")
+check((unledVocals["background"] as? [[String: Any]])?.first?["text"] as? String == "yeah", "and the other still sings")
 let unsynced = decode(MotionLyricsSong.json(track: TrackSnapshot(trackId: "id1"), lyrics: .init(lines: [plain], karaoke: false), accentHex: "", language: ""))
 check((unsynced["lyrics"] as? [Any])?.isEmpty == true, "A line-synced result sends no lyrics, so the page turns it down")
 print("Motion lyrics regression: \(count) checks passed")
