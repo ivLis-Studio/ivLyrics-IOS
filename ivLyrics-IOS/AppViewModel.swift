@@ -1657,6 +1657,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func appDidBecomeActive() {
+        pictureInPictureController.applicationDidBecomeActive()
         spotifyUserPlaybackService.requestImmediatePlaybackRefresh()
         updatePlaybackClockMode(foregroundActive: true)
         updatePictureInPictureState()
@@ -1710,6 +1711,7 @@ final class AppViewModel: ObservableObject {
 
     func appDidEnterBackground() {
         updatePlaybackClockMode(foregroundActive: false)
+        pictureInPictureController.applicationDidEnterBackground()
         guard spotifyLivePolling else { return }
         if pictureInPictureController.isEngaged {
             if let currentTrack {

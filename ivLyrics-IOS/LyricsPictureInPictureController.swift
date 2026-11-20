@@ -74,6 +74,30 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     private let karaokePreparationStore = KaraokeRenderPreparationStore()
     private let lyricsTimeline = PictureInPictureLyricsTimeline()
     private let staticFrameCache = PictureInPictureStaticFrameCache()
+    // iOS may suspend the app while the PiP window stays open; see queueSuspensionFrames().
+    private struct SuspensionSchedule {
+        var trackKey: String?
+        var linesRevision: Int
+        var anchorUptime: TimeInterval
+        var anchorPositionMs: Int64
+        var resumedAfterGap = false
+
+        func positionMs(at uptime: TimeInterval) -> Int64 {
+            anchorPositionMs + Int64(((uptime - anchorUptime) * 1000).rounded())
+        }
+    }
+    private static let suspensionFrameLimit = 32
+    private static let suspensionHorizonMs: Int64 = 300_000
+    private static let suspensionLeadTime: TimeInterval = 6
+    private static let suspensionDriftToleranceMs: Int64 = 1_500
+    private static let suspensionUpdateGap: TimeInterval = 1.5
+    private static let suspensionKeptAliveDelay: TimeInterval = 10
+    private var suspensionArmed = false
+    private var suspensionTask = UIBackgroundTaskIdentifier.invalid
+    private var suspensionSchedule: SuspensionSchedule?
+    private var lastSuspensionCheckUptime: TimeInterval = 0
+    private var lastEngagedUpdateUptime: TimeInterval = 0
+    private var stateUptime: TimeInterval = 0
 
     override init() {
         super.init()
@@ -190,6 +214,10 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         updateBlurredArtworkIfNeeded()
         guard isEngaged else { return }
         let uptime = ProcessInfo.processInfo.systemUptime
+        let updateGap = uptime - lastEngagedUpdateUptime
+        lastEngagedUpdateUptime = uptime
+        stateUptime = uptime
+        if suspensionArmed, suspensionScheduleCoversPlayback(uptime: uptime, updateGap: updateGap) { return }
         let elapsed = uptime - lastRenderUptime
         let positionFrameDue = state.positionMs != lastRenderedPositionMs
             && elapsed >= state.preferredFrameInterval
@@ -285,6 +313,7 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         startRequested = false
         startInFlight = false
         active = false
+        endSuspensionHandling()
         // A foreground player stays ready for the next request.
         if !readyForUserRequest { deactivateAudioSession() }
         // Retire a cancelled/failed start so its late AVKit callbacks cannot
@@ -328,6 +357,148 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         } catch {
             onLog?("lyrics pip audio session release failed: \(error.localizedDescription)")
         }
+    }
+
+    /// The app left the screen. With PiP open, prepare for iOS suspending the app.
+    func applicationDidEnterBackground() {
+        guard isEngaged else { return }
+        suspensionArmed = true
+        lastSuspensionCheckUptime = 0
+        beginSuspensionTask()
+        // Without background time iOS may suspend the app before the next clock tick.
+        if suspensionTask == .invalid { queueSuspensionFrames() }
+    }
+
+    func applicationDidBecomeActive() {
+        endSuspensionHandling()
+    }
+
+    private func endSuspensionHandling() {
+        suspensionArmed = false
+        endSuspensionTask()
+        discardSuspensionSchedule()
+    }
+
+    private func beginSuspensionTask() {
+        guard suspensionTask == .invalid else { return }
+        suspensionTask = UIApplication.shared.beginBackgroundTask(withName: "ivLyrics PiP lyrics") { [weak self] in
+            MainActor.assumeIsolated {
+                self?.queueSuspensionFrames()
+                self?.endSuspensionTask()
+            }
+        }
+    }
+
+    private func endSuspensionTask() {
+        guard suspensionTask != .invalid else { return }
+        let task = suspensionTask
+        suspensionTask = .invalid
+        UIApplication.shared.endBackgroundTask(task)
+    }
+
+    /// True while frames queued for a suspension still match playback, so no live frame is queued
+    /// behind them. Without a queue, builds one once iOS's background time is nearly spent.
+    private func suspensionScheduleCoversPlayback(uptime: TimeInterval, updateGap: TimeInterval) -> Bool {
+        guard var schedule = suspensionSchedule else {
+            if uptime - lastSuspensionCheckUptime >= 1 {
+                lastSuspensionCheckUptime = uptime
+                if suspensionTask == .invalid
+                    || UIApplication.shared.backgroundTimeRemaining < Self.suspensionLeadTime {
+                    queueSuspensionFrames()
+                    endSuspensionTask()
+                }
+            }
+            return suspensionSchedule != nil
+        }
+        if updateGap > Self.suspensionUpdateGap, !schedule.resumedAfterGap {
+            schedule.resumedAfterGap = true
+            suspensionSchedule = schedule
+        }
+        let background = UIApplication.shared.applicationState == .background
+        let matches = background
+            && schedule.trackKey == state.track?.stableKey
+            && schedule.linesRevision == lyricsTimeline.revision
+            && state.track?.playing == true
+            && abs(schedule.positionMs(at: uptime) - state.positionMs) < Self.suspensionDriftToleranceMs
+        if matches {
+            guard !schedule.resumedAfterGap,
+                  uptime - schedule.anchorUptime >= Self.suspensionKeptAliveDelay else { return true }
+            // iOS kept the app running after all; live frames keep the karaoke fill moving.
+            suspensionArmed = false
+            endSuspensionTask()
+        } else if background {
+            // Playback moved on (track, seek or pause): live frames take over, and the queue is
+            // rebuilt if iOS is about to suspend the app again.
+            beginSuspensionTask()
+        }
+        discardSuspensionSchedule()
+        return false
+    }
+
+    /// iOS can suspend the app while its PiP window stays open; the window then froze on one line
+    /// until the app returned. The display layer keeps presenting frames already enqueued against
+    /// its control timebase, so before a suspension one frame is queued for each upcoming lyric
+    /// change. Live frames replace the queue once the app runs and playback no longer matches it.
+    private func queueSuspensionFrames() {
+        guard suspensionArmed, isEngaged, suspensionSchedule == nil,
+              UIApplication.shared.applicationState == .background,
+              state.track?.playing == true,
+              ensureControlTimebase() else { return }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let positionMs = state.positionMs + Int64(((uptime - stateUptime) * 1000).rounded())
+        var endMs = positionMs + Self.suspensionHorizonMs
+        if let durationMs = state.track?.durationMs, durationMs > positionMs {
+            endMs = min(endMs, durationMs)
+        }
+        let changes = lyricsTimeline.changes(from: positionMs, through: endMs, limit: Self.suspensionFrameLimit)
+        let live = state
+        defer { state = live }
+        // The fill cannot advance while the app is suspended, so each queued line is drawn whole.
+        state.karaokeDisplayGranularity = AppSettings.karaokeDisplayLine
+        state.syncedLyricsKaraokeAnimationEnabled = false
+        let hostNow = CMClockGetTime(CMClockGetHostTimeClock())
+        displayLayer.flush()
+        var queued = 0
+        for change in changes {
+            state.positionMs = change.positionMs
+            state.selection = change.selection
+            let presentationTime = CMTimeAdd(hostNow, CMTime(value: change.positionMs - positionMs, timescale: 1000))
+            guard let sampleBuffer = makeFrameSampleBuffer(
+                presentationTime: presentationTime, displayImmediately: queued == 0
+            ) else { break }
+            displayLayer.enqueue(sampleBuffer)
+            queued += 1
+        }
+        guard queued > 0 else { return }
+        suspensionSchedule = SuspensionSchedule(
+            trackKey: live.track?.stableKey, linesRevision: lyricsTimeline.revision,
+            anchorUptime: uptime, anchorPositionMs: positionMs
+        )
+        // Drawing the queue is not a suspension gap.
+        lastEngagedUpdateUptime = ProcessInfo.processInfo.systemUptime
+        onLog?("lyrics pip: queued \(queued) lyric frames ahead of a background suspension")
+    }
+
+    private func discardSuspensionSchedule() {
+        guard suspensionSchedule != nil else { return }
+        suspensionSchedule = nil
+        // Queued future frames would hold back live frames enqueued after them.
+        displayLayer.flush()
+        lastRenderUptime = 0
+    }
+
+    /// A host-time timebase, so queued frames carry the same timestamps as live ones.
+    private func ensureControlTimebase() -> Bool {
+        if displayLayer.controlTimebase != nil { return true }
+        let clock = CMClockGetHostTimeClock()
+        var timebase: CMTimebase?
+        guard CMTimebaseCreateWithSourceClock(
+            allocator: kCFAllocatorDefault, sourceClock: clock, timebaseOut: &timebase
+        ) == noErr, let timebase else { return false }
+        _ = CMTimebaseSetTime(timebase, time: CMClockGetTime(clock))
+        _ = CMTimebaseSetRate(timebase, rate: 1)
+        displayLayer.controlTimebase = timebase
+        return true
     }
 
     private func loadArtworkIfNeeded(_ url: URL?) {
@@ -402,11 +573,11 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
     }
 
     private func renderFrame() {
-        let size = state.renderSize
-        guard size.width > 0, size.height > 0 else { return }
-        guard let pixelBuffer = makePixelBuffer(width: Int(size.width), height: Int(size.height)),
-              drawFrame(into: pixelBuffer) else { return }
-        guard let sampleBuffer = makeSampleBuffer(pixelBuffer: pixelBuffer) else { return }
+        // A live frame enqueued behind queued suspension frames would wait for them.
+        discardSuspensionSchedule()
+        guard let sampleBuffer = makeFrameSampleBuffer(
+            presentationTime: CMClockGetTime(CMClockGetHostTimeClock()), displayImmediately: true
+        ) else { return }
         // After a background interruption the layer must be flushed before it decodes again.
         if displayLayer.status == .failed || displayLayer.requiresFlushToResumeDecoding {
             displayLayer.flush()
@@ -414,6 +585,15 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         displayLayer.enqueue(sampleBuffer)
         lastRenderUptime = ProcessInfo.processInfo.systemUptime
         lastRenderedPositionMs = state.positionMs
+    }
+
+    private func makeFrameSampleBuffer(presentationTime: CMTime, displayImmediately: Bool) -> CMSampleBuffer? {
+        let size = state.renderSize
+        guard size.width > 0, size.height > 0,
+              let pixelBuffer = makePixelBuffer(width: Int(size.width), height: Int(size.height)),
+              drawFrame(into: pixelBuffer) else { return nil }
+        return makeSampleBuffer(pixelBuffer: pixelBuffer, presentationTime: presentationTime,
+                                displayImmediately: displayImmediately)
     }
 
 #if DEBUG
@@ -1074,11 +1254,13 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         return true
     }
 
-    private func makeSampleBuffer(pixelBuffer: CVPixelBuffer) -> CMSampleBuffer? {
+    private func makeSampleBuffer(
+        pixelBuffer: CVPixelBuffer, presentationTime: CMTime, displayImmediately: Bool
+    ) -> CMSampleBuffer? {
         guard let videoFormatDescription else { return nil }
         var timing = CMSampleTimingInfo(
             duration: CMTime(value: 1, timescale: state.framesPerSecond),
-            presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
+            presentationTimeStamp: presentationTime,
             decodeTimeStamp: .invalid
         )
         var sampleBuffer: CMSampleBuffer?
@@ -1089,12 +1271,14 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
             sampleTiming: &timing,
             sampleBufferOut: &sampleBuffer
         ) == noErr, let sampleBuffer else { return nil }
-        CMSetAttachment(
-            sampleBuffer,
-            key: kCMSampleAttachmentKey_DisplayImmediately,
-            value: kCFBooleanTrue,
-            attachmentMode: kCMAttachmentMode_ShouldPropagate
-        )
+        if displayImmediately {
+            CMSetAttachment(
+                sampleBuffer,
+                key: kCMSampleAttachmentKey_DisplayImmediately,
+                value: kCFBooleanTrue,
+                attachmentMode: kCMAttachmentMode_ShouldPropagate
+            )
+        }
         return sampleBuffer
     }
 

@@ -110,6 +110,8 @@ struct RenderState { var track: Track? = Track() }
     var lastRenderedDuration: Int64?
     func renderFrame() { renders += 1; lastRenderedDuration = state.track?.durationMs }
     func publishPlaybackState(durationMs: Int64, isPaused: Bool, force: Bool = false) {}
+    var suspensionCleanups = 0
+    func endSuspensionHandling() { suspensionCleanups += 1 }
     init() { configurePictureInPictureController() }
 '''
 properties = ["startRetryTask", "startRequested", "startInFlight", "readyForUserRequest", "audioSessionActive"]

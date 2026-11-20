@@ -26,6 +26,14 @@ final class PictureInPictureLyricsTimeline {
         static let empty = Selection(activeIndex: nil, activeIndices: [], nextLineIndex: nil, hasTimedKaraoke: false)
     }
 
+    struct Change {
+        var positionMs: Int64
+        var selection: Selection
+    }
+
+    /// Increments whenever the lyric lines change.
+    private(set) var revision = 0
+
     private var lines: [LyricsLine] = []
     private var markerFlags: [Bool] = []
     private var timedKaraokeFlags: [Bool] = []
@@ -45,6 +53,7 @@ final class PictureInPictureLyricsTimeline {
     func update(lines nextLines: [LyricsLine]) {
         guard lines != nextLines else { return }
         lines = nextLines
+        revision &+= 1
         markerFlags = lines.map { $0.isTimed && InstrumentalBreakMarker.isMarkerText($0.text) }
         timedKaraokeFlags = lines.map { line in
             line.syllables.contains { $0.endTimeMs > $0.startTimeMs }
@@ -109,5 +118,40 @@ final class PictureInPictureLyricsTimeline {
             selection.hasContinuousEffects = selection.hasContinuousEffects || animationFlags[index].continuous
         }
         return selection
+    }
+
+    /// The selection at `positionMs`, then one entry for each later moment the shown lyrics change
+    /// (a line or vocal part starts, or a line ends) through `endMs`, at most `limit` entries.
+    func changes(from positionMs: Int64, through endMs: Int64, limit: Int) -> [Change] {
+        guard limit > 0 else { return [] }
+        let current = selection(at: positionMs)
+        var result = [Change(positionMs: positionMs, selection: current)]
+        guard !lines.isEmpty else { return result }
+        var times = Set<Int64>()
+        for line in lines where line.isTimed {
+            times.insert(line.startTimeMs)
+            if line.endTimeMs > line.startTimeMs { times.insert(line.endTimeMs) }
+            for part in line.vocalParts { times.insert(part.startTimeMs) }
+        }
+        var previousKey = changeKey(current, at: positionMs)
+        for time in times.sorted() where time > positionMs && time <= endMs {
+            guard result.count < limit else { break }
+            let next = selection(at: time)
+            let key = changeKey(next, at: time)
+            guard key != previousKey else { continue }
+            previousKey = key
+            result.append(Change(positionMs: time, selection: next))
+        }
+        return result
+    }
+
+    /// What a PiP frame shows: the active rows, the next-line hint and which vocal parts have begun.
+    private func changeKey(_ selection: Selection, at positionMs: Int64) -> [Int] {
+        var key = [selection.activeIndex ?? -1, selection.nextLineIndex ?? -1]
+        for index in selection.activeIndices {
+            key.append(index)
+            key.append(lines[index].vocalParts.reduce(0) { $1.startTimeMs <= positionMs ? $0 + 1 : $0 })
+        }
+        return key
     }
 }
