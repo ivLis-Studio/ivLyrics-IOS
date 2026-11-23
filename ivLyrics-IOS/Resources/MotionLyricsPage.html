@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-motion-build="7654056d4e46a892">
+<html lang="en" data-motion-build="5f36c8cce0aa24ec">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -146,6 +146,24 @@ SOFTWARE.
   opacity: var(--lg, 0.3);
 }
 
+/* Outlines drawn round the letters' shape by an SVG filter (MotionLyrics.js,
+   createOutlines; desktop): the text is filled and the filter hollows it, so
+   contours that overlap inside a letter draw no lines. A waiting line's
+   outline is drawn once into a layer of its own; only its opacity changes. */
+.ivlyrics-motion-ghost.is-shaped {
+  color: rgba(255, 255, 255, 0.92);
+  -webkit-text-stroke: 0;
+  will-change: opacity;
+  backface-visibility: hidden;
+}
+
+.ivlyrics-motion-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 /* Other voices (background vocals, a duet partner) are smaller: they wait as a faint fill. */
 .ivlyrics-motion-word.is-voice .ivlyrics-motion-ghost {
   color: rgba(255, 255, 255, 0.85);
@@ -217,8 +235,15 @@ SOFTWARE.
   rotate: -4deg;
 }
 
-.accent-script .ivlyrics-motion-word.is-emph .ivlyrics-motion-ghost {
+/* The outline turns with the solid type about the same point, so it stays under it. */
+.accent-script .ivlyrics-motion-word.is-emph .ivlyrics-motion-ghost,
+.accent-sticker .ivlyrics-motion-word.is-emph .ivlyrics-motion-ghost {
   rotate: -4deg;
+  transform-origin: 50% 62%;
+}
+
+.accent-sticker .ivlyrics-motion-word.is-emph .ivlyrics-motion-ghost {
+  rotate: -3deg;
 }
 
 .accent-outline .ivlyrics-motion-word.is-emph .ivlyrics-motion-solid {
@@ -238,10 +263,15 @@ SOFTWARE.
 
 /* Letters filled with a gradient of the two accent colours (top to bottom, so letters set one by one match).
    A word animated letter by letter paints the gradient on its letters only: painted on the word as well,
-   it would show every letter where it rests, under the one in motion and before it is sung. */
+   it would show every letter where it rests, under the one in motion and before it is sung.
+   The gradient is painted through the letters only inside the element's box: padding (taken back by a
+   negative margin, so nothing moves) leaves room for a comma's tail or a slanted letter's overhang. The
+   stops sit where they were on the unpadded 1em box (14% and 86%). */
 .accent-gradient .ivlyrics-motion-word.is-emph .ivlyrics-motion-solid:not(.has-letters),
 .accent-gradient .ivlyrics-motion-word.is-emph .ivlyrics-motion-char {
-  background-image: linear-gradient(180deg, color-mix(in srgb, var(--iv-motion-accent-2, #5cd6ff) 80%, #fff) 14%, var(--iv-motion-accent, #ff5ca0) 86%);
+  margin: -0.3em -0.2em;
+  padding: 0.3em 0.2em;
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--iv-motion-accent-2, #5cd6ff) 80%, #fff) 0.44em, var(--iv-motion-accent, #ff5ca0) 1.16em);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -302,24 +332,23 @@ SOFTWARE.
   rotate: -1.6deg;
 }
 
-/* A rubber stamp: a tilted outlined frame that slams down around the word. */
+/* A rubber stamp: an outlined frame that slams down around the word, square with it and clear of its letters. */
 .ivlyrics-motion-box.is-stamp,
 .ivlyrics-motion-word[dir="rtl"] .ivlyrics-motion-box.is-stamp {
-  inset: -0.03em -0.2em -0.01em;
+  inset: -0.1em -0.22em -0.08em;
   border: max(2px, 0.065em) solid var(--iv-motion-accent, #ff5ca0);
   border-radius: 0.12em;
   background: none;
   opacity: calc(var(--ls, 1) * var(--b, 0));
-  rotate: -3.5deg;
   transform: scale(calc(1.6 - 0.6 * var(--b, 0)));
   transform-origin: 50% 50%;
 }
 
-/* A pen loop drawn round the word as it is sung. */
+/* A pen loop drawn round the word as it is sung (hidden until it starts: its round cap would show as a dot). */
 .ivlyrics-motion-loop {
   position: absolute;
   overflow: visible;
-  opacity: var(--ls, 1);
+  opacity: calc(var(--ls, 1) * min(1, var(--b, 0) * 60));
 }
 
 .ivlyrics-motion-loop path {
@@ -402,6 +431,12 @@ SOFTWARE.
   opacity: var(--fl, 0);
   transform-origin: 0 0;
   backface-visibility: hidden;
+}
+
+.ivlyrics-motion-fill.is-shaped,
+.ivlyrics-motion-echo.is-shaped {
+  color: rgba(255, 255, 255, 0.9);
+  -webkit-text-stroke: 0;
 }
 
 .ivlyrics-motion-spark {
@@ -547,6 +582,8 @@ SOFTWARE.
 .ivlyrics-motion-hud > div {
   position: absolute;
   display: flex;
+  /* Title and artist on one baseline, whatever script (and fallback face) each is in. */
+  align-items: baseline;
   gap: 0.9em;
   max-width: 42%;
   white-space: nowrap;
@@ -583,14 +620,16 @@ SOFTWARE.
   font-variant-numeric: tabular-nums;
 }
 
+/* The AI direction's notice sits top left, under the title, like the app's other AI tasks.
+   (The desktop app lists it with those tasks instead: MotionLyrics.js, onStatus.) */
 .ivlyrics-motion-status {
   position: absolute;
-  top: clamp(44px, 7svh, 72px);
-  left: 50%;
+  top: calc(clamp(18px, 3.2svh, 34px) + 26px);
+  left: clamp(20px, 3vw, 44px);
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: min(560px, calc(100% - 48px));
+  max-width: min(560px, calc(100% - 40px));
   padding: 7px 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
@@ -599,7 +638,6 @@ SOFTWARE.
   font-family: var(--iv-motion-ui);
   font-size: 12.5px;
   line-height: 1.35;
-  transform: translateX(-50%);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   animation: ivlyrics-motion-status-in 260ms ease both;
@@ -620,8 +658,8 @@ SOFTWARE.
 }
 
 @keyframes ivlyrics-motion-status-in {
-  from { opacity: 0; transform: translate(-50%, -6px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes ivlyrics-motion-status-pulse {
@@ -700,8 +738,14 @@ body {
 }
 
 .ivlyrics-motion-status {
-  top: calc(var(--iv-inset-top, 0px) + 40px);
+  /* Top left under the title, inside the safe area. */
+  top: calc(var(--iv-inset-top, 0px) + 36px);
+  left: calc(var(--iv-inset-left, 0px) + 16px);
   max-width: calc(100% - 32px);
+}
+
+.no-hud .ivlyrics-motion-status {
+  top: calc(var(--iv-inset-top, 0px) + 12px);
 }
 
 .ivlyrics-motion-subtitle {
@@ -1274,6 +1318,9 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 	const hooks = root.preactHooks;
 	const document = root.document;
 	const now = () => root.performance.now();
+
+	// Outlines keep the plain text stroke here: the filtered outlines each take a layer of their own (MotionLyrics.js, createOutlines).
+	root.ivLyricsMotionConfig = Object.freeze({ ...root.ivLyricsMotionConfig, shapedOutlines: false });
 
 	// An AI direction of a long song can take a while; the built-in direction plays meanwhile.
 	const AI_TIMEOUT_MS = 180000;
@@ -3101,7 +3148,7 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			+ '- type (' + list(vocab.types) + '): the face. impact = heavy display, the default for nearly every shot (it stays readable over video); serif = elegant Myeongjo / Mincho / Didone for a whole shot, rarely: a quiet bridge or the most tender lines, at most about one shot in seven and never two shots in a row; round = soft and friendly, only for playful songs. Never ask for thin or light type.\n'
 			+ '- serif: true sets only the shot\'s emphasised words in the serif against the heavy type. Use it for a few poignant words, not every shot.\n'
 			+ '- upper: true sets Latin, Cyrillic and Greek words in capitals (impact shots, hooks). bars: true brings cinematic letterbox bars for the shot (big, emotional moments). rule: true draws a thin line under each line as it is sung (quiet, elegant shots).\n'
-			+ '- accent (' + list(vocab.accents) + '): how emphasised words stand out. color = accent colour; outline = hollow outlined letters; underline = a line drawn under; mark = a highlighter stroke; spark = sparks bursting around the word; glow = white neon glow that throbs with the beat (night, longing, electric); gradient = filled with a two-colour gradient (dreamy, pop); stamp = a tilted outlined frame slammed on like a rubber stamp (declarations, punchlines); circle = circled by hand with a pen (the word that matters, tender or pointed); extrude = solid 3D block letters (retro, loud, confident); sticker = coloured letters with a thick white edge, slightly tilted (playful, cute, K-pop); script = the word alone in brush handwriting against the heavy type (asides, feelings, the personal word); giant = the word blown up far larger than its line (the one word that matters most; shouts); trail = outlined copies stepping out from behind the word (echoes, repeats, reverb); scribble = a wobbling pen line scrawled under it (casual, nervous, handwritten); bracket = a rule either side closing in on it (precise, cool, a word singled out). Change the accent from shot to shot and use at least 5 different ones in a song; keep a returning section on its accent.\n'
+			+ '- accent (' + list(vocab.accents) + '): how emphasised words stand out. color = accent colour; outline = hollow outlined letters; underline = a line drawn under; mark = a highlighter stroke; spark = sparks bursting around the word; glow = white neon glow that throbs with the beat (night, longing, electric); gradient = filled with a two-colour gradient (dreamy, pop); stamp = an outlined frame slammed on like a rubber stamp (declarations, punchlines); circle = circled by hand with a pen (the word that matters, tender or pointed); extrude = solid 3D block letters (retro, loud, confident); sticker = coloured letters with a thick white edge, slightly tilted (playful, cute, K-pop); script = the word alone in brush handwriting against the heavy type (asides, feelings, the personal word); giant = the word blown up far larger than its line (the one word that matters most; shouts); trail = outlined copies stepping out from behind the word (echoes, repeats, reverb); scribble = a wobbling pen line scrawled under it (casual, nervous, handwritten); bracket = a rule either side closing in on it (precise, cool, a word singled out). Change the accent from shot to shot and use at least 5 different ones in a song; keep a returning section on its accent.\n'
 			+ '- lines: list only lines that need emphasis or their own fx. emph = 0 to 2 word indexes (0-based, in " | " order) that carry the meaning or are held long; they are set larger and take the shot\'s accent. Give nearly every shot at least one emphasised word, or its accent never shows.\n'
 			+ '- dutch: camera tilt in degrees, 0 for calm shots, up to 12 or -12 for energetic ones.\n'
 			+ '- motifs: 0 to 4 shapes animated around the shot. Prefer concrete images from the words (moon for moon or 月, drop for tears or rain, heart for love, flame for fire) over decoration. Library: ' + list(vocab.motifs) + '.\n'
@@ -3188,10 +3235,12 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 	// The background turns with the camera, so a sideways shot shows the video
 	// on its side (portrait on a wide screen, small and blurry once scaled to
 	// cover it). After this long sideways it turns back to landscape, and it
-	// follows the camera again once the camera is back.
+	// follows the camera again once the camera is back. Upside down it never
+	// stays: it rights itself while the camera turns over (at least this fast).
 	const SIDEWAYS_HOLD_MS = 7000;
 	const UPRIGHT_TURN_MS = 1400;
 	const UPRIGHT_RETURN_MS = 900;
+	const FLIP_TURN_MIN_MS = 360;
 	const TUNNEL_STEP = 1500;
 	const PUSH_DEPTH = 2300;
 	const PULL_DEPTH = 1900;
@@ -3804,12 +3853,16 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 	// ---------------------------------------------------------------------
 
 	const EMPTY_SET = new Set();
+	// How far past an emphasised word (in its own em) the mark of these accents
+	// reaches sideways (style.css: the brackets' rules, the stamp's frame, the
+	// pen loop, the marker): the words beside it are set clear of the mark.
+	const ACCENT_REACH = Object.freeze({ bracket: 0.26, stamp: 0.24, circle: 0.31, mark: 0.1, underline: 0.06 });
 
 	/** A line's words with the face, cased text and natural width each is set in. */
 	const itemsOf = (line, ctx, options) => {
 		const { size, emph = EMPTY_SET, emphScale = 1.3, light = false, type = "impact", serif = false, upper = false, accent = "" } = options;
 		const info = ctx.typography[line.n] || DEFAULT_INFO;
-		return line.words.map((word, index) => {
+		const items = line.words.map((word, index) => {
 			const isEmph = emph.has(index);
 			const script = info.words[index] || info.script;
 			const role = light && !isEmph ? "light" : "display";
@@ -3829,6 +3882,16 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 				gap: index ? size * (word.joined ? 0.05 + spec.spacing : 0.27 + spec.spacing) : 0,
 			};
 		});
+		const reach = ACCENT_REACH[accent] || 0;
+		if (reach) {
+			items.forEach((item, index) => {
+				const previous = items[index - 1];
+				if (!previous || (!previous.emph && !item.emph)) return;
+				const clear = (previous.emph ? previous.size * reach : 0) + (item.emph ? item.size * reach : 0) + size * 0.08;
+				item.gap = Math.max(item.gap, clear);
+			});
+		}
+		return items;
 	};
 
 	const splitRows = (items, count, total) => {
@@ -5194,29 +5257,44 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 		};
 	};
 
-	/** How far a roll is from landscape: 0 upright or upside down, 90 on its side. */
-	const sidewaysOf = (roll) => {
-		const turn = ((roll % 180) + 180) % 180;
-		return Math.min(turn, 180 - turn);
+	/** How far a roll turns the picture from upright: 0 upright, 90 on its side, 180 upside down. */
+	const tiltOf = (roll) => {
+		const turn = ((roll % 360) + 360) % 360;
+		return Math.min(turn, 360 - turn);
 	};
 
 	/**
-	 * Stretches of the song the camera spends on its side for longer than
-	 * SIDEWAYS_HOLD_MS: from then on the background turns to the landscape
-	 * orientation the camera comes back to (target, a camera roll), until the
-	 * camera has come back (to; Infinity when it never does).
+	 * Stretches of the song the camera spends turned from upright: on its side
+	 * for longer than SIDEWAYS_HOLD_MS, or upside down at all. From then on
+	 * the background turns to the upright orientation the camera comes back to
+	 * (target, a camera roll), until the camera has come back (to; Infinity
+	 * when it never does). Upside down, it turns while the camera turns over
+	 * (from the move's start, over turn ms), so the video is never left upside
+	 * down behind upright lyrics.
 	 */
 	const uprightsOf = (lines) => {
 		const uprights = [];
 		let run = null;
 		const close = (to, roll) => {
-			if (to - run.start > SIDEWAYS_HOLD_MS) uprights.push({ from: run.start + SIDEWAYS_HOLD_MS, to, target: Math.round(roll / 180) * 180 });
+			const held = run.start + SIDEWAYS_HOLD_MS;
+			const flipFirst = run.flipAt < held;
+			const from = flipFirst ? run.flipAt : held;
+			if (to > from) uprights.push({ from, to, target: Math.round(roll / 360) * 360, turn: flipFirst ? run.flipTurn : UPRIGHT_TURN_MS });
 			run = null;
 		};
-		lines.forEach((line) => {
-			const sideways = sidewaysOf(line.camera.roll) > 45;
-			if (sideways && !run) run = { start: line.arrive };
-			else if (!sideways && run) close(line.arrive, line.camera.roll);
+		lines.forEach((line, index) => {
+			const tilt = tiltOf(line.camera.roll);
+			if (tilt <= 45) {
+				if (run) close(line.arrive, line.camera.roll);
+				return;
+			}
+			if (!run) run = { start: line.arrive, flipAt: Infinity, flipTurn: UPRIGHT_TURN_MS };
+			if (tilt > 135 && !Number.isFinite(run.flipAt)) {
+				const previous = lines[index - 1];
+				const leave = previous && Number.isFinite(previous.leave) ? Math.min(previous.leave, line.arrive) : line.arrive;
+				run.flipAt = leave;
+				run.flipTurn = clamp(line.arrive - leave, FLIP_TURN_MIN_MS, UPRIGHT_TURN_MS);
+			}
 		});
 		if (run) close(Infinity, lines[lines.length - 1].camera.roll);
 		return uprights;
@@ -5227,7 +5305,7 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 		if (!Number.isFinite(time)) return null;
 		for (const upright of plan?.uprights || []) {
 			if (time <= upright.from || time >= upright.to + UPRIGHT_RETURN_MS) continue;
-			const turned = easeInOutCubic(clamp01((time - upright.from) / UPRIGHT_TURN_MS));
+			const turned = easeInOutCubic(clamp01((time - upright.from) / (upright.turn || UPRIGHT_TURN_MS)));
 			const back = Number.isFinite(upright.to) ? 1 - easeInOutCubic(clamp01((time - upright.to) / UPRIGHT_RETURN_MS)) : 1;
 			return { weight: Math.min(turned, back), target: upright.target };
 		}
@@ -5273,6 +5351,41 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 		};
 	};
 
+	// The line the camera holds keeps inside this share of the screen (each
+	// side of the centre) even when the camera has eased all the way in on it.
+	const HOLD_ROOM_X = 0.46;
+	const HOLD_ROOM_Y = 0.44;
+
+	/**
+	 * Keeps a held line whole on screen: the camera eases in on it (drift)
+	 * only as far as its ends stay in frame, and a line already too large for
+	 * the screen (a long line on a narrow window) is seen from further back.
+	 * Lines the camera turns to face (on a drum) keep their own framing.
+	 */
+	const fitHold = (line, board, ctx) => {
+		const camera = line.camera;
+		if (camera.yaw || camera.pitch) return;
+		let reachX = 0;
+		let reachY = 0;
+		for (const corner of cornersOf(line.place)) {
+			const world = toWorld(board, corner.x, corner.y);
+			const seen = rotate2d(world.x - camera.x, world.y - camera.y, -camera.roll);
+			reachX = Math.max(reachX, Math.abs(seen.x));
+			reachY = Math.max(reachY, Math.abs(seen.y));
+		}
+		if (!(reachX > 0 && reachY > 0)) return;
+		const largest = Math.min((ctx.W * HOLD_ROOM_X) / reachX, (ctx.H * HOLD_ROOM_Y) / reachY);
+		// Depth in front of the camera that shows the line at that scale (CSS perspective).
+		const deepest = PERSPECTIVE_PX * (1 - 1 / largest);
+		const depth = line.worldZ - camera.z;
+		if (depth > deepest) {
+			camera.z = line.worldZ - deepest;
+			line.drift.z = 0;
+			return;
+		}
+		line.drift.z = Math.min(line.drift.z, deepest - depth);
+	};
+
 	const timeline = (plan, ctx) => {
 		const { boards, lines } = plan;
 		const pace = ctx.pace;
@@ -5289,6 +5402,7 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			// Every voice's last word: the camera waits for an echo or an answer when it has the time.
 			line.lastWordStart = Math.max(...line.shown.map((word) => word.start));
 			line.drift = { z: board.drift.z * feel.drift, roll: board.drift.roll * feel.drift };
+			fitHold(line, board, ctx);
 		});
 		boards.forEach((board) => {
 			for (const motif of board.motifs) {
@@ -5864,6 +5978,10 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 	const SETTLED = Object.freeze({ opacity: 1, transform: "none", filter: "", clip: "", shadow: "" });
 	const HIDDEN = Object.freeze({ opacity: 0, transform: "none", filter: "", clip: "", shadow: "" });
 	const frame = (values) => ({ filter: "", clip: "", shadow: "", ...values });
+	// Masks that reveal a word leave this much room (em) round it for its
+	// shadow, glow and overhanging letters, so nothing is cut off sharply.
+	const SPILL_EM = 0.6;
+	const SPILL = "-" + SPILL_EM + "em";
 
 	/** The solid word's opacity, transform, filter, clip and shadow for its entrance. */
 	const solidFrame = (fx, progress, seed = 0, rtl = false) => {
@@ -5907,11 +6025,12 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			}
 			case "wipe": {
 				const k = easeInOutCubic(progress);
-				const hidden = round((1 - k) * 112, 1);
+				// The edge sweeps from before the word's start to past its end (its shadow included).
+				const edge = "calc(" + round((1 - k) * 100, 2) + "% + " + round(SPILL_EM * (1 - 2 * k), 3) + "em)";
 				return frame({
 					opacity: 1,
 					transform: "translateX(" + round((1 - k) * (rtl ? -0.1 : 0.1), 3) + "em)",
-					clip: rtl ? "inset(-30% -12% -30% " + hidden + "%)" : "inset(-30% " + hidden + "% -30% -12%)",
+					clip: rtl ? "inset(" + SPILL + " " + SPILL + " " + SPILL + " " + edge + ")" : "inset(" + SPILL + " " + edge + " " + SPILL + " " + SPILL + ")",
 				});
 			}
 			case "glitch": {
@@ -5927,10 +6046,15 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 				});
 			}
 			case "lift": {
-				// Rises out of a mask at its own baseline (the part still below it is cut off).
+				// Rises out of a mask at its own baseline (the part still below it is cut off); once up, the mask drops away from its shadow.
 				const k = easeOutExpo(progress);
 				const depth = (1 - k) * 1.05;
-				return frame({ opacity: clamp01(progress * 4), transform: "translateY(" + round(depth, 3) + "em)", clip: "inset(-40% -14% " + round(depth - 0.2, 3) + "em -14%)" });
+				const settle = easeInOutCubic(clamp01((progress - 0.7) / 0.3));
+				return frame({
+					opacity: clamp01(progress * 4),
+					transform: "translateY(" + round(depth, 3) + "em)",
+					clip: "inset(" + SPILL + " " + SPILL + " " + round(depth - 0.2 - SPILL_EM * settle, 3) + "em " + SPILL + ")",
+				});
 			}
 			case "swing": {
 				// Hangs from its first letter and swings down into place.
@@ -5964,8 +6088,8 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			case "open": {
 				// Opens from its middle outwards.
 				const k = easeInOutCubic(progress);
-				const side = round(-14 + (1 - k) * 64, 1);
-				return frame({ opacity: 1, transform: "scaleX(" + round(1.06 - 0.06 * k, 3) + ")", clip: "inset(-40% " + side + "% -40% " + side + "%)" });
+				const side = "calc(" + round((1 - k) * 50, 2) + "% - " + round(SPILL_EM * k, 3) + "em)";
+				return frame({ opacity: 1, transform: "scaleX(" + round(1.06 - 0.06 * k, 3) + ")", clip: "inset(" + SPILL + " " + side + " " + SPILL + " " + side + ")" });
 			}
 			default: {
 				const k = easeOutBack(progress);
@@ -6359,9 +6483,65 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 		return svg;
 	};
 
-	const createEngine = ({ stage, viewport, camera, scrim, wash, flood, flash, panel, bars, subtitle, live, hudShot, hudTime }) => {
+	// A translation shows while its line is sung and this long after; between lines it steps aside.
+	const SUBTITLE_LINGER_MS = 700;
+	const SVG_FILTER_UNITS = Object.freeze({ x: "-0.1", y: "-0.3", width: "1.2", height: "1.6" });
+	let engineSerial = 0;
+
+	/**
+	 * Outlines drawn round each word's shape: the text filled, widened and
+	 * hollowed by an SVG filter (half the width outside the letters, half
+	 * inside, like the stroke it replaces). A text stroke also traces every
+	 * contour inside the letters where a variable face's parts overlap (Hangul
+	 * in Pretendard, Han in Noto Sans TC), which reads as a broken wireframe.
+	 * The desktop app only (ivLyricsMotionConfig.shapedOutlines): each outline
+	 * is drawn once into its own layer, which the phones' WebViews are spared.
+	 */
+	const createOutlines = (document, defs) => {
+		if (!defs || root.ivLyricsMotionConfig?.shapedOutlines === false || typeof document?.createElementNS !== "function") return () => "";
+		engineSerial += 1;
+		const prefix = "ivlyrics-motion-ring-" + engineSerial + "-";
+		const filters = new Map();
+		const node = (name, attributes) => {
+			const element = document.createElementNS(SVG_NS, name);
+			for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value));
+			return element;
+		};
+		/** The filter for an outline half this wide (CSS px of the element) either side of the letters' edge. */
+		return (half) => {
+			const radius = Math.max(0.5, Math.round(half * 4) / 4);
+			let id = filters.get(radius);
+			if (!id) {
+				id = prefix + filters.size;
+				const filter = node("filter", { id, ...SVG_FILTER_UNITS, "color-interpolation-filters": "sRGB" });
+				filter.appendChild(node("feMorphology", { in: "SourceGraphic", operator: "dilate", radius, result: "outer" }));
+				filter.appendChild(node("feMorphology", { in: "SourceAlpha", operator: "erode", radius, result: "inner" }));
+				filter.appendChild(node("feComposite", { in: "outer", in2: "inner", operator: "out" }));
+				defs.appendChild(filter);
+				filters.set(radius, id);
+			}
+			return "url(#" + id + ")";
+		};
+	};
+
+	/** Sets an outline's text: shaped by the filter when there is one, else stroked (style.css). */
+	const setOutlineText = (document, element, text, filter) => {
+		if (!filter) {
+			element.textContent = text;
+			return;
+		}
+		element.classList.add("is-shaped");
+		const shape = document.createElement("span");
+		shape.className = "ivlyrics-motion-shape";
+		shape.style.filter = filter;
+		shape.textContent = text;
+		element.appendChild(shape);
+	};
+
+	const createEngine = ({ stage, viewport, camera, scrim, wash, flood, flash, panel, bars, subtitle, live, hudShot, hudTime, defs }) => {
 		const document = root.document;
 		const shapes = root.ivLyricsMotionShapes;
+		const outlineOf = createOutlines(document, defs);
 		let plan = null;
 		let pending = null;
 		let planSetAt = 0;
@@ -6446,7 +6626,8 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			if (line.info.rtl) wordEl.dir = "rtl";
 			const ghost = document.createElement("span");
 			ghost.className = "ivlyrics-motion-ghost";
-			ghost.textContent = spot.text || word.text;
+			// Other voices wait as a faint fill (style.css), not an outline.
+			setOutlineText(document, ghost, spot.text || word.text, voice ? "" : outlineOf(spot.size * 0.012));
 			wordEl.appendChild(ghost);
 			let box = null;
 			let spark = null;
@@ -6518,7 +6699,7 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			if (board.echo) {
 				const echoEl = document.createElement("div");
 				echoEl.className = "ivlyrics-motion-echo";
-				echoEl.textContent = board.echo.text;
+				setOutlineText(document, echoEl, board.echo.text, outlineOf(Math.max(0.75, board.echo.size * 0.006)));
 				echoEl.style.fontSize = round(board.echo.size) + "px";
 				applyFont(echoEl, board.echo.spec || FALLBACK_SPEC);
 				el.appendChild(echoEl);
@@ -6553,7 +6734,7 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			for (const fill of board.fills) {
 				const fillEl = document.createElement("div");
 				fillEl.className = "ivlyrics-motion-fill";
-				fillEl.textContent = fill.text;
+				setOutlineText(document, fillEl, fill.text, outlineOf(Math.max(0.5, fill.size * 0.01)));
 				fillEl.style.fontSize = round(fill.size) + "px";
 				fillEl.style.transform = "translate3d(" + round(fill.x) + "px," + round(fill.y) + "px," + round(fill.z) + "px) rotateZ(" + round(fill.rot, 2) + "deg) translate(-50%,-56%)";
 				applyFont(fillEl, fill.spec || FALLBACK_SPEC);
@@ -6700,7 +6881,12 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 					(value) => { item.el.style.transform = value; });
 				const draw = round(1 - easeOutCubic(clamp01(since / (760 * fxPaceOf(plan.pace)))), 3);
 				write(item.cache, "draw", draw, (value) => {
-					for (const path of item.paths) if (path.mode === "stroke") path.el.style.strokeDashoffset = String(value);
+					// Not drawn yet, a round line cap would still show a dot where the stroke starts.
+					for (const path of item.paths) {
+						if (path.mode !== "stroke") continue;
+						path.el.style.strokeDashoffset = String(value);
+						path.el.style.visibility = value >= 0.999 ? "hidden" : "";
+					}
 				});
 			}
 			for (const item of entry.strokes) {
@@ -6831,8 +7017,11 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			const rest = round(restAt(plan, time), 2);
 			write(cache.rest, "level", rest, (value) => {
 				if (scrim) scrim.style.opacity = String(round(1 - value * 0.5, 2));
-				subtitle.classList.toggle("is-resting", value > 0.5);
 			});
+			// The translation goes with its line: not after it ends, before the next one starts.
+			const sung = plan.lines[index];
+			const spoken = !!sung && time >= sung.arrive - 200 && time <= sung.end + SUBTITLE_LINGER_MS;
+			write(cache.rest, "subtitle", rest > 0.5 || !spoken, (value) => subtitle.classList.toggle("is-resting", value));
 			write(cache.hud, "time", timecode(time), (value) => { if (hudTime) hudTime.textContent = value; });
 
 			const sweep = panelAt(plan, time);
@@ -6938,9 +7127,16 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 		const { useEffect, useLayoutEffect, useMemo, useRef, useState } = react;
 		const ANALYSIS_WAIT_MS = 700;
 		const FAILED_NOTICE_MS = 6000;
+		// A direction that arrives sooner (from the cache) is not announced at all.
+		const STATUS_DELAY_MS = 400;
 		const t = (key, fallback) => root.I18n?.t?.(key) || fallback;
 
-		return react.memo(({ lyrics = [], trackUri = "", accent = "", isPlaying = false, title = "", artist = "" }) => {
+		/**
+		 * onStatus: the app shows the AI direction's progress with its other AI
+		 * tasks; it is called with { phase: "loading" | "complete" | "failed" |
+		 * "idle", uri }. Without it the stage shows its own notice.
+		 */
+		return react.memo(({ lyrics = [], trackUri = "", accent = "", isPlaying = false, title = "", artist = "", onStatus = null }) => {
 			const rootRef = useRef(null);
 			const viewportRef = useRef(null);
 			const cameraRef = useRef(null);
@@ -6954,6 +7150,7 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 			const liveRef = useRef(null);
 			const hudShotRef = useRef(null);
 			const hudTimeRef = useRef(null);
+			const defsRef = useRef(null);
 			const engineRef = useRef(null);
 			const measureRef = useRef(null);
 			const [size, setSize] = useState({ width: 0, height: 0 });
@@ -7008,6 +7205,7 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 					live: liveRef.current,
 					hudShot: hudShotRef.current,
 					hudTime: hudTimeRef.current,
+					defs: defsRef.current,
 				});
 				return () => {
 					observer?.disconnect();
@@ -7129,6 +7327,36 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 				: showFailure
 					? { kind: "failed", text: t("vinyl.presentation.motionDirectFailed", "AI direction failed. Using the built-in direction.") }
 					: null;
+
+			// The app's status list: loading once the AI takes a while, then done or failed.
+			const onStatusRef = useRef(onStatus);
+			onStatusRef.current = onStatus;
+			const reportedRef = useRef(null);
+			const reports = typeof onStatus === "function";
+			const loading = ai.status === "loading" && ai.key === aiKey;
+			useEffect(() => {
+				if (!reports) return undefined;
+				if (loading) {
+					const timer = root.setTimeout(() => {
+						reportedRef.current = { key: aiKey, uri: trackUri };
+						onStatusRef.current?.({ phase: "loading", uri: trackUri });
+					}, STATUS_DELAY_MS);
+					return () => root.clearTimeout(timer);
+				}
+				const reported = reportedRef.current;
+				if (reported) {
+					reportedRef.current = null;
+					const phase = reported.key !== ai.key ? "idle" : ai.status === "ready" ? "complete" : ai.status === "failed" ? "failed" : "idle";
+					onStatusRef.current?.({ phase, uri: reported.uri });
+				}
+				return undefined;
+			}, [reports, loading, ai.status, ai.key, aiKey, trackUri]);
+			useEffect(() => () => {
+				const reported = reportedRef.current;
+				reportedRef.current = null;
+				if (reported) onStatusRef.current?.({ phase: "idle", uri: reported.uri });
+			}, []);
+
 			const e = react.createElement;
 			return e("div", {
 				ref: rootRef,
@@ -7146,6 +7374,8 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 				},
 			},
 				e("div", { ref: scrimRef, className: "ivlyrics-motion-scrim", "aria-hidden": "true" }),
+				// The outline filters (createOutlines) are added here by the engine.
+				e("svg", { ref: defsRef, className: "ivlyrics-motion-defs", width: 0, height: 0, "aria-hidden": "true", focusable: "false" }),
 				e("div", { ref: washRef, className: "ivlyrics-motion-wash", "aria-hidden": "true" }),
 				e("div", { ref: floodRef, className: "ivlyrics-motion-flood", "aria-hidden": "true" }),
 				e("div", { ref: viewportRef, className: "ivlyrics-motion-viewport", "aria-hidden": "true" },
@@ -7163,7 +7393,7 @@ if (typeof globalThis !== "undefined") globalThis.TinySegmenter = TinySegmenter;
 						e("span", { ref: hudShotRef }),
 						direction?.source === "ai" ? e("span", { className: "ivlyrics-motion-hud-ai" }, "AI") : null),
 					e("div", { ref: hudTimeRef, className: "ivlyrics-motion-hud-time" })),
-				status ? e("div", { className: "ivlyrics-motion-status is-" + status.kind, role: "status" },
+				status && !reports ? e("div", { className: "ivlyrics-motion-status is-" + status.kind, role: "status" },
 					e("span", { className: "ivlyrics-motion-status-dot", "aria-hidden": "true" }), status.text) : null,
 				e("div", { ref: subtitleRef, className: "ivlyrics-motion-subtitle", "aria-hidden": "true" }),
 				e("div", { ref: liveRef, className: "ivlyrics-motion-live", "aria-live": "polite" })
