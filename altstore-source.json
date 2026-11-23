@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.22",
+          "buildVersion": "96",
+          "date": "2026-11-23",
+          "localizedDescription": "v2.0.22는 모션 가사 모드를 대폭 확장하여 AI 연출의 재생성, 장면 구성, 가사 전환 효과와 배경 표현을 강화했습니다. 사용자는 움직임 강도, 화면 회전, 광과민성 안전 모드를 조절할 수 있으며, AI가 곡별·줄별 연출을 더 일관되게 유지합니다. 또한 배포 메타데이터와 빌드 정보가 정비되었습니다.\n\nv2.0.22 substantially expands Motion Lyrics with AI re-direction, richer scene composition, lyric transitions, and background presentation. Users can control motion intensity, screen rotation, and a photosensitivity-safe mode, while AI-directed per-line visuals remain more consistent. Distribution metadata and build information have also been maintained.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.22/ivLyrics-IOS-v2.0.22-unsigned.ipa",
+          "size": 15112410,
+          "sha256": "25760d5818be1efc826af7fca9649530988130973929b4f0c47534a3067a5975",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.21",
           "buildVersion": "95",
           "date": "2026-11-23",
