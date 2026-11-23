@@ -28,7 +28,7 @@ enum MotionLyricsSong {
     /// The JSON the page takes in setTrack, in the desktop app's line format. Empty without a track.
     static func json(track: TrackSnapshot?, lyrics: LyricsResult, accentHex: String, language: String) -> String {
         guard let track, track.hasUsableMetadata else { return "" }
-        let object: [String: Any] = [
+        var object: [String: Any] = [
             "uri": uri(for: track),
             "title": track.title,
             "artist": track.artist,
@@ -36,6 +36,10 @@ enum MotionLyricsSong {
             "language": language,
             "lyrics": lyrics.karaoke ? lyrics.lines.map(line) : []
         ]
+        // The album art's colours go to the AI director (the page reads an http(s) image).
+        if let cover = track.artworkURL, ["http", "https"].contains(cover.scheme?.lowercased() ?? "") {
+            object["cover"] = cover.absoluteString
+        }
         guard let data = try? JSONSerialization.data(withJSONObject: object),
               let json = String(data: data, encoding: .utf8) else { return "" }
         return json
@@ -184,6 +188,10 @@ struct MotionLyricsWebView: UIViewRepresentable {
     var labels: [String: String]
     var aiAvailable: Bool
     var insets: EdgeInsets
+    /// The viewer's comfort: { intensity: calm | normal | wild, rotation: full | gentle | off, safe }.
+    var motion: [String: Any]
+    /// Counts "direct again": each step asks the page for a new edit of the song.
+    var retake: Int
     var bridge: Bridge
 
     func makeCoordinator() -> Coordinator {
@@ -216,10 +224,11 @@ struct MotionLyricsWebView: UIViewRepresentable {
         coordinator.bridge = bridge
         coordinator.wanted = Coordinator.Wanted(
             songJSON: songJSON,
-            options: Coordinator.optionsJSON(labels: labels, aiAvailable: aiAvailable, insets: insets),
+            options: Coordinator.optionsJSON(labels: labels, aiAvailable: aiAvailable, insets: insets, motion: motion),
             positionMs: positionMs,
             playing: playing,
-            rate: rate
+            rate: rate,
+            retake: retake
         )
         coordinator.flush()
     }
@@ -251,6 +260,7 @@ struct MotionLyricsWebView: UIViewRepresentable {
             var positionMs: Double
             var playing: Bool
             var rate: Double
+            var retake: Int
         }
 
         weak var webView: WKWebView?
@@ -259,12 +269,14 @@ struct MotionLyricsWebView: UIViewRepresentable {
         private var ready = false
         private var sentSong: String?
         private var sentOptions: String?
+        private var sentRetake = 0
 
-        static func optionsJSON(labels: [String: String], aiAvailable: Bool, insets: EdgeInsets) -> String {
+        static func optionsJSON(labels: [String: String], aiAvailable: Bool, insets: EdgeInsets, motion: [String: Any]) -> String {
             json([
                 "labels": labels,
                 "ai": aiAvailable,
                 "background": true,
+                "motion": motion,
                 "insets": [
                     "top": Double(insets.top),
                     "right": Double(insets.trailing),
@@ -285,6 +297,11 @@ struct MotionLyricsWebView: UIViewRepresentable {
                 sentSong = wanted.songJSON
                 run("ivLyricsMotionHost.setTrack(\(wanted.songJSON.isEmpty ? "null" : wanted.songJSON))")
             }
+            // "Direct again": the page counts the new edits per song.
+            if wanted.retake > sentRetake {
+                sentRetake = wanted.retake
+                run("ivLyricsMotionHost.redirect()")
+            }
             run("ivLyricsMotionHost.setPlayback({position:\(Int64(wanted.positionMs.rounded())),playing:\(wanted.playing),rate:\(wanted.rate > 0 ? wanted.rate : 1)})")
         }
 
@@ -295,6 +312,8 @@ struct MotionLyricsWebView: UIViewRepresentable {
                 ready = true
                 sentSong = nil
                 sentOptions = nil
+                // A reloaded page starts from the song's first edit; earlier requests are not replayed.
+                sentRetake = wanted?.retake ?? 0
                 flush()
             case "eligible":
                 bridge?.eligible(message["uri"] as? String ?? "", message["value"] as? Bool ?? false)
@@ -371,14 +390,22 @@ struct MotionLyricsModeView: View {
 #endif
         return 3
     }()
-    /// The close button sits in the top trailing corner; the page keeps its small print clear of it.
-    private static let closeButtonReserve: CGFloat = 52
+    /// The options menu and the close button sit in the top trailing corner; the page keeps its small print clear of them.
+    private static let closeButtonReserve: CGFloat = 100
+    static let intensities = ["calm", "normal", "wild"]
+    static let rotations = ["full", "gentle", "off"]
 
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppViewModel
     @Binding var isPresented: Bool
     let camera: MotionBackdropCamera
 
+    // The viewer's comfort (the desktop app's motion intensity, screen rotation and photosensitivity-safe settings).
+    @AppStorage("motion_lyrics_intensity") private var motionIntensity = "normal"
+    @AppStorage("motion_lyrics_rotation") private var motionRotation = "full"
+    @AppStorage("motion_lyrics_safe") private var motionSafe = false
+    /// "Direct again" presses while the mode is open.
+    @State private var retake = 0
     @State private var songJSON = ""
     @State private var accentHex = ""
     /// The track the page last judged, and its verdict.
@@ -402,6 +429,12 @@ struct MotionLyricsModeView: View {
                         ],
                         aiAvailable: model.motionDirectionAvailable,
                         insets: pageInsets(proxy.safeAreaInsets),
+                        motion: [
+                            "intensity": Self.intensities.contains(motionIntensity) ? motionIntensity : "normal",
+                            "rotation": Self.rotations.contains(motionRotation) ? motionRotation : "full",
+                            "safe": motionSafe
+                        ],
+                        retake: retake,
                         bridge: bridge
                     )
                 }
@@ -420,7 +453,10 @@ struct MotionLyricsModeView: View {
                         .transition(.opacity)
                 }
 
-                closeButton
+                HStack(spacing: 8) {
+                    optionsMenu
+                    closeButton
+                }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(.top, 14)
                     .padding(.trailing, 16)
@@ -464,6 +500,46 @@ struct MotionLyricsModeView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(settings.t("button.close"))
         .accessibilityIdentifier("motion.close")
+    }
+
+    /// A new edit of the song, and how much the motion moves, turns and flashes.
+    private var optionsMenu: some View {
+        Menu {
+            Button {
+                retake += 1
+                showControls()
+            } label: {
+                Label(settings.t("motion.redirect"), systemImage: "arrow.triangle.2.circlepath")
+            }
+            Picker(selection: $motionIntensity) {
+                Text(settings.t("motion.intensity_calm")).tag("calm")
+                Text(settings.t("motion.intensity_normal")).tag("normal")
+                Text(settings.t("motion.intensity_wild")).tag("wild")
+            } label: {
+                Label(settings.t("motion.intensity"), systemImage: "waveform.path")
+            }
+            .pickerStyle(.menu)
+            Picker(selection: $motionRotation) {
+                Text(settings.t("motion.rotation_full")).tag("full")
+                Text(settings.t("motion.rotation_gentle")).tag("gentle")
+                Text(settings.t("motion.rotation_off")).tag("off")
+            } label: {
+                Label(settings.t("motion.rotation"), systemImage: "rotate.right")
+            }
+            .pickerStyle(.menu)
+            Toggle(isOn: $motionSafe) {
+                Label(settings.t("motion.safe"), systemImage: "eye.trianglebadge.exclamationmark")
+            }
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(width: 40, height: 40)
+                .background(.black.opacity(0.42), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(settings.t("motion.options"))
+        .accessibilityIdentifier("motion.options")
     }
 
     /// Only once the song's lyrics have loaded and the page has turned them down.

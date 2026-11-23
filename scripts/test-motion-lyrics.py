@@ -27,7 +27,7 @@ enum IvLyricsUtilities { static func sha256(_ value: String) -> String { String(
 struct LyricsResult { var lines: [LyricsLine]; var karaoke: Bool }
 struct TrackSnapshot {
     var title = "Song"; var artist = "Singer"; var trackId = ""; var stableKey = "song|singer|1"
-    var hasUsableMetadata = true
+    var hasUsableMetadata = true; var artworkURL: URL? = nil
 }
 
 var count = 0
@@ -87,13 +87,18 @@ check((unledVocals["lead"] as? [String: Any])?["text"] as? String == "oh", "With
 check((unledVocals["background"] as? [[String: Any]])?.first?["text"] as? String == "yeah", "and the other still sings")
 let unsynced = decode(MotionLyricsSong.json(track: TrackSnapshot(trackId: "id1"), lyrics: .init(lines: [plain], karaoke: false), accentHex: "", language: ""))
 check((unsynced["lyrics"] as? [Any])?.isEmpty == true, "A line-synced result sends no lyrics, so the page turns it down")
+// The album art's colours go to the AI director: an http(s) image only.
+let covered = decode(MotionLyricsSong.json(track: TrackSnapshot(trackId: "id1", artworkURL: URL(string: "https://i.scdn.co/image/abc")), lyrics: .init(lines: [plain], karaoke: true), accentHex: "", language: ""))
+check(covered["cover"] as? String == "https://i.scdn.co/image/abc", "The cover's address rides along")
+let local = decode(MotionLyricsSong.json(track: TrackSnapshot(trackId: "id1", artworkURL: URL(fileURLWithPath: "/tmp/cover.jpg")), lyrics: .init(lines: [plain], karaoke: true), accentHex: "", language: ""))
+check(local["cover"] == nil, "A local file is not sent")
 print("Motion lyrics regression: \(count) checks passed")
 '''
 
 # The page and the calls into it.
 page = (SRC / "Resources" / "MotionLyricsPage.html").read_text()
 assert page.startswith('<!doctype html>\n<html lang="en" data-motion-build="'), "MotionLyricsPage.html is the built page"
-for call in ("configure", "setTrack", "setPlayback", "resolve"):
+for call in ("configure", "setTrack", "setPlayback", "resolve", "redirect"):
     assert "ivLyricsMotionHost." + call + "(" in motion and ("\t\t" + call + ",") in page, call
 assert 'forResource: "MotionLyricsPage", withExtension: "html"' in motion
 assert "messageHandlers?.ivLyricsMotion" in page and 'static let handlerName = "ivLyricsMotion"' in motion
@@ -130,8 +135,16 @@ assert "!snapshot.provider.translationOnly && snapshot.hasApiKey && snapshot.has
 
 strings = json.loads((SRC / "Resources" / "AppI18nStrings.json").read_text())
 for locale, values in strings.items():
-    for key in ("motion.mode", "motion.unavailable", "motion.directing", "motion.direct_failed"):
+    for key in ("motion.mode", "motion.unavailable", "motion.directing", "motion.direct_failed", "motion.options", "motion.redirect",
+                "motion.intensity", "motion.intensity_calm", "motion.intensity_normal", "motion.intensity_wild",
+                "motion.rotation", "motion.rotation_full", "motion.rotation_gentle", "motion.rotation_off", "motion.safe"):
         assert values.get(key, "").strip(), f"{locale} lacks {key}"
+
+# The viewer's comfort and "direct again" reach the page from the mode's options menu.
+assert '"motion": motion,' in motion and "ivLyricsMotionHost.redirect()" in motion
+assert '@AppStorage("motion_lyrics_intensity")' in motion and '@AppStorage("motion_lyrics_rotation")' in motion and '@AppStorage("motion_lyrics_safe")' in motion
+assert "retake: retake," in motion and "retake += 1" in motion and 'accessibilityIdentifier("motion.options")' in motion
+assert "sentRetake = wanted?.retake ?? 0" in motion, "a reloaded page does not replay earlier requests"
 
 with tempfile.TemporaryDirectory(prefix="ivlyrics-motion-") as temp:
     path = Path(temp)
