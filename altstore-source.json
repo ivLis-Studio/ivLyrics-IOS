@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.21",
+          "buildVersion": "95",
+          "date": "2026-11-23",
+          "localizedDescription": "v2.0.21은 모션 가사 화면의 표시 품질과 애니메이션 안정성을 개선했습니다. 카메라 전환, 세로 방향, 단어 효과, 번역 배치 및 AI 안내 문구를 다듬었으며, 배포 메타데이터와 빌드 정보도 정리했습니다.\n\nv2.0.21 improves visual quality and animation stability on the Motion Lyrics page. It refines camera transitions, orientation handling, word effects, translation placement, and the AI notice, while also updating build and distribution metadata.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.21/ivLyrics-IOS-v2.0.21-unsigned.ipa",
+          "size": 15046042,
+          "sha256": "12d272e61aa89e4adbd462e949cc92c7c491e90b483f7e0a74fcdf757c46a832",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.20",
           "buildVersion": "94",
           "date": "2026-11-20",
