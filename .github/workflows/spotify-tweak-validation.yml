@@ -59,7 +59,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check shared core and explicit runtime bridge offline
         run: |
           python3 spotify-tweak/Core/check_core.py

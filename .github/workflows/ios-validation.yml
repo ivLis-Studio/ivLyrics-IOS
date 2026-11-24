@@ -145,7 +145,7 @@ jobs:
   validate:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Select newest Xcode
@@ -251,7 +251,7 @@ jobs:
 
       - name: Save native UI evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-settings-ui
           if-no-files-found: warn
@@ -266,7 +266,7 @@ jobs:
 
       - name: Save optimized navigation evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-settings-navigation
           path: ${{ runner.temp }}/settings-navigation/navigation.xcresult
@@ -279,7 +279,7 @@ jobs:
 
       - name: Save motion lyrics evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-motion-lyrics-ui
           path: ${{ runner.temp }}/settings-navigation/motion-lyrics.xcresult
