@@ -137,6 +137,10 @@ Xcode에서 `ivLyrics-IOS.xcodeproj`를 열고 서명 계정과 번들 ID를 지
 
 </details>
 
+## 라이선스
+
+ivLyrics는 [ivLyrics Source-Available License 1.0](LICENSE)을 따르는 소스 공개 소프트웨어입니다. 소스를 읽고, 공식 배포본을 설치해 쓰고, 포크해서 직접 고쳐 보거나 PR로 기여할 수 있습니다. 공식 채널 밖에서 원본이나 수정본을 재배포하는 것, ivLyrics 코드(서버 통신 코드·엔드포인트·키 포함)를 다른 프로그램에 넣는 것, 다른 프로그램에서 ivLyrics 서버를 사용하는 것은 허용되지 않습니다. 법적 효력은 영문 [LICENSE](LICENSE) 전문을 기준으로 합니다. 포함된 외부 구성요소와 다른 라이선스가 적용되는 파일은 [NOTICE.md](NOTICE.md)에 정리되어 있습니다.
+
 ## 면책 조항
 
 > **비공식 프로젝트 안내**

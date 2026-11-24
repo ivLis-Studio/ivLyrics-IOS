@@ -131,6 +131,10 @@ Simulator checks do not establish a working device Spotify connection. The [Llam
 
 </details>
 
+## License
+
+ivLyrics is source-available software under the [ivLyrics Source-Available License 1.0](LICENSE). You may read the source, install and use official releases, fork it to make your own changes, and contribute through pull requests. You may not redistribute the original or a modified version outside official channels, put ivLyrics code (including server communication code, endpoints, and keys) into other software, or use the ivLyrics servers from other software. [NOTICE.md](NOTICE.md) lists included third-party components and files under other licenses.
+
 ## Disclaimer
 
 > **Unofficial project**
