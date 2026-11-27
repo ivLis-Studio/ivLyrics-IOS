@@ -6,9 +6,10 @@ import XCTest
 @MainActor
 final class MotionLyricsUITests: XCTestCase {
     private var app: XCUIApplication!
-    /// The close button fades after three idle seconds in the app. A loaded runner takes longer
-    /// than that between two taps, so the fixture keeps the button for this long instead.
-    private let controlsSeconds: TimeInterval = 15
+    /// The close button fades after three idle seconds in the app. A loaded CI runner has taken
+    /// over 20 seconds to deliver the tap that follows a reveal, so the fixture keeps the button
+    /// for this long instead.
+    private let controlsSeconds: TimeInterval = 30
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
@@ -40,10 +41,12 @@ final class MotionLyricsUITests: XCTestCase {
         // screen is driven by touch where a finger would land.
         pause(controlsSeconds + 1.5)
         capture("motion-idle")
+        // Worked out before the reveal, whose tap starts the button's window.
+        let close = closePoint(of: root, in: window)
         // The page itself takes no touches, so a tap anywhere must bring the button back.
         window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(root.exists, "A tap on the page must not close the mode")
-        closePoint(of: root, in: window).tap()
+        close.tap()
         wait("closed", timeout: 12) { !root.exists && window.frame.width < window.frame.height }
         capture("motion-closed")
     }

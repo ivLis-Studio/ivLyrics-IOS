@@ -209,6 +209,10 @@ struct MotionLyricsWebView: UIViewRepresentable {
         view.scrollView.contentInsetAdjustmentBehavior = .never
         // Touches belong to the mode's own controls.
         view.isUserInteractionEnabled = false
+        // The page only draws; the mode's own controls carry everything assistive technology needs.
+        // SwiftUI's accessibilityHidden stops at the representable, so the web view hides its own
+        // tree. That also keeps every accessibility query from waiting on the busy page.
+        view.accessibilityElementsHidden = true
         context.coordinator.webView = view
         context.coordinator.bridge = bridge
         if let url = Bundle.main.url(forResource: "MotionLyricsPage", withExtension: "html") {
