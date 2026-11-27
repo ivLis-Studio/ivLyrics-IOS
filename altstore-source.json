@@ -20,6 +20,16 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "2.0.23",
+          "buildVersion": "97",
+          "date": "2026-11-27",
+          "localizedDescription": "v2.0.23에서는 AI 키 없이도 발음 표기를 생성하는 Pronunciation Lab을 추가했으며, 기본적으로 활성화되어 설정된 AI 제공업체의 처리 뒤에 결과를 제공합니다. 가사 행과 화면 속 화면, 모션 가사 엔진의 프레임별 작업을 줄여 재생 중 효율과 반응성을 개선했습니다. 또한 라이선스 및 배포 메타데이터를 정비했습니다.\n\nv2.0.23 adds Pronunciation Lab, which generates pronunciation annotations without an AI key and is enabled by default, returning results after any enabled AI provider. It also reduces per-frame work in lyric rows, Picture in Picture, and the motion lyrics engine for more efficient playback. Licensing and distribution metadata have been updated as well.",
+          "downloadURL": "https://github.com/ivLis-Studio/ivLyrics-IOS/releases/download/v2.0.23/ivLyrics-IOS-v2.0.23-unsigned.ipa",
+          "size": 15133763,
+          "sha256": "03b7788eec3152297ab564c485cc70d023ef2d7a1e61c5323db788eb9f590dbd",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.0.22",
           "buildVersion": "96",
           "date": "2026-11-23",
