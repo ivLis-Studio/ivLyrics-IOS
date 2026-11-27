@@ -46,6 +46,9 @@ on:
       - 'ivLyrics-IOS/ContentView.swift'
       - 'ivLyrics-IOS/Karaoke*.swift'
       - 'scripts/test-karaoke-expressive.py'
+      - 'ivLyrics-IOS/TimelineIntervalCache.swift'
+      - 'ivLyrics-IOS/Utilities.swift'
+      - 'scripts/test-frame-work-reuse.py'
       - 'scripts/fixtures/karaoke-expressive-desktop.json'
       - 'ivLyrics-IOS/AppViewModel.swift'
       - 'ivLyrics-IOS/CommunityVideoClient.swift'
@@ -110,6 +113,9 @@ on:
       - 'ivLyrics-IOS/ContentView.swift'
       - 'ivLyrics-IOS/Karaoke*.swift'
       - 'scripts/test-karaoke-expressive.py'
+      - 'ivLyrics-IOS/TimelineIntervalCache.swift'
+      - 'ivLyrics-IOS/Utilities.swift'
+      - 'scripts/test-frame-work-reuse.py'
       - 'scripts/fixtures/karaoke-expressive-desktop.json'
       - 'ivLyrics-IOS/AppViewModel.swift'
       - 'ivLyrics-IOS/CommunityVideoClient.swift'
@@ -177,6 +183,7 @@ jobs:
           python3 scripts/test-karaoke-expressive.py
           python3 scripts/test-karaoke-display-metadata.py
           python3 scripts/test-timeline-cache.py
+          python3 scripts/test-frame-work-reuse.py
           python3 scripts/test-provider-overlap.py
           python3 scripts/test-pip-selection-cache.py
           python3 scripts/test-pip-static-frame-cache.py

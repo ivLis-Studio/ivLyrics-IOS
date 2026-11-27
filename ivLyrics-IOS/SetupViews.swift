@@ -439,7 +439,8 @@ struct FirstLanguagePromptSheetView: View {
         if translationEnabled && !snapshot.hasAnyTranslationProvider {
             hints.append("first_language.translation_provider_required")
         }
-        if pronunciationEnabled && !snapshot.hasReadyAIProvider {
+        // Pronunciation Lab writes pronunciation without an AI provider while it is on.
+        if pronunciationEnabled && !snapshot.hasLinePronunciationProvider {
             hints.append("first_language.pronunciation_ai_provider_hint")
         }
         return hints

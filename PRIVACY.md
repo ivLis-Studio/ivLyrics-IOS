@@ -34,7 +34,7 @@ ivLyrics follows playback in the Spotify app (Spotify App Remote) and, if you tu
 
 ### Translation, pronunciation and AI features (optional)
 
-When you turn these on, lyrics and song information go from your device directly to the service you choose: free Google or Microsoft (Bing) translation, or an AI provider with your own key, such as OpenAI, Google Gemini, Anthropic, Groq, OpenRouter, Perplexity, DeepL or Pollinations. That provider's privacy policy applies. The on-device AI option runs entirely on your iPhone or iPad; its model is downloaded from Hugging Face.
+When you turn these on, lyrics and song information go from your device directly to the service you choose: free Google or Microsoft (Bing) translation, or an AI provider with your own key, such as OpenAI, Google Gemini, Anthropic, Groq, OpenRouter, Perplexity, DeepL or Pollinations. That provider's privacy policy applies. The on-device AI option runs entirely on your iPhone or iPad; its model is downloaded from Hugging Face. Pronunciation Lab, which is on by default, also writes pronunciation on your device without sending lyrics anywhere; it downloads its rules and dictionaries from jsDelivr.
 
 Song stories send the song's title, artist and album and your language to ivLyrics services, which may use Google Gemini or another AI service to write them. Results may be cached.
 
@@ -94,7 +94,7 @@ ivLyrics는 Spotify 개발자 대시보드에서 직접 만든 Client ID로 Spot
 
 ### 번역·발음·AI 기능(선택)
 
-이 기능을 켜면 가사와 곡 정보가 내 기기에서 직접, 내가 고른 서비스로 전송돼요. 무료 Google·Microsoft(Bing) 번역이나, 내 키를 넣은 OpenAI, Google Gemini, Anthropic, Groq, OpenRouter, Perplexity, DeepL, Pollinations 같은 AI 제공자예요. 해당 제공자의 개인정보 처리방침이 적용돼요. 기기 내 AI는 iPhone·iPad 안에서만 실행되며, 모델은 Hugging Face에서 내려받아요.
+이 기능을 켜면 가사와 곡 정보가 내 기기에서 직접, 내가 고른 서비스로 전송돼요. 무료 Google·Microsoft(Bing) 번역이나, 내 키를 넣은 OpenAI, Google Gemini, Anthropic, Groq, OpenRouter, Perplexity, DeepL, Pollinations 같은 AI 제공자예요. 해당 제공자의 개인정보 처리방침이 적용돼요. 기기 내 AI는 iPhone·iPad 안에서만 실행되며, 모델은 Hugging Face에서 내려받아요. 기본으로 켜진 Pronunciation Lab도 가사를 밖으로 보내지 않고 기기 안에서 발음을 만들며, 규칙과 사전은 jsDelivr에서 내려받아요.
 
 곡 이야기 기능은 곡 제목, 아티스트, 앨범과 사용 언어를 ivLyrics 서비스에 보내고, 서비스는 Google Gemini 같은 AI 서비스로 내용을 만들 수 있어요. 결과는 캐시될 수 있어요.
 

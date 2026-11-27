@@ -89,6 +89,10 @@ def probe(source, name, cache_name, original):
     func segmentKind(for syllable: LyricsLine.Syllable) -> String {
         syllable.inlineStyle == true ? syllable.styleKind ?? normalizedKind : normalizedKind
     }
+    // The current assembly derives the row kind once per evaluation and passes it in.
+    func segmentKind(for syllable: LyricsLine.Syllable, baseKind: String) -> String {
+        syllable.inlineStyle == true ? syllable.styleKind ?? baseKind : baseKind
+    }
 '''
     code += f"var preparedKaraoke: {cache_name}.Value {{\n"
     code += f"let key = {cache_name}.Key(text: text, ruby: markup, syllables: source, granularity: granularity, locale: locale, annotations: culturalAnnotations, start: sourceStart, end: sourceEnd, synthetic: synthetic)\n"

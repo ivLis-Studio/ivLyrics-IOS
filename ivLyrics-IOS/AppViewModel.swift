@@ -2989,6 +2989,44 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    @Published private(set) var pronunciationLabTesting = false
+
+    /// Pronunciation Lab's connection test, the same on every platform: 猫 read as Japanese and
+    /// written for Korean readers passes when a reading comes back (네코). The first test of a
+    /// session downloads the library and the Japanese dictionaries.
+    func testPronunciationLab() {
+#if DEBUG
+        if debugSettingsUIConsumesAction() { return }
+#endif
+        guard !pronunciationLabTesting else { return }
+        pronunciationLabTesting = true
+        Task { @MainActor [weak self] in
+            var reason = ""
+            var valid = false
+            do {
+                let conversion = try await PronunciationLabRepository.shared.convert(
+                    lines: ["猫"],
+                    sourceLang: "ja",
+                    lang: "ko",
+                    notation: AppSettings.pronunciationNotationTranslation
+                )
+                let reading = conversion.lines.first?.trimmed ?? ""
+                valid = !reading.isEmpty && reading != "猫"
+                self?.appendLog("pronunciation lab test: 猫 -> \(reading) / version=\(conversion.version)")
+            } catch let error as PronunciationLabError {
+                reason = error.message(uiLanguage: self?.settings.uiLang ?? "en")
+                self?.appendLog("pronunciation lab test failed: \(error.code) / \(error.localizedDescription)")
+            } catch {
+                self?.appendLog("pronunciation lab test failed: \(error.localizedDescription)")
+            }
+            guard let self else { return }
+            pronunciationLabTesting = false
+            let result = settings.t(valid ? "pollinations.status_valid" : "pollinations.status_invalid")
+            // Nothing secret is involved, so a known reason is shown with the result.
+            showSavedToast(reason.isEmpty ? result : "\(result) · \(reason)")
+        }
+    }
+
     func saveAiSettingsAndRegenerate() {
         showSavedToast(settings.t("toast.settings_saved"))
         regenerateCurrentAiSupplements(statusKey: "toast.settings_saved")
@@ -5247,11 +5285,12 @@ final class AppViewModel: ObservableObject {
         }
         let rule = snapshot.ruleForSource(sourceLang)
         let targetLang = snapshot.resolveTargetLanguage(sourceLang: sourceLang)
-        let selectedAiReady = snapshot.hasReadyAIProvider
+        // The same gate as AiLyricsRepository.loadSupplements: an AI provider or Pronunciation Lab.
+        let pronunciationProviderReady = snapshot.hasLinePronunciationProvider
         let translationRequested = rule.translationEnabled
             && !snapshot.shouldSkipTranslation(sourceLang: sourceLang, resolvedTargetLang: targetLang)
         let translation = translationRequested && snapshot.hasAnyTranslationProvider
-        return (rule.pronunciationEnabled && selectedAiReady, translation)
+        return (rule.pronunciationEnabled && pronunciationProviderReady, translation)
     }
 
     private func effectiveSelectedSourceLang(lines: [LyricsLine]) -> String {
@@ -5605,7 +5644,7 @@ final class AppViewModel: ObservableObject {
             playerPositionMs: playerPositionMs,
             playing: track.playing,
             spotifyDJContext: spotifyDJContext,
-            spotifyDJSegment: Self.isSpotifyDJSegment(track),
+            spotifyDJSegment: spotifyDJSegment(track),
             spotifyContextKnown: spotifyContextKnown,
             uptime: uptime
         )
@@ -5626,6 +5665,20 @@ final class AppViewModel: ObservableObject {
         guard track.artist.trimmed.lowercased() == "dj x" else { return false }
         let title = track.title.trimmed.lowercased()
         return title == "welcome" || title == "up next"
+    }
+
+    /// isSpotifyDJSegment(_:) for the track on screen. The display clock asks on every frame and
+    /// the answer only changes with the title and artist, so it is not re-derived (two string
+    /// copies per frame) while they stay the same.
+    private var spotifyDJSegmentCheck: (title: String, artist: String, segment: Bool)?
+
+    private func spotifyDJSegment(_ track: TrackSnapshot) -> Bool {
+        if let check = spotifyDJSegmentCheck, check.title == track.title, check.artist == track.artist {
+            return check.segment
+        }
+        let segment = Self.isSpotifyDJSegment(track)
+        spotifyDJSegmentCheck = (track.title, track.artist, segment)
+        return segment
     }
 
     private func updatePictureInPictureState(force: Bool = false) {

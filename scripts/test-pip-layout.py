@@ -12,6 +12,7 @@ SRC = ROOT / "ivLyrics-IOS"
 controller = (SRC / "LyricsPictureInPictureController.swift").read_text()
 settings = (SRC / "AppSettings.swift").read_text()
 models = (SRC / "Models.swift").read_text()
+utilities = (SRC / "Utilities.swift").read_text()
 
 
 def declaration(source, prefix):
@@ -27,6 +28,8 @@ def declaration(source, prefix):
 code = 'import Foundation\nimport CoreGraphics\nextension String { var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) } }\n'
 code += models[models.index("struct LyricsLine:"):models.index("enum LyricsTextShaping {")]
 code += 'enum IvLyricsUtilities { static func lyricsTextsEquivalent(_ left: String, _ right: String) -> Bool { left.trimmed == right.trimmed } }\n'
+# Supplements read the pronunciation through the shared per-pair cache (Utilities.swift).
+code += declaration(utilities, "enum LyricsPronunciationDisplay {") + "\n"
 code += "enum AppSettings {\n"
 for name in ["pipOrientationPortrait", "pipOrientationSquare", "pipOrientationLandscape", "typoLyricsPronunciation", "typoLyricsTranslation"]:
     code += next(line for line in settings.splitlines() if line.strip().startswith(f"static let {name} =")) + "\n"

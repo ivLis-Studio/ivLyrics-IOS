@@ -22,6 +22,7 @@ Code that oneulddu contributed through pull requests remains the copyright of it
 | [Pretendard](https://github.com/orioncactus/pretendard) by Kil Hyung-jin | SIL Open Font License 1.1 | `ivLyrics-IOS/Resources/Fonts/`, notice in [Pretendard-OFL.txt](ivLyrics-IOS/Resources/Fonts/Pretendard-OFL.txt) |
 | [TinySegmenter](http://chasen.org/~taku/software/TinySegmenter/) by Taku Kudo, Swift port | BSD-3-Clause | `ivLyrics-IOS/TinySegmenter.swift`, notice in [TinySegmenter.LICENSE.txt](ivLyrics-IOS/TinySegmenter.LICENSE.txt) |
 | [llama.cpp](https://github.com/ggml-org/llama.cpp) b11364 | MIT | Downloaded at build time as a binary framework; see [Packages/LlamaCpp](Packages/LlamaCpp/README.md) |
+| [pronunciation-lab](https://github.com/ivLis-Studio/pronunciation-lab) | GPL-3.0 | Not included in the app or this repository. When the Pronunciation Lab provider is used, `ivLyrics-IOS/Resources/PronunciationLabPage.html` (generated from ivLyrics for PC) downloads the newest release and its dictionaries from jsDelivr at run time |
 
 ## Lyrics and other content
 

@@ -14,6 +14,7 @@ struct HTTPStatusError: Error { let statusCode: Int; let message: String }
 enum PaxsenixAIProvider { static let baseURL="https://fixture.test", dashboardURL="https://fixture.test" }
 enum KeylessTranslationProviders { static let bingId="bing-translate", googleId="google-translate" }
 enum LocalAI { static let providerId="local-ai", label="Local AI" }
+enum PronunciationLabRepository { static let providerId="pronunciation-lab", label="Pronunciation Lab" }
 enum AppSettings {
 // PROVIDERS
 // PROVIDER
@@ -111,6 +112,7 @@ final class FixtureProtocol: URLProtocol {
         var settings=AppSettings.Snapshot()
         settings.aiProviderOrder=["deepl"]; settings.aiProviderEnabled=["deepl":true]; settings.profiles=["deepl":("fixture", "")]
         check(settings.hasAnyTranslationProvider && !settings.hasReadyAIProvider && !settings.hasEnabledAIProvider, "DeepL alone translates without enabling AI")
+        check(!settings.hasLinePronunciationProvider, "DeepL never writes pronunciation")
         settings.profiles["deepl"]=("fixture", "legacy-model")
         check(settings.readyAIProviderSnapshots.isEmpty, "saved model does not enable AI")
         settings.profiles["deepl"]=("", "")
@@ -128,5 +130,5 @@ with tempfile.TemporaryDirectory(prefix='ivlyrics-deepl-') as directory:
     (directory/'Helpers.swift').write_text(helpers)
     (directory/'Regression.swift').write_text(checks)
     binary=directory/'regression'
-    subprocess.run(['swiftc',str(directory/'Helpers.swift'),str(SRC/'DeepLTranslationProvider.swift'),str(directory/'Regression.swift'),'-o',str(binary)],check=True)
+    subprocess.run(['swiftc',str(directory/'Helpers.swift'),str(SRC/'DeepLTranslationProvider.swift'),str(SRC/'PerplexityAgentAPI.swift'),str(directory/'Regression.swift'),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

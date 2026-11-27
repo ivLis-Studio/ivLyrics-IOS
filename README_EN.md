@@ -79,7 +79,8 @@ In **Settings → General**, choose what to display and the output languages. In
 | Feature | Provider setup |
 | --- | --- |
 | Lyric translation | Bing Translate and Google Translate need no personal API key. DeepL requires an API key. All three are translation-only. |
-| AI translation and pronunciation | Configure a supported AI service such as Gemini, an OpenAI-compatible API, or Claude, including its connection and model. Pronunciation needs a configured AI provider. |
+| Pronunciation without a key | **Pronunciation Lab** writes pronunciation only, using rules and dictionaries instead of AI. It needs no API key and is on from the start. It downloads the language data it needs on first use. Some languages, such as Russian and Thai, and synced pronunciation are not supported. |
+| AI translation and pronunciation | Configure a supported AI service such as Gemini, an OpenAI-compatible API, or Claude, including its connection and model. More natural or synced pronunciation needs a configured AI provider. |
 | On-device lyric translation | Enable **Local AI** and download a model. It does not generate pronunciation or translate titles and artists. |
 | Readings above Japanese kanji | Enable Japanese furigana separately from translation and AI pronunciation. |
 
@@ -112,7 +113,7 @@ If you installed from the App Store, update through the [App Store](https://apps
 | Web API cannot connect | Check Dashboard allowlist, Premium requirements, and callback rejection. Try App Remote with Web API off first. |
 | Missing or wrong lyrics | Change providers or use manual LRCLIB search in current-track settings; clear that song's cache if needed. |
 | Timing is off | Check song and Bluetooth offsets. Detailed display depends on available timing data. |
-| Translation without pronunciation | Bing, Google, DeepL, and Local AI are translation-only. Check AI credentials/model and the pronunciation rule for that song language. |
+| Translation without pronunciation | Bing, Google, DeepL, and Local AI are translation-only. Check that Pronunciation Lab is on and supports the song language, then check AI credentials/model and the pronunciation rule for that song language. |
 | Local AI is slow or fails | Try Light quality, check storage/memory, and run the provider test with the app in the foreground. |
 | 403, 429, or provider errors | Check account access and usage limits. Wait before retrying or select another provider. |
 

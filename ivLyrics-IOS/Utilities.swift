@@ -464,6 +464,53 @@ enum IvLyricsUtilities {
     }
 }
 
+/// The pronunciation shown under a lyric: the trimmed pronunciation, or "" when it is empty or
+/// reads the same as the original (IvLyricsUtilities.lyricsTextsEquivalent). That comparison
+/// normalizes both strings with NFKC and up to five regular expressions, and the rows that show it
+/// ask on every display frame while they follow the playback clock (the active lyric row and each
+/// PiP frame), so every answer is kept per string pair. Pure function of its two arguments.
+enum LyricsPronunciationDisplay {
+    private struct Key: Hashable {
+        var pronunciation: String
+        var original: String
+    }
+
+    private final class Cache: @unchecked Sendable {
+        static let limit = 512
+        let lock = NSLock()
+        var values: [Key: String] = [:]
+    }
+
+    private static let cache = Cache()
+
+    static func distinct(_ pronunciation: String, original: String) -> String {
+        let key = Key(pronunciation: pronunciation, original: original)
+        cache.lock.lock()
+        if let value = cache.values[key] {
+            cache.lock.unlock()
+            return value
+        }
+        cache.lock.unlock()
+        let value = uncachedDistinct(pronunciation, original: original)
+        cache.lock.lock()
+        if cache.values.count >= Cache.limit {
+            cache.values.removeAll(keepingCapacity: true)
+        }
+        cache.values[key] = value
+        cache.lock.unlock()
+        return value
+    }
+
+    static func uncachedDistinct(_ pronunciation: String, original: String) -> String {
+        let trimmed = pronunciation.trimmed
+        guard !trimmed.isEmpty,
+              !IvLyricsUtilities.lyricsTextsEquivalent(trimmed, original) else {
+            return ""
+        }
+        return trimmed
+    }
+}
+
 struct HTTPStatusError: LocalizedError, Sendable {
     var statusCode: Int
     var message: String

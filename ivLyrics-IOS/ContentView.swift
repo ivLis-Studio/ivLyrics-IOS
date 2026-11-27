@@ -97,6 +97,9 @@ private struct AndroidSlidingMetadataText: View {
     @State private var animationStart = Date()
 
     var body: some View {
+#if DEBUG && os(iOS)
+        let _ = debugProbeCount(.metadataBody)
+#endif
         let font = measuredFont
         let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width)
         let lineHeight = ceil(font.lineHeight)
@@ -4541,8 +4544,11 @@ private struct MainLyricPreviewRowView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .center)
         case .text:
+            // Settings are read once per evaluation: this row renders on every display frame while
+            // it follows the playback clock, and each read looks the stored JSON up in UserDefaults.
+            let typography = self.typography
             MainLyricPreviewSlideLayout(lineProgress: lineProgress) {
-                previewTextView
+                previewTextView(typography: typography)
                     .font(typography.font(slotId: row.slotId, baseSize: row.primary ? 17 : 14.5))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
@@ -4619,8 +4625,9 @@ private struct MainLyricPreviewRowView: View {
     }
 
     @ViewBuilder
-    private var previewTextView: some View {
+    private func previewTextView(typography: AppSettings.TypographySettings) -> some View {
         if shouldRenderTimedKaraoke || shouldRenderRuby {
+            let speakerColors = self.speakerColors
             SyllableKaraokeText(
                 text: row.text,
                 rubyText: settings.japaneseFuriganaEnabled ? row.rubyText : "",
@@ -6952,13 +6959,10 @@ struct LyricsLineView: View, Equatable {
         }
     }
 
+    /// Read on every display frame while the row follows the clock; the comparison behind it
+    /// (NFKC and regular expressions over both strings) is kept per string pair.
     private func distinctPronunciation(_ value: String, original: String) -> String {
-        let pronunciation = value.trimmed
-        guard !pronunciation.isEmpty,
-              !IvLyricsUtilities.lyricsTextsEquivalent(pronunciation, original) else {
-            return ""
-        }
-        return pronunciation
+        LyricsPronunciationDisplay.distinct(value, original: original)
     }
 
     private func fadingSupplementText(
@@ -7126,6 +7130,13 @@ struct LyricsLineView: View, Equatable {
 }
 
 struct SyllableKaraokeText: View {
+    /// Line and inline-style kinds that keep moving while their row is active (the same list as
+    /// PictureInPictureLyricsTimeline.continuousEffectKinds). One constant instead of a set literal
+    /// rebuilt on every evaluation of a karaoke row.
+    private static let continuousEffectKinds: Set<String> = [
+        "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
+        "wave", "sparkle", "echo", "whisper", "glow", "blur", "flicker"
+    ]
     @State private var preparationCache = KaraokeRenderPreparationCache()
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.lyricsSegmentationLocale) private var lyricsSegmentationLocale
@@ -7238,7 +7249,12 @@ struct SyllableKaraokeText: View {
         let displaySyllables = prepared.display
         var timedSegments: [KaraokeSyllableSegment] = []
         timedSegments.reserveCapacity(displaySyllables.count)
-        let pendingPose = expressiveMotionActive
+        // Derived once per evaluation instead of once per unit: each derivation trims and
+        // lowercases a setting string, and the active row evaluates on every display frame.
+        let expressive = expressiveMotionActive
+        let wordGranularity = isWordDisplayGranularity
+        let baseKind = normalizedKind
+        let pendingPose = expressive
             ? KaraokeExpressiveMotion.pendingPose(active: active, positionMs: paintPositionMs,
                                                   lineStartMs: Double(startTimeMs), lineEndMs: Double(endTimeMs))
             : 0
@@ -7251,18 +7267,20 @@ struct SyllableKaraokeText: View {
             )
             guard !syllable.text.isEmpty else { continue }
             let metadata = prepared.displayMetadata[index]
-            let bounce = karaokeMotion(at: index, prepared: prepared, pendingPose: pendingPose)
+            let bounce = karaokeMotion(at: index, prepared: prepared, pendingPose: pendingPose,
+                                       expressive: expressive)
             timedSegments.append(KaraokeSyllableSegment(
                 id: index,
                 text: syllable.text,
                 rubyText: metadata.rubyText,
                 fill: fillFraction(
                     startTimeMs: fillTiming.startTimeMs,
-                    endTimeMs: fillTiming.endTimeMs
+                    endTimeMs: fillTiming.endTimeMs,
+                    wordGranularity: wordGranularity
                 ),
                 baseColor: segmentBaseColor(for: syllable),
                 activeColor: segmentActiveColor(for: syllable),
-                kind: segmentKind(for: syllable),
+                kind: segmentKind(for: syllable, baseKind: baseKind),
                 bounceOffsetY: bounce.offsetY,
                 bounceScale: bounce.scale,
                 glow: bounce.glow,
@@ -7421,20 +7439,16 @@ struct SyllableKaraokeText: View {
     }
 
     private var hasInlineEffects: Bool {
-        let effectKinds: Set<String> = [
-            "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
-            "wave", "sparkle", "echo", "whisper", "glow", "blur", "flicker"
-        ]
-        return syllables.contains {
+        syllables.contains {
             $0.inlineStyle == true
-                && effectKinds.contains(($0.styleKind ?? "").trimmed.lowercased())
+                && Self.continuousEffectKinds.contains(($0.styleKind ?? "").trimmed.lowercased())
         }
     }
 
-    private func segmentKind(for syllable: LyricsLine.Syllable) -> String {
-        guard syllable.inlineStyle == true else { return normalizedKind }
+    private func segmentKind(for syllable: LyricsLine.Syllable, baseKind: String) -> String {
+        guard syllable.inlineStyle == true else { return baseKind }
         let value = (syllable.styleKind ?? "").trimmed.lowercased()
-        return value.isEmpty ? normalizedKind : value
+        return value.isEmpty ? baseKind : value
     }
 
     private func segmentActiveColor(for syllable: LyricsLine.Syllable) -> Color {
@@ -7479,24 +7493,23 @@ struct SyllableKaraokeText: View {
     }
 
     private func requiresContinuousEffect(_ displayKind: String) -> Bool {
-        let continuousKinds: Set<String> = [
-            "effect", "adlib", "pulse", "bounce", "sway", "float", "pop", "glitch",
-            "wave", "sparkle", "echo", "whisper", "glow", "blur", "flicker"
-        ]
-        let canRenderInlineEffects = !LyricsTextShaping.requiresContinuousShaping(text)
-        return active && (continuousKinds.contains(displayKind) || (canRenderInlineEffects && syllables.contains {
+        // Inactive rows never animate, so they skip the text and unit scans below.
+        guard active else { return false }
+        let continuousKinds = Self.continuousEffectKinds
+        if continuousKinds.contains(displayKind) { return true }
+        return !LyricsTextShaping.requiresContinuousShaping(text) && syllables.contains {
             $0.inlineStyle == true && continuousKinds.contains(($0.styleKind ?? "").trimmed.lowercased())
-        }))
+        }
     }
 
-    private func fillFraction(startTimeMs: Int64, endTimeMs: Int64) -> CGFloat {
+    private func fillFraction(startTimeMs: Int64, endTimeMs: Int64, wordGranularity: Bool) -> CGFloat {
         // Retain the completed paint while the parent line moves and fades away.
         // Previously `active == false` reset every segment to its inactive color
         // in one frame at the line boundary.
         if endTimeMs > startTimeMs, positionMs >= endTimeMs {
             return 1
         }
-        if isWordDisplayGranularity {
+        if wordGranularity {
             return positionMs >= startTimeMs ? 1 : 0
         }
         if positionMs >= endTimeMs {
@@ -7554,9 +7567,10 @@ struct SyllableKaraokeText: View {
     private func karaokeMotion(
         at index: Int,
         prepared: KaraokeRenderPreparationCache.Value,
-        pendingPose: Double
+        pendingPose: Double,
+        expressive: Bool
     ) -> KaraokeBounceMetrics {
-        guard expressiveMotionActive else {
+        guard expressive else {
             return karaokeBounce(profile: prepared.motionProfiles.indices.contains(index)
                 ? prepared.motionProfiles[index] : nil)
         }
@@ -10384,6 +10398,8 @@ struct SettingsView: View {
         var translation: String?
         for providerId in snapshot.enabledAIProviderOrder {
             guard let provider = AppSettings.aiProviderById(providerId) else { continue }
+            // Pronunciation Lab writes pronunciation only.
+            if provider.pronunciationOnly { continue }
             if provider.isKeyless {
                 translation = provider.label
             } else if provider.isLocal {
@@ -10396,7 +10412,8 @@ struct SettingsView: View {
             }
             if translation != nil { break }
         }
-        let pronunciation = snapshot.readyAIProviderSnapshots.first?.provider.label
+        // The first provider asked for line pronunciation: a ready AI provider or Pronunciation Lab.
+        let pronunciation = snapshot.linePronunciationProviderIds.first.flatMap(AppSettings.aiProviderById)?.label
         return (translation, pronunciation)
     }
 
@@ -10639,13 +10656,29 @@ struct SettingsView: View {
             .padding(.leading, 32)
             .opacity(enabled ? 1 : 0.5)
             HStack(spacing: 8) {
-                capabilityChip(settings.t("lyrics.translation"), systemImage: "translate", isOwner: owners.translation == provider.label && enabled)
+                if !provider.pronunciationOnly {
+                    capabilityChip(settings.t("lyrics.translation"), systemImage: "translate", isOwner: owners.translation == provider.label && enabled)
+                }
+                // AI providers and Pronunciation Lab write pronunciation; the translation-only ones do not.
                 if !provider.translationOnly {
                     capabilityChip(settings.t("lyrics.pronunciation"), systemImage: "speaker.wave.2", isOwner: owners.pronunciation == provider.label && enabled)
                 }
             }
             .padding(.leading, 32)
             .opacity(enabled ? 1 : 0.5)
+            if provider.pronunciationOnly {
+                // Keyless providers have no connection card, so Pronunciation Lab's test is on its card.
+                Button {
+                    model.testPronunciationLab()
+                } label: {
+                    SettingsButtonLabel(title: settings.t(model.pronunciationLabTesting ? "pollinations.status_testing" : "pollinations.test"),
+                                        busy: model.pronunciationLabTesting)
+                }
+                .buttonStyle(SettingsButtonStyle())
+                .disabled(model.pronunciationLabTesting)
+                .padding(.leading, 32)
+                .accessibilityIdentifier("settings.ai.test.\(provider.id)")
+            }
         }
         .padding(.leading, 14)
         .padding(.trailing, 12)

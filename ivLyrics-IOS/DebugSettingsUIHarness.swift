@@ -91,9 +91,11 @@ struct DebugSettingsUIRoot: View {
                          forKey: "landscape_auto_hide_controls")
         }
         // Explicit provider flags stop credential migration; this suite never uses real saved settings.
-        defaults.set("{\"google-translate\":false,\"bing-translate\":false}", forKey: "ai_provider_enabled_v1")
+        // Pronunciation Lab (enabled by default) stays off so the suite keeps having no pronunciation
+        // provider unless a test turns one on, and never reaches the network.
+        defaults.set("{\"google-translate\":false,\"bing-translate\":false,\"pronunciation-lab\":false}", forKey: "ai_provider_enabled_v1")
         if ProcessInfo.processInfo.environment["IVLYRICS_UI_TRANSLATION_PROVIDER"] == "keyless" {
-            defaults.set("{\"google-translate\":true,\"bing-translate\":true}", forKey: "ai_provider_enabled_v1")
+            defaults.set("{\"google-translate\":true,\"bing-translate\":true,\"pronunciation-lab\":false}", forKey: "ai_provider_enabled_v1")
         }
         if ProcessInfo.processInfo.environment["IVLYRICS_UI_CONFIGURED_LANGUAGE"] == "1" {
             defaults.set(true, forKey: "translation_enabled")

@@ -161,6 +161,22 @@ final class AppSettings: ObservableObject {
         defaultEnabled: false,
         isLocal: true
     )
+    /// Rule- and dictionary-based line pronunciation (PronunciationLabRepository), keyless and
+    /// pronunciation-only. Enabled by default like the keyless translators and placed after every
+    /// other provider, so the AI providers a user turned on answer first and Pronunciation Lab
+    /// writes the pronunciation when they fail or none is set up. normalizedAIProviderOrder
+    /// appends it to saved orders.
+    static let pronunciationLabProvider = Provider(
+        id: PronunciationLabRepository.providerId,
+        label: PronunciationLabRepository.label,
+        description: "",
+        defaultBaseUrl: "",
+        defaultModel: "",
+        apiKeyURL: "",
+        isKeyless: true,
+        defaultEnabled: true,
+        pronunciationOnly: true
+    )
     static let allAIProviders: [Provider] = [
         Provider(
             id: KeylessTranslationProviders.bingId,
@@ -182,7 +198,7 @@ final class AppSettings: ObservableObject {
             isKeyless: true,
             defaultEnabled: true
         )
-    ] + providers + [localAIProvider]
+    ] + providers + [localAIProvider, pronunciationLabProvider]
     static let defaultAIProviderOrder = allAIProviders.map(\.id)
 
     static let languages: [Language] = [
@@ -2075,9 +2091,11 @@ final class AppSettings: ObservableObject {
             AppSettings.normalizedAIProviderOrder(aiProviderOrder).filter(isAIProviderEnabled)
         }
 
+        /// Ready AI providers that answer prompts, in the user's order. Every AI task except plain
+        /// line pronunciation uses only these (pronunciation by unit, timing, research, notes...).
         var readyAIProviderSnapshots: [Snapshot] {
             enabledAIProviderOrder.compactMap { providerId in
-                guard let provider = AppSettings.aiProviderById(providerId), !provider.translationOnly,
+                guard let provider = AppSettings.aiProviderById(providerId), provider.answersPrompts,
                       let snapshot = selectingAIProvider(providerId), snapshot.hasApiKey, snapshot.hasModel else {
                     return nil
                 }
@@ -2089,10 +2107,26 @@ final class AppSettings: ObservableObject {
             !readyAIProviderSnapshots.isEmpty
         }
 
+        /// The providers asked for plain line pronunciation, in the user's order: the ready AI
+        /// providers and the enabled pronunciation-only provider (Pronunciation Lab), which needs
+        /// no key or model. Pronunciation by sung unit and pronunciation timing stay with the AI.
+        var linePronunciationProviderIds: [String] {
+            enabledAIProviderOrder.filter { providerId in
+                guard let provider = AppSettings.aiProviderById(providerId) else { return false }
+                if provider.pronunciationOnly { return true }
+                guard provider.answersPrompts, let snapshot = selectingAIProvider(providerId) else { return false }
+                return snapshot.hasApiKey && snapshot.hasModel
+            }
+        }
+
+        var hasLinePronunciationProvider: Bool {
+            !linePronunciationProviderIds.isEmpty
+        }
+
         var hasEnabledAIProvider: Bool {
             enabledAIProviderOrder.contains { providerId in
                 guard let provider = AppSettings.aiProviderById(providerId) else { return false }
-                return !provider.translationOnly
+                return provider.answersPrompts
             }
         }
 
@@ -2225,6 +2259,9 @@ final class AppSettings: ObservableObject {
                     }
                     continue
                 }
+                // Pronunciation Lab only writes line pronunciation: translation, metadata, research
+                // and notes keep the keys they had before it existed. linePronunciationCacheKey adds it.
+                if AppSettings.aiProviderById(providerId)?.pronunciationOnly == true { continue }
                 key += "|provider=\(providerId):enabled=\(isAIProviderEnabled(providerId))"
                 if let profile = aiProviderProfiles[providerId] {
                     key += ":model=\(profile.model):url=\(profile.baseUrl):tok=\(profile.maxTokens):temp=\(profile.temperature)"
@@ -2239,6 +2276,19 @@ final class AppSettings: ObservableObject {
                 key += "|rule=\(rule.cacheKey)"
             }
             return key
+        }
+
+        /// cacheKey, plus Pronunciation Lab when it writes the line pronunciation: when it comes
+        /// before every ready AI provider. Behind one it is a fallback like any later provider, so
+        /// the key stays the one from before Pronunciation Lab existed and the pronunciation an AI
+        /// already wrote stays cached through the update. Moving it in front of the AI providers,
+        /// or their becoming unavailable, changes the key, and so does turning it off again.
+        var linePronunciationCacheKey: String {
+            guard let writer = linePronunciationProviderIds.first,
+                  AppSettings.aiProviderById(writer)?.pronunciationOnly == true else {
+                return cacheKey
+            }
+            return cacheKey + "|pronunciationProvider=\(writer)"
         }
 
         var localAIConfiguration: LocalAI.Configuration {
@@ -2445,11 +2495,19 @@ final class AppSettings: ObservableObject {
         var defaultBaseUrl: String
         var defaultModel: String
         var apiKeyURL: String
-        var translationOnly: Bool { isKeyless || isLocal || id == "deepl" }
+        /// Translates and does nothing else: the keyless translators, Local AI and DeepL.
+        var translationOnly: Bool { !pronunciationOnly && (isKeyless || isLocal || id == "deepl") }
         var isKeyless: Bool = false
         var defaultEnabled: Bool = false
         /// Runs on this device (Local AI): no key, translation only.
         var isLocal: Bool = false
+        /// Writes plain line pronunciation and does nothing else (Pronunciation Lab, keyless). It is
+        /// never asked to translate, research, annotate, direct motion lyrics or split pronunciation
+        /// over sung units, and it is not an AI provider that answers prompts.
+        var pronunciationOnly: Bool = false
+        /// A prompt-driven AI provider (API key and model) that can take every AI task. For the
+        /// providers that existed before Pronunciation Lab this is exactly !translationOnly.
+        var answersPrompts: Bool { !translationOnly && !pronunciationOnly }
     }
 
     struct AIProviderProfile: Codable, Hashable, Sendable {

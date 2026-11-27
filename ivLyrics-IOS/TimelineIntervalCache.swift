@@ -11,6 +11,10 @@ final class TimelineIntervalCache<Value> {
     }
     private let boundaries: [Int64]
     private var values = BoundedLRUCache<Key, Value>(capacity: 4)
+    /// The entry returned last. It is always the most recently used one in `values`, so answering a
+    /// repeated query from it leaves the LRU order and contents exactly as a lookup there would.
+    /// Consecutive display frames almost always ask for the same interval.
+    private var last: (key: Key, value: Value)?
 
     init(boundaries: [Int64]) {
         self.boundaries = Array(Set(boundaries)).sorted()
@@ -25,9 +29,14 @@ final class TimelineIntervalCache<Value> {
         }
         let key = Key(interval: lower, duration: duration, afterTrackEnd: position >= duration,
                       automaticInterludes: automaticInterludes)
-        if let value = values.value(forKey: key) { return value }
+        if let last, last.key == key { return last.value }
+        if let value = values.value(forKey: key) {
+            last = (key, value)
+            return value
+        }
         let value = compute()
         values.insert(value, forKey: key)
+        last = (key, value)
         return value
     }
 }

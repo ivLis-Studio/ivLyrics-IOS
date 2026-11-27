@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en" data-pronunciation-lab-build="dbb5af2127e4b912">
+<head>
+<meta charset="utf-8">
+<!-- ivLyrics Pronunciation Lab bridge for the mobile apps. Built by .github/scripts/build_pronunciation_lab_mobile.mjs in the ivLyrics repository; edit the sources there, not this file. -->
+<!-- pronunciation-lab (https://github.com/ivLis-Studio/pronunciation-lab, GPL-3.0) is not part of this page. The page imports the newest release from jsDelivr at run time. -->
+</head>
+<body>
+<script>
+(() => {
+  var __defProp = Object.defineProperty;
+  var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+
+  // src/providers/ai/pronunciationLabEngine.mjs
+  var PRONUNCIATION_LAB_REPOSITORY = "ivLis-Studio/pronunciation-lab";
+  var PRONUNCIATION_LAB_LATEST_RELEASE_URL = "https://data.jsdelivr.com/v1/packages/gh/" + PRONUNCIATION_LAB_REPOSITORY + "/resolved?specifier=latest";
+  var pronunciationLabModuleUrl = /* @__PURE__ */ __name((version) => "https://cdn.jsdelivr.net/gh/" + PRONUNCIATION_LAB_REPOSITORY + "@" + version + "/dist/pronunciation.mjs", "pronunciationLabModuleUrl");
+  var PRONUNCIATION_LAB_FALLBACK_MODULE_URL = pronunciationLabModuleUrl("latest");
+  var PRONUNCIATION_LAB_ERRORS = Object.freeze({
+    UNSUPPORTED_TARGET: "PRONUNCIATION_LAB_UNSUPPORTED_TARGET",
+    UNSUPPORTED_SOURCE: "PRONUNCIATION_LAB_UNSUPPORTED_SOURCE",
+    LOAD_FAILED: "PRONUNCIATION_LAB_LOAD_FAILED",
+    ABORTED: "PRONUNCIATION_LAB_ABORTED"
+  });
+  var RELEASE_VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u;
+  var RELEASE_LOOKUP_TIMEOUT_MS = 8e3;
+  async function resolvePronunciationLabModuleUrl({
+    fetch: fetchImpl = globalThis.fetch,
+    timeoutMs = RELEASE_LOOKUP_TIMEOUT_MS
+  } = {}) {
+    const fallback = { url: PRONUNCIATION_LAB_FALLBACK_MODULE_URL, version: "latest" };
+    if (typeof fetchImpl !== "function") return fallback;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const response = await fetchImpl(
+        PRONUNCIATION_LAB_LATEST_RELEASE_URL,
+        controller ? { signal: controller.signal } : void 0
+      );
+      if (!response?.ok) return fallback;
+      const version = String((await response.json())?.version ?? "").trim();
+      return RELEASE_VERSION.test(version) ? { url: pronunciationLabModuleUrl(version), version } : fallback;
+    } catch {
+      return fallback;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+  __name(resolvePronunciationLabModuleUrl, "resolvePronunciationLabModuleUrl");
+  var SOURCE_LANGUAGES = Object.freeze({
+    ja: "japanese",
+    jp: "japanese",
+    ko: "korean",
+    kr: "korean",
+    zh: "mandarin",
+    cmn: "mandarin",
+    cn: "mandarin",
+    tw: "mandarin",
+    yue: "cantonese",
+    en: "english",
+    es: "spanish",
+    fr: "french",
+    de: "german",
+    it: "italian",
+    pt: "portuguese",
+    nl: "dutch",
+    sv: "swedish",
+    no: "norwegian",
+    nb: "norwegian",
+    nn: "norwegian",
+    fi: "finnish",
+    is: "icelandic",
+    ro: "romanian",
+    ar: "arabic",
+    fa: "persian",
+    km: "khmer",
+    or: "odia",
+    vi: "vietnamese",
+    ms: "malay",
+    // Indonesian spelling reads like Malay; the library has no separate profile.
+    id: "malay",
+    sw: "swahili",
+    eo: "esperanto",
+    jam: "jamaican"
+  });
+  var CANTONESE_CODES = /* @__PURE__ */ new Set(["yue", "zh-hk", "zh-mo", "zh-yue"]);
+  var TRADITIONAL_CHINESE_CODES = /* @__PURE__ */ new Set(["tw", "zh-tw", "zh-hant", "zh-hk", "zh-mo"]);
+  var SIMPLIFIED_CHINESE_CODES = /* @__PURE__ */ new Set(["cn", "zh-cn", "zh-hans", "zh-sg"]);
+  var LATIN_SCRIPT_SOURCES = /* @__PURE__ */ new Set([
+    "english",
+    "spanish",
+    "french",
+    "german",
+    "italian",
+    "portuguese",
+    "dutch",
+    "swedish",
+    "norwegian",
+    "finnish",
+    "icelandic",
+    "romanian",
+    "malay",
+    "vietnamese",
+    "swahili",
+    "esperanto",
+    "jamaican"
+  ]);
+  var SCRIPT_TARGETS = Object.freeze({
+    ko: "korean",
+    ja: "japanese",
+    ar: "arabic",
+    fa: "persian",
+    es: "spanish",
+    fr: "french",
+    de: "german",
+    it: "italian",
+    pt: "portuguese",
+    sv: "swedish",
+    nl: "dutch",
+    no: "norwegian",
+    nb: "norwegian",
+    nn: "norwegian",
+    fi: "finnish",
+    is: "icelandic",
+    ro: "romanian",
+    vi: "vietnamese",
+    ms: "malay",
+    id: "malay",
+    sw: "swahili",
+    eo: "esperanto"
+  });
+  var UNWRITABLE_TARGETS = /* @__PURE__ */ new Set(["zh-cn", "zh-tw", "hi", "ru", "bn", "th"]);
+  var LATIN_TARGET = "jamaican";
+  var normalizeCode = /* @__PURE__ */ __name((value) => String(value ?? "").trim().toLowerCase().replace(/_/gu, "-"), "normalizeCode");
+  var baseCode = /* @__PURE__ */ __name((code) => code.split("-")[0], "baseCode");
+  var normalizeNotation = /* @__PURE__ */ __name((value) => {
+    const notation = String(value ?? "").trim().toLowerCase();
+    return notation === "latin" || notation === "ipa" ? notation : "translation";
+  }, "normalizeNotation");
+  function resolvePronunciationLabOutput(lang, notation) {
+    const normalizedNotation = normalizeNotation(notation);
+    if (normalizedNotation === "ipa") return { kind: "ipa" };
+    if (normalizedNotation === "latin") return { kind: "latin" };
+    const code = normalizeCode(lang) || "en";
+    const target = SCRIPT_TARGETS[code] || SCRIPT_TARGETS[baseCode(code)];
+    if (target) return { kind: "script", target };
+    if (UNWRITABLE_TARGETS.has(code) || UNWRITABLE_TARGETS.has(baseCode(code))) return null;
+    return { kind: "latin" };
+  }
+  __name(resolvePronunciationLabOutput, "resolvePronunciationLabOutput");
+  function resolvePronunciationLabSource(sourceLang) {
+    const code = normalizeCode(sourceLang);
+    if (!code || code === "auto" || code === "off") return null;
+    if (CANTONESE_CODES.has(code)) return { source: "cantonese", variant: "" };
+    const source = SOURCE_LANGUAGES[code] || SOURCE_LANGUAGES[baseCode(code)];
+    if (!source) return null;
+    if (source === "mandarin") {
+      if (TRADITIONAL_CHINESE_CODES.has(code)) return { source, variant: "hant" };
+      if (SIMPLIFIED_CHINESE_CODES.has(code)) return { source, variant: "hans" };
+      return { source, variant: "" };
+    }
+    if (source === "english" && /^en-(gb|uk|ie)$/u.test(code)) return { source, variant: "UK" };
+    if (source === "spanish" && /^es-(?!es$)/u.test(code)) return { source, variant: "MX" };
+    if (source === "french" && code === "fr-ca") return { source, variant: "QC" };
+    return { source, variant: "" };
+  }
+  __name(resolvePronunciationLabSource, "resolvePronunciationLabSource");
+  var KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u;
+  var HANGUL = /\p{Script=Hangul}/u;
+  var HAN = /\p{Script=Han}/u;
+  var ARABIC = /\p{Script=Arabic}/u;
+  var KHMER = /\p{Script=Khmer}/u;
+  var ORIYA = /\p{Script=Oriya}/u;
+  var LATIN = /\p{Script=Latin}/u;
+  var LETTER = /\p{L}/u;
+  var SOUND = /[\p{L}\p{N}]/u;
+  var WHITESPACE = /^\s+$/u;
+  var UNRESOLVED = "□";
+  var SECTION_LABEL = /^\s*\[[\p{Script=Latin}\p{N}\s'’&.:#\-]+\]\s*$/u;
+  var LATIN_PHRASE = /[\p{Script=Latin}\p{M}\p{N}'’]+(?:[ \t,.!?&\-]+[\p{Script=Latin}\p{M}\p{N}'’]+)*/gu;
+  function latinRuns(line) {
+    const runs = [];
+    let last = 0;
+    for (const match of line.matchAll(LATIN_PHRASE)) {
+      if (!LATIN.test(match[0])) continue;
+      if (match.index > last) runs.push({ text: line.slice(last, match.index), latin: false });
+      runs.push({ text: match[0], latin: true });
+      last = match.index + match[0].length;
+    }
+    if (last < line.length) runs.push({ text: line.slice(last), latin: false });
+    return runs;
+  }
+  __name(latinRuns, "latinRuns");
+  function resolvePronunciationLabLineSource(line, song) {
+    const text = String(line ?? "");
+    if (KANA.test(text)) return { source: "japanese", variant: "" };
+    if (HANGUL.test(text)) return { source: "korean", variant: "" };
+    if (HAN.test(text)) {
+      return ["japanese", "mandarin", "cantonese"].includes(song?.source) ? song : { source: "mandarin", variant: "" };
+    }
+    if (ARABIC.test(text)) {
+      return ["arabic", "persian"].includes(song?.source) ? song : { source: "arabic", variant: "" };
+    }
+    if (KHMER.test(text)) return { source: "khmer", variant: "" };
+    if (ORIYA.test(text)) return { source: "odia", variant: "" };
+    const letters = Array.from(text).filter((character) => LETTER.test(character));
+    if (letters.some((character) => !LATIN.test(character))) return null;
+    if (letters.length === 0) return song || { source: "english", variant: "" };
+    return LATIN_SCRIPT_SOURCES.has(song?.source) ? song : { source: "english", variant: "" };
+  }
+  __name(resolvePronunciationLabLineSource, "resolvePronunciationLabLineSource");
+  var createError = /* @__PURE__ */ __name((code, message, cause) => {
+    const error = new Error("[Pronunciation Lab] " + message, cause ? { cause } : void 0);
+    error.code = code;
+    return error;
+  }, "createError");
+  var defaultCheckAbort = /* @__PURE__ */ __name((signal) => {
+    if (!signal?.aborted) return;
+    throw signal.reason instanceof Error ? signal.reason : createError(PRONUNCIATION_LAB_ERRORS.ABORTED, "Request cancelled");
+  }, "defaultCheckAbort");
+  var MAX_REMEMBERED_LINES = 4e3;
+  var YIELD_EVERY_MS = 12;
+  function createPronunciationLabEngine({
+    loadLibrary,
+    resolveModuleUrl = /* @__PURE__ */ __name(() => resolvePronunciationLabModuleUrl(), "resolveModuleUrl"),
+    yieldToHost = /* @__PURE__ */ __name(() => new Promise((resolve) => setTimeout(resolve, 0)), "yieldToHost"),
+    checkAbort = defaultCheckAbort,
+    now = /* @__PURE__ */ __name(() => globalThis.performance?.now ? globalThis.performance.now() : Date.now(), "now")
+  } = {}) {
+    let libraryPromise = null;
+    let loadedVersion = null;
+    const remembered = /* @__PURE__ */ new Map();
+    const library = /* @__PURE__ */ __name(() => {
+      libraryPromise ??= Promise.resolve().then(() => resolveModuleUrl()).then(async (release) => {
+        const module = await loadLibrary(release?.url || PRONUNCIATION_LAB_FALLBACK_MODULE_URL);
+        const api = module?.transliterate ? module : module?.default;
+        if (typeof api?.transliterate !== "function" || typeof api?.transcribe !== "function") {
+          throw new Error("the module has no transliterate/transcribe API");
+        }
+        loadedVersion = String(release?.version || "latest");
+        return api;
+      }).catch((error) => {
+        libraryPromise = null;
+        throw createError(
+          PRONUNCIATION_LAB_ERRORS.LOAD_FAILED,
+          "Could not load the pronunciation engine: " + (error?.message || error),
+          error
+        );
+      });
+      return libraryPromise;
+    }, "library");
+    const remember = /* @__PURE__ */ __name((key, value) => {
+      remembered.delete(key);
+      remembered.set(key, value);
+      if (remembered.size > MAX_REMEMBERED_LINES) remembered.delete(remembered.keys().next().value);
+      return value;
+    }, "remember");
+    const options = /* @__PURE__ */ __name(({ source, variant }, extra = {}) => variant ? { source, variant, ...extra } : { source, ...extra }, "options");
+    const checkReadable = /* @__PURE__ */ __name((parsed) => {
+      const unavailable = Array.isArray(parsed?.unavailableSources) ? parsed.unavailableSources : [];
+      if (unavailable.length) {
+        throw createError(
+          PRONUNCIATION_LAB_ERRORS.LOAD_FAILED,
+          "Could not load the reading data for " + unavailable.join(", ")
+        );
+      }
+      return parsed;
+    }, "checkReadable");
+    async function transcribeLine(api, line, source) {
+      if (source.source !== "mandarin" || source.variant) {
+        return { source, parsed: checkReadable(await api.transcribe(line, options(source))) };
+      }
+      let best = null;
+      for (const variant of ["hans", "hant"]) {
+        const candidate = { source: "mandarin", variant };
+        const parsed = checkReadable(await api.transcribe(line, options(candidate)));
+        if (!best || parsed.unresolved.length < best.parsed.unresolved.length) best = { source: candidate, parsed };
+        if (parsed.unresolved.length === 0) break;
+      }
+      return best;
+    }
+    __name(transcribeLine, "transcribeLine");
+    async function fallbackFor(api, segment, output) {
+      const original = String(segment?.original ?? "");
+      if (!LATIN.test(original)) return output.kind === "script" ? original : "";
+      if (output.kind === "latin") return original;
+      try {
+        if (output.kind === "ipa") {
+          const parsed = await api.transcribe(original, { source: "english" });
+          return parsed.ipa.includes(UNRESOLVED) ? "" : parsed.ipa;
+        }
+        const spelled = await api.transliterate(original, { source: "english", target: output.target });
+        return spelled.includes(UNRESOLVED) ? original : spelled;
+      } catch {
+        return output.kind === "script" ? original : "";
+      }
+    }
+    __name(fallbackFor, "fallbackFor");
+    async function patchUnresolved(api, text, segments, output, line) {
+      if (!text.includes(UNRESOLVED)) return text;
+      const pieces = text.split(UNRESOLVED);
+      const pending = segments.filter((segment) => segment.unresolved);
+      if (line.includes(UNRESOLVED) || pending.length !== pieces.length - 1) {
+        return line.includes(UNRESOLVED) ? text : pieces.join("");
+      }
+      let patched = pieces[0];
+      for (let index = 1; index < pieces.length; index++) {
+        patched += await fallbackFor(api, pending[index - 1], output) + pieces[index];
+      }
+      return patched;
+    }
+    __name(patchUnresolved, "patchUnresolved");
+    async function romanizeKorean(api, segments) {
+      let output = "";
+      let run = [];
+      const flushRun = /* @__PURE__ */ __name(async () => {
+        if (!run.length) return true;
+        const ipa = "/" + run.map((segment) => segment.ipa).join("") + "/";
+        run = [];
+        const parsed = await api.transcribe(ipa, { source: "korean", mode: "ipa" });
+        if (!parsed?.romanization) return false;
+        output += parsed.romanization.toLowerCase();
+        return true;
+      }, "flushRun");
+      for (const segment of segments) {
+        const original = String(segment?.original ?? "");
+        if (segment?.ipa && !segment.unresolved && segment.source === "korean" && !WHITESPACE.test(original)) {
+          run.push(segment);
+          continue;
+        }
+        if (!await flushRun()) return null;
+        if (LETTER.test(original) && !LATIN.test(original)) return null;
+        output += original;
+      }
+      return await flushRun() ? output : null;
+    }
+    __name(romanizeKorean, "romanizeKorean");
+    async function spellInLatin(api, text, source, output) {
+      const { source: resolved, parsed } = await transcribeLine(api, text, source);
+      if (resolved.source === "korean") {
+        const romanized = await romanizeKorean(api, parsed.segments);
+        if (romanized?.trim()) return romanized;
+      }
+      const spelled = await api.transliterate(text, options(resolved, { target: LATIN_TARGET }));
+      return patchUnresolved(api, spelled, parsed.segments, output, text);
+    }
+    __name(spellInLatin, "spellInLatin");
+    async function spellLineInLatin(api, line, source, output) {
+      const runs = source.source === "korean" ? [] : latinRuns(line);
+      if (!runs.some((run) => run.latin)) return spellInLatin(api, line, source, output);
+      let spelled = "";
+      for (const run of runs) {
+        if (run.latin || !SOUND.test(run.text)) {
+          spelled += run.text;
+          continue;
+        }
+        const [, lead, core, trail] = run.text.match(/^([^\p{L}\p{N}]*)([\s\S]*?)([^\p{L}\p{N}]*)$/u);
+        spelled += lead + await spellInLatin(api, core, source, output) + trail;
+      }
+      return spelled;
+    }
+    __name(spellLineInLatin, "spellLineInLatin");
+    async function convertLine(api, line, source, output) {
+      if (output.kind === "script") {
+        if (source.source === output.target) return line;
+        const { source: resolved, parsed: parsed2 } = await transcribeLine(api, line, source);
+        const spelled = await api.transliterate(line, options(resolved, { target: output.target }));
+        return patchUnresolved(api, spelled, parsed2.segments, output, line);
+      }
+      if (output.kind === "latin") {
+        return LATIN_SCRIPT_SOURCES.has(source.source) ? line : spellLineInLatin(api, line, source, output);
+      }
+      const { parsed } = await transcribeLine(api, line, source);
+      return patchUnresolved(api, parsed.ipa, parsed.segments, output, line);
+    }
+    __name(convertLine, "convertLine");
+    const tidy = /* @__PURE__ */ __name((value) => String(value ?? "").replace(/[ \t]+/gu, " ").trim(), "tidy");
+    function supports(lang, notation) {
+      return resolvePronunciationLabOutput(lang, notation) !== null;
+    }
+    __name(supports, "supports");
+    async function convertLines({ lines, sourceLang = "auto", lang, notation, signal, onLine } = {}) {
+      const sourceLines = (Array.isArray(lines) ? lines : []).map((line) => String(line ?? ""));
+      const output = resolvePronunciationLabOutput(lang, notation);
+      if (!output) {
+        throw createError(
+          PRONUNCIATION_LAB_ERRORS.UNSUPPORTED_TARGET,
+          "Cannot write pronunciation for language " + (String(lang || "") || "(none)")
+        );
+      }
+      const song = resolvePronunciationLabSource(sourceLang);
+      const plan = sourceLines.map((raw) => {
+        const line = raw.replace(/\r/gu, "").normalize("NFC");
+        if (!line.trim()) return { value: "" };
+        if (!SOUND.test(line) || SECTION_LABEL.test(line)) return { value: tidy(line) };
+        const source = resolvePronunciationLabLineSource(line, song);
+        return source ? { line: line.trim(), source } : { value: tidy(line), unsupported: true };
+      });
+      const unreadable = plan.find((entry) => entry.unsupported);
+      if (unreadable && !plan.some((entry) => entry.source)) {
+        throw createError(
+          PRONUNCIATION_LAB_ERRORS.UNSUPPORTED_SOURCE,
+          "Cannot read lyrics in language " + (String(sourceLang || "") || "auto")
+        );
+      }
+      if (unreadable && output.kind !== "script") {
+        throw createError(
+          PRONUNCIATION_LAB_ERRORS.UNSUPPORTED_SOURCE,
+          'Cannot read the lyric line "' + Array.from(unreadable.value).slice(0, 40).join("") + '"'
+        );
+      }
+      const results = new Array(sourceLines.length).fill("");
+      const publish = /* @__PURE__ */ __name((index, value) => {
+        results[index] = value;
+        try {
+          onLine?.(index, value);
+        } catch {
+        }
+      }, "publish");
+      let api = null;
+      let lastYield = now();
+      for (let index = 0; index < plan.length; index++) {
+        checkAbort(signal);
+        const entry = plan[index];
+        if (!entry.source) {
+          publish(index, entry.value);
+          continue;
+        }
+        const key = [output.kind, output.target || "", entry.source.source, entry.source.variant, entry.line].join("\0");
+        let value = remembered.get(key);
+        if (value === void 0) {
+          api ??= await library();
+          checkAbort(signal);
+          value = remember(key, tidy(await convertLine(api, entry.line, entry.source, output)) || entry.line);
+        } else {
+          remember(key, value);
+        }
+        publish(index, value);
+        if (now() - lastYield >= YIELD_EVERY_MS) {
+          await yieldToHost();
+          lastYield = now();
+        }
+      }
+      checkAbort(signal);
+      return results;
+    }
+    __name(convertLines, "convertLines");
+    return {
+      convertLines,
+      supports,
+      loadLibrary: library,
+      /** Release in use ("1.0.2", or "latest" after a failed lookup); null before loading. */
+      version: /* @__PURE__ */ __name(() => loadedVersion, "version")
+    };
+  }
+  __name(createPronunciationLabEngine, "createPronunciationLabEngine");
+
+  // src/providers/ai/pronunciationLabMobileBridge.mjs
+  var PRONUNCIATION_LAB_BRIDGE_ERRORS = Object.freeze({
+    ...PRONUNCIATION_LAB_ERRORS,
+    BAD_REQUEST: "PRONUNCIATION_LAB_BAD_REQUEST",
+    FAILED: "PRONUNCIATION_LAB_FAILED"
+  });
+  var codedError = /* @__PURE__ */ __name((code, message) => Object.assign(new Error("[Pronunciation Lab] " + message), { code }), "codedError");
+  function installPronunciationLabBridge({
+    root = globalThis,
+    engine = createPronunciationLabEngine({ loadLibrary: /* @__PURE__ */ __name((url) => import(url), "loadLibrary") }),
+    post = /* @__PURE__ */ __name((message) => {
+      const ios = root.webkit?.messageHandlers?.ivLyricsPronunciationLab;
+      if (ios) ios.postMessage(message);
+      else root.ivLyricsPronunciationLabNative?.postMessage?.(JSON.stringify(message));
+    }, "post")
+  } = {}) {
+    if (root.ivLyricsPronunciationLab) return root.ivLyricsPronunciationLab;
+    const send = /* @__PURE__ */ __name((message) => {
+      try {
+        post(message);
+      } catch {
+      }
+    }, "send");
+    const running = /* @__PURE__ */ new Map();
+    const readRequest = /* @__PURE__ */ __name((request) => {
+      let value = request;
+      if (typeof value === "string") {
+        try {
+          value = JSON.parse(value);
+        } catch {
+          value = null;
+        }
+      }
+      if (!value || !Array.isArray(value.lines)) {
+        throw codedError(PRONUNCIATION_LAB_BRIDGE_ERRORS.BAD_REQUEST, "A request needs a lines array");
+      }
+      return value;
+    }, "readRequest");
+    async function convert(id, request) {
+      const key = String(id ?? "");
+      running.get(key)?.abort(codedError(PRONUNCIATION_LAB_ERRORS.ABORTED, "Replaced by a newer request"));
+      const controller = new AbortController();
+      running.set(key, controller);
+      const current = /* @__PURE__ */ __name(() => running.get(key) === controller, "current");
+      try {
+        const { lines, sourceLang, lang, notation, stream } = readRequest(request);
+        const result = await engine.convertLines({
+          lines,
+          sourceLang,
+          lang,
+          notation,
+          signal: controller.signal,
+          onLine: stream ? (index, text) => {
+            if (current()) send({ type: "line", id: key, index, text });
+          } : void 0
+        });
+        if (current()) send({ type: "result", id: key, lines: result, version: engine.version() });
+      } catch (error) {
+        if (!current()) return;
+        const code = controller.signal.aborted ? PRONUNCIATION_LAB_ERRORS.ABORTED : typeof error?.code === "string" && error.code.startsWith("PRONUNCIATION_LAB_") ? error.code : PRONUNCIATION_LAB_BRIDGE_ERRORS.FAILED;
+        send({ type: "error", id: key, code, message: String(error?.message || error) });
+      } finally {
+        if (current()) running.delete(key);
+      }
+    }
+    __name(convert, "convert");
+    function cancel(id) {
+      running.get(String(id ?? ""))?.abort(codedError(PRONUNCIATION_LAB_ERRORS.ABORTED, "Request cancelled"));
+    }
+    __name(cancel, "cancel");
+    const bridge = Object.freeze({
+      convert,
+      cancel,
+      supports: /* @__PURE__ */ __name((lang, notation) => engine.supports(lang, notation), "supports"),
+      version: /* @__PURE__ */ __name(() => engine.version(), "version")
+    });
+    root.ivLyricsPronunciationLab = bridge;
+    send({ type: "ready" });
+    return bridge;
+  }
+  __name(installPronunciationLabBridge, "installPronunciationLabBridge");
+
+  // pronunciation-lab-page.mjs
+  installPronunciationLabBridge();
+})();
+</script>
+</body>
+</html>

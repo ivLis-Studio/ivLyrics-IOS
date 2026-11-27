@@ -229,10 +229,11 @@ actor AiLyricsRepository {
         let targetLang = settings.resolveTargetLanguage(sourceLang: sourceLang)
         let pronunciationLang = settings.pronunciationLanguage
         let translationSkipped = settings.shouldSkipTranslation(sourceLang: sourceLang, resolvedTargetLang: targetLang)
-        let selectedAiReady = settings.hasReadyAIProvider
+        // A ready AI provider or Pronunciation Lab (keyless) can write line pronunciation.
+        let pronunciationProviderReady = settings.hasLinePronunciationProvider
         let requestedPronunciation = rule.pronunciationEnabled
         let requestedTranslation = rule.translationEnabled && !translationSkipped
-        let needsPronunciation = requestedPronunciation && selectedAiReady
+        let needsPronunciation = requestedPronunciation && pronunciationProviderReady
         let needsTranslation = requestedTranslation && settings.hasAnyTranslationProvider
 
         guard rule.enabled else {
@@ -258,7 +259,9 @@ actor AiLyricsRepository {
             + "|source=\(sourceLang)"
             + "|detected=\(detectedSourceLang)"
             + "|prompt=\(supplementPromptVersion)"
-            + "|\(settings.cacheKey)"
+            // Only results with pronunciation can hold Pronunciation Lab's lines; translation-only
+            // results keep their keys.
+            + "|\(needsPronunciation ? settings.linePronunciationCacheKey : settings.cacheKey)"
             + "|text=\(IvLyricsUtilities.sha256(textPayload))"
         if !bypassCache {
             if let cached = memoryCache.value(forKey: cacheKey) {
@@ -279,8 +282,8 @@ actor AiLyricsRepository {
             log("ai lyrics skipped: no enabled provider is fully configured")
             return SupplementResponse(result: baseResult, logs: logs, pronunciationLoading: false, translationLoading: false, hadError: true)
         }
-        if requestedPronunciation, !selectedAiReady, needsTranslation {
-            log("ai pronunciation skipped: selected AI provider is not fully configured")
+        if requestedPronunciation, !pronunciationProviderReady, needsTranslation {
+            log("ai pronunciation skipped: no AI provider is fully configured and Pronunciation Lab is off")
         }
 
         log("ai lyrics: providers=\(settings.enabledAIProviderOrder.joined(separator: ",")) / source=\(sourceLang)\(sourceLang.caseInsensitiveCompare(detectedSourceLang) == .orderedSame ? "" : " / detected=\(detectedSourceLang)") / pronunciation=\(pronunciationLang) / target=\(targetLang) / translation=\(rule.translationEnabled) / pronunciation=\(rule.pronunciationEnabled)")
@@ -467,7 +470,8 @@ actor AiLyricsRepository {
                         partialUpdate: partialUpdate
                     )
                 }
-                // Line pronunciation of the given requests; lines already shown are kept.
+                // Line pronunciation of the given requests; lines already shown are kept. The ready AI
+                // providers and Pronunciation Lab are tried in the user's order until one answers.
                 func loadLinePronunciation(_ indices: [Int], keeping kept: [Int: String]) async throws -> [String] {
                     let subset = indices.map { requests[$0] }
                     let prompt = buildPhoneticPrompt(
@@ -478,12 +482,23 @@ actor AiLyricsRepository {
                     )
                     log("ai pronunciation stream request: lines=\(subset.count) / pronunciation=\(pronunciationLang) / notation=\(settings.pronunciationNotation)")
                     var lastError: Error?
-                    for providerSettings in settings.readyAIProviderSnapshots {
+                    for providerId in settings.linePronunciationProviderIds {
+                        guard let provider = AppSettings.aiProviderById(providerId) else { continue }
                         await liveState.reset(task: task)
                         for (index, value) in kept { await liveState.setValue(task: task, index: index, value: value) }
                         do {
-                            await providerUpdate?(task, providerSettings.provider.label)
-                            log("ai pronunciation attempt: provider=\(providerSettings.provider.label) / model=\(providerSettings.model)")
+                            await providerUpdate?(task, provider.label)
+                            if provider.pronunciationOnly {
+                                return try await loadPronunciationLabLines(
+                                    subset,
+                                    sourceLang: sourceLang,
+                                    lang: pronunciationLang,
+                                    settings: settings,
+                                    log: log
+                                )
+                            }
+                            guard let providerSettings = settings.selectingAIProvider(providerId) else { continue }
+                            log("ai pronunciation attempt: provider=\(provider.label) / model=\(providerSettings.model)")
                             return try await loadSupplementValuesStreamFirst(
                                 prompt: prompt,
                                 settings: providerSettings,
@@ -496,7 +511,7 @@ actor AiLyricsRepository {
                             }
                         } catch {
                             lastError = error
-                            log("ai pronunciation fallback: provider=\(providerSettings.provider.label) / error=\(error.localizedDescription)")
+                            log("ai pronunciation fallback: provider=\(provider.label) / error=\(error.localizedDescription)")
                         }
                     }
                     throw lastError ?? NSError(
@@ -552,6 +567,8 @@ actor AiLyricsRepository {
                 var lastError: Error?
                 for providerId in settings.enabledAIProviderOrder {
                     guard let provider = AppSettings.aiProviderById(providerId) else { continue }
+                    // Pronunciation Lab writes pronunciation only.
+                    if provider.pronunciationOnly { continue }
                     await liveState.reset(task: task)
                     do {
                         if provider.id == "deepl" {
@@ -772,6 +789,8 @@ actor AiLyricsRepository {
             guard let provider = AppSettings.aiProviderById(providerId) else { continue }
             // Local AI translates lyrics only.
             if provider.isLocal { continue }
+            // Pronunciation Lab writes lyric pronunciation only.
+            if provider.pronunciationOnly { continue }
             do {
                 let translation: MetadataTranslation
                 if provider.id == "deepl" {
@@ -1353,6 +1372,40 @@ actor AiLyricsRepository {
             return nil
         }
         return parts
+    }
+
+    // MARK: Pronunciation Lab
+
+    /// Plain line pronunciation from Pronunciation Lab (PronunciationLabRepository), for the same
+    /// lines and languages the AI pronunciation prompt gets. A failure is a provider failure: it
+    /// is logged with its code, and the next provider in the user's order is tried.
+    private func loadPronunciationLabLines(
+        _ requests: [SupplementRequest],
+        sourceLang: String,
+        lang: String,
+        settings: AppSettings.Snapshot,
+        log: (String) -> Void
+    ) async throws -> [String] {
+        let notation = AppSettings.normalizePronunciationNotation(settings.pronunciationNotation)
+        log("pronunciation lab attempt: lines=\(requests.count) / source=\(sourceLang) / pronunciation=\(lang) / notation=\(notation)")
+        do {
+            let conversion = try await PronunciationLabRepository.shared.convert(
+                lines: requests.map(\.text),
+                sourceLang: sourceLang,
+                lang: lang,
+                notation: notation
+            )
+            log("pronunciation lab response: lines=\(conversion.lines.count) / version=\(conversion.version)")
+            return conversion.lines
+        } catch let error as PronunciationLabError {
+            log("pronunciation lab error: \(error.code) / \(error.localizedDescription)")
+            // The message the user reads when every provider failed, in the app language.
+            throw NSError(
+                domain: "ivLyrics.PronunciationLab",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: error.message(uiLanguage: settings.uiLang)]
+            )
+        }
     }
 
     private func translateDeepL(texts: [String], language: String, settings: AppSettings.Snapshot,
@@ -2500,7 +2553,9 @@ actor AiLyricsRepository {
         task: String,
         outputLang: String
     ) -> String {
-        trackKey
+        // Only pronunciation can come from Pronunciation Lab, so only its key depends on it.
+        let providers = task == supplementTaskPronunciation ? settings.linePronunciationCacheKey : settings.cacheKey
+        return trackKey
             + "|source=\(sourceLang)"
             + "|detected=\(detectedSourceLang)"
             + "|prompt=\(supplementPromptVersion)"
@@ -2508,7 +2563,7 @@ actor AiLyricsRepository {
             + "|provider=\(settings.provider.id)"
             + "|model=\(settings.model)"
             + "|url=\(settings.baseUrl)"
-            + "|connections=\(IvLyricsUtilities.sha256(settings.cacheKey))"
+            + "|connections=\(IvLyricsUtilities.sha256(providers))"
             + "|tok=\(settings.maxTokens)"
             + "|temp=\(settings.temperature)"
             + "|output=\(outputLang)"

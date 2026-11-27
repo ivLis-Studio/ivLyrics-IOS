@@ -956,13 +956,32 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         return renderer.uiImage
     }
 
+    /// The next-line hint is measured on every frame while a single line shows; its height only
+    /// changes with the text, width, font and alignment, so the last measurement is kept.
+    private struct MeasuredTextHeight {
+        var text: String
+        var width: CGFloat
+        var font: UIFont
+        var alignment: NSTextAlignment
+        var height: CGFloat
+    }
+    private var lastMeasuredTextHeight: MeasuredTextHeight?
+
     private func measuredTextHeight(_ text: String, width: CGFloat, font: UIFont) -> CGFloat {
-        ceil((text as NSString).boundingRect(
+        let alignment = state.textAlignment
+        if let last = lastMeasuredTextHeight, last.text == text, last.width == width,
+           last.alignment == alignment, last.font.isEqual(font) {
+            return last.height
+        }
+        let height = ceil((text as NSString).boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: textAttributes(font: font, color: .white, alignment: state.textAlignment, lineLimit: 0),
+            attributes: textAttributes(font: font, color: .white, alignment: alignment, lineLimit: 0),
             context: nil
         ).height)
+        lastMeasuredTextHeight = MeasuredTextHeight(text: text, width: width, font: font,
+                                                    alignment: alignment, height: height)
+        return height
     }
 
     private func drawText(
@@ -1495,10 +1514,8 @@ final class LyricsPictureInPictureController: NSObject, ObservableObject {
         var progress: CGFloat
 
         var supplements: [PictureInPictureSupplementLine] {
-            let rawPronunciation = line.pronunciationText.trimmed
-            let pronunciation = IvLyricsUtilities.lyricsTextsEquivalent(rawPronunciation, line.text)
-                ? ""
-                : rawPronunciation
+            // Read on every PiP frame; the regex-based comparison is kept per string pair.
+            let pronunciation = LyricsPronunciationDisplay.distinct(line.pronunciationText, original: line.text)
             let translation = line.translationText.trimmed
             var result: [PictureInPictureSupplementLine] = []
             if !pronunciation.isEmpty {

@@ -28,7 +28,7 @@ metadata = section(repository, "    func loadMetadataTranslation(", "    func lo
 assert "if provider.isLocal { continue }" in metadata, "metadata translation must skip Local AI"
 supplement = section(repository, "    private func loadSupplementTask(", "    private func emitSupplementPartial(")
 pronunciation = section(supplement, "            if pronunciation {", "            } else {")
-assert "readyAIProviderSnapshots" in pronunciation and "LocalAI" not in pronunciation, "pronunciation must not use Local AI"
+assert "linePronunciationProviderIds" in pronunciation and "LocalAI" not in pronunciation, "pronunciation must not use Local AI"
 assert "LocalAIService.shared.translate(" in supplement, "lyrics translation must reach Local AI"
 assert "priority: partialUpdate == nil ? .background : .interactive" in supplement, "prefetch must run after lyrics on screen"
 cache_key = section(settings, "        var cacheKey: String {", "        var localAIConfiguration:")
@@ -62,6 +62,7 @@ enum KeylessTranslationProviders {
     static let bingId = "bing-translate", googleId = "google-translate"
     static let bingLabel = "Bing Translate", googleLabel = "Google Translate"
 }
+enum PronunciationLabRepository { static let providerId = "pronunciation-lab", label = "Pronunciation Lab" }
 enum AppSettings {
 // PROVIDERS
 // LOOKUP
@@ -378,12 +379,13 @@ struct Regression {
 
     static func providerList() {
         let order = AppSettings.defaultAIProviderOrder
-        check(order.last == "local-ai", "Local AI is last")
-        check(Array(order.dropLast()) == ["bing-translate", "google-translate", "gemini", "chatgpt", "claude", "openrouter", "groq",
-                                          "perplexity", "pollinations", "paxsenix", "deepl"], "existing order unchanged")
+        check(Array(order.suffix(2)) == ["local-ai", "pronunciation-lab"], "Local AI, then Pronunciation Lab last")
+        check(Array(order.dropLast(2)) == ["bing-translate", "google-translate", "gemini", "chatgpt", "claude", "openrouter", "groq",
+                                           "perplexity", "pollinations", "paxsenix", "deepl"], "existing order unchanged")
         let saved = ["deepl", "gemini", "google-translate"]
         let normalized = AppSettings.normalizedAIProviderOrder(saved)
-        check(Array(normalized.prefix(3)) == saved && normalized.last == "local-ai", "saved order kept, Local AI appended")
+        check(Array(normalized.prefix(3)) == saved && Array(normalized.suffix(2)) == ["local-ai", "pronunciation-lab"],
+              "saved order kept, Local AI and Pronunciation Lab appended")
         let local = AppSettings.aiProviderById("local-ai")!
         check(local.label == "Local AI" && local.isLocal && local.translationOnly && !local.isKeyless && !local.defaultEnabled,
               "translation-only, disabled by default")
@@ -395,6 +397,7 @@ struct Regression {
         check(snapshot.hasAnyTranslationProvider, "Local AI alone translates")
         check(!snapshot.hasReadyAIProvider && !snapshot.hasEnabledAIProvider && snapshot.readyAIProviderSnapshots.isEmpty,
               "never used for pronunciation")
+        check(snapshot.linePronunciationProviderIds.isEmpty, "never used for line pronunciation")
         snapshot.aiProviderEnabled = ["local-ai": false]
         check(!snapshot.hasAnyTranslationProvider, "disabled Local AI does not translate")
     }
